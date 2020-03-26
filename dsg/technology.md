@@ -1,4 +1,4 @@
-- Front-end infrastructure: Vue.js + Electron + TypeScript
+- Front-end infrastructure: Vue.js + Electron
 
 - Back-end infrastructure: Node.js + Sqlite3
 
