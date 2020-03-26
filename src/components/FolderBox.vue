@@ -1,19 +1,25 @@
 <template>
-  <ul class="folder-box" :class="whichLevel">
+  <ul 
+    ref="folder"
+    class="folder-box"
+    :class="whichLevel"
+    :style="{height: `${folderHeight}px`}"
+  >
     <li  v-for="(folder, index) in folders" :key="folder.id">
       <a class="folder">
         <i
           class="fa fa-angle-right folder-angle" 
-          @click="toggleSubFolder(index)">
+          @click="toggleSubfolder(index)">
         </i>
         <span class="folder-name">{{ folder.name }}</span>
         <span class="note-num">{{ folder.noteNum }}</span>
       </a>
       <FolderBox
-        v-if="folder.hasSubFolder"
-        :style="{ maxHeight: folder.subFolderHeight}"
+        v-if="folder.hasSubfolder"
+        :display="folder.display"
         :level="level + 1"
-        :folders="folder.subFolders"
+        :folders="folder.subfolders"
+        @heightChanged="flushFolderHeight"
       />
     </li>
   </ul>
@@ -32,11 +38,15 @@ export default {
       type: Array,
       required: true
     },
+    display: {
+      type: Boolean,
+      required: true
+    }
   },
 
   data() {
     return {
-      showSubFolder: false,
+      folderHeight: 0,
     }
   },
 
@@ -46,11 +56,33 @@ export default {
     }
   },
 
-  methods: {
-    toggleSubFolder(index) {
+  mounted() {
+    this.flushFolderHeight();
+  },
 
-      this.folders[index].subFolderHeight = 
-          this.folders[index].subFolderHeight == '0px' ? '300px' : '0px';
+  watch: {
+    display: function() {
+      this.flushFolderHeight();
+    }
+  },
+
+  methods: {
+    toggleSubfolder(folderId) {
+      this.folders[folderId].display = !this.folders[folderId].display;
+    },
+    
+    flushFolderHeight() {
+      if (this.display) {
+        this.$refs.folder.childNodes.forEach(ele => {
+          this.folderHeight += ele.offsetHeight;
+        })
+      } else {
+         this.folderHeight = 0;
+      }
+      this.$emit('heightChanged');
+    },
+    getFolderHeight() {
+      return this.folderHeight;
     }
   }
 }
@@ -59,7 +91,7 @@ export default {
 <style scoped>
 .folder-box {
   overflow: hidden;
-  transition: all 2s;
+  transition: all 0.3s;
 }
 
 .folder {

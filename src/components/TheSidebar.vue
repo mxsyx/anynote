@@ -1,6 +1,6 @@
 <template>
   <div id="sidebar">
-    <FolderBox :level="level" :folders="folders"/>
+    <FolderBox :level="level" :folders="folders" :display="true"/>
   </div>
 </template>
 
@@ -22,9 +22,8 @@ export default {
           id: 1,
           name: '编程语言',
           noteNum: 16,
-          hasSubFolder: true,
-          subFolderHeight: '0px',
-          subFolders: [
+          hasSubfolder: true,
+          subfolders: [
             {
               id: 88,
               name: '静态语言',
@@ -46,11 +45,45 @@ export default {
           id: 2,
           name: '网站技术',
           noteNum: 18,
+          subfolders: [
+            {
+              id: 91,
+              name: '静态语言',
+              noteNum: 26,
+            },
+            {
+              id: 92,
+              name: '脚本语言',
+              noteNum: 26,
+            },
+            {
+              id: 93,
+              name: '标记语言',
+              noteNum: 26,
+            }
+          ]
         },
         {
           id: 3,
           name: '数据科学',
           noteNum: 14,
+          subfolders: [
+            {
+              id: 71,
+              name: '静态语言',
+              noteNum: 26,
+            },
+            {
+              id: 72,
+              name: '脚本语言',
+              noteNum: 26,
+            },
+            {
+              id: 73,
+              name: '标记语言',
+              noteNum: 26,
+            }
+          ]
         }
       ]
     }
