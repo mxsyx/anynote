@@ -1,17 +1,17 @@
 <template>
   <div id="sidebar">
-    <FolderBox :level="level" :folders="folders" :display="true"/>
+    <FolderBox :level="level" :folders="folders" :expand="1" />
   </div>
 </template>
 
 <script>
-import FolderBox from '@/components/FolderBox'
+import FolderBox from "@/components/FolderBox";
 
 export default {
-  name: 'TheSidebar',
+  name: "TheSidebar",
 
   components: {
-    FolderBox,
+    FolderBox
   },
 
   data() {
@@ -20,80 +20,89 @@ export default {
       folders: [
         {
           id: 1,
-          name: '编程语言',
+          level: 0,
+          name: "编程语言",
           noteNum: 16,
           hasSubfolder: true,
+          expand: 0,
           subfolders: [
             {
               id: 88,
-              name: '静态语言',
+              level: 1,
+              name: "静态语言",
               noteNum: 26,
+              hasSubfolder: true,
+              expand: 0,
+              subfolders: [
+                {
+                  id: 101,
+                  level: 2,
+                  name: "静态语言",
+                  noteNum: 26,
+                  hasSubfolder: false,
+                  expand: 0
+                },
+                {
+                  id: 102,
+                  level: 2,
+                  name: "脚本语言",
+                  noteNum: 26,
+                  hasSubfolder: false,
+                  expand: 0
+                },
+                {
+                  id: 103,
+                  level: 2,
+                  name: "标记语言",
+                  noteNum: 26,
+                  hasSubfolder: false,
+                  expand: 0
+                }
+              ]
             },
             {
               id: 89,
-              name: '脚本语言',
+              level: 1,
+              name: "脚本语言",
               noteNum: 26,
+              hasSubfolder: false,
+              expand: 0
             },
             {
               id: 90,
-              name: '标记语言',
+              level: 1,
+              name: "标记语言",
               noteNum: 26,
+              hasSubfolder: false,
+              expand: 0
             }
           ]
         },
         {
           id: 2,
-          name: '网站技术',
+          level: 0,
+          name: "网站技术",
           noteNum: 18,
-          subfolders: [
-            {
-              id: 91,
-              name: '静态语言',
-              noteNum: 26,
-            },
-            {
-              id: 92,
-              name: '脚本语言',
-              noteNum: 26,
-            },
-            {
-              id: 93,
-              name: '标记语言',
-              noteNum: 26,
-            }
-          ]
+          hasSubfolder: false,
+          expand: 0
         },
         {
           id: 3,
-          name: '数据科学',
+          level: 0,
+          name: "数据科学",
           noteNum: 14,
-          subfolders: [
-            {
-              id: 71,
-              name: '静态语言',
-              noteNum: 26,
-            },
-            {
-              id: 72,
-              name: '脚本语言',
-              noteNum: 26,
-            },
-            {
-              id: 73,
-              name: '标记语言',
-              noteNum: 26,
-            }
-          ]
+          hasSubfolder: false,
+          expand: 0
         }
       ]
-    }
+    };
   }
-}
+};
 </script>
 
 <style scoped>
 #sidebar {
-  background-image: url('../assets/sidebar-bg.jpg');
+  background-image: url("../assets/sidebar-bg.jpg");
   background-size: 100% 100%;
 }
 </style>

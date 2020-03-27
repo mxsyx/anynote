@@ -1,11 +1,11 @@
 <template>
-  <ul 
-    ref="folder"
+  <ul
+    ref="folderBox"
+    :style="{height: `${folderBoxHeight * expand}px`}"
     class="folder-box"
-    :class="whichLevel"
-    :style="{height: `${folderHeight}px`}"
+    :class=" `level${level}`"
   >
-    <li  v-for="(folder, index) in folders" :key="folder.id">
+    <li v-for="(folder, index) in folders" :key="folder.id">
       <a class="folder">
         <i
           class="fa fa-angle-right folder-angle" 
@@ -16,10 +16,11 @@
       </a>
       <FolderBox
         v-if="folder.hasSubfolder"
-        :display="folder.display"
+        :ref="folder.id"
         :level="level + 1"
+        :expand="folder.expand"
         :folders="folder.subfolders"
-        @heightChanged="flushFolderHeight"
+        @expanded="handleExpanded"
       />
     </li>
   </ul>
@@ -34,55 +35,51 @@ export default {
       type: Number,
       required: true
     },
+    expand: {
+      type: Number,
+      required: true
+    },
     folders: {
       type: Array,
       required: true
     },
-    display: {
-      type: Boolean,
-      required: true
-    }
   },
 
   data() {
     return {
-      folderHeight: 0,
+      folderBoxHeight: 0
     }
   },
 
-  computed : {
-    whichLevel() {
-      return `level${this.level}`;
+  watch: {
+    expand() {
+      if (this.expand == 1) {
+        this.$emit('expanded', this.folderBoxHeight);
+      } else {
+        this.$emit('expanded', -this.folderBoxHeight);
+      }
     }
   },
 
   mounted() {
-    this.flushFolderHeight();
-  },
-
-  watch: {
-    display: function() {
-      this.flushFolderHeight();
-    }
+    this.initFolderBoxHeight();
   },
 
   methods: {
-    toggleSubfolder(folderId) {
-      this.folders[folderId].display = !this.folders[folderId].display;
+    toggleSubfolder(index) {
+      this.folders[index].expand = 
+          this.folders[index].expand == 0 ? 1 : 0;
+    },
+
+    initFolderBoxHeight() {
+      this.$refs.folderBox.childNodes.forEach(ele => {
+        this.folderBoxHeight += ele.offsetHeight;
+      })
     },
     
-    flushFolderHeight() {
-      if (this.display) {
-        this.$refs.folder.childNodes.forEach(ele => {
-          this.folderHeight += ele.offsetHeight;
-        })
-      } else {
-         this.folderHeight = 0;
-      }
-      this.$emit('heightChanged');
-    },
-    getFolderHeight() {
-      return this.folderHeight;
+    handleExpanded(height) {
+      this.folderBoxHeight += height;
+      this.$emit('expanded', height);
     }
   }
 }
@@ -123,7 +120,17 @@ export default {
 }
 
 .level1 {
-  margin-left: 1rem;
+  margin-left: 0.8rem;
   font-size: 1.4rem;
+}
+
+.level2 {
+  margin-left: 1.2rem;
+  font-size: 1.3rem;
+}
+
+.hide {
+  height: 0px !important;
+  overflow: hidden;
 }
 </style>
