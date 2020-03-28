@@ -65,7 +65,7 @@ export default {
               level: 1,
               name: "脚本语言",
               noteNum: 26,
-              hasSubfolder: true,
+              hasSubfolder: false,
               expand: false
             },
             {
@@ -73,60 +73,8 @@ export default {
               level: 1,
               name: "标记语言",
               noteNum: 26,
-              hasSubfolder: true,
+              hasSubfolder: false,
               expand: false,
-              subfolders: [
-                {
-                  id: 101,
-                  level: 2,
-                  name: "静态语言",
-                  noteNum: 26,
-                  hasSubfolder: true,
-                  expand: false,
-                  subfolders: [
-                    {
-                      id: 101,
-                      level: 3,
-                      name: "静态语言",
-                      noteNum: 26,
-                      hasSubfolder: false,
-                      expand: false
-                    },
-                    {
-                      id: 102,
-                      level: 3,
-                      name: "脚本语言",
-                      noteNum: 26,
-                      hasSubfolder: false,
-                      expand: false
-                    },
-                    {
-                      id: 103,
-                      level: 3,
-                      name: "标记语言",
-                      noteNum: 26,
-                      hasSubfolder: false,
-                      expand: false
-                    }
-                  ]
-                },
-                {
-                  id: 102,
-                  level: 2,
-                  name: "脚本语言",
-                  noteNum: 26,
-                  hasSubfolder: false,
-                  expand: false
-                },
-                {
-                  id: 103,
-                  level: 2,
-                  name: "标记语言",
-                  noteNum: 26,
-                  hasSubfolder: false,
-                  expand: false
-                }
-              ]
             }
           ]
         },

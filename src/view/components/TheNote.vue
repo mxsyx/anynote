@@ -1,11 +1,10 @@
 <template>
   <div id="note">
     <div id="note-head">
-      <input id="note-title" type="text" v-model="noteTitle">
+      <input id="note-title" type="text" v-model="title">
       <span id="note-opts">
         <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
         <i class="fa fa-save" aria-hidden="true"></i>
-        <i class="fa fa-paperclip" aria-hidden="true"></i>
         <i class="fa fa-expand" aria-hidden="true"></i>
       </span>
       <div id="note-meta">
@@ -13,7 +12,9 @@
         <span>修改：2020-03-26 14:37:33</span>
       </div>
     </div>
-    <Editor id="tinymce" v-model="content" :init="editorInit"></Editor>
+    <Editor id="tinymce" v-model="content" :init="editorInit"
+    @tinymce-ready="initShortcuts"
+    />
   </div>
 </template>
 
@@ -51,20 +52,33 @@ export default {
         height: "calc(100vh - 6rem)",
         language: 'zh_CN',
         plugins: 'link lists image code table colorpicker textcolor wordcount contextmenu',
-        toolbar: 'bold italic underline strikethrough | fontsizeselect | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist | outdent indent blockquote | undo redo | link unlink image code | removeformat',
+        toolbar: 'undo redo | bold italic underline strikethrough | fontsizeselect | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist | outdent indent blockquote | link unlink image code | removeformat',
         branding: false,
         contextmenu: "copy",
-        menubar: false,
         statusbar: false,
+        menubar: false,
       },
-      noteTitle: '',
+      title: '',
       content: '',
     }
   },
 
   mounted() {
     tinymce.init({});
-    tinymce.addI18n('zh_CN', lang)
+    tinymce.addI18n('zh_CN', lang);
+  },
+
+  methods: {
+    initShortcuts() {
+      window.onkeydown = window.frames[0].onkeydown = (event) => {
+        if (event.ctrlKey && event.keyCode == 83) {
+          this.save();
+        }
+      }
+    },
+    save() {
+      alert(this.content);
+    }
   }
 }
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="app" @keyup.ctrl.83="con">
     <TheSidebar/>
     <TheNotes/>
     <TheNote/>
@@ -18,6 +18,9 @@ export default {
     TheSidebar,
     TheNotes,
     TheNote,
+  },
+
+  mounted() {
   }
 }
 </script>
