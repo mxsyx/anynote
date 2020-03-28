@@ -21,8 +21,8 @@
 import tinymce from 'tinymce/tinymce'
 import Editor from '@tinymce/tinymce-vue'
 import 'tinymce/themes/silver'
-import '@/assets/tinymce/skins/ui/oxide/skin.min.css'
-import lang from '@/assets/tinymce/zh_CN.js'
+import '../assets/tinymce/skins/ui/oxide/skin.min.css'
+import lang from '../assets/tinymce/zh_CN.js'
 
 import 'font-awesome/css/font-awesome.min.css'
 

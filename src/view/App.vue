@@ -7,9 +7,9 @@
 </template>
 
 <script>
-import TheSidebar from '@/components/TheSidebar'
-import TheNotes from '@/components/TheNotes'
-import TheNote from '@/components/TheNote'
+import TheSidebar from './components/TheSidebar'
+import TheNotes from './components/TheNotes'
+import TheNote from './components/TheNote'
 
 export default {
   name: "App",

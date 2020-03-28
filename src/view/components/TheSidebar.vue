@@ -5,7 +5,7 @@
 </template>
 
 <script>
-import FolderBox from "@/components/FolderBox";
+import FolderBox from "./FolderBox";
 
 export default {
   name: "TheSidebar",

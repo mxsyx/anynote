@@ -10,29 +10,29 @@ CREATE TABLE folder (
 CREATE TABLE note_schema ( 
   `nid` CHAR(36) PRIMARY KEY NOT NULL,
   `fid` CHAR(36) NOT NULL,
-  `title` NVARCHAR(140) NOT NULL,
-)
+  `title` NVARCHAR(140) NOT NULL
+);
 
 CREATE TABLE tag_meta (
   `id` CHAR(36) PRIMARY KEY NOT NULL,
-  `name` NVARCHAR(32) NOT NULL,
-)
+  `name` NVARCHAR(32) NOT NULL
+);
 
 CREATE TABLE tag (
   `nid` CHAR(36) NOT NULL,
   `title` NVARCHAR(140) NOT NULL,
-  `tid` CHAR(36)  NOT NULL,
-)
+  `tid` CHAR(36)  NOT NULL
+);
 
 CREATE  TABLE star (
   `nid` CHAR(36) PRIMARY KEY NOT NULL,
-  `title` NVARCHAR(140) NOT NULL,
-)
+  `title` NVARCHAR(140) NOT NULL
+);
 
 CREATE TABLE blog (
   `nid` CHAR(36) PRIMARY KEY NOT NULL,
-  `title` NVARCHAR(140) NOT NULL,
-)
+  `title` NVARCHAR(140) NOT NULL
+);
 
 CREATE TABLE user (
 
