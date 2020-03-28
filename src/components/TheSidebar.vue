@@ -1,6 +1,6 @@
 <template>
   <div id="sidebar">
-    <FolderBox :level="level" :folders="folders" :expand="1" />
+    <FolderBox :level="level" :expand="true" :folders="folders" />
   </div>
 </template>
 
@@ -24,7 +24,7 @@ export default {
           name: "编程语言",
           noteNum: 16,
           hasSubfolder: true,
-          expand: 0,
+          expand: false,
           subfolders: [
             {
               id: 88,
@@ -32,7 +32,7 @@ export default {
               name: "静态语言",
               noteNum: 26,
               hasSubfolder: true,
-              expand: 0,
+              expand: false,
               subfolders: [
                 {
                   id: 101,
@@ -40,7 +40,7 @@ export default {
                   name: "静态语言",
                   noteNum: 26,
                   hasSubfolder: false,
-                  expand: 0
+                  expand: false
                 },
                 {
                   id: 102,
@@ -48,7 +48,7 @@ export default {
                   name: "脚本语言",
                   noteNum: 26,
                   hasSubfolder: false,
-                  expand: 0
+                  expand: false
                 },
                 {
                   id: 103,
@@ -56,7 +56,7 @@ export default {
                   name: "标记语言",
                   noteNum: 26,
                   hasSubfolder: false,
-                  expand: 0
+                  expand: false
                 }
               ]
             },
@@ -65,16 +65,68 @@ export default {
               level: 1,
               name: "脚本语言",
               noteNum: 26,
-              hasSubfolder: false,
-              expand: 0
+              hasSubfolder: true,
+              expand: false
             },
             {
               id: 90,
               level: 1,
               name: "标记语言",
               noteNum: 26,
-              hasSubfolder: false,
-              expand: 0
+              hasSubfolder: true,
+              expand: false,
+              subfolders: [
+                {
+                  id: 101,
+                  level: 2,
+                  name: "静态语言",
+                  noteNum: 26,
+                  hasSubfolder: true,
+                  expand: false,
+                  subfolders: [
+                    {
+                      id: 101,
+                      level: 3,
+                      name: "静态语言",
+                      noteNum: 26,
+                      hasSubfolder: false,
+                      expand: false
+                    },
+                    {
+                      id: 102,
+                      level: 3,
+                      name: "脚本语言",
+                      noteNum: 26,
+                      hasSubfolder: false,
+                      expand: false
+                    },
+                    {
+                      id: 103,
+                      level: 3,
+                      name: "标记语言",
+                      noteNum: 26,
+                      hasSubfolder: false,
+                      expand: false
+                    }
+                  ]
+                },
+                {
+                  id: 102,
+                  level: 2,
+                  name: "脚本语言",
+                  noteNum: 26,
+                  hasSubfolder: false,
+                  expand: false
+                },
+                {
+                  id: 103,
+                  level: 2,
+                  name: "标记语言",
+                  noteNum: 26,
+                  hasSubfolder: false,
+                  expand: false
+                }
+              ]
             }
           ]
         },
@@ -84,7 +136,7 @@ export default {
           name: "网站技术",
           noteNum: 18,
           hasSubfolder: false,
-          expand: 0
+          expand: false
         },
         {
           id: 3,
@@ -92,7 +144,7 @@ export default {
           name: "数据科学",
           noteNum: 14,
           hasSubfolder: false,
-          expand: 0
+          expand: false
         }
       ]
     };

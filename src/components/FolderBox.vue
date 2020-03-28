@@ -8,7 +8,7 @@
     <li v-for="(folder, index) in folders" :key="folder.id">
       <a class="folder">
         <i
-          class="fa fa-angle-right folder-angle" 
+          class="fa fa-angle-right folder-angle"
           @click="toggleSubfolder(index)">
         </i>
         <span class="folder-name">{{ folder.name }}</span>
@@ -16,7 +16,6 @@
       </a>
       <FolderBox
         v-if="folder.hasSubfolder"
-        :ref="folder.id"
         :level="level + 1"
         :expand="folder.expand"
         :folders="folder.subfolders"
@@ -36,7 +35,7 @@ export default {
       required: true
     },
     expand: {
-      type: Number,
+      type: Boolean,
       required: true
     },
     folders: {
@@ -62,21 +61,15 @@ export default {
   },
 
   mounted() {
-    this.initFolderBoxHeight();
+    this.$refs.folderBox.childNodes.forEach(ele => {
+      this.folderBoxHeight += ele.offsetHeight;
+    })
   },
 
   methods: {
     toggleSubfolder(index) {
-      this.folders[index].expand = 
-          this.folders[index].expand == 0 ? 1 : 0;
-    },
-
-    initFolderBoxHeight() {
-      this.$refs.folderBox.childNodes.forEach(ele => {
-        this.folderBoxHeight += ele.offsetHeight;
-      })
-    },
-    
+      this.folders[index].expand = !this.folders[index].expand;
+    },  
     handleExpanded(height) {
       this.folderBoxHeight += height;
       this.$emit('expanded', height);
@@ -120,13 +113,18 @@ export default {
 }
 
 .level1 {
-  margin-left: 0.8rem;
+  margin-left: 1.6rem;
   font-size: 1.4rem;
 }
 
 .level2 {
-  margin-left: 1.2rem;
+  margin-left: 1.4rem;
   font-size: 1.3rem;
+}
+
+.level3 {
+  margin-left: 1.6rem;
+  font-size: 1.2rem;
 }
 
 .hide {
