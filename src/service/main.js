@@ -6,9 +6,8 @@ const BrowserWindow = electron.BrowserWindow;
 /**
  * Disable menu.
  */
-const Menu = electron.Menu;
-Menu.setApplicationMenu(null);
-
+//const Menu = electron.Menu;
+//Menu.setApplicationMenu(null);
 
 class Desktop {
   constructor() {
@@ -34,7 +33,7 @@ class Desktop {
   
   run() {
     // Load index.html file.
-    this.window.loadURL('http://127.0.0.1:8081')
+    this.window.loadURL('http://127.0.0.1:8080')
   
     // Set minimum window size.
     this.window.setMinimumSize(360, 580);
