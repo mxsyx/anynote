@@ -12,8 +12,11 @@
         <span>修改：2020-03-26 14:37:33</span>
       </div>
     </div>
-    <Editor id="tinymce" v-model="content" :init="editorInit"
-    @tinymce-ready="initShortcuts"
+    <Editor
+      id="tinymce"
+      v-model="content"
+      :init="editorInit"
+      @tinymce-ready="initShortcuts"
     />
   </div>
 </template>
@@ -24,6 +27,9 @@ import Editor from '@tinymce/tinymce-vue'
 import 'tinymce/themes/silver'
 import '../assets/tinymce/skins/ui/oxide/skin.min.css'
 import lang from '../assets/tinymce/zh_CN.js'
+
+const ipcRenderer = window.electron.ipcRenderer;
+
 
 import 'font-awesome/css/font-awesome.min.css'
 
@@ -37,6 +43,7 @@ import 'tinymce/plugins/contextmenu'
 import 'tinymce/plugins/wordcount'
 import 'tinymce/plugins/colorpicker'
 import 'tinymce/plugins/textcolor'
+
 
 export default {
   name: 'TheNote',
@@ -66,6 +73,12 @@ export default {
   mounted() {
     tinymce.init({});
     tinymce.addI18n('zh_CN', lang);
+    console.log('xx')
+    window.onkeydown = (event) => {
+      if (event.ctrlKey && event.keyCode == 83) {
+        this.save();
+      }
+    }
   },
 
   methods: {
@@ -77,7 +90,7 @@ export default {
       }
     },
     save() {
-      alert(this.content);
+      ipcRenderer.send('noteContentChanged', this.content)
     }
   }
 }

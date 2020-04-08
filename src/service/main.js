@@ -1,7 +1,9 @@
 const electron = require('electron');
-
+const path = require('path')
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
+
+const a  = require('./index')
 
 /**
  * Disable menu.
@@ -15,7 +17,8 @@ class Desktop {
       width: 800,
       height: 600,
       webPreferences: {
-        nodeIntegration: true
+        nodeIntegration: true,
+        preload: path.join(__dirname, './renderer.js')
       }
     });
     this.develop();
@@ -57,3 +60,7 @@ app.on('ready', () => {
   const desktop = new Desktop();
   desktop.run();
 });
+ 
+electron.ipcMain.on('noteContentChanged', (e,content) => {
+  a.saveNote(content);
+})
