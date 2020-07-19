@@ -6,10 +6,6 @@ A private note solution
 
 1. 支持富文本编辑与Markdown编辑。
 
-2. 支持链接收藏(着重优化这方面的功能)
-
-3. 支持私有云部署但不支持云协作
-
 
 ## For Developer
 
