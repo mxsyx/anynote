@@ -5,10 +5,11 @@
     "outDir": ".",
     "lib": ["ES5", "ES6"],
     "target": "ES5",
-    "module": "commonjs",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true
-  }
+  },
+  "files": ["index.ts"]
 }

@@ -18,7 +18,7 @@ class Desktop {
       height: 600,
       webPreferences: {
         nodeIntegration: true,
-        preload: path.join(__dirname, "renderer.js"),
+        preload: path.join(__dirname, "preload.js"),
       },
     });
     this.develop();
