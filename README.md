@@ -4,7 +4,7 @@ A private note solution
 
 ## Feature
 
-1. 支持富文本编辑与Markdown编辑。
+1. Support rich text editing and Markdown editing.
 
 
 ## For Developer
