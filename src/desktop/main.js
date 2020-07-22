@@ -3,7 +3,7 @@ const path = require("path");
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
 
-const { saveNote } = require("../service");
+const { saveNote } = require("../../build/servcie");
 
 /**
  * Disable menu.

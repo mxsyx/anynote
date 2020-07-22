@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
-    "baseUrl": ".",
-    "outDir": "./dist",
+    "rootDir": "./src/service",
+    "baseUrl": "./src/service",
+    "outDir": "./build/servcie",
     "lib": ["ES5", "ES6"],
     "target": "ES5",
     "module": "CommonJS",
@@ -11,5 +11,5 @@
     "experimentalDecorators": true,
     "sourceMap": true
   },
-  "files": ["index.ts"]
+  "files": ["src/service/index.ts"]
 }
