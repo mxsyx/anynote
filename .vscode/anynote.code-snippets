@@ -1,0 +1,16 @@
+{
+	"Grid Container": {
+		"prefix": "gc",
+		"body": [
+			"<Grid container spacing={$1}>$2</Grid>"
+		],
+		"description": "Grid Container"
+	},
+	"Grid Item": {
+		"prefix": "gt",
+		"body": [
+			"<Grid item xs={$1}>$2</Grid>"
+		],
+		"description": "Grid Item"
+	}
+}

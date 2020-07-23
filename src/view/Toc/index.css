@@ -1,0 +1,10 @@
+.root {
+  height: 264px;
+  flex-grow: 1;
+  max-width: 400px;
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+}
