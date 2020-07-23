@@ -30,12 +30,12 @@ interface TocItemProps extends TreeItemProps {
   number?: string;
 }
 
-function TocItem(props: TocItemProps) {
-  const { name, icon: Icon, number } = props;
+const TocItem: FC<TocItemProps> = (props) => {
+  const { nodeId, name, icon: Icon, number, children } = props;
 
   return (
     <TreeItem
-      nodeId={props.nodeId}
+      nodeId={nodeId}
       className={styles.tocItem}
       label={
         <div className={styles.tocItem}>
@@ -46,9 +46,16 @@ function TocItem(props: TocItemProps) {
           </Typography>
         </div>
       }
-    />
+      classes={
+        {
+          // root:
+        }
+      }
+    >
+      {children}
+    </TreeItem>
   );
-}
+};
 
 const Toc: FC = () => {
   return (
@@ -69,6 +76,13 @@ const Toc: FC = () => {
           number="90"
         />
         <TocItem nodeId="6" name="Updates" icon={Info} number="90" />
+        <TocItem
+          nodeId="7"
+          name="Social"
+          icon={SupervisorAccount}
+          number="90"
+        />
+        <TocItem nodeId="8" name="Updates" icon={Info} number="90" />
       </TocItem>
       <TocItem nodeId="4" name="History" icon={Label} />
     </TreeView>

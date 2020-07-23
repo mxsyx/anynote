@@ -6,6 +6,9 @@ A private note solution
 
 1. Support rich text editing and Markdown editing.
 
+2. Customizable tabel of contents with Gmail style.
+
+
 
 ## For Developer
 
