@@ -36,10 +36,10 @@ const App: FC = () => {
       <Grid item xs={3}>
         <Toc />
       </Grid>
-      <Grid item xs={9}>
+      {/* <Grid item xs={9}>
         <Editor init={editorInit} onEditorChange={handleEditorChange} />
         <button onClick={handleCick}>保存</button>
-      </Grid>
+      </Grid> */}
     </Grid>
   );
 };

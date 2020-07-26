@@ -36,7 +36,6 @@ const TocItem: FC<TocItemProps> = (props) => {
   return (
     <TreeItem
       nodeId={nodeId}
-      className={styles.tocItem}
       label={
         <div className={styles.tocItem}>
           <Icon />
@@ -49,6 +48,12 @@ const TocItem: FC<TocItemProps> = (props) => {
       classes={
         {
           // root:
+        }
+      }
+      style={
+        {
+          // color: '#e3742f',
+          // backgroundColor: '#e8f0fe'
         }
       }
     >
@@ -66,25 +71,17 @@ const Toc: FC = () => {
       defaultExpandIcon={<ArrowRight />}
       defaultEndIcon={<div style={{ width: 24 }} />}
     >
-      <TocItem nodeId="1" name="All Mail" icon={Mail} number="90" />
-      <TocItem nodeId="2" name="Trash" icon={Delete} number="90" />
-      <TocItem nodeId="3" name="Categories" icon={Label} number="90">
+      <TocItem nodeId="1" name="领域基础" icon={Mail} number="90" />
+      <TocItem nodeId="2" name="网络技术" icon={Label} number="90">
         <TocItem
           nodeId="5"
-          name="Social"
+          name="前端开发"
           icon={SupervisorAccount}
           number="90"
         />
-        <TocItem nodeId="6" name="Updates" icon={Info} number="90" />
-        <TocItem
-          nodeId="7"
-          name="Social"
-          icon={SupervisorAccount}
-          number="90"
-        />
-        <TocItem nodeId="8" name="Updates" icon={Info} number="90" />
+        <TocItem nodeId="6" name="后端开发" icon={Info} number="90" />
       </TocItem>
-      <TocItem nodeId="4" name="History" icon={Label} />
+      <TocItem nodeId="3" name="数据科学" icon={Delete} number="90" />
     </TreeView>
   );
 };

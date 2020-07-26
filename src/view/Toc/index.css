@@ -7,4 +7,7 @@
 .toc-item {
   display: flex;
   align-items: center;
+  user-select: none;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
