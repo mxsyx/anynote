@@ -3,10 +3,11 @@ import { Editor } from "@tinymce/tinymce-react";
 import { Grid } from "@material-ui/core";
 
 import Toc from "./Toc";
+import Preview from "./Preview";
 
 const editorInit = {
   width: "100%",
-  height: "calc(100vh - 6rem)",
+  height: "100%",
   language: "zh_CN",
   plugins:
     "link lists image code table colorpicker textcolor wordcount contextmenu",
@@ -32,14 +33,21 @@ const App: FC = () => {
   }, []);
 
   return (
-    <Grid container spacing={3}>
-      <Grid item xs={3}>
+    <Grid container>
+      <Grid item style={{ flex: "0 0 12%" }}>
         <Toc />
       </Grid>
-      {/* <Grid item xs={9}>
-        <Editor init={editorInit} onEditorChange={handleEditorChange} />
-        <button onClick={handleCick}>保存</button>
-      </Grid> */}
+      <Grid item style={{ flex: "0 0 18%" }}>
+        <Preview />
+      </Grid>
+      <Grid item style={{ flex: "0 0 70%" }}>
+        <Editor
+          tinymceScriptSrc="assets/lib/tinymce.min.js"
+          init={editorInit}
+          apiKey="olbuvm5c8keupagvx6wl9oc0dmh4em83kybkequ018r2uyov"
+          onEditorChange={handleEditorChange}
+        />
+      </Grid>
     </Grid>
   );
 };

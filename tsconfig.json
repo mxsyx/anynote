@@ -13,6 +13,9 @@
     "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "paths": {
+      "assets/*": ["src/view/assets/*"]
+    },
     "typeRoots": [
       "node_modules/@types",
       "src/global.d.ts"

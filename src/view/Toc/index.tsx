@@ -16,6 +16,7 @@ import {
 import { SvgIconProps } from "@material-ui/core/SvgIcon";
 
 import styles from "./index.css";
+import sidebar from "assets/sidebar.jpg";
 
 declare module "csstype" {
   interface Properties {
@@ -70,6 +71,7 @@ const Toc: FC = () => {
       defaultCollapseIcon={<ArrowDropDown />}
       defaultExpandIcon={<ArrowRight />}
       defaultEndIcon={<div style={{ width: 24 }} />}
+      style={{ backgroundImage: `url(${sidebar})` }}
     >
       <TocItem nodeId="1" name="领域基础" icon={Mail} number="90" />
       <TocItem nodeId="2" name="网络技术" icon={Label} number="90">
