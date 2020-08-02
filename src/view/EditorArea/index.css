@@ -1,0 +1,14 @@
+.title {
+  width: 100%;
+}
+.title::before {
+  display: none !important;  
+}
+.title::after {
+  display: none !important;  
+}
+
+.update-time {
+  font-size: 14px;
+  color: #BFBFBF;
+}

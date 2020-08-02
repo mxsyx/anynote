@@ -14,7 +14,8 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "paths": {
-      "assets/*": ["src/view/assets/*"]
+      "assets": ["view/assets"],
+      "constants": ["view/constants"]
     },
     "typeRoots": [
       "node_modules/@types",

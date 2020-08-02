@@ -1,7 +1,7 @@
-import React, { FC } from "react";
-import { makeStyles, Theme, createStyles } from "@material-ui/core/styles";
-import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab";
-import { Typography, Icon } from "@material-ui/core";
+import React, { FC } from "react"
+import { makeStyles, Theme, createStyles } from "@material-ui/core/styles"
+import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab"
+import { Typography, Icon } from "@material-ui/core"
 import {
   Label,
   Mail,
@@ -12,27 +12,27 @@ import {
   LocalOffer,
   ArrowDropDown,
   ArrowRight,
-} from "@material-ui/icons";
-import { SvgIconProps } from "@material-ui/core/SvgIcon";
+} from "@material-ui/icons"
+import { SvgIconProps } from "@material-ui/core/SvgIcon"
 
-import styles from "./index.css";
-import sidebar from "assets/sidebar.jpg";
+import styles from "./index.css"
+import sidebar from 'assets/sidebar.jpg'
 
 declare module "csstype" {
   interface Properties {
-    "--tree-view-color"?: string;
-    "--tree-view-bg-color"?: string;
+    "--tree-view-color"?: string
+    "--tree-view-bg-color"?: string
   }
 }
 
 interface TocItemProps extends TreeItemProps {
-  name: string;
-  icon: React.ElementType<SvgIconProps>;
-  number?: string;
+  name: string
+  icon: React.ElementType<SvgIconProps>
+  number?: string
 }
 
 const TocItem: FC<TocItemProps> = (props) => {
-  const { nodeId, name, icon: Icon, number, children } = props;
+  const { nodeId, name, icon: Icon, number, children } = props
 
   return (
     <TreeItem
@@ -60,8 +60,8 @@ const TocItem: FC<TocItemProps> = (props) => {
     >
       {children}
     </TreeItem>
-  );
-};
+  )
+}
 
 const Toc: FC = () => {
   return (
@@ -85,7 +85,7 @@ const Toc: FC = () => {
       </TocItem>
       <TocItem nodeId="3" name="数据科学" icon={Delete} number="90" />
     </TreeView>
-  );
-};
+  )
+}
 
-export default Toc;
+export default Toc

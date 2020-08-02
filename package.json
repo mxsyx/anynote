@@ -30,8 +30,7 @@
   },
   "lint-staged": {
     "src/**": [
-      "prettier --write",
-      "eslint src --ext .tsx,.ts"
+      
     ]
   },
   "dependencies": {

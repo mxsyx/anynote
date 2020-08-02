@@ -1,0 +1,1 @@
+wget --mirror -nH -c -i urls.txt

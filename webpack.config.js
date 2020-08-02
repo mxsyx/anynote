@@ -57,7 +57,7 @@ module.exports = {
     }),
     new CopyWebpackPlugin({
       patterns: [
-        { from: 'src/view/assets/lib', to: 'assets/' }
+        { from: 'src/view/assets/tinymce', to: 'assets/tinymce' }
       ],
     }),
   ],
@@ -67,6 +67,7 @@ module.exports = {
       "assets": path.resolve(__dirname, 'src/view/assets'),
       "store": path.resolve(__dirname, 'src/view/store'),
       "components": path.resolve(__dirname, 'src/view/components'),
+      "constants": path.resolve(__dirname, 'src/view/constants'),
       "utils": path.resolve(__dirname, 'src/view/utils')
     },
     extensions: ['.tsx', '.ts', '.js']
