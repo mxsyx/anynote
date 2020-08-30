@@ -1,1 +1,1 @@
-global.electron = require("electron");
+global.electron = require('electron')

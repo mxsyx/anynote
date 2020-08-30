@@ -20,7 +20,7 @@ function rebuildService() {
 }
 
 function dev() {
-  const pview = spawn('npx', [
+  spawn('npx', [
     'webpack-dev-server', '--mode', 'development',
     '--port', '20719', '--hot'
   ], { stdio: 'inherit' })

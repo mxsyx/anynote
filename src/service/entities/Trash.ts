@@ -1,13 +1,17 @@
-import { Entity,  BaseEntity} from 'typeorm'
+import { Entity,  BaseEntity } from 'typeorm'
 import { PrimaryColumn, Column } from '../resolve'
+import { NoteType } from '../types'
 
 @Entity()
-class Note extends BaseEntity {
-  @PrimaryColumn({ type: 'char', name: 'id', length: 36, nullable: false })
-  id: string
+class Folder extends BaseEntity {
+  @PrimaryColumn({ type: 'char', name: 'nid', length: 36, nullable: false })
+  nid: string
+
+  @Column({ type: 'char', name: 'fid', length: 36, nullable: false })
+  fid: string
 
   @Column({ type: 'char', name: 'type', length: 1, nullable: false })
-  type: string
+  type: NoteType
 
   @Column({ type: 'nvarchar', name: 'title', length: 140, nullable: false })
   title: string
@@ -19,10 +23,10 @@ class Note extends BaseEntity {
   uTime: string
 
   @Column({ type: 'timestamp', name: 'weight', nullable: false, default: 0 })
-  weight: string
+  weight: number
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
-  locked: string
+  locked: number
 
   @Column({ type: 'int', name: 'word_count', unsigned: true, nullable: false, default: 0 })
   wordCount: number
@@ -46,4 +50,4 @@ class Note extends BaseEntity {
   version: number
 }
 
-export default Note
+export default Folder
