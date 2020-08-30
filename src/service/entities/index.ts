@@ -1,9 +1,9 @@
 import Folder from './Folder'
-import Note from './Note'
-import TagMeta from './TagMeta'
+import Configure from './Configure'
 import Tag from './Tag'
-import Star from './Star'
+import Note from './Note'
 import History from './History'
+import AllNote from './AllNote'
 import Trash from './Trash'
 
-export { Folder, Note, TagMeta, Tag, Star, History, Trash }
+export { Folder, Configure, Tag, Note, History, AllNote, Trash }

@@ -1,4 +1,4 @@
-import { Entity,  BaseEntity } from 'typeorm'
+import { Entity, BaseEntity } from 'typeorm'
 import { PrimaryColumn, Column } from '../resolve'
 import { NoteType } from '../types'
 
@@ -10,13 +10,13 @@ class Folder extends BaseEntity {
   @Column({ type: 'char', name: 'fid', length: 36, nullable: false })
   fid: string
 
-  @Column({ type: 'char', name: 'type', length: 1, nullable: false })
+  @Column({ type: 'char', name: 'type', length: 1, readonly: true, nullable: false })
   type: NoteType
 
-  @Column({ type: 'nvarchar', name: 'title', length: 140, nullable: false })
+  @Column({ type: 'nvarchar', name: 'title', length: 140 })
   title: string
 
-  @Column({ type: 'datetime', name: 'c_time', nullable: false })
+  @Column({ type: 'datetime', name: 'c_time', readonly: true, nullable: false })
   cTime: string
 
   @Column({ type: 'datetime', name: 'u_time', nullable: false })
@@ -27,9 +27,6 @@ class Folder extends BaseEntity {
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
   locked: number
-
-  @Column({ type: 'int', name: 'word_count', unsigned: true, nullable: false, default: 0 })
-  wordCount: number
 
   @Column({ type: 'nvarchar', name: 'author', length: 28, default: null })
   author: string
@@ -43,7 +40,7 @@ class Folder extends BaseEntity {
   @Column({ type: 'text', name: 'remark', length: 800, default: null })
   remark: string
 
-  @Column({ type: 'text', name: 'content', nullable: false })
+  @Column({ type: 'text', name: 'content' })
   content: string
 
   @Column({ type: 'int', name: 'version', unsigned: true, default: 1 })

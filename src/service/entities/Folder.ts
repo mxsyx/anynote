@@ -16,7 +16,7 @@ class Folder extends BaseEntity {
   name: string
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
-  locked: number
+  locked: boolean
 
   @Column({ type: 'smallint', name: 'total', unsigned: true, nullable: false, default: 0 })
   total: number

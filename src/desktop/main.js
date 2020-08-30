@@ -2,9 +2,6 @@ const electron = require('electron')
 const path = require('path')
 const { app, BrowserWindow, Menu, globalShortcut } = electron
 
-const { saveNote } = require('../../build/servcie')
-
-
 class Desktop {
   constructor() {
     this.window = new BrowserWindow({
@@ -51,8 +48,4 @@ class Desktop {
 app.on('ready', () => {
   const desktop = new Desktop()
   desktop.run()
-})
-
-electron.ipcMain.on('noteContentChanged', (e, content) => {
-  saveNote(content)
 })

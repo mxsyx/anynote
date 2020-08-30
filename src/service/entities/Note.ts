@@ -1,4 +1,4 @@
-import { Entity,  BaseEntity} from 'typeorm'
+import { Entity, BaseEntity } from 'typeorm'
 import { PrimaryColumn, Column } from '../resolve'
 
 @Entity()
@@ -6,13 +6,13 @@ class Note extends BaseEntity {
   @PrimaryColumn({ type: 'char', name: 'id', length: 36, nullable: false })
   id: string
 
-  @Column({ type: 'char', name: 'type', length: 1, nullable: false })
+  @Column({ type: 'char', name: 'type', length: 1, readonly: true, nullable: false })
   type: string
 
   @Column({ type: 'nvarchar', name: 'title', length: 140, nullable: false })
   title: string
 
-  @Column({ type: 'datetime', name: 'c_time', nullable: false })
+  @Column({ type: 'datetime', name: 'c_time', readonly: true, nullable: false })
   cTime: string
 
   @Column({ type: 'datetime', name: 'u_time', nullable: false })
@@ -23,9 +23,6 @@ class Note extends BaseEntity {
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
   locked: string
-
-  @Column({ type: 'int', name: 'word_count', unsigned: true, nullable: false, default: 0 })
-  wordCount: number
 
   @Column({ type: 'nvarchar', name: 'author', length: 28, default: null })
   author: string

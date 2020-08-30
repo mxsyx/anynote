@@ -68,7 +68,8 @@ module.exports = {
       "store": path.resolve(__dirname, 'src/view/store'),
       "components": path.resolve(__dirname, 'src/view/components'),
       "constants": path.resolve(__dirname, 'src/view/constants'),
-      "utils": path.resolve(__dirname, 'src/view/utils')
+      "utils": path.resolve(__dirname, 'src/view/utils'),
+      "initialize": path.resolve(__dirname, 'src/initialize')
     },
     extensions: ['.tsx', '.ts', '.js']
   },
