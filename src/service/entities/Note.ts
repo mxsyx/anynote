@@ -19,22 +19,22 @@ class Note extends BaseEntity {
   uTime: string
 
   @Column({ type: 'timestamp', name: 'weight', nullable: false, default: 0 })
-  weight: string
+  weight: number
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
-  locked: string
+  locked: boolean
 
   @Column({ type: 'nvarchar', name: 'author', length: 28, default: null })
-  author: string
+  author: string | null
 
   @Column({ type: 'text', name: 'link', length: 255, default: null })
-  origin: string
+  origin: string | null
 
   @Column({ type: 'text', name: 'lisence', length: 16, default: null })
-  lisence: string
+  lisence: string | null
 
   @Column({ type: 'text', name: 'remark', length: 800, default: null })
-  remark: string
+  remark: string | null
 
   @Column({ type: 'text', name: 'content', nullable: false })
   content: string
