@@ -1,6 +1,6 @@
 import { ConnectionOptions, Connection, Repository } from 'typeorm'
 import { getConnection, addConnections } from 'initialize'
-import { Folder, Note, History } from './entities'
+import { Folder, Note, History, Tag, AllNote } from './entities'
 import DBManager from './database'
 
 interface DBUtil {
@@ -29,6 +29,8 @@ interface Connections {
 }
 interface Repos {
   folder: Repository<Folder>,
+  tag: Repository<Tag>,
+  allNote: Repository<AllNote>,
   notes: {
     [index: string]: Repository<Note>
   },
@@ -48,6 +50,8 @@ const connections: Connections = {
 }
 const repos: Repos = {
   folder: connections.schema.getRepository(Folder),
+  tag: connections.schema.getRepository(Tag),
+  allNote: connections.extend.getRepository(AllNote),
   notes: {},
   historys: {},
   plugins: {}

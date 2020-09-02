@@ -30,7 +30,7 @@ class Note extends BaseEntity {
   @Column({ type: 'text', name: 'link', length: 255, default: null })
   origin: string | null
 
-  @Column({ type: 'text', name: 'lisence', length: 16, default: null })
+  @Column({ type: 'text', name: 'lisence', length: 14, default: null })
   lisence: string | null
 
   @Column({ type: 'text', name: 'remark', length: 800, default: null })

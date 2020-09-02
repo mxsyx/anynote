@@ -12,5 +12,10 @@
 			"<Grid item xs={$1}>$2</Grid>"
 		],
 		"description": "Grid Item"
+	},
+	"Promise": {
+		"prefix": "pro",
+		"body": "  return new Promise<number>((resolve, reject) => {\n    $1\n  })",
+		"description": "new promise"
 	}
 }
