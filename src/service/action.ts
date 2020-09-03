@@ -232,16 +232,59 @@ export function createTag(name: string, id: string = v4()): Promise<Tag> {
   })
 }
 
-// TODO delete tag
-export function deleteTag(name: string, id: string = v4()): Promise<Tag> {
-  const tag = new Tag()
-  tag.id = id
-  tag.name = name
+export function deleteTag(id: string): Promise<boolean> {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const notes = await repos.allNote.createQueryBuilder('all_note')
+        .where('all_note.tids like %:tid%', { tid: id })
+        .getMany()
+      for (let i = 0; i < notes.length; i++) {
+        const tids = notes[i].tids.split('|')
+        tids.splice(tids.indexOf(id), 1)
+        await repos.allNote.update(notes[i].nid, { tids: tids.join('|') })
+      }
+      resolve(true)
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
 
-  return new Promise<Tag>((resolve, reject) => {
-    repos.tag.save(tag)
-      .then((data) => {
-        resolve(data)
+export function addTag(nid: string, tid: string): Promise<boolean> {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const note = await repos.allNote.findOne(nid)
+      if (!note) throw new Error(`note: ${nid} not found in all note table`)
+      const tids = note.tids.split('|')
+      tids.push(tid)
+      await repos.allNote.update(nid, { tids: tids.join('|') })
+      resolve(true)
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+export function removeTag(nid: string, tid: string): Promise<boolean> {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const note = await repos.allNote.findOne(nid)
+      if (!note) throw new Error(`note: ${nid} not found in all note table`)
+      const tids = note.tids.split('|')
+      tids.splice(tids.indexOf(tid), 1)
+      await repos.allNote.update(nid, { tids: tids.join('|') })
+      resolve(true)
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+export function star(nid: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.allNote.update(nid, { star: true })
+      .then(() => {
+        resolve(true)
       })
       .catch((error) => {
         reject(error)
@@ -249,33 +292,41 @@ export function deleteTag(name: string, id: string = v4()): Promise<Tag> {
   })
 }
 
-export function addTag(id: string, tid: string = v4()): Promise<boolean> {
-  return new Promise<boolean>(async (resolve, reject) => {
-    try {
-      const note = await repos.allNote.findOne(id)
-      if (!note) throw new Error(`note: ${id} not found in all note table`)
-      const tids = note.tids.split('|')
-      tids.push(tid)
-      await repos.allNote.update(id, { tids: tids.join('|') })
-      resolve(true)
-    } catch (error) {
-      reject(error)
-    }
+export function unStar(nid: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.allNote.update(nid, { star: false })
+      .then(() => {
+        resolve(true)
+      })
+      .catch((error) => {
+        reject(error)
+      })
   })
 }
 
-export function removeTag(id: string, tid: string = v4()): Promise<boolean> {
-  return new Promise<boolean>(async (resolve, reject) => {
-    try {
-      const note = await repos.allNote.findOne(id)
-      if (!note) throw new Error(`note: ${id} not found in all note table`)
-      const tids = note.tids.split('|')
-      tids.splice(tid.indexOf(tid), 1)
-      await repos.allNote.update(id, { tids: tids.join('|') })
-      resolve(true)
-    } catch (error) {
-      reject(error)
-    }
-  })
+export function createHistory() {
+
 }
 
+export function deleteHistory() {
+  
+}
+
+export function fallback() {
+  
+}
+
+export function emptyTrash() {
+
+}
+
+export function setConfigure() {
+  
+}
+
+export function getConfigure() {
+
+}
+
+// TODO password manager
+// TODO 

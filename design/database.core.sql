@@ -41,7 +41,7 @@ CREATE TABLE history (
 );
 
 -- extend database
-CREATE TABLE all_note (
+CREATE TABLE allnote (
   `nid` CHAR(36) PRIMARY KEY NOT NULL,
   `fid` CHAR(36) NOT NULL,
   `title` NVARCHAR(140) NOT NULL,
