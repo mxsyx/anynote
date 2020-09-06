@@ -3,7 +3,7 @@ import { PrimaryColumn, Column } from '../resolve'
 import { NoteType } from '../types'
 
 @Entity()
-class Folder extends BaseEntity {
+class Trash extends BaseEntity {
   @PrimaryColumn({ type: 'char', name: 'nid', length: 36, nullable: false })
   nid: string
 
@@ -26,19 +26,19 @@ class Folder extends BaseEntity {
   weight: number
 
   @Column({ type: 'tinyint', name: 'locked', unsigned: true, nullable: false, default: 0 })
-  locked: number
+  locked: boolean
 
   @Column({ type: 'nvarchar', name: 'author', length: 28, default: null })
-  author: string
+  author: string | null
 
   @Column({ type: 'text', name: 'link', length: 255, default: null })
-  origin: string
+  origin: string | null
 
   @Column({ type: 'text', name: 'lisence', length: 16, default: null })
-  lisence: string
+  lisence: string | null
 
   @Column({ type: 'text', name: 'remark', length: 800, default: null })
-  remark: string
+  remark: string | null
 
   @Column({ type: 'text', name: 'content' })
   content: string
@@ -47,4 +47,4 @@ class Folder extends BaseEntity {
   version: number
 }
 
-export default Folder
+export default Trash

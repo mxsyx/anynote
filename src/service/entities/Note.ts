@@ -1,5 +1,6 @@
 import { Entity, BaseEntity } from 'typeorm'
 import { PrimaryColumn, Column } from '../resolve'
+import { NoteType } from '../types'
 
 @Entity()
 class Note extends BaseEntity {
@@ -7,7 +8,7 @@ class Note extends BaseEntity {
   id: string
 
   @Column({ type: 'char', name: 'type', length: 1, readonly: true, nullable: false })
-  type: string
+  type: NoteType
 
   @Column({ type: 'nvarchar', name: 'title', length: 140, nullable: false })
   title: string

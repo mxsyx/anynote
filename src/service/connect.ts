@@ -1,6 +1,6 @@
 import { ConnectionOptions, Connection, Repository } from 'typeorm'
 import { getConnection, addConnections } from 'initialize'
-import { Folder, Note, History, Tag, AllNote } from './entities'
+import { Folder, Note, History, Tag, AllNote, Configure, Trash } from './entities'
 import DBManager from './database'
 
 interface DBUtil {
@@ -20,26 +20,18 @@ export function initSystemDB(): DBUtil {
 interface Connections {
   schema: Connection,
   extend: Connection,
-  notes: {
-    [index: string]: Connection
-  },
-  plugins: {
-    [index: string]: Connection
-  }
+  notes: { [index: string]: Connection },
+  plugins: { [index: string]: Connection }
 }
 interface Repos {
   folder: Repository<Folder>,
+  configure: Repository<Configure>,
   tag: Repository<Tag>,
   allNote: Repository<AllNote>,
-  notes: {
-    [index: string]: Repository<Note>
-  },
-  historys: {
-    [index: string]: Repository<History>
-  },
-  plugins: {
-    // [index: string]: Repository<>
-  }
+  trash: Repository<Trash>,
+  notes: { [index: string]: Repository<Note> },
+  historys: { [index: string]: Repository<History> },
+  plugins: { /* [index: string]: Repository<> */ }
 }
 
 const connections: Connections = {
@@ -50,8 +42,10 @@ const connections: Connections = {
 }
 const repos: Repos = {
   folder: connections.schema.getRepository(Folder),
+  configure: connections.schema.getRepository(Configure),
   tag: connections.schema.getRepository(Tag),
   allNote: connections.extend.getRepository(AllNote),
+  trash: connections.extend.getRepository(Trash),
   notes: {},
   historys: {},
   plugins: {}
@@ -90,7 +84,7 @@ export async function initNoteDB() {
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 export async function initPluginDB() {
-  
+
 }
 
 export default repos

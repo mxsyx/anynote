@@ -1,7 +1,8 @@
 import { v4 } from 'node-uuid'
-import { Folder, Note, Tag } from './entities'
+import { Folder, Note, Tag, Configure, History, Trash } from './entities'
 import repos from './connect'
 import { getNow } from './utils'
+import { NoteType } from './types'
 
 export function createFolder(options: {
   id?: string, pid?: string, level?: number, name: string,
@@ -66,12 +67,12 @@ export function moveFolder(id: string, pid: string, level: number): Promise<bool
   })
 }
 
-export function createNote(options: {
-  fid: string, id?: string, type: string, title?: string, cTime?: string,
-  uTime?: string, weight?: number, locked?: boolean, author: string, origin: string,
-  lisence: string, remark: string, content: string, version: number
+export function createNoteByOptions(fid: string, options: {
+  id?: string, type: NoteType, title?: string, cTime?: string,
+  uTime?: string, weight?: number, locked?: boolean, author?: string, origin?: string,
+  lisence?: string, remark?: string, content?: string, version?: number
 }): Promise<Note> {
-  const { fid, id = v4(), type, title = '', cTime = getNow('datetime'),
+  const { id = v4(), type, title = '', cTime = getNow('datetime'),
     uTime = cTime, weight = 0, locked = false, author = null, origin = null,
     lisence = null, remark = null, content = '', version = 0
   } = options
@@ -91,7 +92,32 @@ export function createNote(options: {
   note.content = content
   note.version = version
 
-  // TODO note database maybe not found
+  return new Promise<Note>((resolve, reject) => {
+    repos.notes[fid].save(note)
+      .then((data) => {
+        resolve(data)
+      })
+      .catch((error) => {
+        reject(error)
+      })
+  })
+}
+
+export function createNoteByInstance(fid: string, instance: Note): Promise<Note> {
+  const note = new Note()
+  note.id = instance.id
+  note.type = instance.type
+  note.title = instance.title
+  note.cTime = instance.cTime
+  note.uTime = instance.uTime
+  note.weight = instance.weight
+  note.locked = instance.locked
+  note.author = instance.author
+  note.origin = instance.origin
+  note.lisence = instance.lisence
+  note.remark = instance.remark
+  note.content = instance.content
+  note.version = instance.version
 
   return new Promise<Note>((resolve, reject) => {
     repos.notes[fid].save(note)
@@ -105,14 +131,18 @@ export function createNote(options: {
 }
 
 export function deleteNote(fid: string, id: string): Promise<boolean> {
-  return new Promise<boolean>((resolve, reject) => {
-    repos.notes[fid].delete(id)
-      .then(() => {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const note = await repos.notes[fid].findOne({ id })
+      if (!note) throw new Error(`note: ${id} not found when delete this note.`)
+      if (await dropNoteToTrash(fid, note)) {
+        await repos.notes[fid].delete({ id })
         resolve(true)
-      })
-      .catch((error) => {
-        reject(error)
-      })
+      }
+    } catch (error) {
+      // FIXME when dropToTrash throw error, we should fallback.
+      reject(false)
+    }
   })
 }
 
@@ -232,6 +262,18 @@ export function createTag(name: string, id: string = v4()): Promise<Tag> {
   })
 }
 
+export function listTag(): Promise<Tag[]> {
+  return new Promise<Tag[]>((resolve, reject) => {
+    repos.tag.find()
+      .then((data) => {
+        resolve(data)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
+}
+
 export function deleteTag(id: string): Promise<boolean> {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
@@ -304,29 +346,189 @@ export function unStar(nid: string): Promise<boolean> {
   })
 }
 
-export function createHistory() {
+export function createHistory(fid: string, nid: string, content: string): Promise<History> {
+  const history = new History()
+  history.nid = nid
+  history.when = getNow('datetime')
+  history.content = content
 
+  return new Promise<History>((resolve, reject) => {
+    repos.historys[fid].save(history)
+      .then((data) => {
+        resolve(data)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
 }
 
-export function deleteHistory() {
-  
+export function deleteHistory(fid: string, id: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.historys[fid].delete({ id })
+      .then(() => {
+        resolve(true)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
 }
 
-export function fallback() {
-  
+export function emptyHistory(fid: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.historys[fid].createQueryBuilder('history')
+      .delete()
+      .execute()
+      .then(() => {
+        resolve(true)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
 }
 
-export function emptyTrash() {
-
+export function getHistorys(fid: string, nid: string): Promise<History[]> {
+  return new Promise<History[]>((resolve, reject) => {
+    repos.historys[fid].find({ nid })
+      .then((data) => {
+        resolve(data)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
 }
 
-export function setConfigure() {
-  
+export function fallbackHistory(fid: string, nid: string, hid: string): Promise<boolean> {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const history = await repos.historys[fid].findOne(hid)
+      if (!history) throw new Error(`history: ${hid} not found`)
+      await repos.notes[fid].update({ id: nid }, { content: history.content })
+      resolve(true)
+    } catch (error) {
+      reject(error)
+    }
+  })
 }
 
-export function getConfigure() {
+function dropNoteToTrash(fid: string, note: Note): Promise<boolean> {
+  const trash = new Trash()
+  trash.nid = note.id
+  trash.fid = fid
+  trash.type = note.type
+  trash.title = note.title
+  trash.cTime = note.cTime
+  trash.uTime = note.uTime
+  trash.weight = note.weight
+  trash.locked = note.locked
+  trash.author = note.author
+  trash.origin = note.origin
+  trash.lisence = note.lisence
+  trash.remark = note.remark
+  trash.content = note.content
+  trash.version = note.version
 
+  return new Promise<boolean>((resolve, reject) => {
+    repos.trash.save(trash)
+      .then(() => {
+        resolve(true)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
 }
 
-// TODO password manager
-// TODO 
+export function restoreNoteFromTrash(nid: string): Promise<boolean> {
+  return new Promise<boolean>(async (resolve, reject) => {
+    try {
+      const trashNote = await repos.trash.findOne({ nid })
+      if (!trashNote) throw new Error(`note: ${nid} not found when restore this note.`)
+      const note = new Note()
+      note.id = trashNote.nid
+      note.type = trashNote.type
+      note.title = trashNote.title
+      note.cTime = trashNote.cTime
+      note.uTime = trashNote.uTime
+      note.weight = trashNote.weight
+      note.locked = trashNote.locked
+      note.author = trashNote.author
+      note.origin = trashNote.origin
+      note.lisence = trashNote.lisence
+      note.remark = trashNote.remark
+      note.content = trashNote.content
+      note.version = trashNote.version
+      await createNoteByInstance(trashNote.fid, note)
+      resolve(true)
+    } catch (error) {
+      reject(false)
+    }
+  })
+}
+
+export function listTrash(): Promise<Trash[]> {
+  return new Promise<Trash[]>((resolve, reject) => {
+    repos.trash.find()
+      .then((data) => {
+        resolve(data)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
+}
+
+export function deleteTrash(nid: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.trash.delete({ nid })
+      .then(() => {
+        resolve(true)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
+}
+
+export function emptyTrash(): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.trash.createQueryBuilder('trash')
+      .delete()
+      .execute()
+      .then(() => {
+        resolve(true)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
+}
+
+
+
+export function setConfigure(name: string, value: string): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    repos.configure.update({ name }, { value })
+      .then(() => {
+        resolve(true)
+      })
+      .catch((error) => {
+        reject(error)
+      })
+  })
+}
+
+export function getConfigures(): Promise<Configure[]> {
+  return new Promise<Configure[]>((resolve, reject) => {
+    repos.configure.find()
+      .then(configures => {
+        resolve(configures)
+      })
+      .catch(error => {
+        reject(error)
+      })
+  })
+}
