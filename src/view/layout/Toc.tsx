@@ -2,9 +2,10 @@ import React, { FC } from "react"
 import { Typography } from "@material-ui/core"
 import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab"
 import { makeStyles } from '@material-ui/core/styles'
-import {ArrowDropDown, ArrowRight,} from "@material-ui/icons"
+import { ArrowDropDown, ArrowRight } from "@material-ui/icons"
 
-import popupMenu from 'utils/menu'
+import { popupCollapseNote } from 'utils/menu/collapse'
+import popupMenu from "utils/menu/toc"
 
 const useStyles = makeStyles({
   root: {
@@ -21,7 +22,7 @@ const useStyles = makeStyles({
     borderBottomRightRadius: 8,
     padding: '5px 0px'
   }
-}, {name: 'Toc'})
+}, { name: 'Toc' })
 
 interface TocItemProps extends TreeItemProps {
   name: string
@@ -34,7 +35,7 @@ const TocItem: FC<TocItemProps> = (props) => {
 
   return (
     <TreeItem
-      onContextMenu={(e) => popupMenu(e, {fid: 'xxx-xxx-x'})}
+      onContextMenu={(e) => popupMenu(e, { fid: 'xxx-xxx-x' })}
       nodeId={nodeId}
       label={
         <div className={styles.item}>
@@ -53,12 +54,13 @@ const TocItem: FC<TocItemProps> = (props) => {
 const Toc: FC = () => {
   const styles = useStyles()
 
-  return ( 
+  return (
     <TreeView
-      classes={{root: styles.root}}
-      defaultCollapseIcon={<ArrowDropDown style={{color: '#FFFFFF'}} />}
-      defaultExpandIcon={<ArrowRight style={{color: '#FFFFFF'}} />}
+      classes={{ root: styles.root }}
+      defaultCollapseIcon={<ArrowDropDown style={{ color: '#FFFFFF' }} />}
+      defaultExpandIcon={<ArrowRight style={{ color: '#FFFFFF' }} />}
       defaultEndIcon={<div style={{ width: 24 }} />}
+      onContextMenu={(e) => popupCollapseNote(e)}
     >
       <TocItem nodeId="1" name="学术" number="90">
         <TocItem nodeId="1.1" name="数学" number="90" />

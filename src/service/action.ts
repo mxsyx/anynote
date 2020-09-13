@@ -1,8 +1,10 @@
 import { v4 } from 'node-uuid'
 import { Folder, Note, Tag, Configure, History, Trash } from './entities'
-import repos from './connect'
+import getRepos from './connect'
 import { getNow } from './utils'
 import { NoteType } from './types'
+
+const repos = getRepos()
 
 export function createFolder(options: {
   id?: string, pid?: string, level?: number, name: string,

@@ -1,68 +1,71 @@
 import { ConnectionOptions, Connection, Repository } from 'typeorm'
-import { getConnection, addConnections } from 'initialize'
-import { Folder, Note, History, Tag, AllNote, Configure, Trash } from './entities'
 import DBManager from './database'
-
-interface DBUtil {
-  getConnection: (name: string) => Connection,
-  addConnections: (connOptionsList: ConnectionOptions[]) => Promise<boolean>
-}
-
-export function initSystemDB(): DBUtil {
-  const dbManager = new DBManager()
-
-  return {
-    getConnection: dbManager.getConnection,
-    addConnections: dbManager.addConnections
-  }
-}
+import {
+  Folder,
+  Note,
+  History,
+  Tag,
+  AllNote,
+  Configure,
+  Trash
+} from './entities'
 
 interface Connections {
-  schema: Connection,
-  extend: Connection,
-  notes: { [index: string]: Connection },
+  schema: Connection
+  extend: Connection
+  notes: { [index: string]: Connection }
   plugins: { [index: string]: Connection }
 }
 interface Repos {
-  folder: Repository<Folder>,
-  configure: Repository<Configure>,
-  tag: Repository<Tag>,
-  allNote: Repository<AllNote>,
-  trash: Repository<Trash>,
-  notes: { [index: string]: Repository<Note> },
-  historys: { [index: string]: Repository<History> },
-  plugins: { /* [index: string]: Repository<> */ }
+  folder: Repository<Folder>
+  configure: Repository<Configure>
+  tag: Repository<Tag>
+  allNote: Repository<AllNote>
+  trash: Repository<Trash>
+  notes: { [index: string]: Repository<Note> }
+  historys: { [index: string]: Repository<History> }
+  plugins: {
+    /* [index: string]: Repository<> */
+  }
 }
 
-const connections: Connections = {
-  schema: getConnection('schema'),
-  extend: getConnection('extend'),
-  notes: {},
-  plugins: {}
-}
-const repos: Repos = {
-  folder: connections.schema.getRepository(Folder),
-  configure: connections.schema.getRepository(Configure),
-  tag: connections.schema.getRepository(Tag),
-  allNote: connections.extend.getRepository(AllNote),
-  trash: connections.extend.getRepository(Trash),
-  notes: {},
-  historys: {},
-  plugins: {}
+//
+let connections: Connections
+
+//
+let repos: Repos
+
+export function initSystemDB(dbManager: DBManager): void {
+  connections = {
+    schema: dbManager.getConnection('schema'),
+    extend: dbManager.getConnection('extend'),
+    notes: {},
+    plugins: {}
+  }
+  repos = {
+    folder: connections.schema.getRepository(Folder),
+    configure: connections.schema.getRepository(Configure),
+    tag: connections.schema.getRepository(Tag),
+    allNote: connections.extend.getRepository(AllNote),
+    trash: connections.extend.getRepository(Trash),
+    notes: {},
+    historys: {},
+    plugins: {}
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function initNoteDB() {
+export async function initNoteDB(dbManager: DBManager): Promise<void> {
+  if (!repos) return
   const fids: string[] = []
-  await repos.folder.find()
-    .then(data => {
-      data.map(el => {
-        fids.push(el.id)
-      })
+  await repos.folder.find().then(data => {
+    data.map(el => {
+      fids.push(el.id)
     })
+  })
 
   const connOptionsList: ConnectionOptions[] = []
-  fids.forEach((fid) => {
+  fids.forEach(fid => {
     connOptionsList.push({
       name: fid,
       type: 'sqlite',
@@ -72,19 +75,17 @@ export async function initNoteDB() {
       logging: true
     })
   })
-  await addConnections(connOptionsList)
+  await dbManager.addConnections(connOptionsList)
 
-  fids.forEach((fid) => {
-    connections.notes[fid] = getConnection(fid)
+  fids.forEach(fid => {
+    connections.notes[fid] = dbManager.getConnection(fid)
     repos.notes[`note_${fid}`] = connections.notes[fid].getRepository(Note)
     repos.historys[`history_${fid}`] = connections[fid].getRepository(History)
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-export async function initPluginDB() {
-
+function getRepos(): Repos {
+  return repos
 }
 
-export default repos
+export default getRepos

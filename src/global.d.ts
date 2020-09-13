@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+import 'electron'
+
 interface Window {
-  electron: {
+  electron:  {
     ipcRenderer: Electron.IpcRenderer,
     remote: Electron.Remote
   };

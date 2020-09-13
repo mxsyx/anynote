@@ -2,14 +2,16 @@
   "compilerOptions": {
     "rootDir": ".",
     "baseUrl": "./src",
-    "outDir": "./build/servcie",
-    "lib": ["ES5", "ES6"],
+    "outDir": "./build",
+    "lib": ["ES5", "ES6", "DOM"],
     "target": "ES5",
     "module": "CommonJS",
+    "strictNullChecks": true,
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true
   },
-  "files": ["src/service/index.ts"]
+  "exclude": ["node_modules"],
+  "files": ["src/main.ts"]
 }

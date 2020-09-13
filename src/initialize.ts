@@ -1,10 +1,15 @@
-import { initSystemDB, initNoteDB, initPluginDB } from 'service'
+import DBManager from 'service/database'
+import { initSystemDB, initNoteDB } from './service/connect'
 
-// Initialize the system database.
-export const { getConnection, addConnections } = initSystemDB()
+async function init(): Promise<void> {
+  const dbManager = new DBManager()
+  await dbManager.connent()
 
-// Initialize the notes database.
-initNoteDB()
+  // Initialize the notes database.
+  initSystemDB(dbManager)
 
-// Initialize the plugin database.
-initPluginDB()
+  // Initialize the system database.
+  initNoteDB(dbManager)
+}
+
+export default init

@@ -4,15 +4,15 @@ const { spawn, spawnSync } = require('child_process')
 
 let elPid
 function rebuildService() {
-  const ptsc = spawnSync('tsc', ['-p', 'tsconfig.service.json'], { stdio: 'inherit' })
+  const ptsc = spawnSync('tsc', ['-p', 'tsconfig.main.json'], { stdio: 'inherit' })
 
   if (ptsc.status === 0) {
     if (elPid) {  // kill previous electron process
       process.kill(elPid)
-    }
+    } 
 
     const pelectron = spawnSync('npx', [
-      'electron', '--disable-gpu', 'src/desktop/main.js'
+      'electron', '--disable-gpu', 'build/src/main.js'
     ], { stdio: 'inherit' })
     if (pelectron.status === 0) {
       elPid = pelectron.pid

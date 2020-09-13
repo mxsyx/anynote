@@ -1,18 +1,23 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 const path = require('path')
 const electron = require('electron')
+
+import init from './initialize'
 
 const { app, BrowserWindow, globalShortcut } = electron
 
 class Desktop {
+  private window
+
   constructor() {
     this.window = new BrowserWindow({
       width: 800,
       height: 600,
       webPreferences: {
-        nodeIntegration: true,
-        preload: path.join(__dirname, 'preload.js'),
-      },
+        nodeIntegration: true
+      }
     })
+    init()
     this.develop()
   }
 
