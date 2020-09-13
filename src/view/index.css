@@ -5,15 +5,3 @@
 :global(.tox-tinymce) {
   border: none !important;
 }
-
-.panel-summary {
-  min-height: auto !important;
-  padding: 10px 16px !important;
-} 
-.panel-summary :global(.MuiAccordionSummary-content) {
-  margin: 0px
-}
-.panel-summary :global(.MuiAccordionSummary-expandIcon) {
-  padding: 0px
-}
-

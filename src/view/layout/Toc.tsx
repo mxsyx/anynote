@@ -1,20 +1,27 @@
 import React, { FC } from "react"
-import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab"
 import { Typography } from "@material-ui/core"
-import {
-  ArrowDropDown,
-  ArrowRight,
-} from "@material-ui/icons"
+import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab"
+import { makeStyles } from '@material-ui/core/styles'
+import {ArrowDropDown, ArrowRight,} from "@material-ui/icons"
 
 import popupMenu from 'utils/menu'
-import styles from './index.css'
 
-declare module "csstype" {
-  interface Properties {
-    "--tree-view-color"?: string
-    "--tree-view-bg-color"?: string
+const useStyles = makeStyles({
+  root: {
+    height: 264,
+    flexGrow: 1,
+    maxWidth: 400
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    userSelect: 'none',
+    color: '#FFFFFF',
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    padding: '5px 0px'
   }
-}
+}, {name: 'Toc'})
 
 interface TocItemProps extends TreeItemProps {
   name: string
@@ -22,30 +29,20 @@ interface TocItemProps extends TreeItemProps {
 }
 
 const TocItem: FC<TocItemProps> = (props) => {
+  const styles = useStyles()
   const { nodeId, name, children } = props
 
   return (
     <TreeItem
-      onContextMenu={popupMenu}
+      onContextMenu={(e) => popupMenu(e, {fid: 'xxx-xxx-x'})}
       nodeId={nodeId}
       label={
-        <div className={styles.tocItem}>
+        <div className={styles.item}>
           <Typography variant="body2">{name}</Typography>
           <Typography variant="caption" color="inherit">
             {/* {number} */}
           </Typography>
         </div>
-      }
-      classes={
-        {
-          // root:
-        }
-      }
-      style={
-        {
-          // color: '#e3742f',
-          // backgroundColor: '#e8f0fe'
-        }
       }
     >
       {children}
@@ -54,11 +51,13 @@ const TocItem: FC<TocItemProps> = (props) => {
 }
 
 const Toc: FC = () => {
-  return (
+  const styles = useStyles()
+
+  return ( 
     <TreeView
-      className={styles.root}
-      defaultCollapseIcon={<ArrowDropDown  />}
-      defaultExpandIcon={<ArrowRight  />}
+      classes={{root: styles.root}}
+      defaultCollapseIcon={<ArrowDropDown style={{color: '#FFFFFF'}} />}
+      defaultExpandIcon={<ArrowRight style={{color: '#FFFFFF'}} />}
       defaultEndIcon={<div style={{ width: 24 }} />}
     >
       <TocItem nodeId="1" name="学术" number="90">

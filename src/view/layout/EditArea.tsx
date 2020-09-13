@@ -1,13 +1,28 @@
 import React, { FC, useCallback, useState } from "react"
 import { Grid, Input, Button } from "@material-ui/core"
+import { makeStyles } from '@material-ui/core/styles'
 import { Editor } from "@tinymce/tinymce-react"
 
 import { editorInit } from 'constants'
-import styles from './index.css'
 
-const ipcRenderer = window.electron.ipcRenderer
+const useStyles = makeStyles({
+  title: {
+    width: '100%',
+    '&::before': {
+      display: 'none'
+    },
+    '&::after': {
+      display: 'none'
+    }
+  },
+  updateTime: {
+    fontSize: 14,
+    color: '#BFBFBF'
+  }
+}, {name: 'EditArea'})
 
 const EditorArea: FC = () => {
+  const styles = useStyles()
   const [content, setContent] = useState<string>("")
 
   const handleEditorChange = useCallback((newContent) => {
