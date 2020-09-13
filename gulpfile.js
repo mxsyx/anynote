@@ -10,8 +10,10 @@ function rebuildService() {
     if (elPid) {  // kill previous electron process
       process.kill(elPid)
     }
-    
-    const pelectron = spawnSync('npx', ['electron', '--disable-gpu', 'src/desktop/main.js'], {stdio:'inherit'})
+
+    const pelectron = spawnSync('npx', [
+      'electron', '--disable-gpu', 'src/desktop/main.js'
+    ], { stdio: 'inherit' })
     if (pelectron.status === 0) {
       elPid = pelectron.pid
       return Promise.resolve()

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface Window {
   electron: {
-    ipcRenderer: Electron.IpcRenderer;
+    ipcRenderer: Electron.IpcRenderer,
+    remote: Electron.Remote
   };
 }
 

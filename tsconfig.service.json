@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "rootDir": "./src/service",
-    "baseUrl": "./src/service",
+    "rootDir": ".",
+    "baseUrl": "./src",
     "outDir": "./build/servcie",
     "lib": ["ES5", "ES6"],
     "target": "ES5",

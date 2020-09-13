@@ -1,6 +1,7 @@
-const electron = require('electron')
 const path = require('path')
-const { app, BrowserWindow, Menu, globalShortcut } = electron
+const electron = require('electron')
+
+const { app, BrowserWindow, globalShortcut } = electron
 
 class Desktop {
   constructor() {
@@ -26,7 +27,7 @@ class Desktop {
 
   run() {
     // Load index.html file.
-    this.window.loadURL('http://127.0.0.1:6888')
+    this.window.loadURL('http://127.0.0.1:20719')
 
     // Set minimum window size.
     this.window.setMinimumSize(360, 580)

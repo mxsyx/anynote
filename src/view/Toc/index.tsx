@@ -1,22 +1,13 @@
 import React, { FC } from "react"
-import { makeStyles, Theme, createStyles } from "@material-ui/core/styles"
 import { TreeView, TreeItem, TreeItemProps } from "@material-ui/lab"
-import { Typography, Icon } from "@material-ui/core"
+import { Typography } from "@material-ui/core"
 import {
-  Label,
-  Mail,
-  Delete,
-  Info,
-  SupervisorAccount,
-  Forum,
-  LocalOffer,
   ArrowDropDown,
   ArrowRight,
 } from "@material-ui/icons"
-import { SvgIconProps } from "@material-ui/core/SvgIcon"
 
-import styles from "./index.css"
-import sidebar from 'assets/sidebar.jpg'
+import popupMenu from 'utils/menu'
+import styles from './index.css'
 
 declare module "csstype" {
   interface Properties {
@@ -27,22 +18,21 @@ declare module "csstype" {
 
 interface TocItemProps extends TreeItemProps {
   name: string
-  icon: React.ElementType<SvgIconProps>
   number?: string
 }
 
 const TocItem: FC<TocItemProps> = (props) => {
-  const { nodeId, name, icon: Icon, number, children } = props
+  const { nodeId, name, children } = props
 
   return (
     <TreeItem
+      onContextMenu={popupMenu}
       nodeId={nodeId}
       label={
         <div className={styles.tocItem}>
-          <Icon />
           <Typography variant="body2">{name}</Typography>
           <Typography variant="caption" color="inherit">
-            {number}
+            {/* {number} */}
           </Typography>
         </div>
       }
@@ -67,23 +57,23 @@ const Toc: FC = () => {
   return (
     <TreeView
       className={styles.root}
-      defaultExpanded={["3"]}
-      defaultCollapseIcon={<ArrowDropDown />}
-      defaultExpandIcon={<ArrowRight />}
+      defaultCollapseIcon={<ArrowDropDown  />}
+      defaultExpandIcon={<ArrowRight  />}
       defaultEndIcon={<div style={{ width: 24 }} />}
-      style={{ backgroundImage: `url(${sidebar})` }}
     >
-      <TocItem nodeId="1" name="领域基础" icon={Mail} number="90" />
-      <TocItem nodeId="2" name="网络技术" icon={Label} number="90">
-        <TocItem
-          nodeId="5"
-          name="前端开发"
-          icon={SupervisorAccount}
-          number="90"
-        />
-        <TocItem nodeId="6" name="后端开发" icon={Info} number="90" />
+      <TocItem nodeId="1" name="学术" number="90">
+        <TocItem nodeId="1.1" name="数学" number="90" />
+        <TocItem nodeId="1.2" name="软件工程" number="90" />
+        <TocItem nodeId="1.3" name="程序原理" number="90" />
       </TocItem>
-      <TocItem nodeId="3" name="数据科学" icon={Delete} number="90" />
+      <TocItem nodeId="2" name="Thinking" number="90" />
+      <TocItem nodeId="3" name="程序设计语言" number="90">
+        <TocItem nodeId="3.1" name="Rust" number="90" />
+        <TocItem nodeId="3.2" name="C/C++" number="90" />
+        <TocItem nodeId="3.3" name="JavaScript" number="90" />
+      </TocItem>
+      <TocItem nodeId="4" name="重要" number="90" />
+      <TocItem nodeId="5" name="Web" number="90" />
     </TreeView>
   )
 }

@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
+    "rootDir": ".",
+    "baseUrl": "./src",
     "outDir": "./build",
     "target": "ES2015",
     "module": "UMD",
-    "baseUrl": "./src",
-    "rootDir": ".",
     "jsx": "react",
     "allowJs": true,
     "sourceMap": true,
@@ -15,7 +15,8 @@
     "experimentalDecorators": true,
     "paths": {
       "assets": ["view/assets"],
-      "constants": ["view/constants"]
+      "constants": ["view/constants"],
+      "utils/*": ["view/utils/*"]
     },
     "typeRoots": [
       "node_modules/@types",
