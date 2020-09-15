@@ -3,7 +3,11 @@
     "rootDir": ".",
     "baseUrl": "./src",
     "outDir": "./build",
-    "lib": ["ES5", "ES6", "DOM"],
+    "lib": [
+      "ES5",
+      "ES6",
+      "DOM"
+    ],
     "target": "ES5",
     "module": "CommonJS",
     "strictNullChecks": true,
@@ -12,6 +16,13 @@
     "experimentalDecorators": true,
     "sourceMap": true
   },
-  "exclude": ["node_modules"],
-  "files": ["src/main.ts"]
+  "typeRoots": [
+    "src/global.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
+  "files": [
+    "src/main.ts"
+  ]
 }

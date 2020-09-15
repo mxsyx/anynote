@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import 'electron'
+/// <reference types="electron" />
 
 interface Window {
-  electron:  {
-    ipcRenderer: Electron.IpcRenderer,
+  electron: {
     remote: Electron.Remote
-  };
+  }
 }
 
 declare module "*.css" {

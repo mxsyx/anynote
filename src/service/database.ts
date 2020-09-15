@@ -8,7 +8,7 @@ import {
 import { Folder, Configure, Tag, AllNote, Trash } from './entities'
 
 class DBManager {
-  // Database connection pool
+  // Database connection pool.
   private pool: ConnectionManager
 
   connent(): Promise<boolean> {

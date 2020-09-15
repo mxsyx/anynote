@@ -17,7 +17,6 @@ class Desktop {
         nodeIntegration: true
       }
     })
-    init()
     this.develop()
   }
 
@@ -51,6 +50,7 @@ class Desktop {
   }
 }
 
+init()
 app.on('ready', () => {
   const desktop = new Desktop()
   desktop.run()

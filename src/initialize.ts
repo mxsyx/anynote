@@ -1,4 +1,4 @@
-import DBManager from 'service/database'
+import DBManager from './service/database'
 import { initSystemDB, initNoteDB } from './service/connect'
 
 async function init(): Promise<void> {
@@ -10,6 +10,8 @@ async function init(): Promise<void> {
 
   // Initialize the system database.
   initNoteDB(dbManager)
+
+  window.electron.remote = require('electron')
 }
 
 export default init

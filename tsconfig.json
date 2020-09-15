@@ -5,7 +5,11 @@
     "outDir": "./build",
     "target": "ES2020",
     "module": "ESNext",
-    "lib": ["ES5", "ES6", "DOM"],
+    "lib": [
+      "ES5",
+      "ES6",
+      "DOM"
+    ],
     "jsx": "react",
     "allowJs": true,
     "sourceMap": true,
@@ -15,9 +19,15 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "paths": {
-      "assets": ["view/assets"],
-      "constants": ["view/constants"],
-      "utils/*": ["view/utils/*"]
+      "assets": [
+        "view/assets"
+      ],
+      "constants": [
+        "view/constants"
+      ],
+      "utils/*": [
+        "view/utils/*"
+      ]
     },
     "typeRoots": [
       "node_modules/@types",

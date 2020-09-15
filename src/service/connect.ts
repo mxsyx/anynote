@@ -13,8 +13,12 @@ import {
 interface Connections {
   schema: Connection
   extend: Connection
-  notes: { [index: string]: Connection }
-  plugins: { [index: string]: Connection }
+  notes: { 
+    [index: string]: Connection
+  }
+  plugins: { 
+    [index: string]: Connection 
+  }
 }
 interface Repos {
   folder: Repository<Folder>
@@ -22,18 +26,18 @@ interface Repos {
   tag: Repository<Tag>
   allNote: Repository<AllNote>
   trash: Repository<Trash>
-  notes: { [index: string]: Repository<Note> }
-  historys: { [index: string]: Repository<History> }
+  notes: { 
+    [index: string]: Repository<Note>
+  }
+  historys: { 
+    [index: string]: Repository<History> 
+  }
   plugins: {
     /* [index: string]: Repository<> */
   }
 }
 
-//
-let connections: Connections
-
-//
-let repos: Repos
+let connections: Connections, repos: Repos
 
 export function initSystemDB(dbManager: DBManager): void {
   connections = {
