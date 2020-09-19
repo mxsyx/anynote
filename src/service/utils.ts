@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import { createCipheriv, createDecipheriv } from 'crypto'
 
 type DateFormat = 'datetime' | 'timestamp'
 export function getNow(format: DateFormat): string {
@@ -20,7 +20,7 @@ export function getNow(format: DateFormat): string {
  * @param data Data to be encrypted.
  */
 export function encrypt(key: string, data: string): string {
-  const cipher = crypto.createCipheriv('aes-128-ecb', key, null)
+  const cipher = createCipheriv('aes-128-ecb', key, null)
   return cipher.update(data, 'utf8', 'base64') + cipher.final('base64')
 }
 
@@ -30,6 +30,6 @@ export function encrypt(key: string, data: string): string {
  * @param data Data to be decrypted.
  */
 export function decrypt(key: string, data: string): string {
-  const cipher = crypto.createDecipheriv('aes-128-ecb', key, null)
+  const cipher = createDecipheriv('aes-128-ecb', key, null)
   return cipher.update(data, 'base64', 'utf8') + cipher.final('utf8')
 }

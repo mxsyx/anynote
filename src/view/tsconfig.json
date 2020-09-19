@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+    "baseUrl": ".",
+    "outDir": "../../build/dist",
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": [
+      "ES5",
+      "ES6",
+      "DOM"
+    ],
+    "jsx": "react",
+    "allowJs": true,
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "paths": {
+      "assets/*": [
+        "assets/*"
+      ],
+      "constants": [
+        "constants"
+      ],
+      "utils/*": [
+        "utils/*"
+      ]
+    }
+  }
+}

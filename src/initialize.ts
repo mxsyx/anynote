@@ -10,8 +10,6 @@ async function init(): Promise<void> {
 
   // Initialize the system database.
   initNoteDB(dbManager)
-
-  window.electron.remote = require('electron')
 }
 
 export default init

@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-const path = require('path')
-const electron = require('electron')
+import path = require('path')
+import electron = require('electron')
 
+// Init App.
 import init from './initialize'
 
 const { app, BrowserWindow, globalShortcut } = electron
@@ -14,7 +14,8 @@ class Desktop {
       width: 800,
       height: 600,
       webPreferences: {
-        nodeIntegration: true
+        nodeIntegration: true,
+        preload: path.resolve(__dirname, 'preload.js')
       }
     })
     this.develop()
@@ -31,7 +32,7 @@ class Desktop {
 
   run() {
     // Load index.html file.
-    this.window.loadURL('http://127.0.0.1:20719')
+    this.window.loadURL('http://127.0.0.1:1080')
 
     // Set minimum window size.
     this.window.setMinimumSize(360, 580)

@@ -3,9 +3,7 @@
 /// <reference types="electron" />
 
 interface Window {
-  electron: {
-    remote: Electron.Remote
-  }
+  electron: typeof Electron
 }
 
 declare module "*.css" {

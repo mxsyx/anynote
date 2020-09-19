@@ -3,40 +3,27 @@
     "rootDir": ".",
     "baseUrl": "./src",
     "outDir": "./build",
-    "target": "ES2020",
-    "module": "ESNext",
     "lib": [
       "ES5",
       "ES6",
       "DOM"
     ],
-    "jsx": "react",
     "allowJs": true,
-    "sourceMap": true,
+    "target": "ES5",
+    "module": "CommonJS",
     "strictNullChecks": true,
     "moduleResolution": "node",
-    "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "paths": {
-      "assets": [
-        "view/assets"
-      ],
-      "constants": [
-        "view/constants"
-      ],
-      "utils/*": [
-        "view/utils/*"
-      ]
-    },
+    "sourceMap": true,
     "typeRoots": [
-      "node_modules/@types",
-      "src/global.d.ts"
+      "node_modules/@types"
     ]
   },
+  "include": [
+    "src"
+  ],
   "exclude": [
-    "node_modules",
-    "build",
-    "refs"
+    "src/view"
   ]
 }

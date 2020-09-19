@@ -4,7 +4,7 @@ const { spawn, spawnSync } = require('child_process')
 
 let elPid
 function rebuildService() {
-  const ptsc = spawnSync('tsc', ['-p', 'tsconfig.main.json'], { stdio: 'inherit' })
+  const ptsc = spawnSync('tsc', { stdio: 'inherit' })
 
   if (ptsc.status === 0) {
     if (elPid) {  // kill previous electron process
@@ -24,7 +24,7 @@ function rebuildService() {
 function dev() {
   spawn('npx', [
     'webpack-dev-server', '--mode', 'development',
-    '--port', '20719', '--hot'
+    '--port', '1080', '--hot'
   ], { stdio: 'inherit' })
   rebuildService()
 }
