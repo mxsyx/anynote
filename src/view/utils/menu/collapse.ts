@@ -1,4 +1,4 @@
-const { Menu, MenuItem } = anynote.remote
+const { remote: { Menu, MenuItem }, actions } = anynote
 
 const menus = {
   collapseNote: new Menu(),
@@ -9,7 +9,7 @@ const menus = {
 menus.collapseNote.append(
   new MenuItem({
     label: '新建文件夹',
-    click: () => {      
+    click: () => {
       console.log('clicked')
     }
   })

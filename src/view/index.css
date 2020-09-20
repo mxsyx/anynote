@@ -1,7 +1,7 @@
-:global(body) {
+body {
   margin: 0px;
 }
 
-:global(.tox-tinymce) {
+.tox-tinymce {
   border: none !important;
 }
