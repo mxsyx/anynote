@@ -4,7 +4,9 @@ import {
   PrimaryColumn as TypeormPrimaryColumn,
   PrimaryGeneratedColumn as TypeormPrimaryGeneratedColumn
 } from 'typeorm'
-import { PrimaryGeneratedColumnNumericOptions } from 'typeorm/decorator/options/PrimaryGeneratedColumnNumericOptions';
+import {
+  PrimaryGeneratedColumnNumericOptions
+} from 'typeorm/decorator/options/PrimaryGeneratedColumnNumericOptions'
 
 const columnMapping = {
   char: "text",

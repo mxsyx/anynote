@@ -1,34 +1,40 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-const gulp = require('gulp')
 const { spawn, spawnSync } = require('child_process')
+const gulp = require('gulp')
+const watch = require('gulp-watch')
 
-let elPid
-function rebuildService() {
-  const ptsc = spawnSync('tsc', { stdio: 'inherit' })
+function clearDir() {
+  spawnSync('rm', ['-rf', './build/src'])
+}
 
-  if (ptsc.status === 0) {
-    if (elPid) {  // kill previous electron process
-      process.kill(elPid)
-    } 
+function buildService() {
+  spawn('tsc', ['-w'], { stdio: 'inherit', })
+}
 
-    const pelectron = spawnSync('npx', [
-      'electron', '--disable-gpu', 'build/src/main.js'
-    ], { stdio: 'inherit' })
-    if (pelectron.status === 0) {
-      elPid = pelectron.pid
-      return Promise.resolve()
+function buildView() {
+  spawn('npx', [
+    'webpack-dev-server', '--mode', 'development',
+    '--port', '1080', '--hot'
+  ], { stdio: 'inherit' })
+}
+
+function startApp() {
+  let started = false
+  return function () {
+    if (!started) {
+      started = true
+      spawn('npx', [
+        'electron', '--disable-gpu', 'build/src/main.js'
+      ], { stdio: 'inherit' })
     }
   }
 }
 
 function dev() {
-  spawn('npx', [
-    'webpack-dev-server', '--mode', 'development',
-    '--port', '1080', '--hot'
-  ], { stdio: 'inherit' })
-  rebuildService()
+  clearDir()
+  buildService()
+  buildView()
+  watch('./build', startApp())
 }
 
 gulp.task('dev', dev)
-
-gulp.watch('src/service', rebuildService)

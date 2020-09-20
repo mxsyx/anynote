@@ -1,5 +1,4 @@
-const remote = window.electron.remote
-const { Menu, MenuItem } = remote
+const { Menu, MenuItem } = anynote.remote
 
 const menus = {
   collapseNote: new Menu(),
@@ -10,7 +9,7 @@ const menus = {
 menus.collapseNote.append(
   new MenuItem({
     label: '新建文件夹',
-    click: () => {
+    click: () => {      
       console.log('clicked')
     }
   })

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/// <reference types="electron" />
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="../global.d.ts" />
 
-interface Window {
-  electron: typeof Electron
-}
+// eslint-disable-next-line no-var
+declare var anynote: Anynote
 
 declare module "*.css" {
   const content: any;

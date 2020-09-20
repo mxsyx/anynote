@@ -22,9 +22,13 @@
     "react",
     "@typescript-eslint"
   ],
-  "ignorePatterns": ["*.html","*.css","desktop"],
+  "ignorePatterns": [
+    "*.html",
+    "*.css"
+  ],
   "rules": {
     "react/prop-types": "off",
-    "no-async-promise-executor": "off"
+    "no-async-promise-executor": "off",
+    "@typescript-eslint/ban-ts-comment": "off"
   }
 }

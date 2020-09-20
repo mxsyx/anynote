@@ -1,4 +1,4 @@
-const remote = window.electron.remote
+const remote = anynote.remote
 const { Menu, MenuItem } = remote
 
 const menu = new Menu()

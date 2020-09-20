@@ -27,12 +27,7 @@ module.exports = {
             options: {
               url: true,
               import: true,
-              sourceMap: true,
-              modules: {
-                exportGlobals: true,
-                localIdentName: '[folder]__[local]--[hash:base64:5]',
-              },
-              localsConvention: 'camelCase'
+              sourceMap: true
             }
           }
         ]
