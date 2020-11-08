@@ -31,7 +31,7 @@ class Desktop {
 
   run() {
     // Load index.html file.
-    this.window.loadURL('http://127.0.0.1:1080')
+    this.window.loadURL('http://127.0.0.1:8187')
 
     // Set minimum window size.
     this.window.setMinimumSize(360, 580)

@@ -4,7 +4,7 @@
   "description": "a private note solution",
   "main": "index.ts",
   "scripts": {
-    "run": "electron --disable-gpu src/desktop/main.js",
+    "start": "electron --disable-gpu src/desktop/main.js",
     "dev:view": "webpack-dev-server --mode development --port 20719 --hot",
     "build:view": "webpack --mode production",
     "eslint": "eslint src/view --ext .tsx,.ts",
@@ -51,7 +51,6 @@
     "@babel/preset-typescript": "^7.10.4",
     "@types/gulp": "^4.0.6",
     "@types/node": "^12.12.6",
-    "@types/node-uuid": "0.0.28",
     "@types/react-dom": "^16.9.8",
     "@typescript-eslint/eslint-plugin": "^3.5.0",
     "@typescript-eslint/parser": "^3.5.0",
