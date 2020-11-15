@@ -24,7 +24,9 @@
   ],
   "ignorePatterns": [
     "*.html",
-    "*.css"
+    "*.css",
+    "gulpfile.js",
+    "webpack.config.js"
   ],
   "rules": {
     "react/prop-types": "off",

@@ -76,7 +76,7 @@ menu.append(
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
   tocEvent: TocEvent
-): void {
+): void {  
   e.preventDefault()
   globalTocEvent = tocEvent
   menu.popup()

@@ -4,6 +4,7 @@ import { Grid } from '@material-ui/core'
 import { Toc, Preview, EditArea } from './layout'
 import Collapse from './components/Collapse'
 import bg from 'assets/sidebar.jpg'
+import { popupCollapseNote } from 'utils/menu/collapse'
 
 const App: FC = () => {
   return (
@@ -17,11 +18,11 @@ const App: FC = () => {
           backgroundSize: '100% 100%'
         }}
       >
-        <Collapse summary="我的笔记本">
+        <Collapse title="我的笔记本" onContextNemu={e => popupCollapseNote(e)}>
           <Toc />
         </Collapse>
-        <Collapse summary="收藏" />
-        <Collapse summary="标签" />
+        <Collapse title="收藏" />
+        <Collapse title="标签" />
       </Grid>
       <Grid item style={{ flex: '0 0 18%' }}>
         <Preview />
@@ -29,8 +30,9 @@ const App: FC = () => {
       <Grid item style={{ flex: '0 0 70%' }}>
         <EditArea />
       </Grid>
-    </Grid>
+    </Grid> 
   )
 }
 
 export default App
+ 

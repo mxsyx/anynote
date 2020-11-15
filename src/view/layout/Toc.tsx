@@ -60,7 +60,6 @@ const Toc: FC = () => {
       defaultCollapseIcon={<ArrowDropDown style={{ color: '#FFFFFF' }} />}
       defaultExpandIcon={<ArrowRight style={{ color: '#FFFFFF' }} />}
       defaultEndIcon={<div style={{ width: 24 }} />}
-      onContextMenu={(e) => popupCollapseNote(e)}
     >
       <TocItem nodeId="1" name="学术" number="90">
         <TocItem nodeId="1.1" name="数学" number="90" />

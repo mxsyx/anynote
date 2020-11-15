@@ -7,4 +7,9 @@ declare global {
     actions: typeof actions,
     remote: Electron.Remote
   }
+
+  // eslint-disable-next-line no-var
+  export var anynote: Anynote
 }
+
+

@@ -38,15 +38,16 @@ const useStyles = makeStyles({
   expanded: {}
 }, { name: 'callapse' })
 
-interface CollapseProps {
-  summary: ReactNode
+interface Props {
+  title: ReactNode,
+  onContextNemu?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void
 }
 
-const Collapse: FC<CollapseProps> = (props) => {
+const Collapse: FC<Props> = (props) => {
   const classes = useStyles()
   const [expanded, setExpanded] = useState<boolean>(false)
   const handleChange = () => setExpanded(!expanded)
-
+  
   return (
     <Accordion
       expanded={expanded}
@@ -66,8 +67,9 @@ const Collapse: FC<CollapseProps> = (props) => {
           expandIcon: classes.expandIcon,
           expanded: classes.expanded
         }}
+        onContextMenu={props.onContextNemu}
       >
-        {props.summary}
+        {props.title}
       </AccordionSummary>
       <AccordionDetails>
         {props.children}

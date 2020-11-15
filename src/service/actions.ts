@@ -1,12 +1,113 @@
 import { v4 } from 'node-uuid'
-import { Folder, Note, Tag, Configure, History, Trash } from './entities'
-import getRepos from './connect'
+import { Connection, ConnectionOptions, Repository } from 'typeorm'
+import { Folder, Note, Tag, Configure, History, Trash, AllNote } from './entities'
 import { getNow } from './utils'
 import { NoteType } from './types'
+import DBManager from './database'
 
-const repos = getRepos()
+interface Connections {
+  schema: Connection,
+  extend: Connection,
+  notes: { [index: string]: Connection },
+  plugins: { [index: string]: Connection }
+}
 
-export const folder = {
+interface Repositorys {
+  folder: Repository<Folder>,
+  configure: Repository<Configure>,
+  tag: Repository<Tag>,
+  allNote: Repository<AllNote>,
+  trash: Repository<Trash>,
+  notes: { [index: string]: Repository<Note> },
+  historys: { [index: string]: Repository<History> },
+  plugins: {/* [index: string]: Repository<> */ }
+}
+
+export class Storage {
+  private dbManager: DBManager
+  private connections: Connections
+  private repositorys: Repositorys
+
+  constructor() {
+    this.dbManager = new DBManager()
+  }
+
+  private initSystemDB(): void {
+    this.connections = {
+      schema: this.dbManager.getConnection('schema'),
+      extend: this.dbManager.getConnection('extend'),
+      notes: {},
+      plugins: {}
+    }
+    this.repositorys = {
+      folder: this.connections.schema.getRepository(Folder),
+      configure: this.connections.schema.getRepository(Configure),
+      tag: this.connections.schema.getRepository(Tag),
+      allNote: this.connections.extend.getRepository(AllNote),
+      trash: this.connections.extend.getRepository(Trash),
+      notes: {},
+      historys: {},
+      plugins: {}
+    }
+  }
+
+  private initNoteDB(): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        if (!this.repositorys) return
+        const fids: string[] = []
+        await this.repositorys.folder.find().then(data => {
+          data.map(item => fids.push(item.id))
+        })
+
+        const connOptionsList: ConnectionOptions[] = []
+        fids.forEach(fid => {
+          connOptionsList.push({
+            name: fid,
+            type: 'sqlite',
+            database: fid,
+            entities: [Note, History],
+            synchronize: true,
+            logging: true
+          })
+        })
+        await this.dbManager.addConnections(connOptionsList)
+
+        fids.forEach(fid => {
+          this.connections.notes[fid] = this.dbManager.getConnection(fid)
+          this.repositorys.notes[`note_${fid}`] = this.connections.notes[fid].getRepository(Note)
+          this.repositorys.historys[`history_${fid}`] = this.connections[fid].getRepository(History)
+        })
+
+        resolve(true)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+
+  public init(): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        await this.dbManager.connent()
+        this.initSystemDB()
+        await this.initNoteDB()
+        resolve(true)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+}
+
+
+export class FolderHandler {
+  private repository: Repository<Folder>
+
+  constructor(repository: Repository<Folder>) {
+    this.repository = repository
+  }
+
   create(options: {
     id?: string, pid?: string, level?: number, name: string,
     locked?: boolean, total?: number
@@ -23,8 +124,8 @@ export const folder = {
     folder.locked = locked
     folder.total = total
 
-    return new Promise<Folder>((resolve, reject) => {
-      repos.folder.save(folder)
+    return new Promise<Folder>(function (resolve, reject) {
+      this.repository.save(folder)
         .then((data) => {
           resolve(data)
         })
@@ -32,11 +133,11 @@ export const folder = {
           reject(error)
         })
     })
-  },
+  }
 
   delete(id: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.folder.delete(id)
+      this.repository.delete(id)
         .then(() => {
           resolve(true)
         })
@@ -44,11 +145,11 @@ export const folder = {
           reject(error)
         })
     })
-  },
+  }
 
   rename(id: string, name: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.folder.update(id, { name })
+      this.repository.update(id, { name })
         .then(() => {
           resolve(true)
         })
@@ -56,11 +157,11 @@ export const folder = {
           reject(error)
         })
     })
-  },
+  }
 
   move(id: string, pid: string, level: number): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.folder.update(id, { pid, level })
+      this.repository.update(id, { pid, level })
         .then(() => {
           resolve(true)
         })
@@ -363,7 +464,7 @@ export const history = {
     history.nid = nid
     history.when = getNow('datetime')
     history.content = content
-  
+
     return new Promise<History>((resolve, reject) => {
       repos.historys[fid].save(history)
         .then((data) => {
@@ -374,7 +475,7 @@ export const history = {
         })
     })
   },
-  
+
   delete(fid: string, id: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       repos.historys[fid].delete({ id })
@@ -386,7 +487,7 @@ export const history = {
         })
     })
   },
-  
+
   empty(fid: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       repos.historys[fid].createQueryBuilder('history')
@@ -400,7 +501,7 @@ export const history = {
         })
     })
   },
- 
+
   list(fid: string, nid: string): Promise<History[]> {
     return new Promise<History[]>((resolve, reject) => {
       repos.historys[fid].find({ nid })
@@ -412,7 +513,7 @@ export const history = {
         })
     })
   },
-  
+
   fallback(fid: string, nid: string, hid: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
       try {
@@ -454,7 +555,7 @@ export const trash = {
       }
     })
   },
-  
+
   list(): Promise<Trash[]> {
     return new Promise<Trash[]>((resolve, reject) => {
       repos.trash.find()
@@ -466,7 +567,7 @@ export const trash = {
         })
     })
   },
-  
+
   delete(nid: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       repos.trash.delete({ nid })
@@ -478,7 +579,7 @@ export const trash = {
         })
     })
   },
-  
+
   empty(): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       repos.trash.createQueryBuilder('trash')
@@ -506,7 +607,7 @@ export const configure = {
         })
     })
   },
-  
+
   list(): Promise<Configure[]> {
     return new Promise<Configure[]>((resolve, reject) => {
       repos.configure.find()
@@ -537,7 +638,7 @@ const common = {
     trash.remark = note.remark
     trash.content = note.content
     trash.version = note.version
-  
+
     return new Promise<boolean>((resolve, reject) => {
       repos.trash.save(trash)
         .then(() => {

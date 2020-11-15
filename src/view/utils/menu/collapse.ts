@@ -9,14 +9,14 @@ const menus = {
 menus.collapseNote.append(
   new MenuItem({
     label: '新建文件夹',
-    click: () => {
-      console.log('clicked')
+    click: () => {      
+      actions.Action.create()  //folder.create({name: '新建文件夹'})
     }
   })
 )
 
 export function popupCollapseNote(
-  e: React.MouseEvent<HTMLUListElement, MouseEvent>
+  e: React.MouseEvent<HTMLDivElement, MouseEvent>
 ): void {
   e.preventDefault()
   menus.collapseNote.popup()

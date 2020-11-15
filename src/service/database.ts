@@ -12,14 +12,13 @@ class DBManager {
   private pool: ConnectionManager
 
   connent(): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {      
       createConnections([
         {
           name: 'schema',
           type: 'sqlite',
           database: 'schema',
           entities: [Folder, Configure, Tag],
-          synchronize: true,
           logging: true
         },
         {
@@ -27,11 +26,11 @@ class DBManager {
           type: 'sqlite',
           database: 'extend',
           entities: [AllNote, Trash],
-          synchronize: true,
           logging: true
         }
       ])
         .then(() => {
+
           this.pool = getConnectionManager()
           resolve(true)
         })

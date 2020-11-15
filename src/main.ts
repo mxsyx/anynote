@@ -1,8 +1,5 @@
-import path = require('path')
-import electron = require('electron')
-
-// Init App.
-import init from './initialize'
+import * as path from 'path'
+import * as electron from 'electron'
 
 const { app, BrowserWindow, globalShortcut } = electron
 
@@ -30,9 +27,9 @@ class Desktop {
   }
 
   run() {
-    // Load index.html file.
+    // Load index.html file.    
     this.window.loadURL('http://127.0.0.1:8187')
-
+    
     // Set minimum window size.
     this.window.setMinimumSize(360, 580)
 
@@ -50,8 +47,7 @@ class Desktop {
   }
 }
 
-init()
-app.on('ready', () => {
+app.on('ready', async () => {
   const desktop = new Desktop()
   desktop.run()
 })

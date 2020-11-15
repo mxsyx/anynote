@@ -3,8 +3,8 @@
  * Mxsyx (mxsyxin@gmail.com)
  * Front-end Automation.
  */
-const { spawn, spawnSync } = require('child_process')
 const readline = require('readline')
+const { spawn, spawnSync } = require('child_process')
 const gulp = require('gulp')
 const watch = require('gulp-watch')
 
@@ -41,12 +41,15 @@ function getCurrentBranchName() {
 //   return `${username}@${hostname}:${Date.now()}`
 // }
 
-function startApp() {
-  let started = false
+function reStartApp() {
+  let prevTime = Date.now()
+  let proc = null
   return function () {
-    if (!started) {
-      started = true
-      spawn('npx', ['electron', '--disable-gpu', 'build/src/main.js'], { stdio: 'inherit' })
+    if (Date.now() - prevTime > 1000) {
+      prevTime = Date.now()
+      proc && proc.kill()
+      proc =  spawn('npx', ['electron', '--disable-gpu', 'build/src/main.js'], { stdio: 'inherit' })
+      console.log(`[Info: restarted electron app / PID: ${proc.pid}]`);
     }
   }
 }
@@ -55,7 +58,7 @@ function dev() {
   clearDir()
   spawn('tsc', ['-w'], { stdio: 'inherit' })
   spawn('npx', [ 'webpack-dev-server', '--mode', 'development', '--port', '8187', '--hot'], { stdio: 'inherit' })
-  watch('./build', startApp())
+  watch('./build', reStartApp())
 }
 
 function commit() {

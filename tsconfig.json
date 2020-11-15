@@ -21,7 +21,6 @@
   },
   "include": [
     "src/service",
-    "src/initialize.ts",
     "src/main.ts",
     "src/preload.js"
   ]
