@@ -1,9 +1,9 @@
 import { v4 } from 'node-uuid'
 import { Connection, ConnectionOptions, Repository } from 'typeorm'
 import { Folder, Note, Tag, Configure, History, Trash, AllNote } from './entities'
+import DBManager from './database'
 import { getNow } from './utils'
 import { NoteType } from './types'
-import DBManager from './database'
 
 interface Connections {
   schema: Connection,
@@ -172,8 +172,13 @@ export class FolderHandler {
   }
 }
 
+export class NodeHandler {
+  private repositorys: { [index: string]: Repository<Note> }
 
-export const note = {
+  constructor(repositorys: { [index: string]: Repository<Note> },) {
+    this.repositorys = repositorys
+  }
+
   createByOptions(fid: string, options: {
     id?: string, type: NoteType, title?: string, cTime?: string,
     uTime?: string, weight?: number, locked?: boolean, author?: string, origin?: string,
@@ -200,7 +205,7 @@ export const note = {
     note.version = version
 
     return new Promise<Note>((resolve, reject) => {
-      repos.notes[fid].save(note)
+      this.repositorys[fid].save(note)
         .then((data) => {
           resolve(data)
         })
@@ -208,7 +213,7 @@ export const note = {
           reject(error)
         })
     })
-  },
+  }
 
   createByInstance(fid: string, instance: Note): Promise<Note> {
     const note = new Note()
@@ -227,7 +232,7 @@ export const note = {
     note.version = instance.version
 
     return new Promise<Note>((resolve, reject) => {
-      repos.notes[fid].save(note)
+      this.repositorys[fid].save(note)
         .then((data) => {
           resolve(data)
         })
@@ -235,15 +240,15 @@ export const note = {
           reject(error)
         })
     })
-  },
+  }
 
   delete(fid: string, id: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
       try {
-        const note = await repos.notes[fid].findOne({ id })
+        const note = await this.repositorys[fid].findOne({ id })
         if (!note) throw new Error(`note: ${id} not found when delete this note.`)
-        if (await common.dropNoteToTrash(fid, note)) {
-          await repos.notes[fid].delete({ id })
+        if (await CommonHanlder.trashHanlder.dropNote(fid, note)) {
+          await this.repositorys[fid].delete({ id })
           resolve(true)
         }
       } catch (error) {
@@ -251,11 +256,11 @@ export const note = {
         reject(false)
       }
     })
-  },
+  }
 
   rename(fid: string, id: string, title: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.notes[fid].update(id, { title })
+      this.repositorys[fid].update(id, { title })
         .then(() => {
           resolve(true)
         })
@@ -263,39 +268,39 @@ export const note = {
           reject(error)
         })
     })
-  },
+  }
 
   updateContent(fid: string, id: string, content: string): Promise<string> {
     const uTime = getNow('datetime')
     return new Promise<string>(async (resolve, reject) => {
       try {
-        await repos.notes[fid].update(id, { content, uTime: uTime })
-        await repos.notes[fid].manager.increment(Note, { id }, "version", 1)
+        await this.repositorys[fid].update(id, { content, uTime: uTime })
+        await this.repositorys[fid].manager.increment(Note, { id }, "version", 1)
         resolve(uTime)
       } catch (error) {
         reject(error)
       }
     })
-  },
+  }
 
   move(id: string, fid: string, toFid: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
       try {
-        const note = await repos.notes[fid].findOne(id)
+        const note = await this.repositorys[fid].findOne(id)
         if (!note) throw new Error(`note: ${id} not found`)
-        await repos.notes[toFid].save(note)
-        await repos.notes[fid].delete(id)
+        await this.repositorys[toFid].save(note)
+        await this.repositorys[fid].delete(id)
         resolve(true)
       } catch (error) {
         reject(error)
       }
     })
-  },
+  }
 
   changeWeight(fid: string, id: string): Promise<number> {
     const weight = Date.now()
     return new Promise<number>(async (resolve, reject) => {
-      repos.notes[fid].update(id, { weight })
+      this.repositorys[fid].update(id, { weight })
         .then(() => {
           resolve(weight)
         })
@@ -303,11 +308,11 @@ export const note = {
           reject(error)
         })
     })
-  },
+  }
 
   changeLisence(fid: string, id: string, lisence: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.notes[fid].update(id, { lisence })
+      this.repositorys[fid].update(id, { lisence })
         .then(() => {
           resolve(true)
         })
@@ -315,11 +320,11 @@ export const note = {
           reject(false)
         })
     })
-  },
+  }
 
   changeAuthor(fid: string, id: string, author: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.notes[fid].update(id, { author })
+      this.repositorys[fid].update(id, { author })
         .then(() => {
           resolve(true)
         })
@@ -327,11 +332,11 @@ export const note = {
           reject(false)
         })
     })
-  },
+  }
 
   changeOrigin(fid: string, id: string, origin: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.notes[fid].update(id, { origin })
+      this.repositorys[fid].update(id, { origin })
         .then(() => {
           resolve(true)
         })
@@ -339,11 +344,11 @@ export const note = {
           reject(false)
         })
     })
-  },
+  }
 
   updateRemark(fid: string, id: string, remark: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.notes[fid].update(id, { remark })
+      this.repositorys[fid].update(id, { remark })
         .then(() => {
           resolve(true)
         })
@@ -354,111 +359,13 @@ export const note = {
   }
 }
 
-export const tag = {
-  create(name: string, id: string = v4()): Promise<Tag> {
-    const tag = new Tag()
-    tag.id = id
-    tag.name = name
+export class HistoryHanlder {
+  private repositorys: { [index: string]: Repository<History> }
 
-    return new Promise<Tag>((resolve, reject) => {
-      repos.tag.save(tag)
-        .then((data) => {
-          resolve(data)
-        })
-        .catch((error) => {
-          reject(error)
-        })
-    })
-  },
-
-  list(): Promise<Tag[]> {
-    return new Promise<Tag[]>((resolve, reject) => {
-      repos.tag.find()
-        .then((data) => {
-          resolve(data)
-        })
-        .catch(error => {
-          reject(error)
-        })
-    })
-  },
-
-  delete(id: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const notes = await repos.allNote.createQueryBuilder('all_note')
-          .where('all_note.tids like %:tid%', { tid: id })
-          .getMany()
-        for (let i = 0; i < notes.length; i++) {
-          const tids = notes[i].tids.split('|')
-          tids.splice(tids.indexOf(id), 1)
-          await repos.allNote.update(notes[i].nid, { tids: tids.join('|') })
-        }
-        resolve(true)
-      } catch (error) {
-        reject(error)
-      }
-    })
-  },
-
-  add(nid: string, tid: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const note = await repos.allNote.findOne(nid)
-        if (!note) throw new Error(`note: ${nid} not found in all note table`)
-        const tids = note.tids.split('|')
-        tids.push(tid)
-        await repos.allNote.update(nid, { tids: tids.join('|') })
-        resolve(true)
-      } catch (error) {
-        reject(error)
-      }
-    })
-  },
-
-  remove(nid: string, tid: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const note = await repos.allNote.findOne(nid)
-        if (!note) throw new Error(`note: ${nid} not found in all note table`)
-        const tids = note.tids.split('|')
-        tids.splice(tids.indexOf(tid), 1)
-        await repos.allNote.update(nid, { tids: tids.join('|') })
-        resolve(true)
-      } catch (error) {
-        reject(error)
-      }
-    })
+  constructor(repositorys: { [index: string]: Repository<History> }) {
+    this.repositorys = repositorys
   }
-}
 
-export const star = {
-  star(nid: string): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
-      repos.allNote.update(nid, { star: true })
-        .then(() => {
-          resolve(true)
-        })
-        .catch((error) => {
-          reject(error)
-        })
-    })
-  },
-
-  unStar(nid: string): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
-      repos.allNote.update(nid, { star: false })
-        .then(() => {
-          resolve(true)
-        })
-        .catch((error) => {
-          reject(error)
-        })
-    })
-  }
-}
-
-export const history = {
   create(fid: string, nid: string, content: string): Promise<History> {
     const history = new History()
     history.nid = nid
@@ -466,7 +373,7 @@ export const history = {
     history.content = content
 
     return new Promise<History>((resolve, reject) => {
-      repos.historys[fid].save(history)
+      this.repositorys[fid].save(history)
         .then((data) => {
           resolve(data)
         })
@@ -474,11 +381,11 @@ export const history = {
           reject(error)
         })
     })
-  },
+  }
 
   delete(fid: string, id: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.historys[fid].delete({ id })
+      this.repositorys[fid].delete({ id })
         .then(() => {
           resolve(true)
         })
@@ -486,11 +393,11 @@ export const history = {
           reject(error)
         })
     })
-  },
+  }
 
   empty(fid: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.historys[fid].createQueryBuilder('history')
+      this.repositorys[fid].createQueryBuilder('history')
         .delete()
         .execute()
         .then(() => {
@@ -500,11 +407,11 @@ export const history = {
           reject(error)
         })
     })
-  },
+  }
 
   list(fid: string, nid: string): Promise<History[]> {
     return new Promise<History[]>((resolve, reject) => {
-      repos.historys[fid].find({ nid })
+      this.repositorys[fid].find({ nid })
         .then((data) => {
           resolve(data)
         })
@@ -512,14 +419,14 @@ export const history = {
           reject(error)
         })
     })
-  },
+  }
 
   fallback(fid: string, nid: string, hid: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
       try {
-        const history = await repos.historys[fid].findOne(hid)
+        const history = await this.repositorys[fid].findOne(hid)
         if (!history) throw new Error(`history: ${hid} not found`)
-        await repos.notes[fid].update({ id: nid }, { content: history.content })
+        await this.repositorys[fid].update({ id: nid }, { content: history.content })
         resolve(true)
       } catch (error) {
         reject(error)
@@ -528,37 +435,34 @@ export const history = {
   }
 }
 
-export const trash = {
-  restore(nid: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const trashNote = await repos.trash.findOne({ nid })
-        if (!trashNote) throw new Error(`note: ${nid} not found when restore this note.`)
-        const _note = new Note()
-        _note.id = trashNote.nid
-        _note.type = trashNote.type
-        _note.title = trashNote.title
-        _note.cTime = trashNote.cTime
-        _note.uTime = trashNote.uTime
-        _note.weight = trashNote.weight
-        _note.locked = trashNote.locked
-        _note.author = trashNote.author
-        _note.origin = trashNote.origin
-        _note.lisence = trashNote.lisence
-        _note.remark = trashNote.remark
-        _note.content = trashNote.content
-        _note.version = trashNote.version
-        await note.createByInstance(trashNote.fid, _note)
-        resolve(true)
-      } catch (error) {
-        reject(false)
-      }
-    })
-  },
+export class TagHanlder {
+  private repository: Repository<Tag>
+  private allnote: Repository<AllNote>
 
-  list(): Promise<Trash[]> {
-    return new Promise<Trash[]>((resolve, reject) => {
-      repos.trash.find()
+  constructor(repository: Repository<Tag>, allnote: Repository<AllNote>) {
+    this.repository = repository,
+    this.allnote= allnote
+  }
+
+  create(name: string, id: string = v4()): Promise<Tag> {
+    const tag = new Tag()
+    tag.id = id
+    tag.name = name
+
+    return new Promise<Tag>((resolve, reject) => {
+      this.repository.save(tag)
+        .then((data) => {
+          resolve(data)
+        })
+        .catch((error) => {
+          reject(error)
+        })
+    })
+  }
+
+  list(): Promise<Tag[]> {
+    return new Promise<Tag[]>((resolve, reject) => {
+      this.repository.find()
         .then((data) => {
           resolve(data)
         })
@@ -566,39 +470,68 @@ export const trash = {
           reject(error)
         })
     })
-  },
+  }
 
-  delete(nid: string): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
-      repos.trash.delete({ nid })
-        .then(() => {
-          resolve(true)
-        })
-        .catch(error => {
-          reject(error)
-        })
+  delete(id: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        const notes = await this.allnote.createQueryBuilder('all_note')
+          .where('all_note.tids like %:tid%', { tid: id })
+          .getMany()
+        for (let i = 0; i < notes.length; i++) {
+          const tids = notes[i].tids.split('|')
+          tids.splice(tids.indexOf(id), 1)
+          await this.allnote.update(notes[i].nid, { tids: tids.join('|') })
+        }
+        resolve(true)
+      } catch (error) {
+        reject(error)
+      }
     })
-  },
+  }
 
-  empty(): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
-      repos.trash.createQueryBuilder('trash')
-        .delete()
-        .execute()
-        .then(() => {
-          resolve(true)
-        })
-        .catch(error => {
-          reject(error)
-        })
+  add(nid: string, tid: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        const note = await this.allnote.findOne(nid)
+        if (!note) throw new Error(`note: ${nid} not found in all note table`)
+        const tids = note.tids.split('|')
+        tids.push(tid)
+        await this.allnote.update(nid, { tids: tids.join('|') })
+        resolve(true)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+
+  remove(nid: string, tid: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        const note = await this.allnote.findOne(nid)
+        if (!note) throw new Error(`note: ${nid} not found in all note table`)
+        const tids = note.tids.split('|')
+        tids.splice(tids.indexOf(tid), 1)
+        await this.allnote.update(nid, { tids: tids.join('|') })
+        resolve(true)
+      } catch (error) {
+        reject(error)
+      }
     })
   }
 }
 
-export const configure = {
-  set(name: string, value: string): Promise<boolean> {
+
+export class StarHanlder {
+  private repository: Repository<AllNote>
+
+  constructor(repository: Repository<AllNote>) {
+    this.repository = repository
+  }
+
+  star(nid: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      repos.configure.update({ name }, { value })
+      this.repository.update(nid, { star: true })
         .then(() => {
           resolve(true)
         })
@@ -606,23 +539,32 @@ export const configure = {
           reject(error)
         })
     })
-  },
+  }
 
-  list(): Promise<Configure[]> {
-    return new Promise<Configure[]>((resolve, reject) => {
-      repos.configure.find()
-        .then(configures => {
-          resolve(configures)
+  unStar(nid: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      this.repository.update(nid, { star: false })
+        .then(() => {
+          resolve(true)
         })
-        .catch(error => {
+        .catch((error) => {
           reject(error)
         })
     })
   }
 }
 
-const common = {
-  dropNoteToTrash(fid: string, note: Note): Promise<boolean> {
+
+export class TrashHanlder {
+  private repository: Repository<Trash>
+  private noteHanlder: NodeHandler
+
+  constructor(repository: Repository<Trash>, noteHanlder: NodeHandler) {
+    this.repository = repository,
+    this.noteHanlder = noteHanlder
+  }
+
+  dropNote(fid: string, note: Note): Promise<boolean> {
     const trash = new Trash()
     trash.nid = note.id
     trash.fid = fid
@@ -640,7 +582,7 @@ const common = {
     trash.version = note.version
 
     return new Promise<boolean>((resolve, reject) => {
-      repos.trash.save(trash)
+      this.repository.save(trash)
         .then(() => {
           resolve(true)
         })
@@ -649,4 +591,107 @@ const common = {
         })
     })
   }
+
+  restore(nid: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      try {
+        const trashNote = await this.repository.findOne({ nid })
+        if (!trashNote) throw new Error(`note: ${nid} not found when restore this note.`)
+        const _note = new Note()
+        _note.id = trashNote.nid
+        _note.type = trashNote.type
+        _note.title = trashNote.title
+        _note.cTime = trashNote.cTime
+        _note.uTime = trashNote.uTime
+        _note.weight = trashNote.weight
+        _note.locked = trashNote.locked
+        _note.author = trashNote.author
+        _note.origin = trashNote.origin
+        _note.lisence = trashNote.lisence
+        _note.remark = trashNote.remark
+        _note.content = trashNote.content
+        _note.version = trashNote.version
+        await this.noteHanlder.createByInstance(trashNote.fid, _note)
+        resolve(true)
+      } catch (error) {
+        reject(false)
+      }
+    })
+  }
+
+  list(): Promise<Trash[]> {
+    return new Promise<Trash[]>((resolve, reject) => {
+      this.repository.find()
+        .then((data) => {
+          resolve(data)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+
+  delete(nid: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      this.repository.delete({ nid })
+        .then(() => {
+          resolve(true)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+
+  empty(): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      this.repository.createQueryBuilder('trash')
+        .delete()
+        .execute()
+        .then(() => {
+          resolve(true)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+}
+
+
+export class ConfigureHandler {
+  private repository: Repository<Configure>
+
+  constructor(repository: Repository<Configure>) {
+    this.repository = repository
+  }
+
+
+  set(name: string, value: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      this.repository.update({ name }, { value })
+        .then(() => {
+          resolve(true)
+        })
+        .catch((error) => {
+          reject(error)
+        })
+    })
+  }
+
+  list(): Promise<Configure[]> {
+    return new Promise<Configure[]>((resolve, reject) => {
+      this.repository.find()
+        .then(configures => {
+          resolve(configures)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+}
+
+export class CommonHanlder {
+  public static trashHanlder: TrashHanlder
 }

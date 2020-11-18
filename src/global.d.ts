@@ -5,11 +5,13 @@ import Electron from 'electron'
 declare global {
   interface Anynote {
     actions: typeof actions,
+    handlers: {
+      folder: actions.FolderHandler,
+      
+    }
     remote: Electron.Remote
   }
 
   // eslint-disable-next-line no-var
   export var anynote: Anynote
 }
-
-
