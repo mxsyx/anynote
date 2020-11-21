@@ -1,15 +1,18 @@
-// @ts-ignore
-import { actions } from './service'
 import Electron from 'electron'
+import service from './service'
 
 declare global {
   interface Anynote {
-    actions: typeof actions,
+    remote: Electron.Remote,
     handlers: {
-      folder: actions.FolderHandler,
-      
+      folder: service.handlers.FolderHandler,
+      notes: service.handlers.NoteHanlder,
+      historys: service.handlers.HistoryHandler,
+      tag: service.handlers.TagHandler,
+      star: service.handlers.StarHandler,
+      trash: service.handlers.TrashHandler,
+      configure: service.handlers.ConfigureHandler
     }
-    remote: Electron.Remote
   }
 
   // eslint-disable-next-line no-var
