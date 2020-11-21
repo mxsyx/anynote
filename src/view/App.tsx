@@ -1,5 +1,6 @@
 import React, { FC } from 'react'
 import { Grid } from '@material-ui/core'
+import { hot } from 'react-hot-loader/root'
 
 import { Toc, Preview, EditArea } from './layout'
 import Collapse from './components/Collapse'
@@ -34,5 +35,5 @@ const App: FC = () => {
   )
 }
 
-export default App
+export default hot(App)
  

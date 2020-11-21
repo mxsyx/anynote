@@ -10,7 +10,7 @@
  */
 
 import { Connection, Repository } from "typeorm";
-import { Folder, Configure, Tag, AllNote, Trash, Note } from "./entities";
+import { Folder, Configure, Tag, AllNote, Note, History, Trash } from "./entities";
 
 export interface Connections {
   schema: Connection,
@@ -29,5 +29,7 @@ export interface Repositorys {
   historys: { [index: string]: Repository<History> },
   plugins: {/* [index: string]: Repository<> */ }
 }
+
+export type Handlers = Repositorys
 
 export type NoteType = 'R' | 'M'

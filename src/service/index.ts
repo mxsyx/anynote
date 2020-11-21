@@ -12,4 +12,4 @@
 import Storage from './database'
 import * as handlers from './handlers'
 
-export default { Storage, handlers }
+export { Storage, handlers }

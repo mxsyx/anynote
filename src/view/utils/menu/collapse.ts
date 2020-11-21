@@ -1,16 +1,18 @@
-const { remote: { Menu, MenuItem }, actions } = anynote
+const { remote: { Menu, MenuItem }, handlers } = anynote
 
 const menus = {
   collapseNote: new Menu(),
   collapseStar: new Menu(),
   collapseTag: new Menu()
 }
-
+ 
 menus.collapseNote.append(
   new MenuItem({
     label: '新建文件夹',
     click: () => {      
-      actions.Action.create()  //folder.create({name: '新建文件夹'})
+      handlers.folder.create({
+        name: '新建文件夹'
+      })
     }
   })
 )

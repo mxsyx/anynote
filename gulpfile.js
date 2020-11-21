@@ -48,7 +48,7 @@ function reStartApp() {
     if (Date.now() - prevTime > 1000) {
       prevTime = Date.now()
       proc && proc.kill()
-      proc =  spawn('npx', ['electron', '--disable-gpu', 'build/src/main.js'], { stdio: 'inherit' })
+      proc =  spawn('npx', ['electron', '--disable-gpu', '--enable-logging', 'build/src/main.js'], { stdio: 'inherit' })
       console.log(`[Info: restarted electron app / PID: ${proc.pid}]`);
     }
   }

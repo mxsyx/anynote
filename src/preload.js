@@ -60,7 +60,6 @@ const dbInitedEvent = new Event('dbInited', { bubbles: true, cancelable: false }
         anynote.handlers.folder
       )
       anynote.handlers.configure = new ConfigureHandler(storage.getRepository('configure'))
-
       // Binding global API.
       Object.defineProperty(global, 'anynote', {
         value: anynote,
@@ -68,12 +67,11 @@ const dbInitedEvent = new Event('dbInited', { bubbles: true, cancelable: false }
         writable: false,
         enumerable: false
       })
-
       setTimeout(() => {
         window.dispatchEvent(dbInitedEvent)
       }, 100)
     })
-    .catch(() => {
-      console.error('Error: Database init failed.')
+    .catch(err => {
+      console.error(`Error: Database init failed. [${err}]`)
     })
 })()

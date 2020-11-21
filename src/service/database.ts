@@ -16,7 +16,8 @@ import {
   Connection,
   ConnectionOptions
 } from 'typeorm'
-import { Folder, Configure, Tag, AllNote, Trash, Note } from './entities'
+import { Folder, Configure, Tag, AllNote, Note, History, Trash } from './entities'
+import { OrmLogger } from './logger'
 import { Connections, Repositorys } from './types'
 
 /**
@@ -32,20 +33,23 @@ class DBManager {
         {
           name: 'schema',
           type: 'sqlite',
-          database: 'schema',
+          database: './dbs/schema',
           entities: [Folder, Configure, Tag],
-          logging: true
+          synchronize: true,
+          logging: true,
+          logger: new OrmLogger()
         },
-        {
+        { 
           name: 'extend',
           type: 'sqlite',
-          database: 'extend',
+          database: './dbs/extend',
           entities: [AllNote, Trash],
-          logging: true
+          synchronize: true,
+          logging: true,
+          logger: new OrmLogger()
         }
       ])
         .then(() => {
-
           this.pool = getConnectionManager()
           resolve(true)
         })
@@ -114,21 +118,23 @@ class Storage {
 
         const connOptionsList: ConnectionOptions[] = []
         fids.forEach(fid => {
+          console.log(fid);
+          
           connOptionsList.push({
             name: fid,
             type: 'sqlite',
-            database: fid,
+            database: `./dbs/${fid}`,
             entities: [Note, History],
             synchronize: true,
             logging: true
           })
         })
         await this.dbManager.addConnections(connOptionsList)
-
+  
         fids.forEach(fid => {
           this.connections.notes[fid] = this.dbManager.getConnection(fid)
           this.repositorys.notes[`note_${fid}`] = this.connections.notes[fid].getRepository(Note)
-          this.repositorys.historys[`history_${fid}`] = this.connections[fid].getRepository(History)
+          this.repositorys.historys[`history_${fid}`] = this.connections.notes[fid].getRepository(History)
         })
 
         resolve(true)

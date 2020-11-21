@@ -8,6 +8,7 @@ export class FolderHandler {
   private repository: Repository<Folder>
 
   constructor(repository: Repository<Folder>) {
+    
     this.repository = repository
   }
 
@@ -27,7 +28,7 @@ export class FolderHandler {
     folder.locked = locked
     folder.total = total
 
-    return new Promise<Folder>(function (resolve, reject) {
+    return new Promise<Folder>((resolve, reject) => {
       this.repository.save(folder)
         .then((data) => {
           resolve(data)

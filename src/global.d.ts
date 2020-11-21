@@ -1,20 +1,9 @@
-import Electron from 'electron'
-import service from './service'
+import { Remote } from 'electron'
+import { Handlers } from './service/types'
 
 declare global {
   interface Anynote {
-    remote: Electron.Remote,
-    handlers: {
-      folder: service.handlers.FolderHandler,
-      notes: service.handlers.NoteHanlder,
-      historys: service.handlers.HistoryHandler,
-      tag: service.handlers.TagHandler,
-      star: service.handlers.StarHandler,
-      trash: service.handlers.TrashHandler,
-      configure: service.handlers.ConfigureHandler
-    }
+    remote: Remote,
+    handlers: Handlers
   }
-
-  // eslint-disable-next-line no-var
-  export var anynote: Anynote
 }
