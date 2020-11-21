@@ -8,7 +8,7 @@ export class FolderHandler {
   private repository: Repository<Folder>
 
   constructor(repository: Repository<Folder>) {
-    
+
     this.repository = repository
   }
 
@@ -70,6 +70,18 @@ export class FolderHandler {
           resolve(true)
         })
         .catch((error) => {
+          reject(error)
+        })
+    })
+  }
+
+  getList(): Promise<Folder[]> {
+    return new Promise<Folder[]>((resolve, reject) => {
+      this.repository.find()
+        .then(folders => {
+          resolve(folders)
+        })
+        .catch(error => {
           reject(error)
         })
     })
@@ -345,7 +357,7 @@ export class TagHanlder {
 
   constructor(repository: Repository<Tag>, allnote: Repository<AllNote>) {
     this.repository = repository,
-    this.allnote= allnote
+      this.allnote = allnote
   }
 
   create(name: string, id: string = v4()): Promise<Tag> {
@@ -465,7 +477,7 @@ export class TrashHanlder {
 
   constructor(repository: Repository<Trash>, noteHanlder: NodeHandler) {
     this.repository = repository,
-    this.noteHanlder = noteHanlder
+      this.noteHanlder = noteHanlder
   }
 
   dropNote(fid: string, note: Note): Promise<boolean> {

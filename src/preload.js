@@ -16,8 +16,8 @@ const anynote = {
   remote: require('electron').remote,
   handlers: {
     folder: null,
-    notes: null,
-    historys: null,
+    note: null,
+    history: null,
     tag: null,
     star: null,
     trash: null,
@@ -48,8 +48,8 @@ const dbInitedEvent = new Event('dbInited', { bubbles: true, cancelable: false }
     .then(() => {
       // Initialize data processor.
       anynote.handlers.folder = new FolderHandler(storage.getRepository('folder'))
-      anynote.handlers.notes = new NodeHandler(storage.getRepository('notes'))
-      anynote.handlers.historys = new HistoryHanlder(storage.getRepository('historys'))
+      anynote.handlers.note = new NodeHandler(storage.getRepository('notes'))
+      anynote.handlers.history = new HistoryHanlder(storage.getRepository('historys'))
       anynote.handlers.tag = new TagHanlder(
         storage.getRepository('tag'),
         storage.getRepository('allNote')
