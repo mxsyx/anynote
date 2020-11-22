@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from 'react'
+import React, { FC, useCallback, useEffect, useState } from 'react'
 import { Typography } from '@material-ui/core'
 import { TreeView, TreeItem, TreeItemProps } from '@material-ui/lab'
 import { ArrowDropDown, ArrowRight } from '@material-ui/icons'
@@ -6,6 +6,9 @@ import { makeStyles } from '@material-ui/core/styles'
 
 import popupMenu from 'utils/menu/toc'
 import { Folder } from 'types'
+import eventProxy from 'utils/event_proxy'
+
+const { folder: folderHander } = anynote.handlers
 
 const useStyles = makeStyles(
   {
@@ -37,7 +40,7 @@ const TocItem: FC<Props> = props => {
 
   return (
     <TreeItem
-      onContextMenu={e => popupMenu(e, { fid: 'xxx-xxx-x' })}
+      onContextMenu={e => popupMenu(e, { fid: props.nodeId })}
       nodeId={nodeId}
       label={
         <div className={styles.item}>
@@ -57,11 +60,14 @@ const Toc: FC = () => {
   const styles = useStyles()
   const [folders, setFolders] = useState<Folder[]>([])
 
-  useEffect(() => {
-    anynote.handlers.folder.getList().then(folders => {
-      setFolders(folders)
-    })
+  const generateToc = useCallback(() => {
+    folderHander.getList().then(folders => setFolders(folders))
   }, [])
+
+  useEffect(() => {
+    eventProxy.on('Folder-Create', generateToc)
+    generateToc()
+  }, [generateToc])
 
   return (
     <TreeView

@@ -1,5 +1,6 @@
-const remote = anynote.remote
-const { Menu, MenuItem } = remote
+import eventProxy from "utils/event_proxy"
+
+const { remote: { Menu, MenuItem }, handlers: { folder: folderHandler } } = anynote
 
 const menu = new Menu()
 
@@ -70,13 +71,19 @@ menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
     label: "删除",
+    click: () => {
+      folderHandler.delete(globalTocEvent.fid)
+        .then(() => {
+          eventProxy.trigger('Folder-Create')
+        })
+    }
   })
 )
 
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
   tocEvent: TocEvent
-): void {  
+): void {
   e.preventDefault()
   globalTocEvent = tocEvent
   menu.popup()

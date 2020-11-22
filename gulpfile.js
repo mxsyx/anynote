@@ -35,12 +35,6 @@ function getCurrentBranchName() {
   })
 }
 
-// function makeVersion() {
-//   const username = String(spawnSync('whoami', { stdio: 'pipe' }).stdout).trim()
-//   const hostname = String(spawnSync('hostname', ['-s'], { stdio: 'pipe' }).stdout).trim()
-//   return `${username}@${hostname}:${Date.now()}`
-// }
-
 function reStartApp() {
   let prevTime = Date.now()
   let proc = null

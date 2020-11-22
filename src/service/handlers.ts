@@ -8,7 +8,6 @@ export class FolderHandler {
   private repository: Repository<Folder>
 
   constructor(repository: Repository<Folder>) {
-
     this.repository = repository
   }
 

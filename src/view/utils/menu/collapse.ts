@@ -1,18 +1,23 @@
+import eventProxy from 'utils/event_proxy'
 const { remote: { Menu, MenuItem }, handlers } = anynote
+
 
 const menus = {
   collapseNote: new Menu(),
   collapseStar: new Menu(),
   collapseTag: new Menu()
 }
- 
+
 menus.collapseNote.append(
   new MenuItem({
     label: '新建文件夹',
-    click: () => {      
+    click: () => {
       handlers.folder.create({
         name: '新建文件夹'
       })
+        .then(() => {
+          eventProxy.trigger('Folder-Create')
+        })
     }
   })
 )
