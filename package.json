@@ -2,7 +2,7 @@
   "name": "anynote",
   "version": "0.1.0",
   "description": "a private note solution",
-  "main": "index.ts",
+  "main": "main.ts",
   "scripts": {
     "start": "electron --disable-gpu src/desktop/main.js",
     "dev:view": "webpack-dev-server --mode development --port 20719 --hot",
@@ -63,7 +63,6 @@
     "eslint-plugin-react": "^7.20.3",
     "file-loader": "^6.0.0",
     "gulp": "^4.0.2",
-    "gulp-watch": "^5.0.1",
     "html-webpack-plugin": "^4.3.0",
     "husky": "^4.2.5",
     "lint-staged": "^10.2.11",

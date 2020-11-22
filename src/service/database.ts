@@ -7,7 +7,7 @@
  * Modified By: Mxsyx (mxsyxin@gmail.com>)
  * -----
  * Lisense: GNU General Public License v3
- */
+ */ 
 
 import events = require('events')
 
@@ -35,11 +35,11 @@ const eventProxy = new events.EventEmitter()
 class DBManager {
   // Database connection pool.
   private pool: ConnectionManager
-
+     
   connent(): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       createConnections([
-        {
+        {   
           name: 'schema',
           type: 'sqlite',
           database: './dbs/schema',
@@ -55,8 +55,8 @@ class DBManager {
           entities: [AllNote, Trash],
           logging: true,
           logger: new OrmLogger()
-        }
-      ])
+        }      
+      ])           
         .then(() => {
           this.pool = getConnectionManager()
           resolve(true)

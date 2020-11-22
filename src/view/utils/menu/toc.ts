@@ -28,6 +28,12 @@ subNewMenu.append(
 subNewMenu.append(
   new MenuItem({
     label: "文件夹",
+    click: () => {
+      folderHandler.create({ pid: globalTocEvent.fid, name: '新建文件夹' })
+        .then(() => {
+          eventProxy.trigger('Folder-Create')
+        })
+    }
   })
 )
 const newMenu = new MenuItem({
@@ -60,7 +66,7 @@ menu.append(
   new MenuItem({
     label: "粘贴",
   })
-)
+) 
 menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
@@ -77,15 +83,15 @@ menu.append(
           eventProxy.trigger('Folder-Create')
         })
     }
-  })
+  }) 
 )
 
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
   tocEvent: TocEvent
 ): void {
-  e.preventDefault()
-  globalTocEvent = tocEvent
+  e.stopPropagation()  
+  globalTocEvent = tocEvent 
   menu.popup()
 }
 

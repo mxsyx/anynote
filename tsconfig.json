@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "./src",
     "baseUrl": "./src",
     "outDir": "./build",
     "lib": [
@@ -14,7 +14,7 @@
     "strictNullChecks": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "sourceMap": true,
+    "inlineSourceMap": true,
     "typeRoots": [
       "node_modules/@types"
     ]

@@ -6,7 +6,7 @@ import './index.css'
 
 const root = document.getElementById('root')
 
-window.addEventListener('dbInited', () => {
+window.addEventListener('dbInited', () => {    
   import('./App').then(App => {
     ReactDOM.render(<App.default />, root)
   })

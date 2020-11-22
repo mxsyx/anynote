@@ -5,7 +5,6 @@ import { ArrowDropDown, ArrowRight } from '@material-ui/icons'
 import { makeStyles } from '@material-ui/core/styles'
 
 import popupMenu from 'utils/menu/toc'
-import { Folder } from 'types'
 import eventProxy from 'utils/event_proxy'
 
 const { folder: folderHander } = anynote.handlers
@@ -32,15 +31,15 @@ const useStyles = makeStyles(
 
 interface Props extends TreeItemProps {
   name: string
-  number?: number
-}
+  total?: number
+} 
 const TocItem: FC<Props> = props => {
   const styles = useStyles()
-  const { nodeId, name, children } = props
-
+  const { nodeId, name, total, children } = props
+ 
   return (
     <TreeItem
-      onContextMenu={e => popupMenu(e, { fid: props.nodeId })}
+      onContextMenu={e => popupMenu(e, { fid: nodeId })}
       nodeId={nodeId}
       label={
         <div className={styles.item}>
@@ -56,18 +55,59 @@ const TocItem: FC<Props> = props => {
   )
 }
 
+interface TreeItemData {
+  id: string,
+  name: string,
+  children?: TreeItemData[]
+}
+
 const Toc: FC = () => {
   const styles = useStyles()
-  const [folders, setFolders] = useState<Folder[]>([])
+  const [treeData, setTreeData] = useState<TreeItemData[]>([])
 
   const generateToc = useCallback(() => {
-    folderHander.getList().then(folders => setFolders(folders))
+    folderHander.getList().then(folders => {
+      const treeData: TreeItemData[] = []
+
+      // Build top level folder.
+      const topFolders = folders.filter(folder => folder.pid === null)
+      topFolders.forEach(topFolder => {
+        treeData.push({
+          id: topFolder.id,
+          name: topFolder.name
+        })
+      })
+
+      function gen(list: TreeItemData[]) {
+        list.forEach(item => {
+          const subFolders = folders.filter(folder => folder.pid === item.id)
+          item.children = subFolders.map(subFolder => ({
+            id: subFolder.id,
+            name: subFolder.name
+          }))              
+          gen(item.children)
+        })         
+        return list
+      }
+      setTreeData(gen(topFolders))
+    })
   }, [])
 
   useEffect(() => {
     eventProxy.on('Folder-Create', generateToc)
     generateToc()
   }, [generateToc])
+
+  const renderTree = useCallback(
+    (treeData: TreeItemData[]) => {
+      return treeData.map(folder => (
+        <TocItem key={folder.id} nodeId={folder.id} name={folder.name}>
+          {Array.isArray(folder.children) ? renderTree(folder.children) : null}
+        </TocItem>
+      ))
+    }, 
+    [treeData]
+  )
 
   return (
     <TreeView
@@ -76,9 +116,7 @@ const Toc: FC = () => {
       defaultExpandIcon={<ArrowRight style={{ color: '#FFFFFF' }} />}
       defaultEndIcon={<div style={{ width: 24 }} />}
     >
-      {folders.map(folder => (
-        <TocItem key={folder.id} nodeId={folder.id} name={folder.name} number={folder.total} />
-      ))}
+      {renderTree(treeData)}
     </TreeView>
   )
 }
