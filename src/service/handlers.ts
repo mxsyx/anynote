@@ -1,3 +1,13 @@
+/*
+ * File: /src/service/handlers.ts
+ * Author: Mxsyx (mxsyxin@gmail.com)
+ * Created At: 2020-11-21 07:10:32
+ * -----
+ * Last Modified: 2020-11-28 08:08:54
+ * Modified By: Mxsyx (mxsyxin@gmail.com>)
+ * -----
+ * Lisense: GNU General Public License v3
+ */
 import { v4 } from 'node-uuid'
 import { Repository } from 'typeorm'
 import { Folder, Note, Tag, Configure, History, Trash, AllNote } from './entities'
@@ -162,7 +172,7 @@ export class NodeHandler {
       try {
         const note = await this.repositorys[fid].findOne({ id })
         if (!note) throw new Error(`note: ${id} not found when delete this note.`)
-        if (await CommonHanlder.trashHanlder.dropNote(fid, note)) {
+        if (await CommonHanlder.trashHanlder.dropNote(note)) {
           await this.repositorys[fid].delete({ id })
           resolve(true)
         }
@@ -479,22 +489,12 @@ export class TrashHanlder {
       this.noteHanlder = noteHanlder
   }
 
-  dropNote(fid: string, note: Note): Promise<boolean> {
+  dropNote(note: Note): Promise<boolean> {
     const trash = new Trash()
-    trash.nid = note.id
-    trash.fid = fid
+    trash.id = note.id
     trash.type = note.type
     trash.title = note.title
-    trash.cTime = note.cTime
-    trash.uTime = note.uTime
-    trash.weight = note.weight
-    trash.locked = note.locked
-    trash.author = note.author
-    trash.origin = note.origin
-    trash.lisence = note.lisence
-    trash.remark = note.remark
     trash.content = note.content
-    trash.version = note.version
 
     return new Promise<boolean>((resolve, reject) => {
       this.repository.save(trash)
@@ -504,33 +504,6 @@ export class TrashHanlder {
         .catch(error => {
           reject(error)
         })
-    })
-  }
-
-  restore(nid: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const trashNote = await this.repository.findOne({ nid })
-        if (!trashNote) throw new Error(`note: ${nid} not found when restore this note.`)
-        const _note = new Note()
-        _note.id = trashNote.nid
-        _note.type = trashNote.type
-        _note.title = trashNote.title
-        _note.cTime = trashNote.cTime
-        _note.uTime = trashNote.uTime
-        _note.weight = trashNote.weight
-        _note.locked = trashNote.locked
-        _note.author = trashNote.author
-        _note.origin = trashNote.origin
-        _note.lisence = trashNote.lisence
-        _note.remark = trashNote.remark
-        _note.content = trashNote.content
-        _note.version = trashNote.version
-        await this.noteHanlder.createByInstance(trashNote.fid, _note)
-        resolve(true)
-      } catch (error) {
-        reject(false)
-      }
     })
   }
 
@@ -546,9 +519,9 @@ export class TrashHanlder {
     })
   }
 
-  delete(nid: string): Promise<boolean> {
+  delete(id: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      this.repository.delete({ nid })
+      this.repository.delete({ id })
         .then(() => {
           resolve(true)
         })
