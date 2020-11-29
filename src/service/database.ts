@@ -94,7 +94,7 @@ class Storage {
 
   constructor() {
     this.dbManager = new DBManager()
-    eventProxy.on('Folder-Create', (folder: Folder) => {
+    eventProxy.on('Folder-Created', (folder: Folder) => {
       this.handleFolderCreate(folder)
     })
   }
@@ -194,7 +194,7 @@ export class FolderSubscriber implements EntitySubscriberInterface<Folder> {
 
   // Create note database.
   afterInsert(event: InsertEvent<Folder>): void {
-    eventProxy.emit('Folder-Create', event.entity)
+    eventProxy.emit('Folder-Created', event.entity)
   }
 }
 

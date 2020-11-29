@@ -10,3 +10,5 @@ declare module "*.jpg" {
   const content: any
   export default content
 }
+
+type AnyObject<K extends string | number | symbol = string, V = any> = Record<K, V>

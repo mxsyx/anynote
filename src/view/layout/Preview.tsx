@@ -6,14 +6,15 @@ const useStyles = makeStyles({
     backgroundColor: '#f8f9fc',
     height: '100%',
     borderTopLeftRadius: 15,
-    borderBottomLeftRadius: 15
+    borderBottomLeftRadius: 15,
+    minWidth: 260
   }
 }, {name: 'Preview'})
 
 const Preview: FC = () => {
   const styles = useStyles()
 
-  return <div className={styles.root}>xxx</div>
+  return <div className={styles.root}></div>
 }
 
 export default Preview

@@ -8,39 +8,38 @@
  * -----
  * Lisense: GNU General Public License v3
  */
+type EventNames = 'Folder-Created' | 'Folder-Before-Rename'
 
-/* eslint-disable @typescript-eslint/ban-types */
-
-type EventNames = 'Folder-Create'
+type Listener = (payload?: AnyObject) => unknown
 
 class EventProxy {
   private events: {
-    [index: string]: Function[] | null
+    [index: string]: Listener[] | null
   }
 
   constructor() {
     this.events = {}
   }
 
-  on(name: EventNames, fn: Function): void {
+  on(name: EventNames, fn: Listener): void {
     if (!Array.isArray(this.events[name])) {
       this.events[name] = []
     }
 
-    const fns = this.events[name] as Function[]
+    const fns = this.events[name] as Listener[]
     if (typeof fn === "function" && !fns.includes(fn)) {
       fns.push(fn)
     }
   }
 
-  trigger(name: EventNames): void {
+  trigger(name: EventNames, payload?: AnyObject): void {
     const fns = this.events[name] || []
     for (const fn of fns) {
-      fn(name)
+      fn(payload)
     }
   }
 
-  remove(name: EventNames, fn: Function) {
+  remove(name: EventNames, fn: Listener) {
     const fns = this.events[name]
 
     if (!Array.isArray(fns)) return

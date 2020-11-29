@@ -4,11 +4,11 @@ const { remote: { Menu, MenuItem }, handlers: { folder: folderHandler } } = anyn
 
 const menu = new Menu()
 
-interface TocEvent {
+export interface TocEvent {
   nid?: string
   fid: string
 }
-let globalTocEvent: TocEvent
+let tocEvent: TocEvent
 
 // New Note Menu.
 const subNewMenu = new Menu()
@@ -29,9 +29,9 @@ subNewMenu.append(
   new MenuItem({
     label: "文件夹",
     click: () => {
-      folderHandler.create({ pid: globalTocEvent.fid, name: '新建文件夹' })
+      folderHandler.create({ pid: tocEvent.fid, name: '新建文件夹' })
         .then(() => {
-          eventProxy.trigger('Folder-Create')
+          eventProxy.trigger('Folder-Created')
         })
     }
   })
@@ -47,8 +47,10 @@ menu.append(newMenu)
 menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
-    role: "about",
     label: "重命名",
+    click: () => {
+      eventProxy.trigger('Folder-Before-Rename', tocEvent)
+    }
   })
 )
 menu.append(new MenuItem({ type: "separator" }))
@@ -78,9 +80,9 @@ menu.append(
   new MenuItem({
     label: "删除",
     click: () => {
-      folderHandler.delete(globalTocEvent.fid)
+      folderHandler.delete(tocEvent.fid)
         .then(() => {
-          eventProxy.trigger('Folder-Create')
+          eventProxy.trigger('Folder-Created')
         })
     }
   }) 
@@ -88,10 +90,10 @@ menu.append(
 
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
-  tocEvent: TocEvent
+  _tocEvent: TocEvent
 ): void {
   e.stopPropagation()  
-  globalTocEvent = tocEvent 
+  tocEvent = _tocEvent 
   menu.popup()
 }
 

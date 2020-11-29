@@ -17,5 +17,10 @@
 		"prefix": "pro",
 		"body": "  return new Promise<number>((resolve, reject) => {\n    $1\n  })",
 		"description": "new promise"
+	},
+	"TCF": {
+		"prefix": "tcf",
+		"body": ".then(() => {\n\n})\n.catch(() => {\n\n})\n.finally(() => {\n\n})",
+		"description": "handle promise"
 	}
 }
