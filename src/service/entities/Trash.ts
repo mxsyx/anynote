@@ -1,11 +1,11 @@
 import { Entity, BaseEntity } from 'typeorm'
-import { PrimaryColumn, Column } from '../resolve'
+import { Column, PrimaryGeneratedColumn } from '../resolve'
 import { NoteType } from '../types'
 
 @Entity()
 class Trash extends BaseEntity {
-  @PrimaryColumn({ type: 'char', name: 'nid', length: 36, nullable: false })
-  id: string
+  @PrimaryGeneratedColumn({ type: 'int', name: 'id', unsigned: true })
+  id: number
 
   @Column({ type: 'char', name: 'type', length: 1, readonly: true, nullable: false })
   type: NoteType

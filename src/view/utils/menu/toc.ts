@@ -1,6 +1,6 @@
 import eventProxy from "utils/event_proxy"
 
-const { remote: { Menu, MenuItem }, handlers: { folder: folderHandler } } = anynote
+const { remote: { Menu, MenuItem }, handlers: { folder: folderHandler, note: noteHandler } } = anynote
 
 const menu = new Menu()
 
@@ -16,7 +16,10 @@ subNewMenu.append(
   new MenuItem({
     label: "富文本",
     click: () => {
-      return null
+      noteHandler.createByOptions(tocEvent.fid, {type: 'R', title: '无标题笔记'})
+      .then(() => {
+        eventProxy.trigger('Folder-Switch', {fid: tocEvent.fid})
+      })
     },
   })
 )
@@ -68,7 +71,7 @@ menu.append(
   new MenuItem({
     label: "粘贴",
   })
-) 
+)
 menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
@@ -85,15 +88,15 @@ menu.append(
           eventProxy.trigger('Folder-Created')
         })
     }
-  }) 
+  })
 )
 
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
   _tocEvent: TocEvent
 ): void {
-  e.stopPropagation()  
-  tocEvent = _tocEvent 
+  e.stopPropagation()
+  tocEvent = _tocEvent
   menu.popup()
 }
 

@@ -44,6 +44,7 @@ class DBManager {
           type: 'sqlite',
           database: './dbs/schema',
           entities: [Folder, Configure, Tag],
+          synchronize: true,
           logging: true,
           subscribers: [FolderSubscriber],
           logger: new OrmLogger()
@@ -53,6 +54,7 @@ class DBManager {
           type: 'sqlite',
           database: './dbs/extend',
           entities: [AllNote, Trash],
+          synchronize: true,
           logging: true,
           logger: new OrmLogger()
         }      

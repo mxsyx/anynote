@@ -8,6 +8,7 @@ class Desktop {
 
   constructor() {
     this.window = new BrowserWindow({
+      fullscreen: true,
       webPreferences: {
         nodeIntegration: true,
         preload: path.resolve(__dirname, 'preload.js')

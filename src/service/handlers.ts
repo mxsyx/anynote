@@ -100,7 +100,7 @@ export class FolderHandler {
 export class NodeHandler {
   private repositorys: { [index: string]: Repository<Note> }
 
-  constructor(repositorys: { [index: string]: Repository<Note> },) {
+  constructor(repositorys: { [index: string]: Repository<Note> }) {
     this.repositorys = repositorys
   }
 
@@ -130,7 +130,7 @@ export class NodeHandler {
     note.version = version
 
     return new Promise<Note>((resolve, reject) => {
-      this.repositorys[fid].save(note)
+      this.repositorys[`note_${fid}`].save(note)
         .then((data) => {
           resolve(data)
         })
@@ -169,17 +169,13 @@ export class NodeHandler {
 
   delete(fid: string, id: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const note = await this.repositorys[fid].findOne({ id })
-        if (!note) throw new Error(`note: ${id} not found when delete this note.`)
-        if (await CommonHanlder.trashHanlder.dropNote(note)) {
-          await this.repositorys[fid].delete({ id })
+      this.repositorys[`note_${fid}`].delete({ id })
+        .then(() => {
           resolve(true)
-        }
-      } catch (error) {
-        // FIXME when dropToTrash throw error, we should fallback.
-        reject(false)
-      }
+        })
+        .catch(error => {
+          reject(error)
+        })
     })
   }
 
@@ -276,6 +272,18 @@ export class NodeHandler {
       this.repositorys[fid].update(id, { remark })
         .then(() => {
           resolve(true)
+        })
+        .catch(() => {
+          reject(false)
+        })
+    })
+  }
+
+  getList(fid: string): Promise<Note[]> {
+    return new Promise<Note[]>((resolve, reject) => {
+      this.repositorys[`note_${fid}`].find()
+        .then(notes => {
+          resolve(notes)
         })
         .catch(() => {
           reject(false)
@@ -482,36 +490,22 @@ export class StarHanlder {
 
 export class TrashHanlder {
   private repository: Repository<Trash>
-  private noteHanlder: NodeHandler
 
-  constructor(repository: Repository<Trash>, noteHanlder: NodeHandler) {
-    this.repository = repository,
-      this.noteHanlder = noteHanlder
+  constructor(repository: Repository<Trash>) {
+    this.repository = repository
   }
 
-  dropNote(note: Note): Promise<boolean> {
+  create(note: {type: NoteType, title: string, content: string}): Promise<boolean> {
     const trash = new Trash()
-    trash.id = note.id
     trash.type = note.type
     trash.title = note.title
     trash.content = note.content
+    trash.when = getNow('datetime')
 
     return new Promise<boolean>((resolve, reject) => {
       this.repository.save(trash)
         .then(() => {
           resolve(true)
-        })
-        .catch(error => {
-          reject(error)
-        })
-    })
-  }
-
-  list(): Promise<Trash[]> {
-    return new Promise<Trash[]>((resolve, reject) => {
-      this.repository.find()
-        .then((data) => {
-          resolve(data)
         })
         .catch(error => {
           reject(error)
@@ -544,8 +538,19 @@ export class TrashHanlder {
         })
     })
   }
-}
 
+  list(): Promise<Trash[]> {
+    return new Promise<Trash[]>((resolve, reject) => {
+      this.repository.find()
+        .then((data) => {
+          resolve(data)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+}
 
 export class ConfigureHandler {
   private repository: Repository<Configure>
@@ -578,8 +583,4 @@ export class ConfigureHandler {
         })
     })
   }
-}
-
-export class CommonHanlder {
-  public static trashHanlder: TrashHanlder
 }

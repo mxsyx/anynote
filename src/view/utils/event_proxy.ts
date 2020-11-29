@@ -8,7 +8,12 @@
  * -----
  * Lisense: GNU General Public License v3
  */
-type EventNames = 'Folder-Created' | 'Folder-Before-Rename'
+type EventNames =
+  'Folder-Before-Create' |
+  'Folder-Created' |
+  'Folder-Before-Rename' |
+  'Folder-Switch'
+
 
 type Listener = (payload?: AnyObject) => unknown
 

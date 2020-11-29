@@ -4,7 +4,7 @@ import { PrimaryGeneratedColumn, Column } from '../resolve'
 @Entity()
 class History extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id', unsigned: true })
-  id: string
+  id: number
 
   @Column({ type: 'char', name: 'nid', length: 36, nullable: false })
   nid: string
