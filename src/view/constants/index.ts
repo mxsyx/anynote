@@ -5,7 +5,7 @@ export const editorInit = {
   language: "zh_CN",
   skin: 'oxide',
   plugins:
-    "link lists image code table colorpicker textcolor wordcount contextmenu",
+    "link lists image code table wordcount",
   toolbar: 'undo redo removeformat formatselect fontsizeselect | bold italic underline \
               strikethrough formatting | forecolor backcolor | alignment | bullist numlist | \
               outdent indent blockquote | linking image code',

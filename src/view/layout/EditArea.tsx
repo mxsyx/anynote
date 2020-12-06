@@ -44,7 +44,7 @@ const EditorArea: FC = () => {
         tinymceScriptSrc="assets/tinymce/tinymce.min.js"
         init={editorInit}
         onEditorChange={handleEditorChange}
-      />
+      ></Editor>
     </div>
   )
 }
