@@ -12,7 +12,8 @@ type EventNames =
   'Folder-Before-Create' |
   'Folder-Created' |
   'Folder-Before-Rename' |
-  'Folder-Switch'
+  'Folder-Switch' |
+  'Note-Switch'
 
 
 type Listener = (payload?: AnyObject) => unknown

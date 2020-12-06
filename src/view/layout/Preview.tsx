@@ -28,7 +28,7 @@ const Preview: FC = () => {
   useEffect(() => {
     eventProxy.on('Folder-Switch', (payload: AnyObject) => {
       setFid(payload.fid)
-      noteHandler.getList(payload.fid).then(notes => {
+      noteHandler.getList(payload.fid).then(notes => {        
         setNoteList(notes)
       })
     })
@@ -39,12 +39,8 @@ const Preview: FC = () => {
       {noteList.map(note => (
         <PreCard
           key={note.id}
-          nid={note.id}
+          note={note}
           fid={fid}
-          title={note.title}
-          content={note.content}
-          type={note.type}
-          uTime={note.uTime}
         />
       ))}
     </div>

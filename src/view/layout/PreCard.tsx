@@ -16,6 +16,7 @@ import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
 import { Menu, MenuItem } from '@material-ui/core'
 import { MoreVertOutlined } from '@material-ui/icons'
 import eventProxy from 'utils/event_proxy'
+import { Note } from 'types'
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -45,12 +46,8 @@ const useStyles = makeStyles((theme: Theme) =>
 const { note: noteHandler, trash: trashHandler } = anynote.handlers
 
 interface Props {
-  nid: string
+  note: Note
   fid: string
-  title: string
-  uTime: string
-  type: 'R' | 'M'
-  content: string
 }
 
 function makeSummary(content: string): string {
@@ -59,14 +56,18 @@ function makeSummary(content: string): string {
 }
 
 const PreCard: FC<Props> = props => {
-  const { nid, fid, title, uTime, type, content } = props
+  const { note, fid } = props
 
   const classes = useStyles()
   const [expanded, setExpanded] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
-  const handleClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget)
+  const handleClickCard = useCallback(() => {    
+    eventProxy.trigger('Note-Switch', note)
+  }, [note])
+
+  const handleClickAction = useCallback((e: MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(e.currentTarget)
   }, [])
 
   const handleClose = useCallback(() => {
@@ -79,19 +80,19 @@ const PreCard: FC<Props> = props => {
 
   const handleDelete = useCallback(() => {
     trashHandler
-      .create({ type, title, content })
+      .create({ type: note.type, title: note.title, content: note.content })
       .then(() => {
-        noteHandler.delete(fid, nid).then(() => {
+        noteHandler.delete(fid, note.id).then(() => {
           eventProxy.trigger('Folder-Switch', { fid })
         })
       })
       .finally(() => {
         setAnchorEl(null)
       })
-  }, [nid, fid])
+  }, [note, fid])
 
   return (
-    <Card className={classes.root}>
+    <Card className={classes.root} onClick={handleClickCard}>
       <CardHeader
         avatar={
           <Avatar aria-label="recipe" className={classes.avatar}>
@@ -99,12 +100,12 @@ const PreCard: FC<Props> = props => {
           </Avatar>
         }
         action={
-          <IconButton onClick={handleClick}>
+          <IconButton onClick={handleClickAction}>
             <MoreVertOutlined />
           </IconButton>
         }
-        title={title}
-        subheader={uTime}
+        title={note.title}
+        subheader={note.uTime}
       />
       <Menu
         id="simple-menu"
@@ -118,7 +119,7 @@ const PreCard: FC<Props> = props => {
       </Menu>
       <CardContent>
         <Typography variant="body2" color="textSecondary" component="p">
-          {makeSummary(content)}
+          {makeSummary(note.content)}
         </Typography>
       </CardContent>
       <CardActions disableSpacing>
@@ -140,7 +141,7 @@ const PreCard: FC<Props> = props => {
         </IconButton>
       </CardActions>
       <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <CardContent>{content}</CardContent>
+        <CardContent>{note.content}</CardContent>
       </Collapse>
     </Card>
   )

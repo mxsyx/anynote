@@ -35,7 +35,7 @@ const Sidebar: FC<Props> = props => {
   const [value, setValue] = useState<number>(0)
 
   // eslint-disable-next-line @typescript-eslint/ban-types
-  const handleChange = (event: React.ChangeEvent<{}>, newValue: number) => {
+  const handleChange = (e: React.ChangeEvent<{}>, newValue: number) => {
     setValue(newValue)
     props.onChange(newValue)
   }

@@ -195,8 +195,8 @@ export class NodeHandler {
     const uTime = getNow('datetime')
     return new Promise<string>(async (resolve, reject) => {
       try {
-        await this.repositorys[fid].update(id, { content, uTime: uTime })
-        await this.repositorys[fid].manager.increment(Note, { id }, "version", 1)
+        await this.repositorys[`note_${fid}`].update(id, { content, uTime: uTime })
+        // await this.repositorys[fid].manager.increment(Note, { id }, "version", 1)
         resolve(uTime)
       } catch (error) {
         reject(error)
@@ -215,6 +215,18 @@ export class NodeHandler {
       } catch (error) {
         reject(error)
       }
+    })
+  }
+
+  changeTitle(fid: string, id: string, title: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      this.repositorys[`note_${fid}`].update(id, { title })
+        .then(() => {
+          resolve(true)
+        })
+        .catch(error => {
+          reject(error)
+        })
     })
   }
 
@@ -373,7 +385,8 @@ export class TagHanlder {
   private allnote: Repository<AllNote>
 
   constructor(repository: Repository<Tag>, allnote: Repository<AllNote>) {
-    this.repository = repository,
+    this.repository = repository
+  
       this.allnote = allnote
   }
 
