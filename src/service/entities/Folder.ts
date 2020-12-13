@@ -1,5 +1,5 @@
 import { Entity, BaseEntity } from 'typeorm'
-import { PrimaryColumn, Column } from '../resolve'
+import {  Column, PrimaryColumn } from '../resolve'
 
 @Entity()
 class Folder extends BaseEntity {
@@ -9,7 +9,7 @@ class Folder extends BaseEntity {
   @Column({ type: 'char', name: 'pid', length: 36, default: null })
   pid: string | null
 
-  @Column({ type: 'tinyint', name: 'title', unsigned: true, nullable: false })
+  @Column({ type: 'tinyint', name: 'level', unsigned: true, nullable: false })
   level: number
 
   @Column({ type: 'nvarchar', name: 'name', length: 128, nullable: false })

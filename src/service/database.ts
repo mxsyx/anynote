@@ -7,18 +7,27 @@
  * Modified By: Mxsyx (mxsyxin@gmail.com>)
  * -----
  * Lisense: GNU General Public License v3
- */
+ */ 
+
+import events = require('events')
 
 import {
   createConnections,
   getConnectionManager,
   ConnectionManager,
   Connection,
-  ConnectionOptions
+  ConnectionOptions,
+  EventSubscriber,
+  EntitySubscriberInterface,
+  InsertEvent
 } from 'typeorm'
+
 import { Folder, Configure, Tag, AllNote, Note, History, Trash } from './entities'
 import { OrmLogger } from './logger'
 import { Connections, Repositorys } from './types'
+
+// 
+const eventProxy = new events.EventEmitter()
 
 /**
  * Database connection pool manager.
@@ -26,20 +35,21 @@ import { Connections, Repositorys } from './types'
 class DBManager {
   // Database connection pool.
   private pool: ConnectionManager
-
+     
   connent(): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {      
+    return new Promise<boolean>((resolve, reject) => {
       createConnections([
-        {
+        {   
           name: 'schema',
           type: 'sqlite',
           database: './dbs/schema',
           entities: [Folder, Configure, Tag],
           synchronize: true,
           logging: true,
+          subscribers: [FolderSubscriber],
           logger: new OrmLogger()
         },
-        { 
+        {
           name: 'extend',
           type: 'sqlite',
           database: './dbs/extend',
@@ -47,8 +57,8 @@ class DBManager {
           synchronize: true,
           logging: true,
           logger: new OrmLogger()
-        }
-      ])
+        }      
+      ])           
         .then(() => {
           this.pool = getConnectionManager()
           resolve(true)
@@ -59,13 +69,13 @@ class DBManager {
     })
   }
 
-  getConnection(name: string): Connection {    
+  getConnection(name: string): Connection {
     return this.pool.get(name)
   }
 
-  addConnections(connOptionsList: ConnectionOptions[]): Promise<boolean> {
+  addConnections(options: ConnectionOptions[]): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      createConnections(connOptionsList)
+      createConnections(options)
         .then(() => {
           resolve(true)
         })
@@ -86,6 +96,9 @@ class Storage {
 
   constructor() {
     this.dbManager = new DBManager()
+    eventProxy.on('Folder-Created', (folder: Folder) => {
+      this.handleFolderCreate(folder)
+    })
   }
 
   private initSystemDB(): void {
@@ -116,11 +129,9 @@ class Storage {
           data.map(item => fids.push(item.id))
         })
 
-        const connOptionsList: ConnectionOptions[] = []
+        const options: ConnectionOptions[] = []
         fids.forEach(fid => {
-          console.log(fid);
-          
-          connOptionsList.push({
+          options.push({
             name: fid,
             type: 'sqlite',
             database: `./dbs/${fid}`,
@@ -129,8 +140,8 @@ class Storage {
             logging: true
           })
         })
-        await this.dbManager.addConnections(connOptionsList)
-  
+        await this.dbManager.addConnections(options)
+
         fids.forEach(fid => {
           this.connections.notes[fid] = this.dbManager.getConnection(fid)
           this.repositorys.notes[`note_${fid}`] = this.connections.notes[fid].getRepository(Note)
@@ -142,6 +153,19 @@ class Storage {
         reject(error)
       }
     })
+  }
+
+  private handleFolderCreate(folder: Folder) {
+    const options: ConnectionOptions[] = []
+    options.push({
+      name: folder.id,
+      type: 'sqlite',
+      database: `./dbs/${folder.id}`,
+      entities: [Note, History],
+      synchronize: true,
+      logging: true
+    })
+    this.dbManager.addConnections(options)
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
@@ -160,6 +184,19 @@ class Storage {
         reject(error)
       }
     })
+  }
+}
+
+@EventSubscriber()
+export class FolderSubscriber implements EntitySubscriberInterface<Folder> {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  listenTo(): Function {
+    return Folder;
+  }
+
+  // Create note database.
+  afterInsert(event: InsertEvent<Folder>): void {
+    eventProxy.emit('Folder-Created', event.entity)
   }
 }
 

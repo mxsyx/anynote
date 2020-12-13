@@ -1,13 +1,14 @@
-const remote = anynote.remote
-const { Menu, MenuItem } = remote
+import eventProxy from "utils/event_proxy"
+
+const { remote: { Menu, MenuItem }, handlers: { folder: folderHandler, note: noteHandler } } = anynote
 
 const menu = new Menu()
 
-interface TocEvent {
+export interface TocEvent {
   nid?: string
   fid: string
 }
-let globalTocEvent: TocEvent
+let tocEvent: TocEvent
 
 // New Note Menu.
 const subNewMenu = new Menu()
@@ -15,7 +16,10 @@ subNewMenu.append(
   new MenuItem({
     label: "富文本",
     click: () => {
-      return null
+      noteHandler.createByOptions(tocEvent.fid, {type: 'R', title: '无标题笔记'})
+      .then(() => {
+        eventProxy.trigger('Folder-Switch', {fid: tocEvent.fid})
+      })
     },
   })
 )
@@ -27,6 +31,12 @@ subNewMenu.append(
 subNewMenu.append(
   new MenuItem({
     label: "文件夹",
+    click: () => {
+      folderHandler.create({ pid: tocEvent.fid, name: '新建文件夹' })
+        .then(() => {
+          eventProxy.trigger('Folder-Created')
+        })
+    }
   })
 )
 const newMenu = new MenuItem({
@@ -40,8 +50,10 @@ menu.append(newMenu)
 menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
-    role: "about",
     label: "重命名",
+    click: () => {
+      eventProxy.trigger('Folder-Before-Rename', tocEvent)
+    }
   })
 )
 menu.append(new MenuItem({ type: "separator" }))
@@ -70,15 +82,21 @@ menu.append(new MenuItem({ type: "separator" }))
 menu.append(
   new MenuItem({
     label: "删除",
+    click: () => {
+      folderHandler.delete(tocEvent.fid)
+        .then(() => {
+          eventProxy.trigger('Folder-Created')
+        })
+    }
   })
 )
 
 export function popupMenu(
   e: React.MouseEvent<HTMLLIElement, MouseEvent>,
-  tocEvent: TocEvent
-): void {  
-  e.preventDefault()
-  globalTocEvent = tocEvent
+  _tocEvent: TocEvent
+): void {
+  e.stopPropagation()
+  tocEvent = _tocEvent
   menu.popup()
 }
 

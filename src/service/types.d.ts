@@ -11,6 +11,7 @@
 
 import { Connection, Repository } from "typeorm";
 import { Folder, Configure, Tag, AllNote, Note, History, Trash } from "./entities";
+import { ConfigureHandler, FolderHandler, HistoryHanlder, NodeHandler, TagHanlder, TrashHanlder } from "./handlers";
 
 export interface Connections {
   schema: Connection,
@@ -30,6 +31,13 @@ export interface Repositorys {
   plugins: {/* [index: string]: Repository<> */ }
 }
 
-export type Handlers = Repositorys
+export type Handlers = {
+  folder: FolderHandler,
+  configure: ConfigureHandler,
+  tag: TagHanlder,
+  trash: TrashHanlder,
+  note: NodeHandler,
+  history: HistoryHanlder
+}
 
 export type NoteType = 'R' | 'M'

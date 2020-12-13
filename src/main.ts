@@ -1,7 +1,7 @@
 import * as path from 'path'
 import * as electron from 'electron'
 
-const { app, BrowserWindow, globalShortcut } = electron
+const { app, BrowserWindow, Menu,  globalShortcut } = electron
 
 class Desktop {
   private window
@@ -13,7 +13,8 @@ class Desktop {
         nodeIntegration: true,
         preload: path.resolve(__dirname, 'preload.js')
       }
-    })
+    }) 
+    Menu.setApplicationMenu(null);
     this.develop()
   }
 

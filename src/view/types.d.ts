@@ -1,16 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Folder, Configure, Tag, AllNote, Note, History, Trash } from "../global"
 
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference
-/// <reference path="../global.d.ts" />
-
-// eslint-disable-next-line no-var
-declare var anynote: Anynote
-
-declare module "*.css" {
-  const content: any;
-  export default content;
-}
-declare module "*.jpg" {
-  const content: any;
-  export default content;
+export {
+  Folder, Configure, Tag, AllNote, Note, History, Trash
 }

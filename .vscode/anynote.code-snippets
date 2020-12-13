@@ -17,5 +17,20 @@
 		"prefix": "pro",
 		"body": "  return new Promise<number>((resolve, reject) => {\n    $1\n  })",
 		"description": "new promise"
+	},
+	"TCF": {
+		"prefix": "tcf",
+		"body": ".then(() => {\n\n})\n.catch(() => {\n\n})\n.finally(() => {\n\n})",
+		"description": "handle promise"
+	},
+	"useState": {
+		"prefix": "useState",
+		"body": "const [$1, set$2] = useState<$3>($4)",
+		"description": "react useState"
+	},
+	"useCallback": {
+		"prefix": "useCallback",
+		"body": "const handle$1 = useCallback(($2) => {\n\n$3}, [])",
+		"description": "react useCallback"
 	}
 }

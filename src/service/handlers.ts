@@ -1,3 +1,13 @@
+/*
+ * File: /src/service/handlers.ts
+ * Author: Mxsyx (mxsyxin@gmail.com)
+ * Created At: 2020-11-21 07:10:32
+ * -----
+ * Last Modified: 2020-11-28 08:08:54
+ * Modified By: Mxsyx (mxsyxin@gmail.com>)
+ * -----
+ * Lisense: GNU General Public License v3
+ */
 import { v4 } from 'node-uuid'
 import { Repository } from 'typeorm'
 import { Folder, Note, Tag, Configure, History, Trash, AllNote } from './entities'
@@ -8,7 +18,6 @@ export class FolderHandler {
   private repository: Repository<Folder>
 
   constructor(repository: Repository<Folder>) {
-    
     this.repository = repository
   }
 
@@ -74,12 +83,24 @@ export class FolderHandler {
         })
     })
   }
+
+  getList(): Promise<Folder[]> {
+    return new Promise<Folder[]>((resolve, reject) => {
+      this.repository.find()
+        .then(folders => {
+          resolve(folders)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
 }
 
 export class NodeHandler {
   private repositorys: { [index: string]: Repository<Note> }
 
-  constructor(repositorys: { [index: string]: Repository<Note> },) {
+  constructor(repositorys: { [index: string]: Repository<Note> }) {
     this.repositorys = repositorys
   }
 
@@ -109,7 +130,7 @@ export class NodeHandler {
     note.version = version
 
     return new Promise<Note>((resolve, reject) => {
-      this.repositorys[fid].save(note)
+      this.repositorys[`note_${fid}`].save(note)
         .then((data) => {
           resolve(data)
         })
@@ -148,17 +169,13 @@ export class NodeHandler {
 
   delete(fid: string, id: string): Promise<boolean> {
     return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const note = await this.repositorys[fid].findOne({ id })
-        if (!note) throw new Error(`note: ${id} not found when delete this note.`)
-        if (await CommonHanlder.trashHanlder.dropNote(fid, note)) {
-          await this.repositorys[fid].delete({ id })
+      this.repositorys[`note_${fid}`].delete({ id })
+        .then(() => {
           resolve(true)
-        }
-      } catch (error) {
-        // FIXME when dropToTrash throw error, we should fallback.
-        reject(false)
-      }
+        })
+        .catch(error => {
+          reject(error)
+        })
     })
   }
 
@@ -178,8 +195,8 @@ export class NodeHandler {
     const uTime = getNow('datetime')
     return new Promise<string>(async (resolve, reject) => {
       try {
-        await this.repositorys[fid].update(id, { content, uTime: uTime })
-        await this.repositorys[fid].manager.increment(Note, { id }, "version", 1)
+        await this.repositorys[`note_${fid}`].update(id, { content, uTime: uTime })
+        // await this.repositorys[fid].manager.increment(Note, { id }, "version", 1)
         resolve(uTime)
       } catch (error) {
         reject(error)
@@ -198,6 +215,18 @@ export class NodeHandler {
       } catch (error) {
         reject(error)
       }
+    })
+  }
+
+  changeTitle(fid: string, id: string, title: string): Promise<boolean> {
+    return new Promise<boolean>(async (resolve, reject) => {
+      this.repositorys[`note_${fid}`].update(id, { title })
+        .then(() => {
+          resolve(true)
+        })
+        .catch(error => {
+          reject(error)
+        })
     })
   }
 
@@ -255,6 +284,18 @@ export class NodeHandler {
       this.repositorys[fid].update(id, { remark })
         .then(() => {
           resolve(true)
+        })
+        .catch(() => {
+          reject(false)
+        })
+    })
+  }
+
+  getList(fid: string): Promise<Note[]> {
+    return new Promise<Note[]>((resolve, reject) => {
+      this.repositorys[`note_${fid}`].find()
+        .then(notes => {
+          resolve(notes)
         })
         .catch(() => {
           reject(false)
@@ -344,8 +385,9 @@ export class TagHanlder {
   private allnote: Repository<AllNote>
 
   constructor(repository: Repository<Tag>, allnote: Repository<AllNote>) {
-    this.repository = repository,
-    this.allnote= allnote
+    this.repository = repository
+  
+      this.allnote = allnote
   }
 
   create(name: string, id: string = v4()): Promise<Tag> {
@@ -461,29 +503,17 @@ export class StarHanlder {
 
 export class TrashHanlder {
   private repository: Repository<Trash>
-  private noteHanlder: NodeHandler
 
-  constructor(repository: Repository<Trash>, noteHanlder: NodeHandler) {
-    this.repository = repository,
-    this.noteHanlder = noteHanlder
+  constructor(repository: Repository<Trash>) {
+    this.repository = repository
   }
 
-  dropNote(fid: string, note: Note): Promise<boolean> {
+  create(note: {type: NoteType, title: string, content: string}): Promise<boolean> {
     const trash = new Trash()
-    trash.nid = note.id
-    trash.fid = fid
     trash.type = note.type
     trash.title = note.title
-    trash.cTime = note.cTime
-    trash.uTime = note.uTime
-    trash.weight = note.weight
-    trash.locked = note.locked
-    trash.author = note.author
-    trash.origin = note.origin
-    trash.lisence = note.lisence
-    trash.remark = note.remark
     trash.content = note.content
-    trash.version = note.version
+    trash.when = getNow('datetime')
 
     return new Promise<boolean>((resolve, reject) => {
       this.repository.save(trash)
@@ -496,48 +526,9 @@ export class TrashHanlder {
     })
   }
 
-  restore(nid: string): Promise<boolean> {
-    return new Promise<boolean>(async (resolve, reject) => {
-      try {
-        const trashNote = await this.repository.findOne({ nid })
-        if (!trashNote) throw new Error(`note: ${nid} not found when restore this note.`)
-        const _note = new Note()
-        _note.id = trashNote.nid
-        _note.type = trashNote.type
-        _note.title = trashNote.title
-        _note.cTime = trashNote.cTime
-        _note.uTime = trashNote.uTime
-        _note.weight = trashNote.weight
-        _note.locked = trashNote.locked
-        _note.author = trashNote.author
-        _note.origin = trashNote.origin
-        _note.lisence = trashNote.lisence
-        _note.remark = trashNote.remark
-        _note.content = trashNote.content
-        _note.version = trashNote.version
-        await this.noteHanlder.createByInstance(trashNote.fid, _note)
-        resolve(true)
-      } catch (error) {
-        reject(false)
-      }
-    })
-  }
-
-  list(): Promise<Trash[]> {
-    return new Promise<Trash[]>((resolve, reject) => {
-      this.repository.find()
-        .then((data) => {
-          resolve(data)
-        })
-        .catch(error => {
-          reject(error)
-        })
-    })
-  }
-
-  delete(nid: string): Promise<boolean> {
+  delete(id: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      this.repository.delete({ nid })
+      this.repository.delete({ id })
         .then(() => {
           resolve(true)
         })
@@ -560,8 +551,19 @@ export class TrashHanlder {
         })
     })
   }
-}
 
+  list(): Promise<Trash[]> {
+    return new Promise<Trash[]>((resolve, reject) => {
+      this.repository.find()
+        .then((data) => {
+          resolve(data)
+        })
+        .catch(error => {
+          reject(error)
+        })
+    })
+  }
+}
 
 export class ConfigureHandler {
   private repository: Repository<Configure>
@@ -594,8 +596,4 @@ export class ConfigureHandler {
         })
     })
   }
-}
-
-export class CommonHanlder {
-  public static trashHanlder: TrashHanlder
 }

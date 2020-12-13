@@ -13,18 +13,21 @@ const rl = readline.createInterface({
   output: process.stdout
 })
 
+// ms
+const DEBOUNCED_INTERVAL = 1000
+
 const symbols = {
-  F: '🐞',   // fix bug
-  D: '✨',  // in development
-  A: '💪',  // finish new feature
-  R: '✂️',  // delete something
-  B: '🔔',  // build project
-  P: '🎖',   // release or online
-  U: '📅',  // update docs
+  F: '🐞', // fix bug
+  D: '✨', // in development
+  A: '💪', // finish new feature
+  R: '✂️', // delete something
+  B: '🔔', // build project
+  P: '🎖', // release or online
+  U: '📅' // update docs
 }
 
 function clearDir() {
-  spawnSync('rm', ['-rf', './build/src'])
+  spawnSync('rm', ['-rf', './build'])
 }
 
 function getCurrentBranchName() {
@@ -35,47 +38,59 @@ function getCurrentBranchName() {
   })
 }
 
-// function makeVersion() {
-//   const username = String(spawnSync('whoami', { stdio: 'pipe' }).stdout).trim()
-//   const hostname = String(spawnSync('hostname', ['-s'], { stdio: 'pipe' }).stdout).trim()
-//   return `${username}@${hostname}:${Date.now()}`
-// }
-
-function reStartApp() {
+function restartApp() {
   let prevTime = Date.now()
   let proc = null
   return function () {
-    if (Date.now() - prevTime > 1000) {
+    if (Date.now() - prevTime > DEBOUNCED_INTERVAL) {
       prevTime = Date.now()
       proc && proc.kill()
-      proc =  spawn('npx', ['electron', '--disable-gpu', '--enable-logging', 'build/src/main.js'], { stdio: 'inherit' })
-      console.log(`[Info: restarted electron app / PID: ${proc.pid}]`);
+      proc = spawn(
+        'npx',
+        [
+          'electron',
+          '--disable-gpu',
+          '--enable-logging',
+          '--remote-debugging-port=9223',
+          'build/main.js'
+        ],
+        { stdio: 'inherit' }
+      )
+      console.info(`Info: restarted electron app / PID: ${proc.pid}`)
     }
   }
 }
 
 function dev() {
   clearDir()
-  spawn('tsc', ['-w'], { stdio: 'inherit' })
-  spawn('npx', [ 'webpack-dev-server', '--mode', 'development', '--port', '8187', '--hot'], { stdio: 'inherit' })
-  watch('./build', reStartApp())
+  spawn('npx', ['tsc', '-w'], { stdio: 'inherit' })
+  spawn('npx', ['webpack-dev-server', '--mode', 'development', '--port', '8187', '--hot'], {
+    stdio: 'inherit'
+  })
+  watch('./build', restartApp())
 }
 
 function commit() {
   return new Promise(async resolve => {
     const branch = await getCurrentBranchName()
-    rl.question(`\nCurrent branch: \x1B[36m${branch}\x1B[0m, are you sure to commit? (y/n) `, (msg) => {
-      if (msg !== 'y') { resolve(); return }
-      console.info('\n', JSON.stringify(symbols))
-      rl.question('please input your commit message: ', (msg) => {
-        spawnSync('git', ['add', '.'])
-        const symbol = symbols[msg[0]] ? symbols[msg[0]] : '😘'
-        msg = symbol + msg.substr(1)
-        spawnSync('git', ['commit', '-m', msg], { stdio: 'inherit' })
-        rl.close()
-        resolve()
-      })
-    })
+    rl.question(
+      `\nCurrent branch: \x1B[36m${branch}\x1B[0m, are you sure to commit? (y/n) `,
+      msg => {
+        if (msg !== 'y') {
+          resolve()
+          return
+        }
+        console.info('\n', JSON.stringify(symbols))
+        rl.question('please input your commit message: ', msg => {
+          spawnSync('git', ['add', '.'])
+          const symbol = symbols[msg[0]] ? symbols[msg[0]] : '😘'
+          msg = symbol + msg.substr(1)
+          spawnSync('git', ['commit', '-m', msg], { stdio: 'inherit' })
+          rl.close()
+          resolve()
+        })
+      }
+    )
   })
 }
 
