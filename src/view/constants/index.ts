@@ -30,6 +30,7 @@ export const editorInit = {
   fontsize_formats: '12px 14px 16px 18px 24px 36px 48px 56px 72px',
   contextmenu: "copy",
   menubar: false,
-  statusbar: false
+  statusbar: false,
+  forced_root_block: 'div'
 }
 
