@@ -1,0 +1,38 @@
+{
+  "id": "garden.reading",
+  "name": "阅读卡片",
+  "version": "0.1.0",
+  "engines": { "anynote": "^0.1.0" },
+  "runtime": "declarative",
+  "description": "通过公开声明插入可编辑的阅读摘记与任务模板。",
+  "permissions": ["notes:write"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "garden.reading.insert",
+        "title": "插入阅读卡片",
+        "action": { "kind": "insertBlock", "type": "garden.reading.card" }
+      },
+      {
+        "id": "garden.reading.template",
+        "title": "插入阅读模板",
+        "action": {
+          "kind": "appendMarkdown",
+          "body": "## 阅读摘记\n\n- [ ] 记录核心观点\n- [ ] 写下一个问题\n"
+        }
+      }
+    ],
+    "editorNodes": [
+      {
+        "type": "garden.reading.card",
+        "title": "阅读卡片",
+        "dataVersion": 1,
+        "presentation": "callout",
+        "fields": [
+          { "key": "quote", "label": "摘录", "default": "记录值得留下的文字" },
+          { "key": "thought", "label": "思考", "default": "我的理解" }
+        ]
+      }
+    ]
+  }
+}

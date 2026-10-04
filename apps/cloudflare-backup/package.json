@@ -1,0 +1,46 @@
+{
+  "name": "@anynote/cloudflare-backup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*.js": {
+      "types": "./src/*.ts",
+      "import": "./dist/src/*.js"
+    },
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./src/*.js": {
+      "types": "./src/*.ts",
+      "import": "./dist/src/*.js"
+    },
+    "./*": {
+      "types": "./*.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "pnpm --dir ../.. run build:backend && wrangler deploy --dry-run --outdir ../../artifacts/cloudflare-worker",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy": "pnpm --dir ../.. run cloud:deploy"
+  },
+  "dependencies": {
+    "@anynote/protocol": "workspace:*",
+    "@anynote/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261003.1",
+    "@types/node": "24.19.0",
+    "typescript": "5.9.2",
+    "wrangler": "4.146.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

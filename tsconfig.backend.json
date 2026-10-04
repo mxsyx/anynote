@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": ".build",
+    "declaration": true,
+    "sourceMap": true,
+    "types": ["node"],
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM"],
+    "noEmitOnError": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "apps/desktop/electron/**/*.ts",
+    "apps/desktop/electron/**/*.cts",
+    "apps/cloudflare-backup/src/**/*.ts"
+  ],
+  "exclude": ["**/node_modules", "**/dist"]
+}

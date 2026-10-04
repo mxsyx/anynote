@@ -1,0 +1,54 @@
+{
+  "id": "garden.preferences",
+  "name": "可配置阅读摘要",
+  "version": "0.1.0",
+  "engines": { "anynote": "^0.1.0" },
+  "runtime": "quickjs-transform",
+  "description": "使用当前 Notebook 的设置，在笔记末尾追加阅读目标。",
+  "permissions": [
+    "notes:read",
+    "notes:write",
+    "settings:read",
+    "settings:write"
+  ],
+  "contributes": {
+    "settings": {
+      "version": 1,
+      "fields": [
+        {
+          "key": "heading",
+          "label": "摘要标题",
+          "kind": "text",
+          "default": "阅读目标",
+          "maxLength": 80
+        },
+        {
+          "key": "target",
+          "label": "目标篇数",
+          "kind": "number",
+          "default": 3,
+          "min": 1,
+          "max": 100,
+          "integer": true
+        },
+        {
+          "key": "enabled",
+          "label": "追加整理摘要",
+          "kind": "boolean",
+          "default": true
+        }
+      ]
+    },
+    "commands": [
+      {
+        "id": "garden.preferences.append",
+        "title": "按设置追加阅读目标",
+        "action": {
+          "kind": "transformMarkdown",
+          "script": "(note)=>note.settings.enabled ? note.body+'\\n\\n## '+note.settings.heading+'\\n\\n目标：'+note.settings.target+' 篇。\\n' : note.body"
+        }
+      }
+    ],
+    "editorNodes": []
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "garden.session",
+  "name": "阅读整理记录",
+  "version": "0.1.1",
+  "engines": {
+    "anynote": "^0.1.0"
+  },
+  "runtime": "quickjs-transform",
+  "description": "按 Notebook 记录整理次数，同时追加当前笔记的整理摘要。",
+  "permissions": [
+    "notes:read",
+    "notes:write",
+    "settings:read",
+    "settings:write"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "garden.session.record",
+        "title": "记录一次阅读整理",
+        "action": {
+          "kind": "transformMarkdownWithState",
+          "script": "(note) => { const visits = (Number.isSafeInteger(note.state.visits) ? note.state.visits : 0) + 1; return {body: note.body + '\\n\\n## 整理记录\\n\\n本 Notebook 第 ' + visits + ' 次整理。\\n', state: {...note.state, visits, lastTitle: note.title}}; }"
+        }
+      }
+    ],
+    "editorNodes": [],
+    "stateVersion": 2,
+    "dataMigrations": [
+      {
+        "id": "garden.session.v2",
+        "title": "整理次数升级",
+        "target": "scriptState",
+        "fromVersion": 1,
+        "toVersion": 2,
+        "rename": {
+          "runs": "visits"
+        },
+        "defaults": {
+          "lastTitle": ""
+        }
+      }
+    ]
+  }
+}

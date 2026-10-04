@@ -1,0 +1,22 @@
+**/node_modules/
+.build/
+**/dist/
+release/
+artifacts/
+test-results/
+playwright-report/
+public/excalidraw/
+.anynote-dev/
+.cloudflare-acceptance/
+.codebase-memory/
+**/.wrangler/
+.husky/_/
+.env*
+.aws/
+pnpm-lock.yaml
+# Preserve recorded acceptance evidence without reformatting.
+docs/*acceptance.json
+docs/search-benchmark.json
+
+# Original product design supplied by the user.
+Anynote-Design.md

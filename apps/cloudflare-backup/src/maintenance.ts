@@ -1,0 +1,526 @@
+import { objectDescriptors } from "@anynote/protocol/cloud-objects.js";
+import type { SqlRow, WorkerEnv } from "@anynote/types/runtime.js";
+import { calendarPolicy, sampleVersions } from "./retention-policy.js";
+const uuid = /^[a-f0-9-]{36}$/i;
+const grace = 24 * 60 * 60 * 1000;
+export const maintenanceGrace = grace;
+function fail(message: string): never {
+  throw Error(message);
+}
+const validId = (id: string) => (uuid.test(id || "") ? id : fail("身份无效"));
+const result = (body: unknown, status = 200) =>
+  Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+export async function state(env: WorkerEnv, book: string) {
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO notebook_state(notebook_id) VALUES(?)",
+  )
+    .bind(book)
+    .run();
+  return (await env.DB.prepare(
+    "SELECT * FROM notebook_state WHERE notebook_id=?",
+  )
+    .bind(book)
+    .first())!;
+}
+export function gate(
+  env: WorkerEnv,
+  book: string,
+  guardId: string,
+  extra = "1",
+  bindings: unknown[] = [],
+) {
+  return env.DB.prepare(
+    `INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND maintenance_id IS NULL) AND (${extra}) THEN 1 ELSE 0 END`,
+  ).bind(guardId, book, ...bindings);
+}
+const clear = (env: WorkerEnv, id: string) =>
+  env.DB.prepare("DELETE FROM transaction_guard WHERE id=?").bind(id);
+const bump = (env: WorkerEnv, book: string) =>
+  env.DB.prepare(
+    "UPDATE notebook_state SET revision=revision+1 WHERE notebook_id=?",
+  ).bind(book);
+export async function branch(
+  env: WorkerEnv,
+  book: string,
+  lineage: string | null,
+) {
+  return env.DB.prepare(
+    "SELECT * FROM branches WHERE notebook_id=? AND lineage_id=?",
+  )
+    .bind(book, validId(lineage!))
+    .first();
+}
+export async function usable(env: WorkerEnv, generation: SqlRow) {
+  return !(await env.DB.prepare("SELECT id FROM retired_generations WHERE id=?")
+    .bind(generation.id)
+    .first());
+}
+async function scope(env: WorkerEnv, book: string, p: SqlRow) {
+  const b = await branch(env, book, p.lineageId);
+  if (!b) fail("分支不存在");
+  if (b.writer_id !== p.deviceId || b.writer_epoch !== p.writerEpoch)
+    fail("WRITER_REVOKED");
+  return b;
+}
+async function snapshot(
+  env: WorkerEnv,
+  book: string,
+  lineage: string,
+  keep: number,
+  calendar?: import("./retention-policy.js").CalendarPolicy,
+  referenceTime: string = "",
+) {
+  const rows = (
+    await env.DB.prepare(
+      "SELECT g.* FROM generations g WHERE notebook_id=? AND NOT EXISTS(SELECT 1 FROM retired_generations r WHERE r.id=g.id) ORDER BY created_at DESC,id DESC LIMIT 201",
+    )
+      .bind(book)
+      .all()
+  ).results;
+  if (rows.length > 200) fail("版本规划超过 200 条预算");
+  const heads = (
+    await env.DB.prepare("SELECT head FROM branches WHERE notebook_id=?")
+      .bind(book)
+      .all()
+  ).results;
+  const pins = (
+    await env.DB.prepare(
+      "SELECT generation_id FROM restore_pins WHERE notebook_id=? AND expires_at>?",
+    )
+      .bind(book, Date.now())
+      .all()
+  ).results;
+  const protectedIds = new Set([
+    ...heads.map((b) => b.head),
+    ...pins.map((p) => p.generation_id),
+  ]);
+  const selected = rows.filter(
+    (g) => g.lineage_id === lineage && g.status === "committed",
+  );
+  const sampled =
+    calendar === undefined
+      ? undefined
+      : sampleVersions(
+          selected as { id: string; created_at: string }[],
+          keep,
+          calendar,
+          referenceTime,
+        );
+  if (sampled) sampled.forEach((g) => protectedIds.add(g.id));
+  else selected.slice(0, keep).forEach((g) => protectedIds.add(g.id));
+  const remove = selected.filter((g) => !protectedIds.has(g.id)),
+    removed = new Set(remove.map((g) => g.id)),
+    marked = new Set();
+  for (const g of rows.filter((g) => !removed.has(g.id))) {
+    const object = await env.BUCKET.get(`manifests/${book}/${g.id}.json`);
+    if (!object) fail("保护版本的 manifest 缺失");
+    const bytes = await object.arrayBuffer();
+    if ((await sha(bytes)) !== g.manifest_hash)
+      fail("保护版本的 manifest 校验失败");
+    const m = JSON.parse(new TextDecoder().decode(bytes));
+    for (const d of objectDescriptors(m).values()) marked.add(d.hash);
+    if (marked.size > 200000) fail("保护引用超过 200000 条预算");
+  }
+  const objects = [];
+  let cursor;
+  for (let page = 0; page < 10; page++) {
+    const listed = await env.BUCKET.list({
+      prefix: `objects/${book}/`,
+      cursor,
+      limit: 1000,
+    });
+    for (const item of listed.objects) {
+      const hash = item.key.split("/").pop();
+      if (!/^[a-f0-9]{64}$/.test(hash!)) continue;
+      if (
+        !marked.has(hash) &&
+        Date.now() - new Date(item.uploaded).getTime() >= grace
+      )
+        objects.push({ key: item.key, hash, size: item.size, etag: item.etag });
+    }
+    if (!listed.truncated) break;
+    cursor = listed.cursor;
+    if (page === 9) fail("对象规划超过 10000 条预算");
+  }
+  return {
+    keep,
+    ...(sampled ? { calendar, referenceTime, sampled } : {}),
+    remove: remove.map((g) => ({ id: g.id, createdAt: g.created_at })),
+    objects: objects.slice(0, 1000),
+    protected: [...protectedIds].filter(Boolean),
+    staging: rows.filter((g) => g.status === "staging").length,
+    reclaimBytes: objects.slice(0, 1000).reduce((s, o) => s + o.size, 0),
+    graceHours: 24,
+  };
+}
+const sha = async (bytes: BufferSource) =>
+  Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
+export async function maintenance(
+  request: Request,
+  env: WorkerEnv,
+  book: string,
+  tail: string,
+  url: URL,
+  json: (request: Request) => Promise<any>,
+  executionOwner: string | null = null,
+) {
+  if (tail === "/writer" && request.method === "GET") {
+    const b = await branch(env, book, url.searchParams.get("lineageId"));
+    return b
+      ? result({
+          head: b.head,
+          deviceId: b.writer_id,
+          writerEpoch: b.writer_epoch,
+          lineageId: b.lineage_id,
+        })
+      : result({ error: "分支不存在" }, 404);
+  }
+  if (tail === "/writer/takeover" && request.method === "POST") {
+    const p = await json(request);
+    validId(p.lineageId);
+    validId(p.deviceId);
+    validId(p.requestId);
+    if (
+      p.confirmed !== true ||
+      !Number.isSafeInteger(p.expectedWriterEpoch) ||
+      p.expectedWriterEpoch < 1 ||
+      typeof p.expectedHead !== "string"
+    )
+      fail("接管需要确认与当前分支版本");
+    await state(env, book);
+    const b = await branch(env, book, p.lineageId);
+    if (!b) fail("分支不存在");
+    const prior = await env.DB.prepare("SELECT * FROM writer_claims WHERE id=?")
+      .bind(p.requestId)
+      .first();
+    if (prior) {
+      if (
+        prior.notebook_id !== book ||
+        prior.lineage_id !== p.lineageId ||
+        prior.device_id !== p.deviceId ||
+        prior.expected_epoch !== p.expectedWriterEpoch ||
+        prior.expected_head !== p.expectedHead
+      )
+        fail("IDEMPOTENCY_CONFLICT");
+      if (b.writer_id !== p.deviceId || b.writer_epoch !== prior.new_epoch)
+        fail("WRITER_REVOKED");
+      return result({
+        head: b.head,
+        writerEpoch: prior.new_epoch,
+        lineageId: p.lineageId,
+      });
+    }
+    const guard = crypto.randomUUID();
+    try {
+      await env.DB.batch([
+        gate(
+          env,
+          book,
+          guard,
+          "EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND head=? AND writer_epoch=?)",
+          [book, p.lineageId, p.expectedHead, p.expectedWriterEpoch],
+        ),
+        env.DB.prepare(
+          "UPDATE branches SET writer_id=?,writer_epoch=writer_epoch+1 WHERE notebook_id=? AND lineage_id=?",
+        ).bind(p.deviceId, book, p.lineageId),
+        env.DB.prepare("INSERT INTO writer_claims VALUES(?,?,?,?,?,?,?)").bind(
+          p.requestId,
+          book,
+          p.lineageId,
+          p.deviceId,
+          p.expectedWriterEpoch,
+          p.expectedHead,
+          p.expectedWriterEpoch + 1,
+        ),
+        bump(env, book),
+        clear(env, guard),
+      ]);
+    } catch {
+      return result({ error: "HEAD_CONFLICT_OR_MAINTENANCE" }, 409);
+    }
+    return result({
+      head: p.expectedHead,
+      writerEpoch: p.expectedWriterEpoch + 1,
+      lineageId: p.lineageId,
+    });
+  }
+  const pin = tail.match(/^\/backups\/([a-f0-9-]{36})\/pin$/);
+  if (pin && ["POST", "DELETE"].includes(request.method)) {
+    const p = await json(request);
+    validId(p.pinId);
+    const existing = await env.DB.prepare(
+      "SELECT * FROM restore_pins WHERE id=?",
+    )
+      .bind(p.pinId)
+      .first();
+    if (
+      existing &&
+      (existing.notebook_id !== book || existing.generation_id !== pin[1])
+    )
+      fail("恢复 pin 身份冲突");
+    if (request.method === "DELETE") {
+      await env.DB.prepare(
+        "DELETE FROM restore_pins WHERE id=? AND notebook_id=?",
+      )
+        .bind(p.pinId, book)
+        .run();
+      return result({ ok: true });
+    }
+    await state(env, book);
+    const guard = crypto.randomUUID();
+    const g = await env.DB.prepare(
+      "SELECT * FROM generations WHERE notebook_id=? AND id=? AND status='committed'",
+    )
+      .bind(book, pin[1])
+      .first();
+    if (!g || !(await usable(env, g)))
+      return result({ error: "版本不存在" }, 404);
+    if (existing && existing.expires_at > Date.now()) {
+      await env.DB.prepare("UPDATE restore_pins SET expires_at=? WHERE id=?")
+        .bind(Date.now() + 3600000, p.pinId)
+        .run();
+      return result({ pinId: p.pinId });
+    }
+    try {
+      await env.DB.batch([
+        gate(
+          env,
+          book,
+          guard,
+          "NOT EXISTS(SELECT 1 FROM retired_generations WHERE id=?)",
+          [pin[1]],
+        ),
+        env.DB.prepare(
+          "INSERT INTO restore_pins VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET expires_at=excluded.expires_at",
+        ).bind(p.pinId, book, pin[1], Date.now() + 3600000),
+        bump(env, book),
+        clear(env, guard),
+      ]);
+    } catch {
+      return result({ error: "MAINTENANCE_IN_PROGRESS" }, 409);
+    }
+    return result({ pinId: p.pinId });
+  }
+  if (tail === "/retention/state" && request.method === "GET") {
+    const current = await state(env, book);
+    const plan = current.maintenance_id
+      ? await env.DB.prepare(
+          "SELECT * FROM retention_plans WHERE id=? AND notebook_id=?",
+        )
+          .bind(current.maintenance_id, book)
+          .first()
+      : null;
+    return result({
+      activePlan: plan
+        ? {
+            id: plan.id,
+            lineageId: plan.lineage_id,
+            status: plan.status,
+            ...JSON.parse(plan.body_json),
+          }
+        : null,
+    });
+  }
+  if (tail === "/retention/plan" && request.method === "POST") {
+    const p = await json(request);
+    if (!Number.isInteger(p.keep) || p.keep < 1 || p.keep > 1000)
+      fail("保留数量需为 1 到 1000");
+    const b = await scope(env, book, p),
+      before = await state(env, book);
+    if (before.maintenance_id) fail("MAINTENANCE_IN_PROGRESS");
+    const body = await snapshot(
+        env,
+        book,
+        p.lineageId,
+        p.keep,
+        calendarPolicy(p.calendar),
+        new Date(Date.now()).toISOString(),
+      ),
+      after = await state(env, book);
+    if (after.revision !== before.revision || after.maintenance_id)
+      fail("规划期间版本发生变化");
+    const id = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO retention_plans(id,notebook_id,lineage_id,writer_id,writer_epoch,state_revision,body_json,status,created_at) VALUES(?,?,?,?,?,?,?,'planned',?)",
+    )
+      .bind(
+        id,
+        book,
+        p.lineageId,
+        b.writer_id,
+        b.writer_epoch,
+        before.revision,
+        JSON.stringify(body),
+        Date.now(),
+      )
+      .run();
+    return result({ id, ...body });
+  }
+  if (tail === "/retention/apply" && request.method === "POST") {
+    const p = await json(request);
+    validId(p.planId);
+    if (p.confirmed !== true) fail("清理需要显式确认");
+    const plan = await env.DB.prepare(
+      "SELECT * FROM retention_plans WHERE id=? AND notebook_id=?",
+    )
+      .bind(p.planId, book)
+      .first();
+    if (!plan) fail("清理计划不存在");
+    if (plan.status === "completed")
+      return result({ completed: true, planId: plan.id });
+    if (plan.status === "planned")
+      await scope(env, book, {
+        lineageId: plan.lineage_id,
+        deviceId: p.deviceId,
+        writerEpoch: p.writerEpoch,
+      });
+    const body = JSON.parse(plan.body_json);
+    if (plan.status === "planned") {
+      if (Date.now() - plan.created_at > 10 * 60 * 1000)
+        fail("清理计划已过期，请重新预览");
+      const current = await snapshot(
+        env,
+        book,
+        plan.lineage_id,
+        body.keep,
+        body.calendar,
+        body.referenceTime,
+      );
+      if (JSON.stringify(current) !== JSON.stringify(body))
+        fail("清理候选或保护引用发生变化，请重新预览");
+      const guard = crypto.randomUUID();
+      try {
+        await env.DB.batch([
+          gate(
+            env,
+            book,
+            guard,
+            "EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND revision=?) AND EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND writer_id=? AND writer_epoch=?)",
+            [
+              book,
+              plan.state_revision,
+              book,
+              plan.lineage_id,
+              p.deviceId,
+              p.writerEpoch,
+            ],
+          ),
+          env.DB.prepare(
+            "UPDATE notebook_state SET maintenance_id=? WHERE notebook_id=?",
+          ).bind(plan.id, book),
+          env.DB.prepare(
+            "UPDATE retention_plans SET status='deleting' WHERE id=?",
+          ).bind(plan.id),
+          clear(env, guard),
+        ]);
+      } catch {
+        return result({ error: "PLAN_CHANGED" }, 409);
+      }
+    } else if ((await state(env, book)).maintenance_id !== plan.id)
+      fail("清理状态不匹配");
+    // The notebook-wide gate remains held on failure. Retrying this exact plan
+    // resumes idempotent deletes; it never expires while R2 deletes can be in flight.
+    const execution = crypto.randomUUID(),
+      executionGuard = crypto.randomUUID();
+    try {
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM retention_plans p JOIN notebook_state s ON p.notebook_id=s.notebook_id WHERE p.id=? AND p.execution_id IS NULL AND p.status='deleting' AND s.maintenance_id=p.id) THEN 1 ELSE 0 END",
+        ).bind(executionGuard, plan.id),
+        env.DB.prepare(
+          "UPDATE retention_plans SET execution_id=?,execution_owner=? WHERE id=?",
+        ).bind(execution, executionOwner, plan.id),
+        clear(env, executionGuard),
+      ]);
+    } catch {
+      return result({ error: "CLEANUP_BUSY" }, 409);
+    }
+    try {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO retired_generations SELECT id,notebook_id,? FROM generations WHERE notebook_id=? AND id IN (SELECT value FROM json_each(?))",
+      )
+        .bind(
+          plan.id,
+          book,
+          JSON.stringify(body.remove.map((item: { id: string }) => item.id)),
+        )
+        .run();
+      const cursors = await env.DB.prepare(
+        "SELECT object_cursor,generation_cursor FROM retention_plans WHERE id=?",
+      )
+        .bind(plan.id)
+        .first();
+      let objectCursor = cursors!.object_cursor,
+        generationCursor = cursors!.generation_cursor;
+      for (const entry of body.objects.slice(objectCursor, objectCursor + 8)) {
+        const head = await env.BUCKET.head(entry.key);
+        if (head && head.etag !== entry.etag) fail("对象在清理期间发生变化");
+        await env.BUCKET.delete(entry.key);
+        objectCursor++;
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM asset_catalog WHERE notebook_id=? AND hash=?",
+          ).bind(book, entry.hash),
+          env.DB.prepare(
+            "UPDATE retention_plans SET object_cursor=? WHERE id=?",
+          ).bind(objectCursor, plan.id),
+        ]);
+      }
+      if (
+        objectCursor < body.objects.length ||
+        objectCursor > cursors!.object_cursor
+      )
+        return result({
+          completed: false,
+          planId: plan.id,
+          processedObjects: objectCursor,
+        });
+      for (const entry of body.remove.slice(
+        generationCursor,
+        generationCursor + 8,
+      )) {
+        await env.BUCKET.delete(`manifests/${book}/${entry.id}.json`);
+        generationCursor++;
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM generation_deltas WHERE generation_id=?",
+          ).bind(entry.id),
+          env.DB.prepare("DELETE FROM generations WHERE id=?").bind(entry.id),
+          env.DB.prepare(
+            "UPDATE retention_plans SET generation_cursor=? WHERE id=?",
+          ).bind(generationCursor, plan.id),
+        ]);
+      }
+      if (generationCursor < body.remove.length)
+        return result({
+          completed: false,
+          planId: plan.id,
+          processedGenerations: generationCursor,
+        });
+      await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE retention_plans SET status='completed' WHERE id=?",
+        ).bind(plan.id),
+        env.DB.prepare(
+          "UPDATE notebook_state SET maintenance_id=NULL,revision=revision+1 WHERE notebook_id=? AND maintenance_id=?",
+        ).bind(book, plan.id),
+      ]);
+      return result({
+        completed: true,
+        planId: plan.id,
+        removed: body.remove.length,
+        reclaimedBytes: body.reclaimBytes,
+      });
+    } finally {
+      await env.DB.prepare(
+        "UPDATE retention_plans SET execution_id=NULL,execution_owner=NULL WHERE id=? AND execution_id=?",
+      )
+        .bind(plan.id, execution)
+        .run();
+    }
+  }
+  return null;
+}

@@ -1,0 +1,217 @@
+export interface ImportInput {
+  title?: string;
+  html?: string;
+  url?: string;
+  mode?: string;
+  files?: { name: string; data: string; mime: string }[];
+}
+import { Readability } from "@mozilla/readability";
+import createDOMPurify from "dompurify";
+import { JSDOM } from "jsdom";
+import { randomUUID } from "node:crypto";
+import TurndownService from "turndown";
+import { decodeHtml } from "@anynote/protocol/html-decode.js";
+import { safeDownload } from "./network.js";
+export async function prepareImport(
+  input: ImportInput,
+  signal: AbortSignal | undefined,
+  progress: (message: string) => void = () => {},
+) {
+  let html = input.html || "",
+    source = input.url || "https://anynote.invalid/";
+  if (input.url) {
+    progress("正在获取网页");
+    const page = await safeDownload(input.url, {
+      signal,
+      maxBytes: 10 * 1024 * 1024,
+    });
+    html = decodeHtml(page.data, page.contentType || "");
+    source = page.url;
+  }
+  if (!html || Buffer.byteLength(html) > 10 * 1024 * 1024)
+    throw Error("HTML 为空或超过 10MB");
+  const dom = new JSDOM(html, { url: source });
+  try {
+    const win = dom.window,
+      original = win.document;
+    const title = (original.title || input.title || "网页收藏")
+      .trim()
+      .slice(0, 240);
+    const lazy = [...original.querySelectorAll("img")];
+    for (const img of lazy) {
+      const src =
+        img.getAttribute("data-src") ||
+        img.getAttribute("data-original") ||
+        img.getAttribute("src") ||
+        img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s/)[0];
+      if (src) img.setAttribute("src", src);
+    }
+    const article =
+      input.mode === "page"
+        ? null
+        : new Readability(original.cloneNode(true) as Document).parse();
+    const clean = createDOMPurify(
+      win as unknown as import("dompurify").WindowLike,
+    ).sanitize(article?.content || original.body.innerHTML, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: [
+        "iframe",
+        "video",
+        "audio",
+        "form",
+        "input",
+        "button",
+        "style",
+      ],
+      FORBID_ATTR: ["style", "srcset"],
+    });
+    const container = original.createElement("div");
+    container.innerHTML = clean;
+    const files = input.files || [],
+      resources: { id: string; mime: string; name: string; data: string }[] =
+        [],
+      report = {
+        source: input.url ? source : null,
+        createdAt: Date.now(),
+        mode: input.mode || "article",
+        fallback: input.mode !== "page" && !article,
+        media: [] as {
+          source: string;
+          status: string;
+          resourceId?: string;
+          error?: string;
+        }[],
+        localized: 0,
+        failed: 0,
+      };
+    const images = [...container.querySelectorAll("img")];
+    if (images.length > 200) throw Error("图片数量超过 200");
+    let bytes = 0;
+    for (let i = 0; i < images.length; i++) {
+      signal?.throwIfAborted();
+      progress(`正在本地化图片 ${i + 1}/${images.length}`);
+      const img = images[i],
+        src = img.getAttribute("src") || "";
+      try {
+        let media;
+        if (src.startsWith("data:")) {
+          const match = src.match(
+            /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/,
+          );
+          if (!match) throw Error("不支持的内嵌图片");
+          media = { mime: match[1], data: Buffer.from(match[2], "base64") };
+        } else if (!input.url) {
+          const decoded = decodeURIComponent(src).replace(/^\.\//, "");
+          if (
+            decoded.startsWith("/") ||
+            decoded.split("/").includes("..") ||
+            decoded.includes("\\") ||
+            /^\w+:/.test(decoded)
+          )
+            throw Error("本地媒体路径未授权");
+          const file = files.find((f) => f.name === decoded);
+          if (!file) throw Error("未选择相邻资源文件");
+          media = { data: Buffer.from(file.data, "base64"), mime: file.mime };
+        } else
+          media = await safeDownload(new URL(src, source).href, {
+            signal,
+            maxBytes: 20 * 1024 * 1024,
+          });
+        if (!["image/png", "image/jpeg", "image/webp"].includes(media.mime))
+          throw Error("暂不支持此图片类型");
+        if (
+          media.data.length > 20 * 1024 * 1024 ||
+          (bytes += media.data.length) > 80 * 1024 * 1024
+        )
+          throw Error("媒体大小超过预算");
+        const data = media.data;
+        if (
+          (media.mime === "image/png" &&
+            data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") ||
+          (media.mime === "image/jpeg" &&
+            !(data[0] === 255 && data[1] === 216)) ||
+          (media.mime === "image/webp" &&
+            !(
+              data.subarray(0, 4).toString() === "RIFF" &&
+              data.subarray(8, 12).toString() === "WEBP"
+            ))
+        )
+          throw Error("图片类型与实际内容不匹配");
+        const id = randomUUID();
+        resources.push({
+          id,
+          name: img.alt || "网页图片",
+          mime: media.mime,
+          data: media.data.toString("base64"),
+        });
+        img.setAttribute("src", "anynote-resource:" + id);
+        report.media.push({ source: src, status: "localized", resourceId: id });
+        report.localized++;
+      } catch (e: any) {
+        report.failed++;
+        report.media.push({ source: src, status: "failed", error: e.message });
+        const placeholder = original.createElement("p");
+        placeholder.textContent = `[图片未下载：${img.alt || src} — ${e.message}]`;
+        img.replaceWith(placeholder);
+      }
+    }
+    const td = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced",
+      bulletListMarker: "-",
+    });
+    td.addRule("table", {
+      filter: "table",
+      replacement: (_, node) => {
+        const rows = [...node.querySelectorAll("tr")].map((r) =>
+          [...r.querySelectorAll("th,td")].map((c) =>
+            c.textContent.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim(),
+          ),
+        );
+        if (!rows.length) return "";
+        const width = Math.max(...rows.map((r) => r.length));
+        return (
+          "\n\n" +
+          rows
+            .map(
+              (r, i) =>
+                "| " +
+                Array.from({ length: width }, (_, j) => r[j] || "").join(
+                  " | ",
+                ) +
+                " |" +
+                (i === 0
+                  ? "\n| " + Array(width).fill("---").join(" | ") + " |"
+                  : ""),
+            )
+            .join("\n") +
+          "\n\n"
+        );
+      },
+    });
+    td.addRule("safe-links", {
+      filter: "a",
+      replacement: (text, node) => {
+        const href = node.getAttribute("href") || "";
+        try {
+          const url = new URL(href, source);
+          if (!["http:", "https:", "mailto:"].includes(url.protocol))
+            return text;
+          return `[${text}](${url.href})`;
+        } catch {
+          return text;
+        }
+      },
+    });
+    const body = td.turndown(container.innerHTML);
+    return {
+      title: article?.title?.slice(0, 240) || title,
+      body,
+      sourceUri: input.url ? source : null,
+      resources,
+      report,
+    };
+  } finally {
+    dom.window.close();
+  }
+}

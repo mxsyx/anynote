@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: "0"
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  check:
+    name: Lint, test and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm test
+      - run: pnpm run build
+      - name: Validate Cloudflare Worker bundle
+        run: pnpm run cloud:check
+      - name: Build portable SDK and development tool
+        run: |
+          pnpm run build:sdk
+          pnpm run build:extension-tools
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ github.sha }}
+          path: |
+            dist/
+            artifacts/plugin-sdk/
+            artifacts/extension-tools/
+          if-no-files-found: error
+          retention-days: 7

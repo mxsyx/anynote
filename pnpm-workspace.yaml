@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+nodeLinker: isolated
+hoist: false
+autoInstallPeers: false
+enablePrePostScripts: true
+saveExact: true
+allowBuilds:
+  electron: true
+  esbuild: true
+  workerd: true
+  "@parcel/watcher": true
+  "@swc/core": true
+  # Windows releases use NSIS, not the Squirrel installer.
+  electron-winstaller: false
+  canvas: false
+  core-js: false
+# electron-builder's Git-only transitive dependency has a published equivalent.
+overrides:
+  "@electron/node-gyp": 10.2.0-electron.2

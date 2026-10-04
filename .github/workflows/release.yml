@@ -1,0 +1,84 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: "0"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux
+          - os: macos-14
+            target: mac
+          - os: windows-2025
+            target: win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Verify tag matches package version
+        shell: bash
+        run: node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json","utf8")); if(process.env.GITHUB_REF_NAME!==`v${p.version}`) throw Error("Tag must match package.json version");'
+      - run: pnpm install --frozen-lockfile
+      - name: Build application and installer
+        run: pnpm run package:release --${{ matrix.target }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            release/*.AppImage
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release
+      - name: Generate checksums
+        working-directory: release
+        run: sha256sum *.AppImage *.dmg *.exe > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/*.AppImage
+            release/*.dmg
+            release/*.exe
+            release/SHA256SUMS.txt

@@ -1,0 +1,30 @@
+{
+  "id": "garden.network",
+  "name": "公开资料摘要",
+  "version": "0.1.0",
+  "engines": {
+    "anynote": "^0.1.0"
+  },
+  "runtime": "quickjs-transform",
+  "description": "读取明确声明的公开文本地址并追加摘要；示例地址需替换为可用的公开服务。",
+  "permissions": ["notes:read", "notes:write", "network"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "garden.network.append",
+        "title": "追加公开资料摘要",
+        "action": {
+          "kind": "transformMarkdown",
+          "script": "async (note, host) => { const response = await host.request('reference'); return note.body + '\\n\\n## 公开资料摘要\\n\\n' + response.text + '\\n'; }",
+          "networkRequests": [
+            {
+              "id": "reference",
+              "url": "https://example.com/anynote-demo.txt"
+            }
+          ]
+        }
+      }
+    ],
+    "editorNodes": []
+  }
+}

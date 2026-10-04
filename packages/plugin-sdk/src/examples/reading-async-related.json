@@ -1,0 +1,31 @@
+{
+  "id": "garden.async-related",
+  "name": "异步相关阅读索引",
+  "version": "0.1.0",
+  "engines": {
+    "anynote": "^0.1.0"
+  },
+  "runtime": "quickjs-transform",
+  "description": "查询当前 Notebook 的阅读记录，将命中标题及短片段追加到当前笔记。",
+  "permissions": ["notes:read", "notes:write", "search:read"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "garden.async-related.append",
+        "title": "追加异步相关阅读索引",
+        "action": {
+          "kind": "transformMarkdown",
+          "script": "async(note, host) => { const matches = await host.search('reading'); return note.body + '\\n\\n## 异步相关阅读索引\\n\\n' + (matches.results.length ? matches.results.map(r => '- ' + r.title + '：' + r.snippet.replace(/\\n/g, ' ')).join('\\n') : '未找到相关阅读记录。') + (matches.truncated ? '\\n更多结果已省略。' : '') + '\\n'; }",
+          "asyncSearch": [
+            {
+              "id": "reading",
+              "query": "阅读记录",
+              "limit": 5
+            }
+          ]
+        }
+      }
+    ],
+    "editorNodes": []
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "garden.summary",
+  "name": "阅读整理脚本",
+  "version": "0.1.0",
+  "engines": {
+    "anynote": "^0.1.0"
+  },
+  "runtime": "quickjs-transform",
+  "description": "在当前笔记末尾追加字数摘要，保留原正文和扩展块。",
+  "permissions": ["notes:read", "notes:write"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "garden.summary.count",
+        "title": "追加阅读字数摘要",
+        "action": {
+          "kind": "transformMarkdown",
+          "script": "(note) => note.body + '\\n\\n## 阅读统计\\n\\n正文字符数：' + note.body.length + '\\n'"
+        }
+      }
+    ],
+    "editorNodes": []
+  }
+}
