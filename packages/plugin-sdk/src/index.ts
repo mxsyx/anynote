@@ -93,3 +93,6 @@ export type {
 } from "./declarative.js";
 
 export type { ExtensionContext } from "./contracts.js";
+
+export { createLocalBackupAPI } from "./local-backup.js";
+export type * from "@anynote/types/local-backup.js";

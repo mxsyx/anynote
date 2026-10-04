@@ -1,3 +1,4 @@
+import { localBackupOperation, localOperations } from "./local.js";
 import { readControl, cancelS3Generation } from "./s3-control.js";
 import { configSchema } from "./connection.js";
 import { recoveryOperation } from "./recovery.js";
@@ -74,6 +75,7 @@ function find(s: Storage, p: SqlRow) {
   return target;
 }
 export async function backupOperation(s: Storage, op: string, raw: unknown) {
+  if (localOperations.includes(op)) return localBackupOperation(s, op, raw);
   const recovery = await recoveryOperation(s, op, raw, secret);
   if (recovery.handled) return recovery;
   if (

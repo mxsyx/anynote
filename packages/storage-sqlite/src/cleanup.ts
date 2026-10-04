@@ -13,6 +13,8 @@ import type { SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 const uuid = z.string().uuid();
 function candidates(s: Storage, p: SqlRow) {
+  if (s.pins.get(p.notebookId))
+    throw Error("Notebook 正在备份或导出，请稍后清理");
   const db = s.open(p.notebookId),
     root = s.notebookPath(p.notebookId, ""),
     known = new Set(

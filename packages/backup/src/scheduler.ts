@@ -1,3 +1,5 @@
+import { guard } from "@anynote/backup-local";
+import { readLocalTargets } from "./local.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
@@ -7,6 +9,7 @@ export function startBackupScheduler(
   storage: Storage,
   { intervalMs = 60000, now = Date.now } = {},
 ) {
+  const localOnline = new Map<string, boolean>();
   let disposed = false,
     running = false;
   const tick = async () => {
@@ -17,6 +20,30 @@ export function startBackupScheduler(
         targets: BackupTarget[] = existsSync(path)
           ? JSON.parse(readFileSync(path, "utf8"))
           : [];
+      for (const target of readLocalTargets(storage)) {
+        if (disposed) break;
+        let online = false;
+        try {
+          await guard({ id: target.diskId, path: target.path });
+          online = true;
+        } catch {}
+        const mounted = online && localOnline.get(target.id) === false;
+        localOnline.set(target.id, online);
+        if (
+          !target.autoBackup ||
+          !online ||
+          (!(target.onMount && mounted) &&
+            now() - (target.lastAttempt || target.lastSuccess || 0) <
+              target.intervalMinutes * 60000)
+        )
+          continue;
+        await storage
+          .run("startLocalBackup", {
+            notebookId: target.notebookId,
+            targetId: target.id,
+          })
+          .catch(() => {});
+      }
       for (const target of targets) {
         if (disposed) break;
         if (

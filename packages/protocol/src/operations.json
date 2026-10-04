@@ -101,5 +101,18 @@
   "applyExtensionDataCleanup",
   "listHostedExtensions",
   "configureHostedExtension",
-  "executeHostedExtensionCommand"
+  "executeHostedExtensionCommand",
+  "configureLocalBackup",
+  "listLocalBackupTargets",
+  "setLocalBackupSchedule",
+  "startLocalBackup",
+  "verifyLocalBackup",
+  "restoreLocalBackup",
+  "removeLocalBackupTarget",
+  "deleteLocalNotebookBackup",
+  "rebuildLocalBackupManifest",
+  "previewLocalBackup",
+  "getLocalBackupInfo",
+  "setLocalBackupScope",
+  "startLocalBackupGroup"
 ]

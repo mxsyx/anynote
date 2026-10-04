@@ -72,7 +72,9 @@
     "package:release": "pnpm run build && node scripts/package-desktop.mjs --publish never",
     "workspace:check": "node scripts/check-workspaces.mjs",
     "test:extension-host": "pnpm run build && vitest run tests/extension-host.test.mjs && node scripts/extension-host-smoke.mjs",
-    "test:watch": "pnpm run build:backend && vitest --watch"
+    "test:watch": "pnpm run build:backend && vitest --watch",
+    "test:desktop:local-backup": "pnpm run build && node scripts/desktop-local-backup-acceptance.mjs",
+    "benchmark:local-backup": "pnpm run build:backend && node scripts/benchmark-local-backup.mjs"
   },
   "main": ".build/apps/desktop/electron/main.cjs",
   "devDependencies": {

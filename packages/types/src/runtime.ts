@@ -1,4 +1,10 @@
 import type {
+  LocalVerificationReport,
+  LocalRestoreResult,
+  LocalBackupResult,
+  LocalBackupNotebookResult,
+} from "./local-backup.js";
+import type {
   D1Database,
   D1PreparedStatement,
   R2Bucket,
@@ -26,10 +32,22 @@ export interface Task {
   id: string;
   notebookId: string;
   type: string;
-  status: "running" | "committing" | "completed" | "failed" | "cancelled";
+  status:
+    | "running"
+    | "committing"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "waiting-disk";
   progress: string;
   createdAt: number;
   targetId?: string;
+  notebookResults?: LocalBackupNotebookResult[];
+  verificationReport?: LocalVerificationReport;
+  restoreResult?: LocalRestoreResult;
+  phase?: string;
+  errorCode?: string;
+  backupResult?: LocalBackupResult;
   error?: string;
   controller?: AbortController;
   promise?: Promise<unknown>;

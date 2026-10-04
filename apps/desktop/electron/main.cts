@@ -144,6 +144,43 @@ else {
           typeof input?.notebookId === "string"
         )
           extensionHost.revokeNotebook(input.notebookId);
+        if (op === "configureLocalBackup") {
+          if (
+            !input ||
+            Object.keys(input).some(
+              (key) => !["notebookId", "targetId"].includes(key),
+            ) ||
+            (input.targetId !== undefined &&
+              (typeof input.targetId !== "string" ||
+                !/^[a-f0-9-]{36}$/.test(input.targetId))) ||
+            typeof input.notebookId !== "string" ||
+            !/^[a-f0-9-]{36}$/.test(input.notebookId)
+          )
+            throw Error("目标选择不接受渲染器路径");
+          const selected = await dialog.showOpenDialog(win, {
+            title: "选择本地备份目标磁盘目录",
+            properties: ["openDirectory"],
+            buttonLabel: "选择备份目录",
+          });
+          if (selected.canceled || !selected.filePaths.length) return null;
+          const actual = fs.realpathSync(selected.filePaths[0]);
+          const space = fs.statfsSync(actual);
+          const confirmation = await dialog.showMessageBox(win, {
+            type: "question",
+            title: "配置本地磁盘备份",
+            message: "在此目录下创建或使用 AnynoteBackup",
+            detail: `${path.join(actual, "AnynoteBackup")}\n可用空间 ${((space.bavail * space.bsize) / 1024 ** 3).toFixed(1)} GB\n范围：当前 Notebook ${input.notebookId}\n单向更新一份当前副本，不保留历史版本。源端删除将在成功更新后清理对应受管附件。`,
+            buttons: ["配置备份", "取消"],
+            defaultId: 0,
+            cancelId: 1,
+          });
+          if (confirmation.response !== 0) return null;
+          return callStore(op, {
+            notebookId: input.notebookId,
+            ...(input.targetId ? { targetId: input.targetId } : {}),
+            path: actual,
+          });
+        }
         if (op === "openNotebookDirectory") {
           if (input && Object.keys(input).length)
             throw Error("目录打开不接受渲染器路径");

@@ -2518,3 +2518,33 @@ pre:focus-visible {
 .extension-cleanup-review ul {
   overflow-wrap: anywhere;
 }
+
+.local-backup-path {
+  overflow-wrap: anywhere;
+}
+
+.local-backup-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 12px 0;
+}
+.local-backup-options label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-backup-options input,
+.local-backup-options select {
+  padding: 8px;
+  max-width: 220px;
+}
+
+.local-backup-scope {
+  margin: 14px 0;
+}
+.local-backup-scope > label {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}

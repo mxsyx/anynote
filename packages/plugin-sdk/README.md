@@ -9,7 +9,7 @@ pnpm run build:sdk
 pnpm --dir artifacts/plugin-sdk pack --pack-destination ..
 ```
 
-生成的 SDK 包只包含 `index.js`、`contracts.js`、`declarative.js` 及其 `.d.ts`，没有应用内部 imports。可以在干净项目中安装 `artifacts/anynote-plugin-sdk-0.1.0.tgz`。此命令仅构建本地产物，不发布 npm。
+生成的 SDK 包只包含 公开 API、声明式扩展和本地备份契约模块及其 `.d.ts`，没有应用内部 imports。可以在干净项目中安装 `artifacts/anynote-plugin-sdk-0.1.0.tgz`。此命令仅构建本地产物，不发布 npm。
 
 ```ts
 import { createAPI, type DeclarativeManifest } from "@anynote/plugin-sdk";
@@ -90,3 +90,20 @@ await api.notes.get(noteId);
 ## 固定 HTTPS 网络代理
 
 声明 `action.networkRequests` 并申请 `network` 后，可使用 `ScriptNetworkAPI.request(id)` 等待固定地址的文本/JSON。安装审核显示域名和 URL；没有动态 URL、请求体、凭据或直接 fetch。搜索与网络共享四次串行调用预算。示例 [reading-network.json](examples/reading-network.json)，完整边界与离线 `fixture.network` 见 [网络代理说明](../../docs/SCRIPT-NETWORK-PROXY.md)。
+
+## 宿主本地磁盘备份接口
+
+`createLocalBackupAPI(authorizedTransport)` 提供配置、范围、定时计划、预览、备份、完整校验、恢复、删除及任务查询的统一类型。由受信宿主提供已授权的核心操作 transport；此适配器独立于插件 `createAPI` 和 `ExtensionContext`，不会增加扩展权限。`configure` 通过宿主原生目录选择器授权目录，不接收调用方提供的路径，用户取消时返回 `null`。
+
+```ts
+import { createLocalBackupAPI } from "@anynote/plugin-sdk";
+const backup = createLocalBackupAPI(authorizedTransport);
+const handle = await backup.verify({ notebookId, targetId });
+const task = await backup.getTask(handle.id);
+// 重复查询直到 status 为 completed、failed 或 cancelled。
+const report = task?.verificationReport;
+```
+
+备份、校验和恢复返回任务 ID。任务包含进度、错误码、备份统计以及 `LocalVerificationReport`；恢复成功还提供 `restoreResult.restoredId`。校验报告逐文件列出缺失、大小不符、哈希不符、读取失败和 SQLite 异常，取消或卷身份变化标记为 `interrupted` / `complete: false`，不能当作完整校验通过。组任务在 `notebookResults` 中保留每个 Notebook 的结果与报告。
+
+输入的 `targetId` 是设备配置 ID；清单、校验报告和恢复结果中的 `targetId` 是备份根目录身份 UUID。`getTask` 返回内存中的当前会话任务，进程重启后不保留历史任务。恢复先完整校验，再创建具有新身份的工作 Notebook。

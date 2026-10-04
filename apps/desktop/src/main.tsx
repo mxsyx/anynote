@@ -67,6 +67,7 @@ import ExtensionPage from "./ExtensionPage";
 import Backlinks from "./Backlinks";
 import LocalCleanup from "./LocalCleanup";
 import BackupTargets from "./BackupTargets";
+import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
 import SourceEditor from "./SourceEditor";
 import NotebookTransferDialog from "./NotebookTransferDialog";
@@ -1760,6 +1761,17 @@ function App() {
                       .then(setSnapshots)
                       .catch(report);
                   }}
+                />
+                <LocalBackup
+                  notebookId={book!.id}
+                  beforeBackup={async () => {
+                    if (composition.current)
+                      throw Error(
+                        "请完成当前输入后再立即备份；自动备份仅捕获已保存内容。",
+                      );
+                    await flush();
+                  }}
+                  onStarted={() => setTasksOpen(true)}
                 />
                 <BackupTargets
                   notebookId={book!.id}

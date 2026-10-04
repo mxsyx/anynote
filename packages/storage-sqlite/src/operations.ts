@@ -136,6 +136,19 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       "listCloudRecoveryConnections",
       "discoverCloudBackups",
       "restoreCloudBackup",
+      "previewLocalBackup",
+      "getLocalBackupInfo",
+      "setLocalBackupScope",
+      "startLocalBackupGroup",
+      "configureLocalBackup",
+      "listLocalBackupTargets",
+      "setLocalBackupSchedule",
+      "startLocalBackup",
+      "verifyLocalBackup",
+      "restoreLocalBackup",
+      "removeLocalBackupTarget",
+      "deleteLocalNotebookBackup",
+      "rebuildLocalBackupManifest",
       "configureBackup",
       "listBackupTargets",
       "startBackup",
@@ -262,7 +275,9 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     return { handled: true, result };
   }
   if (op === "listTasks") {
+    const p = z.object({ id: uuid.optional() }).passthrough().parse(raw);
     result = [...s.jobs.values()]
+      .filter((j) => !p.id || j.id === p.id)
       .map(({ controller, worker, promise, ...j }) => j)
       .slice(-100);
     return { handled: true, result };

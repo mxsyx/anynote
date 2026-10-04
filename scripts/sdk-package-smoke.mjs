@@ -76,7 +76,7 @@ try {
     );
   writeFileSync(
     join(tmp, "consumer.ts"),
-    `import {createAPI, sdkVersion, CommandRegistry, type DeclarativeManifest, type ExtensionContext, type ScriptManifest, type SignedExtensionPackage, type ExtensionSource, type ExtensionDirectory, type SavedExtensionDirectory, type StatefulMarkdownTransformInput, type StatefulMarkdownTransformResult, type ExtensionSettingsContribution, type ExtensionSettingsSnapshot, type ExtensionDataMigration, type ExtensionDataReview, type ExtensionDataOverview, type ExtensionDataApplyResult, type ScriptSearchRequest, type ScriptSearchContext, type ScriptAsyncSearchRequest, type ScriptHostAPI, type ScriptNetworkAPI, type ScriptNetworkRequest, type ScriptNetworkResult} from '@anynote/plugin-sdk';
+    `import {createLocalBackupAPI, type LocalBackupAPI, type LocalBackupTask, type LocalVerificationReport, createAPI, sdkVersion, CommandRegistry, type DeclarativeManifest, type ExtensionContext, type ScriptManifest, type SignedExtensionPackage, type ExtensionSource, type ExtensionDirectory, type SavedExtensionDirectory, type StatefulMarkdownTransformInput, type StatefulMarkdownTransformResult, type ExtensionSettingsContribution, type ExtensionSettingsSnapshot, type ExtensionDataMigration, type ExtensionDataReview, type ExtensionDataOverview, type ExtensionDataApplyResult, type ScriptSearchRequest, type ScriptSearchContext, type ScriptAsyncSearchRequest, type ScriptHostAPI, type ScriptNetworkAPI, type ScriptNetworkRequest, type ScriptNetworkResult} from '@anynote/plugin-sdk';
 const manifest: DeclarativeManifest = {id:'garden.test',name:'Test',version:'0.1.0',engines:{anynote:'^0.1.0'},runtime:'declarative',permissions:['notes:write'],contributes:{commands:[],editorNodes:[]}};
 const context: ExtensionContext | undefined = undefined;
 const script:ScriptManifest={id:'garden.script',name:'Script',version:'0.1.0',engines:{anynote:'^0.1.0'},runtime:'quickjs-transform',permissions:['notes:read','notes:write'],contributes:{commands:[{id:'garden.script.command',title:'Transform',action:{kind:'transformMarkdown',script:'(note)=>note.body'}}],editorNodes:[]}};
@@ -113,6 +113,14 @@ void manifest; void context; void script; void source; void signed; void directo
 const api=createAPI(async(method,input)=>({method,input}));
 const result=await api.notes.get('note');
 if((result as unknown as {method:string}).method!=='notes.get'||sdkVersion!=='0.1.0') throw Error('SDK transport failed');
+const backupCalls:{method:string,input:unknown}[]=[];
+const backup:LocalBackupAPI=createLocalBackupAPI(async(method,input)=>{backupCalls.push({method,input});if(method==='listTasks')return [{id:'job',type:'local-verify',status:'done',verificationReport:{status:'passed',issues:[]}}];return {id:'job'};});
+const backupHandle=await backup.verify({notebookId:'note',targetId:'target'});
+const backupTask:LocalBackupTask|null=await backup.getTask(backupHandle.id);
+const backupReport:LocalVerificationReport|undefined=backupTask?.verificationReport;
+if(backupCalls[0].method!=='verifyLocalBackup'||backupCalls[1].method!=='listTasks'||backupReport?.status!=='passed')throw Error('backup SDK transport failed');
+await backup.configure({notebookId:'note'});
+if(backupCalls[2].method!=='configureLocalBackup'||'path' in (backupCalls[2].input as object))throw Error('backup directory authorization failed');
 const registry=new CommandRegistry();const old=registry.register('test',()=>1);old();const next=registry.register('test',()=>2);old();if(await registry.execute('test')!==2)throw Error('stale disposer');next();
 `,
   );

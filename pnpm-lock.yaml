@@ -232,6 +232,9 @@ importers:
 
   packages/backup:
     dependencies:
+      '@anynote/backup-local':
+        specifier: workspace:*
+        version: link:../backup-local
       '@anynote/cloudflare-backup':
         specifier: workspace:*
         version: link:../../apps/cloudflare-backup
@@ -250,6 +253,22 @@ importers:
       fflate:
         specifier: 0.8.2
         version: 0.8.2
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.0
+        version: 24.19.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/backup-local:
+    dependencies:
+      '@anynote/types':
+        specifier: workspace:*
+        version: link:../types
       zod:
         specifier: 3.25.76
         version: 3.25.76

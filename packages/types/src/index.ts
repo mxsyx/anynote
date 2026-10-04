@@ -56,6 +56,19 @@ export interface Snapshot {
   size?: number;
 }
 export type Operation =
+  | "setLocalBackupScope"
+  | "startLocalBackupGroup"
+  | "previewLocalBackup"
+  | "getLocalBackupInfo"
+  | "configureLocalBackup"
+  | "listLocalBackupTargets"
+  | "setLocalBackupSchedule"
+  | "startLocalBackup"
+  | "verifyLocalBackup"
+  | "restoreLocalBackup"
+  | "removeLocalBackupTarget"
+  | "deleteLocalNotebookBackup"
+  | "rebuildLocalBackupManifest"
   | "listHostedExtensions"
   | "configureHostedExtension"
   | "executeHostedExtensionCommand"
@@ -162,3 +175,5 @@ export type Operation =
 export interface AnynoteBridge {
   request<T>(op: Operation, input?: Record<string, unknown>): Promise<T>;
 }
+
+export type * from "./local-backup.js";

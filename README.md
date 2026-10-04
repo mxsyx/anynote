@@ -133,3 +133,5 @@ pnpm run package
 仓库包含 10 个 pnpm workspace，使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
 首方扩展的独立进程运行、Notebook 会话授权、命令惰性激活与故障回收见 [扩展宿主](./docs/EXTENSION-HOST.md)。使用 `pnpm run test:extension-host` 验证宿主及真实桌面流程。
+
+本地磁盘备份的实现、平台边界和剩余待办见 [本地备份说明](packages/backup-local/README.md)。运行 `pnpm run test:desktop:local-backup` 验证生产 Electron 中的目录授权、范围配置、校验、取消与恢复导航；报告保存在 `artifacts/local-backup-acceptance.json`。

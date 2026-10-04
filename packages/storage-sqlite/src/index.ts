@@ -1,4 +1,9 @@
 import {
+  initializeBackupRevision,
+  assertNotebookSchema,
+  readBackupRevision,
+} from "./backup-revision.js";
+import {
   extensionCleanupOperation,
   closeExtensionCleanup,
 } from "./extension-cleanup.js";
@@ -27,6 +32,7 @@ import {
   closeSync,
   readSync,
   fstatSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -104,6 +110,8 @@ export class Storage {
   maxReadConnections: number;
   dbs: Map<string, SqlDatabase>;
   readDbs: Map<string, SqlDatabase>;
+  writeDbIdentities = new Map<string, string>();
+  writeDbLineages = new Map<string, string>();
   pins: Map<string, number>;
   queue: Promise<unknown>;
   jobs: Map<string, import("@anynote/types/runtime.js").Task>;
@@ -170,6 +178,7 @@ export class Storage {
       return Promise.resolve(cancelSearch(this, input));
     if (
       [
+        "previewLocalBackup",
         "discoverCloudBackups",
         "listRemoteBackups",
         "testBackupConnection",
@@ -312,6 +321,10 @@ export class Storage {
         );
         this.migrate(db, dir);
       } else if (meta.schema_version !== 2) throw Error("不支持的数据库版本");
+      initializeBackupRevision(db);
+      const identity = lstatSync(p, { bigint: true });
+      this.writeDbIdentities.set(id, `${identity.dev}:${identity.ino}`);
+      this.writeDbLineages.set(id, randomUUID());
       this.dbs.set(id, db);
       if (this.externalDirectories.has(id)) {
         const fresh = db.prepare("SELECT * FROM notebook_meta").get()!;
@@ -337,6 +350,14 @@ export class Storage {
       this.writeLocks.delete(id);
       throw e;
     }
+  }
+  // Fast paths are scoped to the current write lease; reopens require one fresh cut.
+  localBackupRevision(id: string) {
+    const db = this.dbs.get(id);
+    if (!db) return undefined;
+    const revision = readBackupRevision(db);
+    const lineageId = this.writeDbLineages.get(id);
+    return revision && lineageId ? { ...revision, lineageId } : undefined;
   }
   migrate(db: SqlDatabase, rootDir?: string) {
     db.exec("BEGIN IMMEDIATE");
@@ -541,6 +562,33 @@ export class Storage {
       ].includes(op)
     )
       return extensionCleanupOperation(this, op, raw);
+    if (op === "readLocalBackupRevision") {
+      const id = uuid.parse(raw.notebookId),
+        db = this.open(id);
+      const identity = lstatSync(this.notebookPath(id, "notebook.sqlite"), {
+        bigint: true,
+      });
+      if (`${identity.dev}:${identity.ino}` !== this.writeDbIdentities.get(id))
+        throw Object.assign(Error("源数据库已被替换，请重新打开 Notebook"), {
+          code: "SOURCE_CHANGED",
+        });
+      const { localResourceEntries } = await import(
+        "@anynote/backup/local-capture.js"
+      );
+      localResourceEntries(this, id, db);
+      return this.localBackupRevision(id);
+    }
+    if (op === "createLocalBackupCapture") {
+      const dir = assertLocalPath(
+        this.root,
+        "_local/backup-jobs/" + raw.dir.split(/[\\/]/).pop(),
+      );
+      if (dir !== raw.dir) throw Error("本地备份暂存目录无效");
+      const { captureLocalNotebook } = await import(
+        "@anynote/backup/local-capture.js"
+      );
+      return captureLocalNotebook(this, uuid.parse(raw.notebookId), dir);
+    }
     if (op === "createBackupSnapshot") {
       const dir = assertLocalPath(
         this.root,
@@ -1147,19 +1195,11 @@ export class Storage {
       db.exec("PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON;");
       const reference = new DatabaseSync(":memory:");
       reference.exec(m.schemaVersion === 1 ? legacySchema : schema);
-      const expected = reference
-        .prepare(
-          "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name",
-        )
-        .all();
-      reference.close();
-      const actual = db
-        .prepare(
-          "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name",
-        )
-        .all();
-      if (JSON.stringify(actual) !== JSON.stringify(expected))
-        throw Error("数据库结构不兼容");
+      try {
+        assertNotebookSchema(db, reference);
+      } finally {
+        reference.close();
+      }
       if (
         db.prepare("PRAGMA integrity_check").get()!.integrity_check !== "ok" ||
         db.prepare("PRAGMA foreign_key_check").all().length
@@ -1204,6 +1244,7 @@ export class Storage {
         for (const key of chain) checked.add(key);
       }
       if (m.schemaVersion === 1) this.migrate(db, dir);
+      initializeBackupRevision(db, true);
       db.prepare("UPDATE notebook_meta SET id=?,name=name || ?").run(
         id,
         "（导入）",

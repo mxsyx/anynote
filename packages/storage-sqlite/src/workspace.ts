@@ -1,3 +1,4 @@
+import { assertNotebookSchema } from "./backup-revision.js";
 import { createHash } from "node:crypto";
 import {
   closeSync,
@@ -97,6 +98,8 @@ export function validateDirectory(
   root: string,
   schemas: Record<number, string>,
 ) {
+  if (existsSync(assertLocalPath(root, ".backup")))
+    throw Error("备份目录不能直接打开，请恢复到新的工作目录");
   const file = assertLocalPath(root, "notebook.sqlite");
   if (!existsSync(file) || !lstatSync(file).isFile())
     throw Error("请选择包含 notebook.sqlite 的 Notebook 目录");
@@ -113,24 +116,12 @@ export function validateDirectory(
     if (![1, 2].includes(meta.schema_version))
       throw Error("不支持的数据库版本");
     const reference = new DatabaseSync(":memory:");
-    let expected;
     try {
       reference.exec(schemas[meta.schema_version]);
-      expected = reference
-        .prepare(
-          "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name",
-        )
-        .all();
+      assertNotebookSchema(db, reference);
     } finally {
       reference.close();
     }
-    const actual = db
-      .prepare(
-        "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name",
-      )
-      .all();
-    if (JSON.stringify(actual) !== JSON.stringify(expected))
-      throw Error("数据库结构不兼容");
     if (
       db.prepare("PRAGMA integrity_check").get()!.integrity_check !== "ok" ||
       db.prepare("PRAGMA foreign_key_check").all().length

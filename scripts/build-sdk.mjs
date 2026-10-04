@@ -8,12 +8,25 @@ import {
 const out = "artifacts/plugin-sdk";
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/examples`, { recursive: true });
-for (const file of ["index", "contracts", "declarative"])
+for (const file of ["index", "contracts", "declarative", "local-backup"])
   for (const ext of ["js", "d.ts"])
     cpSync(
       `.build/packages/plugin-sdk/${file}.${ext}`,
       `${out}/${file}.${ext}`,
     );
+for (const ext of ["js", "d.ts"])
+  cpSync(
+    `.build/packages/types/local-backup.${ext}`,
+    `${out}/backup-contracts.${ext}`,
+  );
+for (const name of ["index", "local-backup"])
+  writeFileSync(
+    `${out}/${name}.d.ts`,
+    readFileSync(`${out}/${name}.d.ts`, "utf8").replaceAll(
+      "@anynote/types/local-backup.js",
+      "./backup-contracts.js",
+    ),
+  );
 cpSync(
   "packages/plugin-sdk/src/examples/reading-callout.json",
   `${out}/examples/reading-callout.json`,
