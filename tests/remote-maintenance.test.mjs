@@ -586,6 +586,55 @@ test("an unfinished count-only preview remains executable after calendar support
   assert.equal((await apply(p)).completed, true);
 });
 
+test("legacy protection operations are S3-only and require confirmation plus a stopped-source attestation", async (t) => {
+  const { s, b } = await fixture(t);
+  const s3 = await s.run("configureBackup", {
+    notebookId: b.id,
+    provider: "s3",
+    name: "S3",
+    endpoint: "https://s3.invalid",
+    bucket: "test",
+    accessKeyId: "test",
+    secretAccessKey: "test",
+  });
+  const cloud = await s.run("configureBackup", {
+    notebookId: b.id,
+    provider: "cloudflare",
+    name: "远端",
+    endpoint: "https://worker.invalid",
+    token: "contract-token",
+  });
+  const entry = {
+    notebookId: b.id,
+    protectionKind: "writer",
+    protectionId: randomUUID(),
+    generationId: randomUUID(),
+  };
+  // Control-record protections have no Cloudflare equivalent; the Worker
+  // diagnoses and releases its own legacy execution lock instead.
+  for (const op of ["remoteProtectionAudit", "releaseRemoteProtection"])
+    await assert.rejects(
+      s.run(op, {
+        ...entry,
+        targetId: cloud.id,
+        confirmed: true,
+        attestation: "legacy-requests-stopped",
+      }),
+      /仅用于 S3 目标/,
+    );
+  await assert.rejects(
+    s.run("releaseRemoteProtection", { ...entry, targetId: s3.id }),
+    /显式确认/,
+  );
+  await assert.rejects(
+    s.run("releaseRemoteProtection", {
+      ...entry,
+      targetId: s3.id,
+      confirmed: true,
+    }),
+    /来源任务已停止/,
+  );
+});
 test("a client refuses calendar sampling on an older worker instead of silently using count-only retention", async (t) => {
   const { s, env, b } = await fixture(t);
   vi.spyOn(globalThis, "fetch").mockImplementation((input, _init) => {
