@@ -2,7 +2,12 @@ import { startExtensionUpdateScheduler } from "@anynote/storage-sqlite/extension
 import { startBackupScheduler } from "@anynote/backup/scheduler.js";
 import { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Credentials } from "@anynote/types/runtime.js";
-import type { PendingRequest, SecretResponse, StorageRequest } from "./ipc.js";
+import type {
+  EnvironmentReport,
+  PendingRequest,
+  SecretResponse,
+  StorageRequest,
+} from "./ipc.js";
 
 // Storage process entry: holds SQLite connections, serializes writes, and runs the backup and extension-update schedulers.
 const storage = new Storage(process.argv[2]);
@@ -49,7 +54,11 @@ process.on("SIGTERM", () => process.exit(0));
 
 parentPort.on(
   "message",
-  async ({ data }: { data: StorageRequest | SecretResponse }) => {
+  async ({
+    data,
+  }: {
+    data: StorageRequest | SecretResponse | EnvironmentReport;
+  }) => {
     if (data.type === "secret-response") {
       const pending = secretRequests.get(data.id);
       if (pending) {
@@ -59,6 +68,15 @@ parentPort.on(
           ? pending.reject(Error(data.error))
           : pending.resolve(data.result);
       }
+      return;
+    }
+
+    // Battery/metered state feeds the backup pause policy; it must never reject
+    // a normal request, so failures are swallowed.
+    if (data.type === "environment") {
+      await storage
+        .run("reportBackupEnvironment", { onBattery: data.onBattery })
+        .catch(() => {});
       return;
     }
 

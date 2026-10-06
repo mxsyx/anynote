@@ -30,6 +30,14 @@ import type { FileSnapshot } from "./file-snapshot.js";
 import { listLogical } from "./logical.js";
 import { manage, managementOperations } from "./manage.js";
 import {
+  clearFailureState,
+  failureState,
+  policyOperation,
+  policyOperations,
+  readPolicy,
+  scheduleInterval,
+} from "./policy.js";
+import {
   CloudflareClient,
   digest,
   listSnapshots,
@@ -192,6 +200,9 @@ function find(s: Storage, p: SqlRow) {
  */
 export async function backupOperation(s: Storage, op: string, raw: unknown) {
   if (localOperations.includes(op)) return localBackupOperation(s, op, raw);
+  // Retry/pause policy settings and host environment reporting are cheap,
+  // device-local operations; they never touch credentials or the network.
+  if (policyOperations.includes(op)) return policyOperation(s, op, raw);
   const recovery = await recoveryOperation(s, op, raw, secret);
   if (recovery.handled) return recovery;
   if (
@@ -259,6 +270,9 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     const target = {
       ...previous,
       ...config,
+      // Reconfiguring is the user's explicit fix, so any sticky authentication
+      // or protocol pause and pending backoff are cleared.
+      ...clearFailureState(),
       id,
       lineageId: previous?.lineageId || randomUUID(),
       deviceId: previous?.deviceId || randomUUID(),
@@ -283,13 +297,19 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           notebookId: uuid,
           targetId: uuid,
           enabled: z.boolean(),
-          intervalMinutes: z.number().int().min(2).max(1440).default(10),
+          intervalMinutes: z.number().int().min(1).max(1440).optional(),
         })
         .strict()
         .parse(raw),
       target = find(s, p);
     target.autoBackup = p.enabled;
-    target.intervalMinutes = p.intervalMinutes;
+    target.intervalMinutes = scheduleInterval(
+      target.provider,
+      p.intervalMinutes,
+    );
+    // Enabling automatic backup is the user's explicit recovery action: clear a
+    // sticky pause (auth/permanent/exhausted) and any pending backoff.
+    if (p.enabled) Object.assign(target, clearFailureState());
     write(
       s,
       read(s).map((t) => (t.id === target.id ? target : t)),
@@ -474,6 +494,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
               pendingGeneration: null,
               lastSuccess: Date.now(),
               lastError: null,
+              ...clearFailureState(),
             },
           });
           s.settle(job, "completed", {
@@ -488,6 +509,13 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         });
       }
       if (target.lastAckSeq === seq) {
+        // A healthy no-op run still clears any pending backoff: the target is
+        // reachable and consistent, so a future change should start fresh.
+        await s.run("commitBackupCursor", {
+          notebookId: p.notebookId,
+          targetId: target.id,
+          cursor: clearFailureState(),
+        });
         s.settle(job, "completed", { progress: "没有变化，已跳过上传" });
         return;
       }
@@ -521,7 +549,12 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       await s.run("commitBackupCursor", {
         notebookId: p.notebookId,
         targetId: target.id,
-        cursor: { pendingGeneration: generationId },
+        // Remember the captured size so the large-task pause rule can reason
+        // about this target before the next run captures anything.
+        cursor: {
+          pendingGeneration: generationId,
+          lastTaskBytes: job.totalBytes,
+        },
       });
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
@@ -555,6 +588,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           lastSuccess: Date.now(),
           lastError: null,
           pendingGeneration: null,
+          ...clearFailureState(),
         },
       });
       s.settle(job, "completed", {
@@ -567,11 +601,21 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       }
       if (job.status === "cancelled") return;
       s.settle(job, "failed", { error: e.message });
+      // Classify the failure once: throttling/transient errors schedule an
+      // exponential-backoff retry, a permanent authentication error stops
+      // automatic scheduling until the user fixes the configuration.
+      const { policy } = readPolicy(s),
+        next = failureState(target, e, { now: Date.now(), policy });
       await s
         .run("commitBackupCursor", {
           notebookId: p.notebookId,
           targetId: target.id,
-          cursor: { lastError: e.message },
+          cursor: {
+            lastError: e.message,
+            failureCount: next.failureCount,
+            nextAttemptAt: next.nextAttemptAt ?? null,
+            pausedReason: next.pausedReason ?? null,
+          },
         })
         .catch(() => {});
     } finally {

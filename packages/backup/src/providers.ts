@@ -9,6 +9,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { unzipSync, zipSync } from "fflate";
 import { createHash } from "node:crypto";
+import { parseRetryAfter } from "./policy.js";
 import type { BackupTarget, Credentials } from "@anynote/types/runtime.js";
 
 /**
@@ -483,8 +484,13 @@ export class CloudflareClient {
           (await boundedBody(r, 65536, signal)).toString(),
         ).error;
       } catch {}
+      // Honor a server-provided Retry-After so throttling is deferred per the
+      // design's "限流按服务返回的重试信息延后".
       throw Object.assign(Error(message || "备份服务返回 HTTP " + r.status), {
         status: r.status,
+        retryAfterMs: parseRetryAfter(
+          r.headers.get("retry-after") ?? undefined,
+        ),
       });
     }
     return JSON.parse((await boundedBody(r, 5 * 1024 ** 2, signal)).toString());

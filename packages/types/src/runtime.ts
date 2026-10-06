@@ -100,6 +100,14 @@ export interface BackupTarget {
   intervalMinutes?: number;
   createdAt?: number;
   lastError?: string | null;
+  /** Consecutive automatic failures, used for exponential backoff. */
+  failureCount?: number;
+  /** Earliest epoch time the scheduler may retry automatically. */
+  nextAttemptAt?: number | null;
+  /** Why automatic scheduling is paused (see the backup policy). */
+  pausedReason?: string | null;
+  /** Size of the last observed task, used for the large-task pause rule. */
+  lastTaskBytes?: number;
 }
 
 /** Access credentials for a backup target. */

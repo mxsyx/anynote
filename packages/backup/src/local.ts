@@ -23,6 +23,7 @@ import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
 import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
 import type { Task } from "@anynote/types/runtime.js";
 import type { Capture } from "@anynote/backup-local";
+import { clearFailureState, failureState, readPolicy } from "./policy.js";
 
 const uuid = z.string().uuid();
 
@@ -53,6 +54,14 @@ const config = z.object({
   lastError: z.string().nullable().optional(),
   pendingCleanup: z.boolean().optional(),
   lastProgress: z.string().optional(),
+  /** Consecutive automatic failures, used for exponential backoff. */
+  failureCount: z.number().int().nonnegative().optional(),
+  /** Earliest epoch time the scheduler may retry automatically. */
+  nextAttemptAt: z.number().nullable().optional(),
+  /** Why automatic scheduling is paused (see the unified backup policy). */
+  pausedReason: z.string().nullable().optional(),
+  /** Size of the last observed task, used for the large-task pause rule. */
+  lastTaskBytes: z.number().int().nonnegative().optional(),
 });
 
 /** Local backup target type. */
@@ -112,6 +121,24 @@ function update(s: Storage, id: string, patch: Partial<LocalBackupTarget>) {
     s,
     readLocalTargets(s).map((t) => (t.id === id ? { ...t, ...patch } : t)),
   );
+}
+
+/**
+ * Patch selected fields of one local target.
+ *
+ * Exposed for the scheduler so an environment-driven pause can be persisted
+ * without duplicating the atomic read/modify/write of the target list.
+ *
+ * @param s Storage service.
+ * @param id Target ID.
+ * @param patch Fields to change.
+ */
+export function patchLocalTarget(
+  s: Storage,
+  id: string,
+  patch: Partial<LocalBackupTarget>,
+) {
+  update(s, id, patch);
 }
 
 /**
@@ -422,6 +449,9 @@ export async function localBackupOperation(
     const t = previous
       ? config.parse({
           ...previous,
+          // Reconfiguring is the user's explicit fix, so pending backoff and any
+          // sticky authentication/protocol pause are cleared.
+          ...clearFailureState(),
           path: target.path,
           diskId: target.id,
           ...(previous.diskId !== target.id
@@ -764,6 +794,8 @@ export async function localBackupOperation(
             lastError: null,
             pendingCleanup: result.pendingCleanup,
             lastProgress: job.progress,
+            lastTaskBytes: job.totalBytes,
+            ...clearFailureState(),
           });
         }
         s.settle(job, "completed");
@@ -785,7 +817,17 @@ export async function localBackupOperation(
               : e.message,
         });
         try {
-          update(s, t.id, { lastError: job.error });
+          const patch: Partial<LocalBackupTarget> = { lastError: job.error };
+          // A genuine failure feeds the unified backoff/pause policy; a missing
+          // disk or user cancellation keeps the normal remount/manual behavior.
+          if (status === "failed") {
+            const { policy } = readPolicy(s),
+              next = failureState(t, e, { now: Date.now(), policy });
+            patch.failureCount = next.failureCount;
+            patch.nextAttemptAt = next.nextAttemptAt ?? null;
+            patch.pausedReason = next.pausedReason ?? null;
+          }
+          update(s, t.id, patch);
         } catch {}
       } finally {
         if (workspace?.dir)

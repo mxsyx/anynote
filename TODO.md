@@ -19,7 +19,7 @@
 - [x] Cloudflare 旧维护锁处置（§3）
 - [x] S3 遗留保护管理（§3）
 - [x] 持久化任务历史与中断恢复入口（§3）
-- [ ] 统一重试和暂停策略（§3）
+- [x] 统一重试和暂停策略（§3）
 - [ ] 富文本稳定化与模式切换（§4）
 - [ ] PDF 阅读补齐（§4）
 - [ ] PDF 文本任务与边界提示（§4）
@@ -73,7 +73,7 @@
 - [x] **P1 — S3 遗留保护管理**：新增只读审查 `remoteProtectionAudit` 与受限解除 `releaseRemoteProtection`（显式确认 + 来源停止声明 + 精确登记身份 CAS），并在远端维护界面提供入口；仅解除被确切观测、无本地 pending 回执的写登记与崩溃残留恢复登记，未提交的写 generation 一并退役以阻止迟到上传发布，已提交版本仍可恢复，残留 reader 解除后旧版本才可进入清理；不按时间抢占。
 - [ ] **P2 — 维护记录生命周期**：设计并实现 staging、孤立 manifest、清理计划、接管回执、retired 墓碑及 S3 控制记录的安全归档/回收；解决长期运行触及活动版本、保护项及 2000 项身份预算的情况，保持幂等和恢复证据。
 - [x] **P1 — 持久化任务历史与中断恢复入口**：任务状态/错误/校验报告写入设备侧 `_local/task-history.json`（原子写、200 条上限、单条证据预算），任务创建与结束统一经 `track`/`settle` 记录，进程退出或重启时仍在进行中的任务标记 `interrupted`，`listTasks` 合并历史与当前会话任务；新增 `retryTask`（只重放记录了可复现入参的操作）与只读 `queryPendingGeneration`，任务中心提供重试与提交查询入口。
-- [ ] **P1 — 统一重试和暂停策略**：补齐指数退避、抖动、Retry-After、永久鉴权错误分类，以及电池/计量网络/大任务暂停。当前固定周期检查与手动重试不等于完整调度策略；Cloudflare 编辑停止 60 秒触发属于设计默认值差异，需决定实现或正式调整约定。
+- [x] **P1 — 统一重试和暂停策略**：新增 `packages/backup/src/policy.ts` 统一引擎：错误分类（transient / throttled / auth / permanent / aborted）、指数退避（`base → 2^n`，上限截断）与 equal-jitter 抖动、按服务 `Retry-After`（秒或 HTTP 日期）优先延后；永久鉴权与协议错误写入粘性 `pausedReason`（`auth`/`permanent`）停止自动调度，重试次数用尽记 `exhausted`，仅在成功或用户改配置/重新启用时清除。失败计数、`nextAttemptAt` 与暂停原因随远端目标（`backup-targets.json`）及本地目标持久化，调度器据此门控自动触发；电池/计量网络/大任务暂停为设备级可选策略（`_local/backup-policy.json`），由桌面 `powerMonitor` 与渲染进程 Network Information API 上报，手动“立即备份”始终可执行。新增 `getBackupPolicy`/`setBackupPolicy`/`reportBackupEnvironment` 操作并在策略界面展示暂停原因；Cloudflare 采用设计建议的约 60 秒间隔作为默认值，S3 保留 10 分钟下限（仍为周期触发，非编辑停止空闲去抖）。`tests/backup-policy.test.mjs` 覆盖分类、退避/Retry-After、暂停与鉴权停止。
 - [ ] **P2 — 保留策略持久化与空间预估**：按目标保存数量/日周月保留配置，首次设置展示预计空间；自动执行清理如要支持，单独定义用户授权和保护契约。当前采样为每次手动预览/确认，不是定时删除策略。
 - [ ] **P2 — 中断字节续传**：评估复用已验证分块/下载进度及可选 multipart 的续传和遗留上传清理，补充中断、取消、源切点变化测试；当前重试重新捕获或下载，16MiB 应用分块不等于厂商 multipart 或字节续传。
 - [ ] **P2 — 远端容量与真实负载**：测量大规模维护规划、20GiB/大量附件、长期版本积累、D1/R2 配额与成本；必要时拆分清单、分批验证或异步任务。现有重复块 112MiB 样本不代表随机数据吞吐或满预算通过。

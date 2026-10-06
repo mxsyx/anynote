@@ -33,6 +33,13 @@ export interface SecretResponse {
   error?: string;
 }
 
+/** Host environment update pushed from the main process into the storage process. */
+export interface EnvironmentReport {
+  type: "environment";
+  /** Whether the device is currently running on battery power. */
+  onBattery: boolean;
+}
+
 /** One request awaiting a response (with timeout timer). */
 export interface PendingRequest {
   resolve: (value: unknown) => void;

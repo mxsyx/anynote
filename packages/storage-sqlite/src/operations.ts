@@ -219,6 +219,9 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       "testBackupConnection",
       "commitBackupCursor",
       "setBackupSchedule",
+      "getBackupPolicy",
+      "setBackupPolicy",
+      "reportBackupEnvironment",
     ].includes(op)
   ) {
     const { backupOperation } = await import("@anynote/backup/service.js");

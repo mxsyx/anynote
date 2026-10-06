@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  powerMonitor,
   safeStorage,
   shell,
   utilityProcess,
@@ -86,6 +87,19 @@ else {
       }
       pending.clear();
     });
+
+    // Forward battery state so the backup pause policy can defer automatic
+    // backups on battery. Metered networks are reported by the renderer.
+    const reportPower = () =>
+      store.postMessage({
+        type: "environment",
+        onBattery: powerMonitor.isOnBatteryPower(),
+      });
+    powerMonitor.on("on-battery", reportPower);
+    powerMonitor.on("on-ac", reportPower);
+    // The storage process may not be listening yet, so send the initial state
+    // again shortly after startup.
+    setTimeout(reportPower, 2000).unref?.();
 
     /**
      * Send a request to the storage process and wait for the response (with a timeout).

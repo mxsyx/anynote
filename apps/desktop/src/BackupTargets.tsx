@@ -17,6 +17,50 @@ interface Target {
   autoBackup?: boolean;
   intervalMinutes?: number;
   lastError?: string;
+  /** Why automatic scheduling is paused (see the unified backup policy). */
+  pausedReason?: string | null;
+  /** Earliest epoch time the scheduler retries automatically. */
+  nextAttemptAt?: number | null;
+}
+
+/** Device-level retry/pause policy. */
+interface BackupPolicy {
+  policy: {
+    backoff: {
+      baseSeconds: number;
+      maxSeconds: number;
+      jitterRatio: number;
+      maxAttempts: number;
+    };
+    pause: {
+      onBattery: boolean;
+      onMeteredNetwork: boolean;
+      largeTaskBytes: number;
+    };
+  };
+  environment: { onBattery?: boolean; metered?: boolean };
+}
+
+/**
+ * Human-readable explanation of a persisted pause reason.
+ *
+ * @param reason Persisted pause reason.
+ * @returns Label shown on the target card, or an empty string.
+ */
+function pauseLabel(reason?: string | null) {
+  return reason === "battery"
+    ? "电池供电，自动备份已暂停"
+    : reason === "metered"
+      ? "计量网络，自动备份已暂停"
+      : reason === "large-task"
+        ? "任务超过暂停阈值，自动备份已暂停"
+        : reason === "auth"
+          ? "鉴权失败，请修复凭据后重新启用自动备份"
+          : reason === "permanent"
+            ? "请求被拒绝，请检查目标配置"
+            : reason === "exhausted"
+              ? "重试次数已用尽，请手动重试"
+              : "";
 }
 
 /** A committed remote version. */
@@ -44,13 +88,17 @@ export default function BackupTargets({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<Target | null>(null),
-    [versions, setVersions] = useState<Version[]>([]);
+    [versions, setVersions] = useState<Version[]>([]),
+    [policy, setPolicy] = useState<BackupPolicy["policy"] | null>(null);
 
   /** Re-fetch the target list. */
   const reload = () =>
     request<Target[]>("listBackupTargets", { notebookId }).then(setTargets);
   useEffect(() => {
     void reload();
+    void request<BackupPolicy>("getBackupPolicy")
+      .then((p) => setPolicy(p.policy))
+      .catch(() => {});
   }, [notebookId]);
 
   /**
@@ -69,6 +117,21 @@ export default function BackupTargets({
       setBusy(false);
     }
   };
+
+  /**
+   * Persist one pause-policy toggle.
+   *
+   * @param key Pause rule to change.
+   * @param value New value.
+   */
+  const setPause = (key: "onBattery" | "onMeteredNetwork", value: boolean) =>
+    void action(async () => {
+      setPolicy(
+        await request<BackupPolicy["policy"]>("setBackupPolicy", {
+          pause: { [key]: value },
+        }),
+      );
+    });
   return (
     <>
       <h2 className="subheading">
@@ -98,6 +161,20 @@ export default function BackupTargets({
             {t.lastError && (
               <p className="form-error">最近失败：{t.lastError}</p>
             )}
+            {pauseLabel(t.pausedReason) && (
+              <p className="form-error" role="status">
+                {pauseLabel(t.pausedReason)}
+              </p>
+            )}
+            {!t.pausedReason &&
+              typeof t.nextAttemptAt === "number" &&
+              t.nextAttemptAt > Date.now() && (
+                <p role="status">
+                  上次失败后已退避，将在{" "}
+                  {new Date(t.nextAttemptAt).toLocaleTimeString("zh-CN")}{" "}
+                  自动重试
+                </p>
+              )}
             <label className="check-label">
               <input
                 type="checkbox"
@@ -109,13 +186,16 @@ export default function BackupTargets({
                       notebookId,
                       targetId: t.id,
                       enabled,
-                      intervalMinutes: 10,
+                      // Cloudflare follows the design's 60s cadence; S3 keeps
+                      // its 10min minimum (enforced server-side too).
+                      intervalMinutes: t.provider === "s3" ? 10 : 1,
                     });
                     await reload();
                   });
                 }}
               />
-              自动备份 · 每 10 分钟检查变更
+              自动备份 · {t.provider === "s3" ? "每 10 分钟" : "约每分钟"}
+              检查变更
             </label>
           </div>
           <button
@@ -177,6 +257,32 @@ export default function BackupTargets({
         <p className="muted">
           添加你的 S3 兼容存储或自托管 Cloudflare 服务。无需配置也可在本地使用。
         </p>
+      )}
+      {policy && (
+        <details className="feature-card">
+          <summary>自动备份暂停策略（设备级）</summary>
+          <p className="small-note">
+            暂停只影响自动备份；手动“立即备份”始终可执行。失败后按指数退避重试，永久鉴权失败会停止自动备份直到修复配置。
+          </p>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={policy.pause.onBattery}
+              disabled={busy}
+              onChange={(e) => setPause("onBattery", e.target.checked)}
+            />
+            电池供电时暂停自动备份
+          </label>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={policy.pause.onMeteredNetwork}
+              disabled={busy}
+              onChange={(e) => setPause("onMeteredNetwork", e.target.checked)}
+            />
+            计量网络时暂停自动备份
+          </label>
+        </details>
       )}
       {error && (
         <p className="form-error" role="alert">
