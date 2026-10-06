@@ -16,6 +16,8 @@ import {
   mutateControl,
   withS3Activity,
   cancelS3Generation,
+  s3ProtectionAudit,
+  releaseS3LegacyProtection,
 } from "../.build/packages/backup/s3-control.js";
 import {
   previewS3Retention,
@@ -363,4 +365,151 @@ test("cancelled generation fences a late writer and frees its durable protection
   assert.equal(control.writers.length, 0);
   assert.ok(control.retired.includes(generation));
   assert.ok(!control.committed.includes(generation));
+});
+
+test("legacy protection audit separates local pending receipts from leftover registrations", async (t) => {
+  const f = await fixture(t);
+  await activateControl(f.objects, f.base);
+  const staged = randomUUID();
+  // Simulate crash residue: registrations the killed process never cleared.
+  await mutateControl(f.objects, f.base, (c) => {
+    c.writers.push({ id: randomUUID(), generationId: staged });
+    c.readers.push({ id: randomUUID(), generationId: f.second });
+  });
+  const audit = await s3ProtectionAudit(f.objects, f.base, staged);
+  assert.equal(audit.managed, true);
+  assert.equal(audit.writers.length, 1);
+  assert.equal(audit.readers.length, 1);
+  assert.equal(audit.writers[0].localPending, true);
+  assert.equal(audit.writers[0].committed, false);
+  assert.equal(audit.readers[0].committed, true);
+  assert.deepEqual(
+    audit.leftover.map((v) => v.kind),
+    ["reader"],
+  );
+  assert.ok(audit.guidance.includes("pending"));
+  assert.equal(audit.activity.used, 2);
+});
+
+test("release requires a stopped attestation, refuses a local pending receipt and needs the exact identity", async (t) => {
+  const f = await fixture(t);
+  await activateControl(f.objects, f.base);
+  const generation = randomUUID(),
+    id = randomUUID(),
+    entry = { kind: "writer", id, generationId: generation };
+  await mutateControl(f.objects, f.base, (c) =>
+    c.writers.push({ id, generationId: generation }),
+  );
+  await assert.rejects(
+    releaseS3LegacyProtection(f.objects, f.base, entry, "time-elapsed", null),
+    /停止/,
+  );
+  await assert.rejects(
+    releaseS3LegacyProtection(
+      f.objects,
+      f.base,
+      entry,
+      "legacy-requests-stopped",
+      generation,
+    ),
+    /pending/,
+  );
+  await assert.rejects(
+    releaseS3LegacyProtection(
+      f.objects,
+      f.base,
+      { ...entry, id: randomUUID() },
+      "legacy-requests-stopped",
+      null,
+    ),
+    /LEGACY_PROTECTION_CHANGED/,
+  );
+  assert.equal((await readControl(f.objects, f.base)).value.writers.length, 1);
+  const released = await releaseS3LegacyProtection(
+    f.objects,
+    f.base,
+    entry,
+    "legacy-requests-stopped",
+    null,
+  );
+  assert.equal(released.retired, true);
+  const control = (await readControl(f.objects, f.base)).value;
+  assert.equal(control.writers.length, 0);
+  assert.ok(control.retired.includes(generation));
+});
+
+test("a late upload cannot publish a released writer and a late restore is fenced", async (t) => {
+  const f = await fixture(t);
+  await activateControl(f.objects, f.base);
+  const generation = randomUUID();
+  let release, started;
+  const ready = new Promise((r) => (started = r)),
+    waiting = new Promise((r) => (release = r));
+  const operation = withS3Activity(
+    f.objects,
+    f.base,
+    "writer",
+    generation,
+    async () => {
+      started();
+      await waiting;
+      return { generationId: generation };
+    },
+  );
+  await ready;
+  const audit = await s3ProtectionAudit(f.objects, f.base, null);
+  assert.equal(audit.leftover.length, 1);
+  await releaseS3LegacyProtection(
+    f.objects,
+    f.base,
+    {
+      kind: audit.leftover[0].kind,
+      id: audit.leftover[0].id,
+      generationId: generation,
+    },
+    "legacy-requests-stopped",
+    null,
+  );
+  release();
+  await assert.rejects(operation, /失效/);
+  const control = (await readControl(f.objects, f.base)).value;
+  assert.equal(control.writers.length, 0);
+  assert.ok(!control.committed.includes(generation));
+  assert.ok(control.retired.includes(generation));
+  await assert.rejects(
+    restoreSnapshot(f.objects, { ...f.target, generationId: generation }),
+    /退役/,
+  );
+});
+
+test("releasing a residual reader restores cleanup eligibility without retiring the committed version", async (t) => {
+  const f = await fixture(t);
+  await activateControl(f.objects, f.base);
+  const id = randomUUID();
+  await mutateControl(f.objects, f.base, (c) =>
+    c.readers.push({ id, generationId: f.first }),
+  );
+  const before = await previewS3Retention(
+    f.objects,
+    f.base,
+    1,
+    undefined,
+    true,
+  );
+  assert.equal(before.remove.length, 0);
+  await releaseS3LegacyProtection(
+    f.objects,
+    f.base,
+    { kind: "reader", id, generationId: f.first },
+    "legacy-requests-stopped",
+    null,
+  );
+  const after = await previewS3Retention(f.objects, f.base, 1, undefined, true);
+  assert.deepEqual(
+    after.remove.map((v) => v.id),
+    [f.first],
+  );
+  const control = (await readControl(f.objects, f.base)).value;
+  assert.ok(!control.retired.includes(f.first));
+  assert.ok(control.committed.includes(f.first));
 });

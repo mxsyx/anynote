@@ -51,6 +51,24 @@ interface Writer {
   writerEpoch: number;
 }
 
+/** One leftover writer/reader protection registration without a local pending receipt. */
+interface ProtectionEntry {
+  kind: "writer" | "reader";
+  id: string;
+  generationId: string;
+  committed: boolean;
+}
+
+/** Read-only audit of the S3 maintenance control record's protections. */
+interface ProtectionAudit {
+  managed: boolean;
+  leftover: ProtectionEntry[];
+  committed: number;
+  retired: number;
+  activity: { used: number; limit: number };
+  guidance: string;
+}
+
 /**
  * Remote maintenance dialog.
  *
@@ -84,6 +102,8 @@ export default function RemoteMaintenance({
     [error, setError] = useState(""),
     [confirmed, setConfirmed] = useState(false),
     [s3Ready, setS3Ready] = useState(false),
+    [protection, setProtection] = useState<ProtectionAudit | null>(null),
+    [attested, setAttested] = useState(false),
     [notice, setNotice] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
@@ -334,6 +354,86 @@ export default function RemoteMaintenance({
                       : "确认永久清理"}
                 </button>
               </>
+            )}
+            {target.provider === "s3" && (
+              <details>
+                <summary>遗留保护审查与解除</summary>
+                <p>
+                  崩溃或独立工具可能留下写登记与恢复登记，它们没有本地 pending
+                  回执，会阻塞清理并保护对应版本，且不会按时间自动抢占。解除前必须确认来源任务已停止。
+                </p>
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(async () => {
+                      setProtection(
+                        await request<ProtectionAudit>(
+                          "remoteProtectionAudit",
+                          {
+                            notebookId,
+                            targetId: target.id,
+                          },
+                        ),
+                      );
+                    })
+                  }
+                >
+                  审查遗留保护
+                </button>
+                {protection && (
+                  <>
+                    <p>
+                      活动保护 {protection.activity.used}/
+                      {protection.activity.limit} · 遗留登记{" "}
+                      {protection.leftover.length}
+                    </p>
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={attested}
+                        disabled={busy}
+                        onChange={(e) => setAttested(e.target.checked)}
+                      />
+                      我确认这些保护登记的来源任务已停止
+                    </label>
+                    {protection.leftover.map((entry) => (
+                      <p key={entry.kind + entry.id}>
+                        {entry.kind === "writer" ? "写登记" : "恢复登记"} ·{" "}
+                        {entry.generationId.slice(0, 8)} ·{" "}
+                        {entry.committed ? "已提交版本" : "未提交"}
+                        <button
+                          className="secondary"
+                          disabled={busy || !attested}
+                          onClick={() =>
+                            void act(async () => {
+                              await request("releaseRemoteProtection", {
+                                notebookId,
+                                targetId: target.id,
+                                protectionKind: entry.kind,
+                                protectionId: entry.id,
+                                generationId: entry.generationId,
+                                attestation: "legacy-requests-stopped",
+                                confirmed: true,
+                              });
+                              setProtection(
+                                await request<ProtectionAudit>(
+                                  "remoteProtectionAudit",
+                                  { notebookId, targetId: target.id },
+                                ),
+                              );
+                              setNotice("已解除一项遗留保护登记。");
+                            })
+                          }
+                        >
+                          解除
+                        </button>
+                      </p>
+                    ))}
+                    <p role="status">{protection.guidance}</p>
+                  </>
+                )}
+              </details>
             )}
           </>
         ) : (

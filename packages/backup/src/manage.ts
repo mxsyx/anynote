@@ -3,6 +3,7 @@ import {
   applyS3Retention,
   s3RetentionState,
 } from "./s3-maintenance.js";
+import { s3ProtectionAudit, releaseS3LegacyProtection } from "./s3-control.js";
 import { z } from "zod";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type {
@@ -21,6 +22,8 @@ export const managementOperations = [
   "previewRemoteRetention",
   "applyRemoteRetention",
   "remoteRetentionState",
+  "remoteProtectionAudit",
+  "releaseRemoteProtection",
 ];
 
 /**
@@ -71,6 +74,10 @@ export async function manage(
         expectedHead: z.string().max(36).optional(),
         expectedWriterEpoch: z.number().int().positive().optional(),
         confirmed: z.boolean().optional(),
+        protectionKind: z.enum(["writer", "reader"]).optional(),
+        protectionId: uuid.optional(),
+        generationId: uuid.optional(),
+        attestation: z.literal("legacy-requests-stopped").optional(),
       })
       .strict()
       .parse(raw),
@@ -84,6 +91,9 @@ export async function manage(
     const objects = new S3Objects(target, await secret(s, target.id)),
       base = `${p.notebookId}/${target.lineageId}`;
     if (op === "remoteRetentionState") return s3RetentionState(objects, base);
+    if (op === "remoteProtectionAudit")
+      // Read-only: allowed even while a task runs so the caller can observe it.
+      return s3ProtectionAudit(objects, base, target.pendingGeneration ?? null);
     if (["remoteWriter", "takeoverRemoteWriter"].includes(op))
       throw Error("S3 维护不提供设备接管");
     if (
@@ -94,6 +104,22 @@ export async function manage(
       )
     )
       throw Error("目标有进行中的任务，请完成后重试");
+    if (op === "releaseRemoteProtection") {
+      if (p.confirmed !== true) throw Error("解除遗留保护需要显式确认");
+      if (!p.protectionKind || !p.protectionId || !p.generationId)
+        throw Error("解除遗留保护需要登记类型、登记身份与生成身份");
+      return releaseS3LegacyProtection(
+        objects,
+        base,
+        {
+          kind: p.protectionKind,
+          id: p.protectionId,
+          generationId: p.generationId,
+        },
+        p.attestation ?? "",
+        target.pendingGeneration ?? null,
+      );
+    }
     if (op === "previewRemoteRetention")
       return previewS3Retention(
         objects,
@@ -116,6 +142,12 @@ export async function manage(
     book = p.remoteNotebookId || target.remoteNotebookId || p.notebookId,
     lineage = p.lineageId || target.lineageId,
     base = `/v1/notebooks/${book}`;
+  // S3's control-record protections have no Cloudflare equivalent; the Worker
+  // exposes its own legacy execution lock diagnosis and release.
+  if (["remoteProtectionAudit", "releaseRemoteProtection"].includes(op))
+    throw Error(
+      "遗留保护处置仅用于 S3 目标；Cloudflare 使用 cloud:legacy-lock",
+    );
   const capability = await client.call("/v1/capabilities");
   if (
     !capability.capabilities?.includes("retention-gc") ||

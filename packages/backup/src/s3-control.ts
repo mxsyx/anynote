@@ -416,3 +416,160 @@ export async function cancelS3Generation(
     }
   });
 }
+
+/** One writer/reader activity registration annotated for operator review. */
+export interface S3ProtectionEntry {
+  kind: "writer" | "reader";
+  id: string;
+  generationId: string;
+  /** Whether the generation is an accepted (committed) version. */
+  committed: boolean;
+  /**
+   * Whether the registration maps to the caller's local pending receipt.
+   *
+   * This is the only activity evidence we can derive locally; elapsed time is
+   * never used as a proxy for whether a leftover registration still runs.
+   */
+  localPending: boolean;
+}
+
+/** Read-only audit of the S3 maintenance control record's activity protections. */
+export interface S3ProtectionAudit {
+  managed: boolean;
+  revision: number | null;
+  plan: {
+    id: string;
+    status: string;
+    cursor: number;
+    objects: number;
+  } | null;
+  writers: S3ProtectionEntry[];
+  readers: S3ProtectionEntry[];
+  /** Registrations with no local pending receipt, i.e. candidates for review. */
+  leftover: S3ProtectionEntry[];
+  committed: number;
+  retired: number;
+  activity: { used: number; limit: number };
+  guidance: string;
+}
+
+/**
+ * Inspect the S3 maintenance control record's writer/reader registrations (read-only).
+ *
+ * A crash can leave a writer or reader registration behind because `withS3Activity`
+ * only clears it in a `finally` block that a killed process never reaches. Such
+ * leftover protections block cleanup planning and keep their generations safe.
+ * This audit classifies each registration by whether it still has a local pending
+ * receipt, so an operator can decide about releasing it without guessing by time.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param pending Current local pending generation ID, if any.
+ * @returns Audit of the current protection registrations.
+ */
+export async function s3ProtectionAudit(
+  objects: S3Objects,
+  base: string,
+  pending: string | null,
+): Promise<S3ProtectionAudit> {
+  const control = await readControl(objects, base);
+  if (!control)
+    return {
+      managed: false,
+      revision: null,
+      plan: null,
+      writers: [],
+      readers: [],
+      leftover: [],
+      committed: 0,
+      retired: 0,
+      activity: { used: 0, limit: 64 },
+      guidance: "尚未启用 S3 远端维护，没有需要处置的保护登记。",
+    };
+  const value = control.value,
+    annotate = (
+      kind: "writer" | "reader",
+      list: { id: string; generationId: string }[],
+    ) =>
+      list.map((entry) => ({
+        kind,
+        ...entry,
+        committed: value.committed.includes(entry.generationId),
+        localPending: !!pending && pending === entry.generationId,
+      })),
+    writers = annotate("writer", value.writers),
+    readers = annotate("reader", value.readers),
+    leftover = [...writers, ...readers].filter((v) => !v.localPending);
+  return {
+    managed: true,
+    revision: value.revision,
+    plan: value.plan
+      ? {
+          id: value.plan.id,
+          status: value.plan.status,
+          cursor: value.plan.cursor,
+          objects: value.plan.objects.length,
+        }
+      : null,
+    writers,
+    readers,
+    leftover,
+    committed: value.committed.length,
+    retired: value.retired.length,
+    activity: { used: value.writers.length + value.readers.length, limit: 64 },
+    guidance: leftover.length
+      ? "以下登记没有本地 pending 回执：请先确认其来源任务已停止，再按精确身份解除；不会按时间自动抢占。"
+      : "没有需要人工处置的遗留保护登记。",
+  };
+}
+
+/**
+ * Safely release one leftover writer/reader registration.
+ *
+ * The release is precise: it clears only the exact observed `id` + `generationId`
+ * (CAS-checked against the control revision) and requires an operator attestation
+ * that the source task stopped; a registration matching the local pending receipt
+ * is refused. A non-committed writer generation is also retired so a late upload
+ * cannot publish it, while a committed version stays recoverable.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param entry Observed registration to release.
+ * @param attestation Operator declaration that the source task has stopped.
+ * @param pending Current local pending generation ID, if any.
+ * @returns Release result including whether the generation was retired.
+ */
+export async function releaseS3LegacyProtection(
+  objects: S3Objects,
+  base: string,
+  entry: { kind: "writer" | "reader"; id: string; generationId: string },
+  attestation: string,
+  pending: string | null,
+) {
+  if (attestation !== "legacy-requests-stopped")
+    throw Error("解除遗留保护前必须确认来源任务已停止");
+  if (pending && pending === entry.generationId)
+    throw Error("该登记仍对应本地 pending 生成，不能解除");
+  if (!(await readControl(objects, base))) throw Error("S3 远端维护尚未启用");
+  return mutateControl(objects, base, (c) => {
+    const list = entry.kind === "writer" ? c.writers : c.readers;
+    if (
+      !list.some(
+        (v) => v.id === entry.id && v.generationId === entry.generationId,
+      )
+    )
+      throw Error("LEGACY_PROTECTION_CHANGED");
+    // Only fence a non-committed writer: a committed version stays recoverable
+    // and is removed solely through the normal cleanup plan.
+    const retired =
+      entry.kind === "writer" && !c.committed.includes(entry.generationId);
+    if (retired && !c.retired.includes(entry.generationId)) {
+      if (c.retired.length >= 2000) throw Error("S3 退役记录超过预算");
+      c.retired.push(entry.generationId);
+    }
+    if (entry.kind === "writer")
+      c.writers = c.writers.filter((v) => v.id !== entry.id);
+    else c.readers = c.readers.filter((v) => v.id !== entry.id);
+    return { released: true, ...entry, retired };
+  });
+}

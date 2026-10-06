@@ -190,6 +190,8 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       "previewRemoteRetention",
       "applyRemoteRetention",
       "remoteRetentionState",
+      "remoteProtectionAudit",
+      "releaseRemoteProtection",
       "configureCloudRecovery",
       "listCloudRecoveryConnections",
       "discoverCloudBackups",

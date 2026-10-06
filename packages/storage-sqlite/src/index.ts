@@ -216,6 +216,8 @@ export class Storage {
         "previewRemoteRetention",
         "applyRemoteRetention",
         "remoteRetentionState",
+        "remoteProtectionAudit",
+        "releaseRemoteProtection",
       ].includes(op)
     )
       return advancedOperations(this, op, input).then((r) => r.result);
