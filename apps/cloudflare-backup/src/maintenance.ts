@@ -1,15 +1,51 @@
 import { objectDescriptors } from "@anynote/protocol/cloud-objects.js";
 import type { SqlRow, WorkerEnv } from "@anynote/types/runtime.js";
 import { calendarPolicy, sampleVersions } from "./retention-policy.js";
+
+/** UUID format for version/lineage IDs. */
 const uuid = /^[a-f0-9-]{36}$/i;
+
+/** Grace period for unreferenced objects (24 hours). */
 const grace = 24 * 60 * 60 * 1000;
+
+/** Exported grace period constant. */
 export const maintenanceGrace = grace;
+
+/**
+ * Throw an error (usable in expression position).
+ *
+ * @param message Error message.
+ * @returns Never returns.
+ */
 function fail(message: string): never {
   throw Error(message);
 }
+
+/**
+ * Validate an ID format; throws when invalid.
+ *
+ * @param id Candidate ID.
+ * @returns The ID when valid.
+ */
 const validId = (id: string) => (uuid.test(id || "") ? id : fail("身份无效"));
+
+/**
+ * Build a JSON response that disables caching.
+ *
+ * @param body Response payload.
+ * @param status HTTP status code (default 200).
+ * @returns JSON response with `Cache-Control: no-store`.
+ */
 const result = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+
+/**
+ * Read (or initialize) the maintenance state row of a Notebook.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @returns The notebook_state row.
+ */
 export async function state(env: WorkerEnv, book: string) {
   await env.DB.prepare(
     "INSERT OR IGNORE INTO notebook_state(notebook_id) VALUES(?)",
@@ -22,6 +58,17 @@ export async function state(env: WorkerEnv, book: string) {
     .bind(book)
     .first())!;
 }
+
+/**
+ * Build a conditional-write guard statement: it passes only when the Notebook has no maintenance and the extra condition holds.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @param guardId Guard row ID.
+ * @param extra Extra SQL condition (defaults to always true).
+ * @param bindings Bindings for the extra condition.
+ * @returns Prepared guard statement.
+ */
 export function gate(
   env: WorkerEnv,
   book: string,
@@ -33,12 +80,37 @@ export function gate(
     `INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND maintenance_id IS NULL) AND (${extra}) THEN 1 ELSE 0 END`,
   ).bind(guardId, book, ...bindings);
 }
+
+/**
+ * Clear one guard record.
+ *
+ * @param env Worker environment bindings.
+ * @param id Guard row ID.
+ * @returns Prepared delete statement.
+ */
 const clear = (env: WorkerEnv, id: string) =>
   env.DB.prepare("DELETE FROM transaction_guard WHERE id=?").bind(id);
+
+/**
+ * Increment the Notebook state revision.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @returns Prepared update statement.
+ */
 const bump = (env: WorkerEnv, book: string) =>
   env.DB.prepare(
     "UPDATE notebook_state SET revision=revision+1 WHERE notebook_id=?",
   ).bind(book);
+
+/**
+ * Look up a branch by Notebook and lineage.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @param lineage Lineage ID.
+ * @returns The branch row, or null when absent.
+ */
 export async function branch(
   env: WorkerEnv,
   book: string,
@@ -50,11 +122,28 @@ export async function branch(
     .bind(book, validId(lineage!))
     .first();
 }
+
+/**
+ * Whether a generation is still usable (not retired).
+ *
+ * @param env Worker environment bindings.
+ * @param generation Generation row.
+ * @returns True when the generation is still usable.
+ */
 export async function usable(env: WorkerEnv, generation: SqlRow) {
   return !(await env.DB.prepare("SELECT id FROM retired_generations WHERE id=?")
     .bind(generation.id)
     .first());
 }
+
+/**
+ * Verify that the request comes from the current branch writer (device and epoch match), otherwise throws WRITER_REVOKED.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @param p Request payload carrying lineage/device/epoch.
+ * @returns The matching branch row.
+ */
 async function scope(env: WorkerEnv, book: string, p: SqlRow) {
   const b = await branch(env, book, p.lineageId);
   if (!b) fail("分支不存在");
@@ -62,6 +151,18 @@ async function scope(env: WorkerEnv, book: string, p: SqlRow) {
     fail("WRITER_REVOKED");
   return b;
 }
+
+/**
+ * Build one cleanup plan: protected versions, versions to delete, and protected object keys.
+ *
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @param lineage Lineage ID being trimmed.
+ * @param keep Number of most recent versions to keep.
+ * @param calendar Optional daily/weekly/monthly sampling policy.
+ * @param referenceTime Reference timestamp for calendar windows.
+ * @returns Cleanup plan including removals and reclaimable objects.
+ */
 async function snapshot(
   env: WorkerEnv,
   book: string,
@@ -111,6 +212,8 @@ async function snapshot(
   const remove = selected.filter((g) => !protectedIds.has(g.id)),
     removed = new Set(remove.map((g) => g.id)),
     marked = new Set();
+
+  // Collect every object referenced by retained versions to avoid deleting content still in use.
   for (const g of rows.filter((g) => !removed.has(g.id))) {
     const object = await env.BUCKET.get(`manifests/${book}/${g.id}.json`);
     if (!object) fail("保护版本的 manifest 缺失");
@@ -153,11 +256,35 @@ async function snapshot(
     graceHours: 24,
   };
 }
+
+/**
+ * Compute the SHA-256 hex digest of a byte sequence.
+ *
+ * @param bytes Source bytes to hash.
+ * @returns Lowercase hex digest.
+ */
 const sha = async (bytes: BufferSource) =>
   Array.from(
     new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
     (b) => b.toString(16).padStart(2, "0"),
   ).join("");
+
+/**
+ * Handle remote maintenance endpoints: writer lookup/takeover, restore pins, retention preview, and cleanup.
+ *
+ * All writes rely on D1 conditional guards (gate) and the state revision for
+ * concurrency safety; cleanup advances in cursor-based batches and is
+ * retryable, keeping the Notebook-level maintenance lock on failure.
+ *
+ * @param request Incoming request.
+ * @param env Worker environment bindings.
+ * @param book Notebook ID.
+ * @param tail Path suffix after the notebook segment.
+ * @param url Parsed request URL.
+ * @param json Parser for the request body.
+ * @param executionOwner Actor owning the current execution, if any.
+ * @returns The matched response, or `null` when no maintenance endpoint matches.
+ */
 export async function maintenance(
   request: Request,
   env: WorkerEnv,
@@ -167,6 +294,7 @@ export async function maintenance(
   json: (request: Request) => Promise<any>,
   executionOwner: string | null = null,
 ) {
+  // Look up the branch writer.
   if (tail === "/writer" && request.method === "GET") {
     const b = await branch(env, book, url.searchParams.get("lineageId"));
     return b
@@ -178,6 +306,8 @@ export async function maintenance(
         })
       : result({ error: "分支不存在" }, 404);
   }
+
+  // Device takeover: bump the writer epoch via CAS, requiring explicit confirmation and the current head.
   if (tail === "/writer/takeover" && request.method === "POST") {
     const p = await json(request);
     validId(p.lineageId);
@@ -247,6 +377,8 @@ export async function maintenance(
       lineageId: p.lineageId,
     });
   }
+
+  // Restore pin: create/renew/delete a pin that protects versions during an active restore.
   const pin = tail.match(/^\/backups\/([a-f0-9-]{36})\/pin$/);
   if (pin && ["POST", "DELETE"].includes(request.method)) {
     const p = await json(request);
@@ -304,6 +436,8 @@ export async function maintenance(
     }
     return result({ pinId: p.pinId });
   }
+
+  // Query the current cleanup state.
   if (tail === "/retention/state" && request.method === "GET") {
     const current = await state(env, book);
     const plan = current.maintenance_id
@@ -324,6 +458,8 @@ export async function maintenance(
         : null,
     });
   }
+
+  // Build a cleanup plan (does not perform deletion).
   if (tail === "/retention/plan" && request.method === "POST") {
     const p = await json(request);
     if (!Number.isInteger(p.keep) || p.keep < 1 || p.keep > 1000)
@@ -359,6 +495,8 @@ export async function maintenance(
       .run();
     return result({ id, ...body });
   }
+
+  // Apply a cleanup plan: delete objects and generations in batches; retryable and idempotent.
   if (tail === "/retention/apply" && request.method === "POST") {
     const p = await json(request);
     validId(p.planId);
@@ -421,8 +559,9 @@ export async function maintenance(
       }
     } else if ((await state(env, book)).maintenance_id !== plan.id)
       fail("清理状态不匹配");
-    // The notebook-wide gate remains held on failure. Retrying this exact plan
-    // resumes idempotent deletes; it never expires while R2 deletes can be in flight.
+
+    // The Notebook-level gate stays held on failure. Retrying the same plan resumes idempotent deletes;
+    // it never expires while R2 deletes may still be in flight.
     const execution = crypto.randomUUID(),
       executionGuard = crypto.randomUUID();
     try {

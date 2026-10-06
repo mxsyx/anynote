@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
+
+/** Status snapshot of extension auto-update checks. */
 interface UpdateState {
   enabled: boolean;
   intervalHours: number;
@@ -13,6 +15,8 @@ interface UpdateState {
     error?: string;
   }[];
 }
+
+/** Extension update-check settings panel (off by default; only checks trusted signed extensions). */
 export default function ExtensionUpdateSettings({
   disabled,
   onReview,
@@ -27,6 +31,8 @@ export default function ExtensionUpdateSettings({
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
+
+    /** Fetch the latest status; sync the interval input on first load. */
     const refresh = () =>
       request<UpdateState>("getExtensionUpdateSettings")
         .then((value) => {
@@ -48,6 +54,12 @@ export default function ExtensionUpdateSettings({
       clearInterval(timer);
     };
   }, [busy]);
+
+  /**
+   * Run a mutation and then refresh the status.
+   *
+   * @param fn Action to run.
+   */
   const action = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");

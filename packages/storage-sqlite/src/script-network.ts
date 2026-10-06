@@ -4,8 +4,18 @@ import {
   validateScriptNetworkResult,
 } from "@anynote/extension-tools/network.js";
 import type { ScriptNetworkRequest } from "@anynote/plugin-sdk/declarative.js";
+
+/** Number of currently in-flight plugin network requests. */
 let active = 0;
-/** Transport injection is internal-only, never an IPC parameter or environment switch. */
+
+/**
+ * Transport injection is for internal use only; it is never an IPC argument or environment switch.
+ *
+ * @param request Plugin network request.
+ * @param signal Abort signal.
+ * @param download Download implementation (defaults to the safe downloader).
+ * @returns The downloaded response.
+ */
 export async function downloadScriptNetwork(
   request: ScriptNetworkRequest,
   signal: AbortSignal,

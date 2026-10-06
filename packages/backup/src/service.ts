@@ -34,21 +34,52 @@ import {
   listSnapshots,
   S3Objects,
 } from "./providers.js";
+
 const uuid = z.string().uuid();
+
+/**
+ * Managed path of the remote backup targets config file.
+ *
+ * @param s Storage service.
+ * @returns Config file path.
+ */
 function path(s: Storage) {
   const dir = join(s.root, "_local");
   mkdirSync(dir, { recursive: true });
   return join(dir, "backup-targets.json");
 }
+
+/**
+ * Read all remote backup targets.
+ *
+ * @param s Storage service.
+ * @returns Configured backup targets.
+ */
 function read(s: Storage): BackupTarget[] {
   const p = path(s);
   return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : [];
 }
+
+/**
+ * Atomically write the backup target list.
+ *
+ * @param s Storage service.
+ * @param items Backup targets to persist.
+ */
 function write(s: Storage, items: BackupTarget[]) {
   const p = path(s);
   writeFileSync(p + ".tmp", JSON.stringify(items), { flush: true });
   renameSync(p + ".tmp", p);
 }
+
+/**
+ * Read or write credentials: system-encrypted on desktop, memory-only in the browser preview.
+ *
+ * @param s Storage service.
+ * @param id Target ID.
+ * @param value Credentials to store; when omitted the stored value is returned.
+ * @returns Stored credentials.
+ */
 async function secret(
   s: Storage,
   id: string,
@@ -67,6 +98,14 @@ async function secret(
     throw Error("浏览器预览的凭据只保存在内存，请重新配置连接。");
   return s.secretMemory.get(id)!;
 }
+
+/**
+ * Find a backup target by notebookId/targetId.
+ *
+ * @param s Storage service.
+ * @param p Payload carrying notebookId and targetId.
+ * @returns The matching backup target.
+ */
 function find(s: Storage, p: SqlRow) {
   const target = read(s).find(
     (t) => t.id === p.targetId && t.notebookId === p.notebookId,
@@ -74,6 +113,20 @@ function find(s: Storage, p: SqlRow) {
   if (!target) throw Error("备份目标不存在");
   return target;
 }
+
+/**
+ * Single entry point for remote backup operations.
+ *
+ * Dispatches to local backup, cloud recovery, management, or specific
+ * backup/restore/connection-test operations; backup tasks register
+ * pendingGeneration first and repair the cursor after commit, so a lost commit
+ * response can be recovered.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns Handled flag with the operation result.
+ */
 export async function backupOperation(s: Storage, op: string, raw: unknown) {
   if (localOperations.includes(op)) return localBackupOperation(s, op, raw);
   const recovery = await recoveryOperation(s, op, raw, secret);
@@ -92,11 +145,13 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     ].includes(op)
   )
     return { handled: false };
+
   if (managementOperations.includes(op))
     return {
       handled: true,
       result: await manage(s, op, raw, { find, secret }),
     };
+
   if (op === "configureBackup") {
     const p = configSchema.parse(raw),
       endpoint = new URL(p.endpoint);
@@ -149,6 +204,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     write(s, [...items.filter((t) => t.id !== id), target]);
     return { handled: true, result: target };
   }
+
   if (op === "listBackupTargets") {
     const p = z.object({ notebookId: uuid }).strict().parse(raw);
     return {
@@ -156,6 +212,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       result: read(s).filter((t) => t.notebookId === p.notebookId),
     };
   }
+
   if (op === "setBackupSchedule") {
     const p = z
         .object({
@@ -175,6 +232,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     );
     return { handled: true, result: target };
   }
+
   const p = z
       .object({
         notebookId: uuid,
@@ -185,6 +243,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       .strict()
       .parse(raw),
     target = find(s, p);
+
   if (op === "commitBackupCursor") {
     Object.assign(target, p.cursor);
     write(
@@ -193,6 +252,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     );
     return { handled: true, result: true };
   }
+
   if (op === "startBackup") {
     const active = [...s.jobs.values()].find(
       (j) =>
@@ -201,11 +261,13 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     );
     if (active) return { handled: true, result: { id: active.id } };
   }
+
   const credentials = await secret(s, target.id),
     provider =
       target.provider === "s3"
         ? new S3Objects(target, credentials)
         : new CloudflareClient(target, credentials);
+
   if (op === "testBackupConnection") {
     if (provider instanceof S3Objects) {
       const key = `_connection-check/${randomUUID()}`,
@@ -224,6 +286,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     } else await provider.call("/v1/capabilities");
     return { handled: true, result: { ok: true } };
   }
+
   if (op === "listRemoteBackups")
     return {
       handled: true,
@@ -232,6 +295,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           ? await listSnapshots(provider, p.notebookId, target.lineageId)
           : await listLogical(provider, target),
     };
+
   if (op === "restoreRemoteBackup") {
     if (!p.generationId) throw Error("请选择版本");
     return {
@@ -239,6 +303,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       result: startCloudRestore(s, target, provider, p.generationId),
     };
   }
+
   const seq = s
     .open(p.notebookId)
     .prepare("SELECT content_seq FROM notebook_meta")
@@ -373,6 +438,12 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         snapshot.manifest.assets.reduce((n, a) => n + a.size, 0);
       job.processedBytes = 0;
       controller.signal.throwIfAborted();
+
+      /**
+       * Update backup progress and switch the task status when entering the commit phase.
+       *
+       * @param msg Progress message.
+       */
       const progress = (msg: string) => {
           job.progress = msg;
           if (msg === "正在提交远端版本") job.status = "committing";

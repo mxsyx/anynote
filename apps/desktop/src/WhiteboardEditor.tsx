@@ -9,12 +9,21 @@ import type { NoteNode } from "@anynote/types";
 import type { BoardBlock } from "./DocumentView";
 import { request } from "./api";
 import { X, Save, LoaderCircle } from "lucide-react";
+
 declare global {
   interface Window {
+    /** Base path for Excalidraw static assets. */
     EXCALIDRAW_ASSET_PATH: string;
   }
 }
 window.EXCALIDRAW_ASSET_PATH = new URL("./excalidraw/", document.baseURI).href;
+
+/**
+ * Whiteboard editor (Excalidraw).
+ *
+ * Reads the scene from the resource; on save it exports a PNG preview and
+ * commits the scene and files together as a new note revision.
+ */
 export default function WhiteboardEditor({
   notebookId,
   note,
@@ -45,6 +54,8 @@ export default function WhiteboardEditor({
         .then(setInitial)
         .catch((e) => setError(e.message));
   }, [block.resourceId, notebookId, note.id]);
+
+  /** Export a canvas preview and save the whiteboard as a new revision. */
   const save = async () => {
     if (!api.current) return;
     setSaving(true);

@@ -13,6 +13,13 @@ import type {
   InstallableManifest,
   MarkdownTransformInput,
 } from "@anynote/plugin-sdk/declarative.js";
+
+/**
+ * Assert that the transformed body still preserves every extension block from before the transform.
+ *
+ * @param before Body before the transform.
+ * @param after Body after the transform.
+ */
 export function assertPreservedBlocks(before: string, after: string) {
   const remaining = new Map<string, number>();
   for (const block of parseBlocks(after))
@@ -25,6 +32,14 @@ export function assertPreservedBlocks(before: string, after: string) {
       remaining.set(block.source, count - 1);
     }
 }
+
+/**
+ * Build the Markdown snippet a declarative command appends/inserts.
+ *
+ * @param manifest Installable manifest.
+ * @param commandId Command ID.
+ * @returns The Markdown snippet.
+ */
 export function declarativeAddition(
   manifest: InstallableManifest,
   commandId: string,
@@ -46,6 +61,8 @@ export function declarativeAddition(
   }
   throw Error("此命令需要隔离执行器");
 }
+
+/** Example data required for a command dry run (note, search, network, settings, and state). */
 export const fixtureSchema = z
   .object({
     note: z
@@ -64,6 +81,20 @@ export const fixtureSchema = z
     stateVersion: z.number().int().min(1).max(100).optional(),
   })
   .strict();
+
+/**
+ * Dry-run an extension command in the isolated runner.
+ *
+ * It validates the example data against the command declaration (search
+ * context, async search, network requests, settings, and state revision), runs
+ * the transform, ensures extension blocks are preserved, and returns the body
+ * plus optional settings and state.
+ *
+ * @param manifest Installable manifest.
+ * @param commandId Command ID.
+ * @param raw Raw dry-run payload.
+ * @returns The dry-run result.
+ */
 export async function dryRunCommand(
   manifest: InstallableManifest,
   commandId: string,
@@ -72,6 +103,7 @@ export async function dryRunCommand(
   const fixture = fixtureSchema.parse(raw),
     command = manifest.contributes.commands.find((c) => c.id === commandId);
   if (!command) throw Error("命令不存在");
+
   const form = manifest.contributes.settings;
   if (!form && fixture.settings !== undefined)
     throw Error("扩展未声明设置表单");
@@ -82,6 +114,7 @@ export async function dryRunCommand(
           Object.fromEntries(form.fields.map((f) => [f.key, f.default])),
       )
     : undefined;
+
   const request =
     "searchContext" in command.action
       ? command.action.searchContext
@@ -101,6 +134,7 @@ export async function dryRunCommand(
       searchContext.results.some((r) => r.id === fixture.note.id))
   )
     throw Error("搜索上下文与声明查询不匹配");
+
   const asyncRequests =
     "asyncSearch" in command.action ? command.action.asyncSearch : undefined;
   if (!asyncRequests && fixture.asyncSearch !== undefined)
@@ -126,6 +160,7 @@ export async function dryRunCommand(
       return [r.id, value] as const;
     }),
   );
+
   const networkRequests =
     "networkRequests" in command.action
       ? command.action.networkRequests
@@ -148,6 +183,7 @@ export async function dryRunCommand(
       return [r.id, value] as const;
     }),
   );
+
   const host =
     asyncRequests || networkRequests
       ? {
@@ -157,11 +193,13 @@ export async function dryRunCommand(
           search: async (id: string) => contexts.get(id)!,
         }
       : undefined;
+
   const input: MarkdownTransformInput = {
     ...fixture.note,
     ...(searchContext ? { searchContext } : {}),
     ...(settings ? { settings } : {}),
   };
+
   const action = command.action;
   let body: string, state: unknown, stateVersion: number | undefined;
   if (action.kind === "transformMarkdownWithState") {

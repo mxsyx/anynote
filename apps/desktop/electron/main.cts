@@ -10,6 +10,8 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import type { PendingRequest, SecretRequest, StorageResponse } from "./ipc.js";
+
+// Main process: manages windows, system dialogs, the credential proxy, and the storage/extension processes, and validates and forwards renderer requests.
 const allowed = new Set(require("@anynote/protocol/operations.json"));
 
 if (process.env.ANYNOTE_USER_DATA_DIR)
@@ -18,6 +20,7 @@ let win: BrowserWindow;
 let store: Electron.UtilityProcess;
 let counter = 0;
 const pending = new Map<number, PendingRequest>();
+
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", () => {
@@ -30,6 +33,8 @@ else {
       [path.join(app.getPath("userData"), "notebooks")],
       { serviceName: "Anynote Storage" },
     );
+
+    // Handle storage-process messages: system credential requests (via safeStorage) or ordinary responses.
     store.on("message", (m: StorageResponse | SecretRequest) => {
       if (m.type === "secret") {
         try {
@@ -73,6 +78,7 @@ else {
         m.error ? item.reject(Error(m.error)) : item.resolve(m.result);
       }
     });
+
     store.on("exit", () => {
       for (const p of pending.values()) {
         clearTimeout(p.timer);
@@ -80,6 +86,14 @@ else {
       }
       pending.clear();
     });
+
+    /**
+     * Send a request to the storage process and wait for the response (with a timeout).
+     *
+     * @param op Operation name.
+     * @param input Operation input.
+     * @returns The response result.
+     */
     const callStore = (op: string, input: unknown) =>
       new Promise<unknown>((resolve, reject) => {
         const id = ++counter,
@@ -90,6 +104,7 @@ else {
         pending.set(id, { resolve, reject, timer });
         store.postMessage({ id, op, input });
       });
+
     const { createProcessExtensionHost, bundledExtensions, workerPath } =
       await import("@anynote/extension-host");
     const { hostedOperations, hostedRequest } = await import(
@@ -115,8 +130,7 @@ else {
               ? child.on("message", listener)
               : child.on("exit", listener),
           kill: () => {
-            // Called only after the cleanup grace period. A SIGTERM handler
-            // must not allow a hung bundled module to veto termination.
+            // Called only after the cleanup grace period. The SIGTERM handler must not let a stuck module veto termination.
             if (child.pid) process.kill(child.pid, "SIGKILL");
             else child.kill();
           },
@@ -125,6 +139,8 @@ else {
     });
     store.on("exit", () => extensionHost.dispose());
     app.on("will-quit", () => extensionHost.dispose());
+
+    // Renderer request entry: validates the source and the operation allowlist; sensitive operations show a native dialog from the main process.
     ipcMain.handle(
       "anynote:request",
       async (
@@ -233,6 +249,8 @@ else {
         return callStore(op, input);
       },
     );
+
+    /** Create the main window and configure a strict security policy. */
     const create = () => {
       win = new BrowserWindow({
         width: 1440,
@@ -265,10 +283,12 @@ else {
       else win.loadFile(path.join(__dirname, "../../../../dist/index.html"));
     };
     create();
+
     app.on("activate", () => {
       if (!BrowserWindow.getAllWindows().length) create();
     });
   });
+
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });

@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { validateScriptState } from "@anynote/plugin-sdk/script-state.js";
 import type { ExtensionDataMigration } from "@anynote/plugin-sdk/declarative.js";
+
+/** Safe field names (excluding prototype-pollution keys). */
 const safeKey = z
   .string()
   .regex(/^[a-z][a-zA-Z0-9_]{0,39}$/)
   .refine((k) => !["constructor", "prototype"].includes(k));
+
+/** One extension data migration declaration. */
 export const extensionMigrationSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9.-]{2,80}$/),
@@ -61,7 +65,14 @@ export const extensionMigrationSchema = z
     if (m.remove && new Set(m.remove).size !== m.remove.length)
       ctx.addIssue({ code: "custom", message: "删除字段重复" });
   });
-// Kept separate from catalog schema to avoid a dependency cycle.
+
+// Kept separate from the catalog schema to avoid a dependency cycle.
+/**
+ * Validate the namespace, target type, and version consistency of migration declarations.
+ *
+ * @param m Extension manifest carrying migrations.
+ * @returns The validated migrations.
+ */
 export function validateMigrationDeclarations(
   m: {
     id: string;

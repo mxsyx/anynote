@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import type { NoteNode } from "@anynote/types";
+
+/** Backlinks panel: summarizes other notes that reference the current note. */
 export default function Backlinks({
   notebookId,
   note,

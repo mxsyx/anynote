@@ -6,6 +6,8 @@ import {
   verify,
   type KeyLike,
 } from "node:crypto";
+
+/** Structure of a signed extension package (Ed25519). */
 export const signedPackageSchema = z
   .object({
     format: z.literal("anynote.extension.v1"),
@@ -16,7 +18,14 @@ export const signedPackageSchema = z
     signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/),
   })
   .strict();
-// Restricted JSON format: object keys sorted by UTF-16 code units, array order preserved.
+
+// Restricted JSON format: object keys are sorted by UTF-16 code units, array order is preserved.
+/**
+ * Generate a canonical JSON string used for signing.
+ *
+ * @param value Value to canonicalize.
+ * @returns The canonical JSON string.
+ */
 export function canonicalJSON(value: unknown): string {
   if (Array.isArray(value))
     return "[" + value.map(canonicalJSON).join(",") + "]";
@@ -43,9 +52,23 @@ export function canonicalJSON(value: unknown): string {
     return JSON.stringify(value);
   throw Error("签名包包含无效 JSON 值");
 }
+
+/**
+ * Build the payload to sign/verify (fixed prefix plus canonical JSON).
+ *
+ * @param p Signed package without the signature.
+ * @returns The payload bytes.
+ */
 function payload(p: Omit<z.infer<typeof signedPackageSchema>, "signature">) {
   return Buffer.from("Anynote extension signature v1\n" + canonicalJSON(p));
 }
+
+/**
+ * Validate the signed package structure, publisher public key, and Ed25519 signature, returning the package and public key fingerprint.
+ *
+ * @param raw Raw signed package.
+ * @returns The verified package and public key fingerprint.
+ */
 export function verifyExtensionPackage(raw: unknown) {
   if (Buffer.byteLength(JSON.stringify(raw)) > 160 * 1024)
     throw Error("签名包超过 160KiB");
@@ -63,6 +86,15 @@ export function verifyExtensionPackage(raw: unknown) {
     .digest("hex");
   return { package: p, fingerprint };
 }
+
+/**
+ * Sign an extension package with the publisher private key and self-verify immediately.
+ *
+ * @param manifest Extension manifest.
+ * @param publisher Publisher ID.
+ * @param privateKey Publisher private key.
+ * @returns The signed package.
+ */
 export function signExtensionPackage(
   manifest: unknown,
   publisher: string,
@@ -85,6 +117,7 @@ export function signExtensionPackage(
   return p;
 }
 
+/** Extension URL: an HTTPS URL without credentials or fragments. */
 export const extensionURLSchema = z
   .string()
   .max(2048)

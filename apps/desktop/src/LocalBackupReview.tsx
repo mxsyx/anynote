@@ -1,14 +1,30 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+
 export type {
   LocalBackupEstimate as BackupEstimate,
   LocalBackupInfo as BackupInfo,
 } from "@anynote/types";
+
 import type {
   LocalBackupEstimate as BackupEstimate,
   LocalBackupInfo as BackupInfo,
 } from "@anynote/types";
+
+/**
+ * Format bytes as an MB label.
+ *
+ * @param bytes Byte count.
+ * @returns The MB label.
+ */
 const mb = (bytes: number) => (bytes / 1024 ** 2).toFixed(1) + " MB";
+
+/**
+ * Local backup preview/restore confirmation dialog.
+ *
+ * Backup mode shows the copy volume and unusual-deletion confirmation; restore
+ * mode shows the manifest summary and any interrupted-commit notice.
+ */
 export default function LocalBackupReview({
   path,
   preview,

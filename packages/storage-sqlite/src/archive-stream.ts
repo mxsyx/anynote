@@ -20,6 +20,8 @@ import yauzl from "yauzl";
 import yazl from "yazl";
 import { z } from "zod";
 import type { ArchiveProgress } from "@anynote/types/runtime.js";
+
+/** Archive size, entry, and manifest budgets. */
 export const limits = {
   bytes: 20 * 1024 ** 3,
   entries: 100000,
@@ -31,10 +33,27 @@ limits.containerBytes =
   limits.manifest +
   limits.entries * 512 +
   1024 ** 2;
+
+/**
+ * Estimate the destination disk space needed for the output archive.
+ *
+ * @param bytes Content size in bytes.
+ * @param files Number of files.
+ * @returns Estimated required bytes.
+ */
 export function outputBudget(bytes: number, files: number) {
   return Math.ceil(bytes * 1.01) + limits.manifest + files * 512 + 1024 ** 2;
 }
+
+/** Content-addressed path format for assets. */
 const assetPath = /^assets\/sha256\/([a-f0-9]{2})\/([a-f0-9]{64})\.bin$/;
+
+/**
+ * Whether an archive entry name is an allowed safe path.
+ *
+ * @param name Entry name.
+ * @returns True when the entry name is valid.
+ */
 export function validEntry(name: string) {
   const match = name.match(assetPath);
   return (
@@ -43,8 +62,11 @@ export function validEntry(name: string) {
     !!(match && match[1] === match[2].slice(0, 2))
   );
 }
+
 const hash = z.string().regex(/^[a-f0-9]{64}$/),
   size = z.number().int().nonnegative().max(limits.bytes);
+
+/** Archive manifest validation schema. */
 export const manifestSchema = z.object({
   format: z.literal("anynote.notebook"),
   formatVersion: z.literal(1),
@@ -66,15 +88,37 @@ export const manifestSchema = z.object({
     )
     .max(limits.entries - 2),
 });
+
+/**
+ * Check that the directory has enough free space for the budget, returning available bytes.
+ *
+ * @param directory Directory to check.
+ * @param bytes Required bytes.
+ * @returns Available bytes.
+ */
 export function diskBudget(directory: string, bytes: number) {
   const stat = statfsSync(directory, { bigint: true });
   const available = stat.bavail * stat.bsize;
   if (available < BigInt(Math.ceil(bytes))) throw Error("可用磁盘空间不足");
   return Number(available);
 }
+
+/**
+ * Throw an abort error when already cancelled.
+ *
+ * @param signal Abort signal.
+ */
 function check(signal: AbortSignal | undefined) {
   signal?.throwIfAborted();
 }
+
+/**
+ * Stream a file's size and SHA-256.
+ *
+ * @param file File path.
+ * @param signal Abort signal.
+ * @returns File size and hex digest.
+ */
 export async function hashFile(file: string, signal: AbortSignal | undefined) {
   const digest = createHash("sha256");
   let bytes = 0;
@@ -87,6 +131,14 @@ export async function hashFile(file: string, signal: AbortSignal | undefined) {
   }
   return { size: bytes, sha256: digest.digest("hex") };
 }
+
+/**
+ * Build a verification stream: pass through while accumulating size and hash, comparing against the expected values at the end.
+ *
+ * @param expected Expected size and hash.
+ * @param onBytes Callback reporting processed bytes.
+ * @returns Transform stream that verifies the content.
+ */
 function verifier(
   expected: { size: number; sha256: string },
   onBytes: (bytes: number) => void,
@@ -114,6 +166,16 @@ function verifier(
     },
   });
 }
+
+/**
+ * Stream a `.anynote` archive to disk, verifying each file and publishing atomically.
+ *
+ * @param file Destination file path.
+ * @param manifest Archive manifest.
+ * @param resolveFile Maps an archive path to a local file path.
+ * @param options Stream options (abort signal, progress callback, and staging path).
+ * @returns The written archive size.
+ */
 export async function writeArchive(
   file: string,
   manifest: unknown,
@@ -163,6 +225,8 @@ export async function writeArchive(
     outputStream = zip.outputStream as import("node:stream").Readable,
     active = new Set<import("node:stream").Readable>();
   zip.on("error", (e) => outputStream.destroy(e));
+
+  /** Destroy all active streams and the output stream on cancellation. */
   const abort = () => {
     for (const stream of active) stream.destroy(signal?.reason);
     outputStream.destroy(signal?.reason);
@@ -174,7 +238,7 @@ export async function writeArchive(
     createWriteStream(temp, { flags: "wx", mode: 0o600 }),
     { signal },
   );
-  // Attach a handler immediately so setup failures never leave an unhandled rejection.
+  // Attach the handler immediately to avoid an unhandled rejection if initialization fails.
   promise.catch(() => {});
   try {
     const metadata = Buffer.from(JSON.stringify(manifest));
@@ -246,6 +310,13 @@ export async function writeArchive(
     rmSync(temp, { force: true });
   }
 }
+
+/**
+ * Open a ZIP file for lazy reading.
+ *
+ * @param file ZIP file path.
+ * @returns The opened ZIP file.
+ */
 const openZip = (file: string) =>
   new Promise<import("yauzl").ZipFile>((resolve, reject) =>
     yauzl.open(
@@ -259,6 +330,14 @@ const openZip = (file: string) =>
       (e, zip) => (e ? reject(e) : resolve(zip!)),
     ),
   );
+
+/**
+ * Read and validate every archive entry, accumulating the decompressed size.
+ *
+ * @param zip Open ZIP file.
+ * @param signal Abort signal.
+ * @returns Validated archive entries.
+ */
 async function entries(
   zip: import("yauzl").ZipFile,
   signal: AbortSignal | undefined,
@@ -322,6 +401,14 @@ async function entries(
   });
   return { all, total };
 }
+
+/**
+ * Open a read stream for one entry.
+ *
+ * @param zip Open ZIP file.
+ * @param entry ZIP entry.
+ * @returns Readable stream for the entry.
+ */
 const readEntry = (
   zip: import("yauzl").ZipFile,
   entry: import("yauzl").Entry,
@@ -331,6 +418,15 @@ const readEntry = (
       e ? reject(e) : resolve(stream!),
     ),
   );
+
+/**
+ * Extract an archive into the destination directory, verifying each file and returning the manifest.
+ *
+ * @param file Archive file path.
+ * @param dir Destination directory.
+ * @param options Extraction options (abort signal and progress callback).
+ * @returns The archive manifest.
+ */
 export async function extractArchive(
   file: string,
   dir: string,

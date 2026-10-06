@@ -10,6 +10,8 @@ import {
 import { basename, relative, isAbsolute, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { safePath, replace } from "./files.js";
+
+/** Mapping from Linux statfs magic numbers to filesystem names. */
 const linuxTypes = new Map<number, string>([
   [0xef53, "ext4"],
   [0x2011bab0, "exFAT"],
@@ -19,6 +21,8 @@ const linuxTypes = new Map<number, string>([
   [0xff534d42, "SMB"],
   [0x794c7630, "overlay"],
 ]);
+
+/** Filesystem information of the destination volume. */
 export interface FilesystemInfo {
   filesystem: string;
   diskName: string;
@@ -29,14 +33,40 @@ export interface FilesystemInfo {
   mountPoint?: string;
   volumeIdentity: "filesystem-device-only";
 }
+
+/**
+ * Whether a path lies inside the given root directory.
+ *
+ * @param root Root directory.
+ * @param path Candidate path.
+ * @returns True when the path is inside the root.
+ */
 function inside(root: string, path: string) {
   const p = relative(root, path);
   return !p || (!isAbsolute(p) && p !== ".." && !p.startsWith(".." + sep));
 }
+
+/**
+ * Decode octal escapes in mountinfo (e.g. `\040` for a space).
+ *
+ * @param p Raw mountinfo field.
+ * @returns Decoded string.
+ */
 const decode = (p: string) =>
   p.replace(/\\([0-7]{3})/g, (_m, octal) =>
     String.fromCharCode(parseInt(octal, 8)),
   );
+
+/**
+ * Inspect the filesystem that hosts the destination path.
+ *
+ * On Linux it reads `/proc/self/mountinfo` to obtain the real filesystem and
+ * mount point, and uses that to detect network drives and FAT-style
+ * single-file limits.
+ *
+ * @param path Destination path to inspect.
+ * @returns Filesystem information.
+ */
 export async function inspectFilesystem(path: string): Promise<FilesystemInfo> {
   const [space, device] = await Promise.all([statfs(path), stat(path)]);
   let filesystem =
@@ -60,7 +90,7 @@ export async function inspectFilesystem(path: string): Promise<FilesystemInfo> {
           filesystem = right.split(" ")[0];
         }
       }
-    } catch {} // statfs remains available when mount metadata is restricted.
+    } catch {} // statfs 在 mount 元数据受限时仍然可用。
   }
   const remote =
     [0x6969, 0x517b, 0xff534d42].includes(space.type) ||
@@ -79,6 +109,13 @@ export async function inspectFilesystem(path: string): Promise<FilesystemInfo> {
     volumeIdentity: "filesystem-device-only",
   };
 }
+
+/**
+ * Assert the destination filesystem is usable for local backup (rejecting network drives and volumes with insufficient single-file limits).
+ *
+ * @param info Filesystem information.
+ * @param maximumFileBytes Required maximum single-file size in bytes.
+ */
 export function requireLocalFilesystem(
   info: FilesystemInfo,
   maximumFileBytes = 0,
@@ -96,7 +133,14 @@ export function requireLocalFilesystem(
       { code: "UNSUPPORTED_FILESYSTEM" },
     );
 }
-/** Probe replacement of an existing file, readback and fsync without touching any Notebook file. */
+
+/**
+ * Probe the destination volume's replace, read-back, and fsync capabilities with a temp file, without touching any Notebook file.
+ *
+ * @param root Destination root directory.
+ * @param guard Guard invoked before probing.
+ * @returns Result of the probe.
+ */
 export async function probeReplacement(
   root: string,
   guard: () => Promise<unknown>,

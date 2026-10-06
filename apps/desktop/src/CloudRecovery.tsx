@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
+
+/** A cloud recovery connection. */
 interface Connection {
   id: string;
   name: string;
   provider: string;
   credentialsMode: string;
 }
+
+/** A restorable cloud version. */
 interface Version {
   notebookId: string;
   lineageId: string;
@@ -15,11 +19,20 @@ interface Version {
   snapshotSeq: number;
   assets: number;
 }
+
+/** Paginated result of one cloud version query. */
 interface Page {
   backups: Version[];
   warnings: string[];
   cursor: string | null;
 }
+
+/**
+ * Cloud recovery panel.
+ *
+ * Connects to S3/Cloudflare without the original device config, discovers
+ * existing versions with pagination, and restores one as a new Notebook.
+ */
 export default function CloudRecovery({
   onStarted,
 }: {
@@ -35,11 +48,19 @@ export default function CloudRecovery({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [add, setAdd] = useState(false);
+
+  /** Re-fetch the cloud recovery connection list. */
   const reload = () =>
     request<Connection[]>("listCloudRecoveryConnections").then(setConnections);
   useEffect(() => {
     void reload().catch((e) => setError(e.message));
   }, []);
+
+  /**
+   * Run an async action uniformly and maintain busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const action = async (fn: () => Promise<void>) => {
     setError("");
     setBusy(true);
@@ -51,6 +72,13 @@ export default function CloudRecovery({
       setBusy(false);
     }
   };
+
+  /**
+   * Query (or continue paginated loading of) a connection's cloud versions, deduplicating across pages.
+   *
+   * @param c Connection.
+   * @param next Continuation cursor.
+   */
   const discover = async (c: Connection, next?: string) => {
     const page = await request<Page>("discoverCloudBackups", {
       connectionId: c.id,

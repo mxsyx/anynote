@@ -16,7 +16,17 @@ import {
   mutateControl,
   type S3Plan,
 } from "./s3-control.js";
+
+/** Grace period for unreferenced objects (24 hours). */
 const grace = 24 * 60 * 60 * 1000;
+
+/**
+ * List all object versions under one branch (including delete markers), up to 10000.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @returns Object version entries.
+ */
 async function versions(objects: S3Objects, base: string) {
   const entries: {
     key: string;
@@ -68,6 +78,20 @@ async function versions(objects: S3Objects, base: string) {
   }
   throw Error("S3 版本规划超过 10000 个对象版本预算");
 }
+
+/**
+ * Build one cleanup snapshot: protected versions, versions to delete, and protected object keys.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param keep Number of most recent versions to keep.
+ * @param calendar Daily/weekly/monthly sampling policy.
+ * @param referenceTime Reference timestamp for calendar windows.
+ * @param retired Retired generation IDs.
+ * @param committed Committed generation IDs.
+ * @param readers Active readers to protect.
+ * @returns Cleanup snapshot used to build a plan.
+ */
 async function snapshot(
   objects: S3Objects,
   base: string,
@@ -186,6 +210,14 @@ async function snapshot(
     graceHours: 24,
   };
 }
+
+/**
+ * Return the current S3 maintenance state (active plan and managed flag).
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @returns Active cleanup plan and whether the scope is managed.
+ */
 export async function s3RetentionState(objects: S3Objects, base: string) {
   const c = await readControl(objects, base);
   return {
@@ -193,6 +225,17 @@ export async function s3RetentionState(objects: S3Objects, base: string) {
     managed: !!c,
   };
 }
+
+/**
+ * Build and persist one S3 cleanup plan (does not perform deletion).
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param keep Number of most recent versions to keep.
+ * @param calendar Raw sampling policy.
+ * @param confirmed Whether the caller confirmed initialization.
+ * @returns The stored cleanup plan.
+ */
 export async function previewS3Retention(
   objects: S3Objects,
   base: string,
@@ -240,6 +283,16 @@ export async function previewS3Retention(
   });
   return plan;
 }
+
+/**
+ * Run one batch of an approved S3 cleanup plan, returning whether it finished.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param planId Plan ID to apply.
+ * @param confirmed Whether the caller confirmed permanent deletion.
+ * @returns Whether the plan completed.
+ */
 export async function applyS3Retention(
   objects: S3Objects,
   base: string,
@@ -289,7 +342,7 @@ export async function applyS3Retention(
   const plan = current.plan!;
   const end = Math.min(plan.cursor + 8, plan.objects.length);
   for (const entry of plan.objects.slice(plan.cursor, end)) {
-    // Version IDs are immutable: a late duplicate can never delete a re-upload.
+    // Version IDs are immutable: a late duplicate request can never delete a re-uploaded object.
     await objects.client.send(
       new DeleteObjectCommand({
         Bucket: objects.bucket,

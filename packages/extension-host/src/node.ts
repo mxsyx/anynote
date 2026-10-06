@@ -1,7 +1,13 @@
 import { fork } from "node:child_process";
 import { workerPath } from "./bundled.js";
 import type { HostProcess } from "./contracts.js";
-/** Development/server adapter; desktop supplies Electron utilityProcess.fork. */
+
+/**
+ * Development/server adapter; the desktop app uses Electron's `utilityProcess.fork`.
+ *
+ * @param entry Extension entry file path.
+ * @returns The spawned host process.
+ */
 export function launchNodeExtension(entry: string): HostProcess {
   const child = fork(workerPath, [entry], {
     execArgv: [],

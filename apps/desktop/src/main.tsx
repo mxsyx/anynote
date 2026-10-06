@@ -75,6 +75,7 @@ import "./styles.css";
 const RichEditor = lazy(() => import("./RichEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
 const PdfReader = lazy(() => import("./PdfReader"));
+/** Main workspace view. */
 type View =
   | "notes"
   | "recent"
@@ -83,6 +84,8 @@ type View =
   | "backup"
   | "extensions"
   | "settings";
+
+/** Modal dialog request (type and optional target node). */
 type Modal = {
   type:
     | "note"
@@ -95,8 +98,23 @@ type Modal = {
     | "renameNotebook";
   target?: NoteNode;
 };
+
+/**
+ * Format a timestamp as "month day".
+ *
+ * @param t Timestamp in milliseconds.
+ * @returns The formatted date.
+ */
 const date = (t: number) =>
   new Date(t).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
+
+/**
+ * Return the icon matching a node type.
+ *
+ * @param n Node.
+ * @param size Icon size.
+ * @returns The icon element.
+ */
 const icon = (n: NoteNode, size = 16) =>
   n.kind === "folder" ? (
     <Folder size={size} />
@@ -107,6 +125,7 @@ const icon = (n: NoteNode, size = 16) =>
   ) : (
     <FileText size={size} />
   );
+/** App root component: Notebook/note navigation, editing, search, backup, and extension entry points. */
 function App() {
   const [importOpen, setImportOpen] = useState(false),
     [tasksOpen, setTasksOpen] = useState(false),
@@ -170,12 +189,19 @@ function App() {
   const treeFocusSequence = useRef(0);
   const focusBeforeDialog = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    /**
+     * Remember the focused element before the dialog opens so focus can be restored on close.
+     *
+     * @param e Focus event.
+     */
     const remember = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest("[role=dialog]")) focusBeforeDialog.current = target;
     };
     document.addEventListener("focusin", remember);
     const narrow = window.matchMedia("(max-width: 760px)");
+
+    /** Collapse the sidebar by default on narrow screens. */
     const resize = () => {
       if (narrow.matches) setSidebar(false);
     };
@@ -190,6 +216,8 @@ function App() {
   useEffect(() => {
     const el = treeRef.current;
     if (!el) return;
+
+    // Track the tree height for the long-list virtual scrolling window calculation.
     const observer = new ResizeObserver(() => setTreeHeight(el.clientHeight));
     observer.observe(el);
     return () => observer.disconnect();
@@ -214,11 +242,29 @@ function App() {
     const t = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+  /**
+   * Normalize an exception into a displayable error message.
+   *
+   * @param e Thrown value.
+   */
   const report = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
+
+  /**
+   * Re-fetch the node tree of the given Notebook.
+   *
+   * @param id Notebook ID.
+   */
   const reload = useCallback(async (id: string) => {
     setNodes(await request<NoteNode[]>("listNodes", { notebookId: id }));
   }, []);
+
+  /**
+   * Flush pending saves serially.
+   *
+   * `saveQueue` preserves write order; it is skipped during IME composition or
+   * when not dirty.
+   */
   const flush = useCallback(() => {
     const next = saveQueue.current.then(async () => {
       if (
@@ -281,6 +327,11 @@ function App() {
     saveQueue.current = next.catch(() => {});
     return next;
   }, []);
+  /**
+   * Modify the current note in place and mark it dirty.
+   *
+   * @param patch Fields to change.
+   */
   const edit = (patch: Partial<NoteNode>) => {
     if (!current.current) return;
     current.current = { ...current.current, ...patch };
@@ -296,9 +347,16 @@ function App() {
     return () => clearTimeout(timer);
   }, [active, flush]);
   useEffect(() => {
+    /** Try to save when the window loses focus. */
     const handler = () => {
       void flush().catch(() => {});
     };
+
+    /**
+     * Prompt the user to confirm leaving when there are unsaved changes.
+     *
+     * @param e Before-unload event.
+     */
     const unload = (e: BeforeUnloadEvent) => {
       if (dirty.current) {
         e.preventDefault();
@@ -312,6 +370,12 @@ function App() {
     };
   }, [flush]);
   const modeSequence = useRef(0);
+
+  /**
+   * Switch between preview/source/rich modes; very large bodies fall back to source.
+   *
+   * @param next Target mode.
+   */
   const switchMode = async (next: "preview" | "source" | "rich") => {
     if (composition.current) return;
     const sequence = ++modeSequence.current,
@@ -331,6 +395,12 @@ function App() {
       report(e);
     }
   };
+  /**
+   * Open a note: flush pending saves first, then load the body, expand ancestors, and record the recent visit.
+   *
+   * @param n Note node to open.
+   * @param b Target Notebook.
+   */
   const openNote = useCallback(
     async (n: NoteNode, b = bookRef.current) => {
       if (!b) return;
@@ -373,6 +443,11 @@ function App() {
     },
     [flush, nodeById],
   );
+  /**
+   * Switch the current Notebook: flush, load the node tree, and open the first note.
+   *
+   * @param b Notebook to switch to.
+   */
   const switchBook = async (b: Notebook) => {
     await flush();
     const items = await request<NoteNode[]>("listNodes", { notebookId: b.id });
@@ -391,6 +466,11 @@ function App() {
     const first = items.find((n) => n.kind === "note" && !n.deleted_at);
     if (first) await openNote(first, b);
   };
+  /**
+   * Accept a note created by a first-party hosted command: refresh the node tree and open it.
+   *
+   * @param note Created note.
+   */
   const acceptHostedNote = async (note: NoteNode) => {
     const targetBook = book;
     if (!targetBook) return;
@@ -405,6 +485,12 @@ function App() {
     setView("notes");
     setToast("已创建阅读记录");
   };
+  /**
+   * Open a cross-database reference link (switching Notebooks first if needed).
+   *
+   * @param notebookId Target Notebook ID.
+   * @param noteId Target note ID.
+   */
   const openReference = async (notebookId: string, noteId: string) => {
     try {
       const targetBook = books.find((b) => b.id === notebookId);
@@ -420,6 +506,11 @@ function App() {
       report(e);
     }
   };
+  /**
+   * Handle body links: internal anynote references, in-page anchors, or external links.
+   *
+   * @param href Link target.
+   */
   const followLink = (href: string) => {
     const match = href.match(
       /^anynote:\/\/notebook\/([a-f0-9-]{36})\/note\/([a-f0-9-]{36})(?:#([^\s]+))?$/i,
@@ -569,6 +660,12 @@ function App() {
   useEffect(() => {
     if (!modal && !searchOpen && !transfer && !importOpen && !tasksOpen) return;
     const previous = focusBeforeDialog.current;
+
+    /**
+     * Cycle Tab focus within the modal so focus cannot escape the dialog.
+     *
+     * @param e Keyboard event.
+     */
     const trap = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
       const dialog = document.querySelector<HTMLElement>("[role=dialog]");
@@ -606,6 +703,12 @@ function App() {
       previous?.focus();
     };
   }, [modal, searchOpen, transfer, importOpen, tasksOpen]);
+  /**
+   * Open a modal dialog and initialize its input fields.
+   *
+   * @param type Modal type.
+   * @param target Optional target node.
+   */
   const showModal = (type: Modal["type"], target?: NoteNode) => {
     setField(
       type === "rename"
@@ -618,6 +721,7 @@ function App() {
     setMenu(false);
   };
   useEffect(() => {
+    /** Global shortcuts: ⌘/Ctrl+K and +P open search, +S saves, +N creates; Esc closes overlays. */
     const key = (e: KeyboardEvent) => {
       if (
         (e.metaKey || e.ctrlKey) &&
@@ -643,6 +747,11 @@ function App() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [flush]);
+  /**
+   * Run a background action that flushes saves first, uniformly maintaining busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const task = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -655,6 +764,13 @@ function App() {
       setBusy(false);
     }
   };
+  /**
+   * After checking node freshness, open the cross-database copy/move dialog.
+   *
+   * @param node Node to transfer.
+   * @param mode Transfer mode.
+   * @returns The action promise.
+   */
   const beginTransfer = (node: NoteNode, mode: "copy" | "move") =>
     task(async () => {
       if (!book) return;
@@ -667,6 +783,7 @@ function App() {
       setTransfer({ node: fresh, mode });
     });
   const parentId = active?.parent_id || null;
+  /** Submit the modal dialog (create/rename/move/tag/video/Notebook). */
   const submit = async () => {
     if (!modal || !book) return;
     await task(async () => {
@@ -750,6 +867,7 @@ function App() {
       } else setExpanded((prev) => new Set([...prev, node.id]));
     });
   };
+  /** Export the full Notebook archive (desktop uses a file dialog, browser downloads directly). */
   const exportBook = () =>
     task(async () => {
       if (!book) return;
@@ -766,6 +884,11 @@ function App() {
       download(r.data, r.name);
       setToast("完整 Notebook 已导出，包含历史与回收站");
     });
+  /**
+   * Adopt the saved note returned by the server and refresh the node tree.
+   *
+   * @param n Saved note.
+   */
   const acceptSaved = (n: NoteNode) => {
     current.current = n;
     dirty.current = false;
@@ -773,6 +896,11 @@ function App() {
     setStatus("已保存至本地");
     void reload(bookRef.current!.id);
   };
+  /**
+   * Insert the selected images one by one as resources into the current note.
+   *
+   * @param files Selected files.
+   */
   const insertImages = async (files: FileList | null) => {
     const picked = Array.from(files || []);
     await task(async () => {
@@ -793,6 +921,11 @@ function App() {
       setToast("图片已插入并保存至本地");
     });
   };
+  /**
+   * Import local files: md/txt become body notes, the rest become resource notes.
+   *
+   * @param files Selected files.
+   */
   const importFiles = async (files: FileList | null) => {
     if (!files || !book) return;
     const picked = Array.from(files);
@@ -821,6 +954,7 @@ function App() {
       setToast("资料已保存至本地");
     });
   };
+  /** Choose a .anynote archive to import: desktop uses a file dialog, browser uses a file input. */
   const chooseArchive = () => {
     if (!window.anynote) {
       archiveInput.current?.click();
@@ -831,6 +965,11 @@ function App() {
       if (job) setTasksOpen(true);
     });
   };
+  /**
+   * Import a `.anynote` file and switch to the new Notebook.
+   *
+   * @param file Archive file.
+   */
   const importArchive = async (file: File | undefined) => {
     if (!file) return;
     await task(async () => {
@@ -845,6 +984,11 @@ function App() {
       setToast("Notebook 已验证并导入");
     });
   };
+  /**
+   * Move a node to the trash.
+   *
+   * @param n Node to trash.
+   */
   const trash = async (n: NoteNode) => {
     await task(async () => {
       if (!book) return;
@@ -858,6 +1002,11 @@ function App() {
       setMenu(false);
     });
   };
+  /**
+   * Save before switching the main view and clear the tag filter.
+   *
+   * @param v Target view.
+   */
   const navigate = async (v: View) => {
     try {
       await flush();
@@ -868,11 +1017,15 @@ function App() {
       report(e);
     }
   };
+  /** Non-deleted nodes. */
   const visible = useMemo(() => nodes.filter((n) => !n.deleted_at), [nodes]),
+    /** All tags in the current Notebook (deduplicated). */
     tags = useMemo(
       () => [...new Set(visible.flatMap((n) => n.tags))],
       [visible],
     );
+
+  /** Flatten nodes into a tree with depth according to their expanded state. */
   const tree = useMemo(() => {
     const tree: { node: NoteNode; depth: number }[] = [],
       visited = new Set<string>();
@@ -2805,4 +2958,5 @@ function App() {
     </div>
   );
 }
+// Mount the app root component.
 createRoot(document.getElementById("root")!).render(<App />);

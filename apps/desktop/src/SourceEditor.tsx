@@ -5,13 +5,19 @@ import CodeMirror, {
 import { markdown } from "@codemirror/lang-markdown";
 import { openSearchPanel } from "@codemirror/search";
 import { useCallback, useRef } from "react";
+
+/** CodeMirror extensions (Markdown syntax highlighting). */
 const extensions = [markdown()];
+
+/** CodeMirror basic setup. */
 const basicSetup = {
   lineNumbers: true,
   foldGutter: true,
   highlightActiveLine: false,
   searchKeymap: true,
 };
+
+/** Add accessibility attributes when initializing the editor. */
 const nameEditor: NonNullable<ReactCodeMirrorProps["onCreateEditor"]> = (
   view,
 ) => {
@@ -20,6 +26,8 @@ const nameEditor: NonNullable<ReactCodeMirrorProps["onCreateEditor"]> = (
   view.scrollDOM.setAttribute("role", "region");
   view.scrollDOM.setAttribute("aria-label", "滚动 Markdown 源码");
 };
+
+/** Markdown source editor (CodeMirror 6) with a lightweight formatting toolbar. */
 export default function SourceEditor({
   value,
   dark,
@@ -33,6 +41,13 @@ export default function SourceEditor({
     editor = useRef<ReactCodeMirrorRef>(null);
   callback.current = onChange;
   const update = useCallback((value: string) => callback.current(value), []);
+
+  /**
+   * Wrap the current selection with the given markers (skipped during IME composition).
+   *
+   * @param before Opening marker.
+   * @param after Closing marker.
+   */
   const wrap = (before: string, after = before) => {
     const view = editor.current?.view;
     if (!view || view.composing) return;

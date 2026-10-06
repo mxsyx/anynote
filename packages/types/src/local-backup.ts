@@ -1,16 +1,24 @@
-/** Portable public contracts. No Node, storage or Electron runtime dependencies. */
+/** Portable public contracts: no dependency on Node, storage, or the Electron runtime. */
 export interface LocalBackupRevision {
+  /** Data lineage identifier. */
   lineageId: string;
+  /** Content sequence. */
   contentSeq: string;
+  /** Database schema version. */
   schemaVersion: number;
+  /** Storage epoch identifier. */
   storageEpoch: string;
 }
+
+/** One file entry in a local backup manifest. */
 export interface LocalBackupFile {
   path: string;
   size: number;
   sha256: string;
   token?: string;
 }
+
+/** Manifest file of a local disk backup (`anynote.local-backup`). */
 export interface LocalBackupManifest {
   format: "anynote.local-backup";
   formatVersion: 1;
@@ -26,6 +34,8 @@ export interface LocalBackupManifest {
   files: LocalBackupFile[];
   cleanup: LocalBackupFile[];
 }
+
+/** Filesystem information of the destination volume. */
 export interface LocalBackupFilesystem {
   filesystem: string;
   diskName: string;
@@ -36,6 +46,8 @@ export interface LocalBackupFilesystem {
   mountPoint?: string;
   volumeIdentity: "filesystem-device-only";
 }
+
+/** Configuration and recent state of a local backup target. */
 export interface LocalBackupTarget {
   id: string;
   diskId: string;
@@ -54,6 +66,8 @@ export interface LocalBackupTarget {
   pendingCleanup?: boolean;
   lastProgress?: string;
 }
+
+/** Runtime status of a target (online, free space, etc.). */
 export interface LocalBackupTargetStatus extends LocalBackupTarget {
   online: boolean;
   offlineReason?: string;
@@ -62,32 +76,45 @@ export interface LocalBackupTargetStatus extends LocalBackupTarget {
   sameFilesystem?: boolean;
   pending?: boolean;
 }
+
+/** Common input locating a Notebook on a target. */
 export interface LocalBackupInput {
   notebookId: string;
   targetId: string;
 }
-/** The desktop host owns directory selection; a renderer/SDK never supplies a path. */
+
+/** The desktop host handles directory selection; the renderer/SDK never provides paths. */
 export interface LocalBackupConfigureInput {
   notebookId: string;
   targetId?: string;
 }
+
+/** Input for configuring a target's automatic backup schedule. */
 export interface LocalBackupScheduleInput extends LocalBackupInput {
   enabled: boolean;
   onMount?: boolean;
   intervalMinutes?: number;
   concurrency?: 1 | 2 | 3 | 4;
 }
+
+/** Input for starting a backup; `approvalToken` confirms the space/overwrite estimate when required. */
 export interface LocalBackupRunInput extends LocalBackupInput {
   approvalToken?: string;
 }
+
+/** Set the Notebook scope that participates in backup for a disk. */
 export interface LocalBackupScopeInput {
   diskId: string;
   notebookIds: string[];
 }
+
+/** Batch backup or restore for all targets on a disk. */
 export interface LocalBackupGroupInput {
   diskId: string;
   mode?: "backup" | "restore";
 }
+
+/** Pre-backup space and change estimate. */
 export interface LocalBackupEstimate {
   notebookId: string;
   copyAssets: number;
@@ -103,10 +130,14 @@ export interface LocalBackupEstimate {
   approvalToken: string;
   revision: LocalBackupRevision;
 }
+
+/** Manifest info of the current backup on the target. */
 export interface LocalBackupInfo {
   manifest: LocalBackupManifest | null;
   needsReconcile: boolean;
 }
+
+/** Result statistics of one backup run. */
 export interface LocalBackupResult {
   phase: string;
   copiedFiles: number;
@@ -122,6 +153,8 @@ export interface LocalBackupResult {
   unchanged?: boolean;
   captureSkipped?: boolean;
 }
+
+/** Error code of a verification issue. */
 export type LocalVerificationIssueCode =
   | "FILE_MISSING"
   | "SIZE_MISMATCH"
@@ -131,6 +164,8 @@ export type LocalVerificationIssueCode =
   | "NOT_REGULAR_FILE"
   | "FILE_CHANGED"
   | "SQLITE_INVALID";
+
+/** One backup verification issue. */
 export interface LocalVerificationIssue {
   path: string;
   code: LocalVerificationIssueCode;
@@ -140,8 +175,10 @@ export interface LocalVerificationIssue {
   actualSha256?: string;
   systemCode?: string;
 }
+
+/** Full backup verification report. */
 export interface LocalVerificationReport {
-  /** On-disk root UUID (the target configuration exposes it as diskId). */
+  /** Root UUID on disk (exposed as diskId in the target config). */
   targetId: string;
   notebookId: string;
   startedAt: string;
@@ -157,12 +194,16 @@ export interface LocalVerificationReport {
   databaseCheck: "pending" | "passed" | "failed" | "skipped";
   issues: LocalVerificationIssue[];
 }
+
+/** Result of a new copy restored from a local backup. */
 export interface LocalRestoreResult {
   restoredId: string;
   sourceNotebookId: string;
   targetId: string;
   verification: LocalVerificationReport;
 }
+
+/** Runtime status of a local backup task. */
 export type LocalBackupTaskStatus =
   | "running"
   | "committing"
@@ -170,6 +211,8 @@ export type LocalBackupTaskStatus =
   | "failed"
   | "cancelled"
   | "waiting-disk";
+
+/** Execution result of one Notebook in a batch backup. */
 export interface LocalBackupNotebookResult {
   checkedFiles?: number;
   captureSkipped?: boolean;
@@ -193,7 +236,8 @@ export interface LocalBackupNotebookResult {
   verificationReport?: LocalVerificationReport;
   restoreResult?: LocalRestoreResult;
 }
-/** Public task view; never contains controllers, workers or promises. */
+
+/** Public task view; excludes controllers, workers, and promises. */
 export interface LocalBackupTask {
   id: string;
   type:
@@ -217,10 +261,13 @@ export interface LocalBackupTask {
   restoreResult?: LocalRestoreResult;
   notebookResults?: LocalBackupNotebookResult[];
 }
+
+/** Handle of a long-running task. */
 export interface LocalBackupTaskHandle {
   id: string;
 }
-/** Long operations return handles; inspect results through getTask. */
+
+/** Long operations return a handle; results are queried via `getTask`. */
 export interface LocalBackupAPI {
   configure(
     input: LocalBackupConfigureInput,

@@ -23,7 +23,19 @@ import {
   verifyDirectoryBudget,
 } from "./file-snapshot.js";
 import { CloudflareClient, digest } from "./providers.js";
+
+/** Byte limit for the logical manifest (5 MiB). */
 const bytesLimit = 5 * 1024 ** 2;
+
+/**
+ * Export the snapshot's logical entities line by line as content-addressed objects and build the logical manifest.
+ *
+ * @param snapshot File snapshot to export.
+ * @param target Backup target.
+ * @param signal Abort signal.
+ * @param progress Progress callback.
+ * @returns Logical manifest describing the exported objects.
+ */
 export async function logicalSnapshotFiles(
   snapshot: FileSnapshot,
   target: BackupTarget,
@@ -86,6 +98,19 @@ export async function logicalSnapshotFiles(
     db.close();
   }
 }
+
+/**
+ * Upload logical entities and assets to Cloudflare, deduplicating by the server plan.
+ *
+ * @param client Cloudflare client.
+ * @param snapshot File snapshot.
+ * @param target Backup target.
+ * @param generationId Target generation ID.
+ * @param signal Abort signal.
+ * @param progress Progress callback.
+ * @param onBytes Callback reporting uploaded bytes.
+ * @returns Commit result of the upload.
+ */
 export async function uploadLogicalFiles(
   client: CloudflareClient,
   snapshot: FileSnapshot,
@@ -150,6 +175,19 @@ export async function uploadLogicalFiles(
     snapshotSeq: manifest.snapshotSeq,
   };
 }
+
+/**
+ * Download logical entities and assets from Cloudflare, rebuild the local SQLite database, and return the file manifest.
+ *
+ * @param client Cloudflare client.
+ * @param target Backup target.
+ * @param generationId Generation ID to restore.
+ * @param dir Destination directory.
+ * @param signal Abort signal.
+ * @param onBytes Callback reporting processed bytes.
+ * @param onTotal Callback reporting the total byte count.
+ * @returns File manifest of the restored data.
+ */
 export async function restoreLogicalFiles(
   client: CloudflareClient,
   target: BackupTarget,
@@ -167,6 +205,8 @@ export async function restoreLogicalFiles(
   if (pinned)
     await client.call(pinPath, { method: "POST", body: { pinId }, signal });
   let renewalError: unknown;
+
+  // Periodically renew the pin during restore so the active version is not cleaned up.
   const timer = pinned
     ? setInterval(() => {
         void client
@@ -176,6 +216,8 @@ export async function restoreLogicalFiles(
           });
       }, 30000)
     : null;
+
+  /** Check for cancellation and pin renewal failures; throws on failure. */
   const check = () => {
     signal.throwIfAborted();
     if (renewalError) throw renewalError;

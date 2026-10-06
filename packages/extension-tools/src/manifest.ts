@@ -9,7 +9,11 @@ import {
   scriptAsyncSearchSchema,
 } from "./search-context.js";
 import { scriptNetworkRequestsSchema } from "./network.js";
+
+/** ID naming rule for extensions/contributions. */
 const id = z.string().regex(/^[a-z][a-z0-9.-]{2,80}$/);
+
+/** Editor node field declaration. */
 const field = z
   .object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9_]{0,39}$/),
@@ -17,6 +21,8 @@ const field = z
     default: z.string().max(2000).optional(),
   })
   .strict();
+
+/** Declarative extension manifest validation (including namespace, permission, and contribution consistency checks). */
 export const declarativeManifestSchema = z
   .object({
     id,
@@ -114,6 +120,8 @@ export const declarativeManifestSchema = z
         ctx.addIssue({ code: "custom", message: "命令引用未知节点" });
     }
   });
+
+/** Restricted script extension manifest validation (including state/search/network permission consistency checks). */
 export const scriptManifestSchema = declarativeManifestSchema
   .innerType()
   .extend({
@@ -225,6 +233,8 @@ export const scriptManifestSchema = declarativeManifestSchema
         message: "贡献必须唯一且位于扩展命名空间",
       });
   });
+
+/** Installable extension manifest: declarative or restricted script. */
 export const installableManifestSchema = z.union([
   declarativeManifestSchema,
   scriptManifestSchema,

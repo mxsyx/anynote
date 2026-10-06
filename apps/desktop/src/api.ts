@@ -1,14 +1,29 @@
 import type { AnynoteBridge, Operation } from "@anynote/types";
+
 declare global {
   interface Window {
     anynote?: AnynoteBridge;
   }
 }
+
+/**
+ * Call a backend operation.
+ *
+ * On desktop it uses the bridge exposed by Preload; the browser preview falls
+ * back to the local `/api/rpc`. It also records a performance measurement for
+ * diagnostics.
+ *
+ * @param op Operation name.
+ * @param input Operation input.
+ * @returns The operation result.
+ */
 export async function request<T>(
   op: Operation,
   input: Record<string, unknown> = {},
 ): Promise<T> {
   const started = performance.now();
+
+  /** Record the duration measurement of this RPC (keeping at most 100 entries). */
   const record = () => {
     const entries = performance.getEntriesByName("anynote:rpc");
     if (entries.length >= 100) performance.clearMeasures("anynote:rpc");
@@ -36,6 +51,14 @@ export async function request<T>(
   record();
   return data.result;
 }
+
+/**
+ * Download base64 data as a local file.
+ *
+ * @param data Base64 data.
+ * @param name File name.
+ * @param type MIME type.
+ */
 export function download(
   data: string,
   name: string,
@@ -49,6 +72,13 @@ export function download(
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/**
+ * Read a file as base64 (stripping the data URL prefix).
+ *
+ * @param file File to read.
+ * @returns Base64 content.
+ */
 export function base64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

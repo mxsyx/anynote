@@ -9,6 +9,8 @@ import type {
 } from "@anynote/types/extension-cleanup.js";
 import { extensionCatalog } from "./extension-catalog.js";
 import { cancelScripts } from "./script-commands.js";
+
+/** Cleanable extension ID (first-party namespaces excluded). */
 const id = z
   .string()
   .regex(/^[a-z][a-z0-9.-]{2,80}$/)
@@ -20,21 +22,42 @@ const id = z
       !v.startsWith("core."),
     "不能清理首方命名空间",
   );
+
 const book = z.object({ notebookId: z.string().uuid() }),
   scope = book.extend({ extensionId: id });
+
+/** Storage owner for cleanup receipts. */
 const receiptsOwner = "anynote.extension-cleanup";
+
+/** One cleanup preview plan. */
 type Plan = ExtensionCleanupReview & {
   book: string;
   digest: string;
   installedChecksum: string | null;
   backupIds?: string[];
 };
+
 const reviews = new WeakMap<Storage, Map<string, Plan>>(),
   closed = new WeakSet<Storage>();
+
+/**
+ * Shut down the extension cleanup service and clear previews.
+ *
+ * @param s Storage service.
+ */
 export function closeExtensionCleanup(s: Storage) {
   closed.add(s);
   reviews.delete(s);
 }
+
+/**
+ * Read the data to clean and compute its digest and stats (also validating cleanup budgets).
+ *
+ * @param db Open database handle.
+ * @param extensionId Extension ID.
+ * @param backupIds Optional backup IDs to scope.
+ * @returns Data digest, counts, and preview items.
+ */
 function snapshotData(
   db: SqlDatabase,
   extensionId: string,
@@ -84,6 +107,16 @@ function snapshotData(
     items,
   };
 }
+
+/**
+ * Snapshot the data to clean; wraps its own transaction when not already inside one.
+ *
+ * @param db Open database handle.
+ * @param extensionId Extension ID.
+ * @param backupIds Optional backup IDs to scope.
+ * @param inTransaction Whether the caller already opened a transaction.
+ * @returns Data digest, counts, and preview items.
+ */
 function snapshot(
   db: SqlDatabase,
   extensionId: string,
@@ -101,15 +134,37 @@ function snapshot(
     throw error;
   }
 }
+
+/**
+ * Find the given extension in the installed extension list.
+ *
+ * @param entries Installed extensions.
+ * @param extensionId Extension ID.
+ * @returns The installed extension, if found.
+ */
 function installed(entries: InstalledExtension[], extensionId: string) {
   return entries.find((e) => e.manifest.id === extensionId);
 }
+
+/**
+ * Extension data namespace cleanup: list, preview, and confirm deletion.
+ *
+ * Previews record the data digest and installed checksum; confirmation
+ * re-checks the digest and writes an idempotent receipt; cleaning an entire
+ * namespace requires the extension to be uninstalled first.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export async function extensionCleanupOperation(
   s: Storage,
   op: string,
   raw: unknown,
 ) {
   if (closed.has(s)) throw Error("存储已关闭");
+
   if (op === "listExtensionDataNamespaces") {
     const p = book.strict().parse(raw),
       db = s.open(p.notebookId),
@@ -153,6 +208,7 @@ export async function extensionCleanupOperation(
       truncated: groups.length > 128,
     } satisfies ExtensionCleanupList;
   }
+
   if (op === "previewExtensionDataCleanup") {
     const p = z
       .discriminatedUnion("mode", [
@@ -212,6 +268,7 @@ export async function extensionCleanupOperation(
       expiresAt,
     } satisfies ExtensionCleanupReview;
   }
+
   const p = scope
     .extend({
       reviewId: z.string().uuid(),

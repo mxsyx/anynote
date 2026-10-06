@@ -1,6 +1,15 @@
 import { z } from "zod";
 import type { Storage } from "./index.js";
+
 const uuid = z.string().uuid();
+
+/**
+ * Move a node before/after an anchor within the given directory, reordering sibling keys as needed.
+ *
+ * @param s Storage service.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export function placeNode(s: Storage, raw: unknown) {
   const p = z
       .object({

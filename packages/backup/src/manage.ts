@@ -11,7 +11,10 @@ import type {
   Task,
 } from "@anynote/types/runtime.js";
 import { CloudflareClient, S3Objects } from "./providers.js";
+
 const uuid = z.string().uuid();
+
+/** Operation names related to remote maintenance. */
 export const managementOperations = [
   "remoteWriter",
   "takeoverRemoteWriter",
@@ -19,6 +22,20 @@ export const managementOperations = [
   "applyRemoteRetention",
   "remoteRetentionState",
 ];
+
+/**
+ * Handle remote maintenance operations: device takeover, retention preview, and cleanup.
+ *
+ * Dispatched by target provider: S3 uses the local maintenance implementation,
+ * while Cloudflare runs through the Worker API. Write operations require
+ * explicit confirmation and are rejected when the target has an active task.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @param deps Helpers to locate targets and read/write credentials.
+ * @returns Handled flag with the operation result.
+ */
 export async function manage(
   s: Storage,
   op: string,
@@ -58,6 +75,7 @@ export async function manage(
       .strict()
       .parse(raw),
     target = find(s, p);
+
   if (target.provider === "s3") {
     if (op === "previewRemoteRetention" && p.confirmed !== true)
       throw Error("S3 维护须确认所有客户端已升级且旧任务已停止");
@@ -93,6 +111,7 @@ export async function manage(
     }
     throw Error("清理批次超过预算，请重试同一计划");
   }
+
   const client = new CloudflareClient(target, await secret(s, target.id)),
     book = p.remoteNotebookId || target.remoteNotebookId || p.notebookId,
     lineage = p.lineageId || target.lineageId,

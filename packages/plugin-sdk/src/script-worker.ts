@@ -6,8 +6,9 @@ import type {
   ScriptAsyncSearchRequest,
   ScriptNetworkRequest,
 } from "./declarative.js";
-// Only this trusted wrapper runs in Node. Guest code is evaluated inside WASM,
-// with declared JSON capability bridges; no module loader, files or direct network bindings.
+
+// Only this trusted wrapper runs in Node. Guest code is evaluated inside WASM
+// and interacts through a declared JSON capability bridge; there is no module loader, file access, or direct network binding.
 const data = workerData as {
   script: string;
   input: MarkdownTransformInput;
@@ -15,6 +16,7 @@ const data = workerData as {
   asyncSearch?: ScriptAsyncSearchRequest[];
   networkRequests?: ScriptNetworkRequest[];
 };
+
 try {
   const quickJS = await getQuickJS(),
     runtime = quickJS.newRuntime();
@@ -25,6 +27,13 @@ try {
   runtime.setInterruptHandler(
     () => performance.now() - sliceStart > remainingMs,
   );
+
+  /**
+   * Run one QuickJS operation and accumulate its CPU time.
+   *
+   * @param fn Operation to run.
+   * @returns Result of the operation.
+   */
   const charge = <T>(fn: () => T): T => {
     sliceStart = performance.now();
     try {
@@ -33,11 +42,18 @@ try {
       remainingMs -= performance.now() - sliceStart;
     }
   };
+
   const context = runtime.newContext();
   let alive = true,
     fatal = "",
     calls = 0;
   const pending = new Map<number, ReturnType<typeof context.newPromise>>();
+
+  /**
+   * Receive an async search result from the host and resolve the corresponding guest promise.
+   *
+   * @param message Message from the host.
+   */
   const receive = (message: unknown) => {
     if (!alive || !message || typeof message !== "object") return;
     const result = message as {
@@ -60,8 +76,11 @@ try {
       pending.delete(result.sequence!);
     }
   };
+
   parentPort!.on("message", receive);
+
   try {
+    // Install guest-side bridge functions for declared async search/network requests.
     for (const [name, declarations, kind] of [
       ["search", data.asyncSearch, "host-search"],
       ["request", data.networkRequests, "host-network"],
@@ -91,9 +110,10 @@ try {
       context.setProp(context.global, "__anynote" + name, bridge);
       bridge.dispose();
     }
+
     const input = JSON.stringify(JSON.stringify(data.input));
-    // Capture intrinsics before executing guest code. Serialize JSON ourselves so
-    // guest toJSON hooks, accessors and prototype mutations cannot alter the envelope.
+    // Capture built-ins before executing guest code. Serialize JSON ourselves so the guest's
+    // toJSON hooks, accessors, and prototype mutations cannot affect the envelope.
     const result = charge(() =>
       context.evalCode(
         `${data.asyncSearch || data.networkRequests ? "(async()=>{" : "(()=>{"}"use strict";
@@ -140,6 +160,7 @@ try {
         "extension-transform.js",
       ),
     );
+
     if (result.error) {
       result.error.dispose();
       throw Error("脚本执行失败或超出 CPU/内存预算");

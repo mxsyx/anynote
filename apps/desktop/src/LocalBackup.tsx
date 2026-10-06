@@ -5,6 +5,14 @@ import LocalBackupReview from "./LocalBackupReview";
 import LocalBackupScope from "./LocalBackupScope";
 import type { BackupEstimate, BackupInfo } from "./LocalBackupReview";
 import type { LocalBackupTargetStatus as Target } from "@anynote/types";
+
+/**
+ * Local disk backup panel.
+ *
+ * Lists each target disk's status (online/space/verify time/auto backup) and
+ * supports preview-then-backup, verify, restore, change location, and remove
+ * from scope. It updates the current copy one-way and keeps no history.
+ */
 export default function LocalBackup({
   notebookId,
   beforeBackup,
@@ -22,6 +30,8 @@ export default function LocalBackup({
       preview?: BackupEstimate;
       info?: BackupInfo;
     } | null>(null);
+
+  /** Re-fetch the target disk list. */
   const load = useCallback(
     async () =>
       setTargets(
@@ -31,6 +41,8 @@ export default function LocalBackup({
   );
   useEffect(() => {
     let alive = true;
+
+    /** Poll the target disk status. */
     const poll = () =>
       request<Target[]>("listLocalBackupTargets", { notebookId })
         .then((t) => {
@@ -46,6 +58,12 @@ export default function LocalBackup({
       clearInterval(timer);
     };
   }, [notebookId]);
+
+  /**
+   * Run an async action uniformly; refresh the target list when done.
+   *
+   * @param action Action to run.
+   */
   const act = async (action: () => Promise<void>) => {
     setError("");
     setBusy(true);
@@ -58,6 +76,13 @@ export default function LocalBackup({
       setBusy(false);
     }
   };
+
+  /**
+   * Configure (or change) the backup target directory via a native main-process dialog.
+   *
+   * @param targetId Existing target ID to modify.
+   * @returns The action promise.
+   */
   const configure = (targetId?: string) =>
     act(async () => {
       if (!window.anynote) throw Error("请在桌面应用中选择目标磁盘目录。");

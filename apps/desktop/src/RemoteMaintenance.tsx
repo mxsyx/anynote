@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { request } from "./api";
+
+/** Target that a remote maintenance operation acts on. */
 interface Target {
   provider?: "s3" | "cloudflare";
   id: string;
@@ -8,11 +10,15 @@ interface Target {
   remoteNotebookId?: string;
   name: string;
 }
+
+/** UTC daily/weekly/monthly sampling retention policy. */
 interface Calendar {
   dailyDays: number;
   weeklyWeeks: number;
   monthlyMonths: number;
 }
+
+/** Display labels for retention reasons. */
 const reasonNames: Record<string, string> = {
   latest: "最近版本",
   daily: "日采样",
@@ -20,6 +26,8 @@ const reasonNames: Record<string, string> = {
   monthly: "月采样",
   future: "未来时间保护",
 };
+
+/** One remote cleanup plan (keep/delete lists and reclaimable bytes). */
 interface Plan {
   id: string;
   keep: number;
@@ -35,11 +43,21 @@ interface Plan {
   graceHours: number;
   status?: string;
 }
+
+/** Current writer info of the remote branch. */
 interface Writer {
   head: string;
   deviceId: string;
   writerEpoch: number;
 }
+
+/**
+ * Remote maintenance dialog.
+ *
+ * Two modes: version retention and cleanup (preview, then confirm permanent
+ * deletion), and device takeover (bump the writer epoch to revoke the previous
+ * device's write access).
+ */
 export default function RemoteMaintenance({
   notebookId,
   target,
@@ -68,6 +86,12 @@ export default function RemoteMaintenance({
     [s3Ready, setS3Ready] = useState(false),
     [notice, setNotice] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+
+  /**
+   * Run an async action uniformly and clear notice state.
+   *
+   * @param fn Action to run.
+   */
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");

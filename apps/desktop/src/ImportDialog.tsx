@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { request, base64 } from "./api";
 import { X, Globe, FileCode } from "lucide-react";
+
+/** Web page/HTML import dialog (reads only files the user explicitly selects). */
 export default function ImportDialog({
   notebookId,
   parentId,
@@ -22,6 +24,8 @@ export default function ImportDialog({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /** Collect the selected adjacent images and start a background import task. */
   const submit = async () => {
     setBusy(true);
     setError("");

@@ -5,8 +5,11 @@ import type {
   LocalVerificationReport,
 } from "@anynote/types/local-backup.js";
 import { safePath, token, hashFile } from "./files.js";
+
+/** Backup verification failure error carrying the full verification report. */
 export class LocalVerificationError extends Error {
   code = "BACKUP_INCONSISTENT";
+
   constructor(public report: LocalVerificationReport) {
     super(
       "备份文件缺失、损坏或 SQLite 校验失败：" +
@@ -19,7 +22,13 @@ export class LocalVerificationError extends Error {
     this.name = "LocalVerificationError";
   }
 }
-/** Read-only, complete file diagnostics. Identity changes/cancellation interrupt immediately. */
+
+/**
+ * Read-only full file diagnostics; identity changes or cancellation abort immediately.
+ *
+ * @param input Verification inputs (root, notebook, target, files, guard, and callbacks).
+ * @returns The verification report.
+ */
 export async function inspectBackupFiles(input: {
   root: string;
   notebookId: string;
@@ -47,6 +56,12 @@ export async function inspectBackupFiles(input: {
     issues: [],
   };
   let lastEmit = -Infinity;
+
+  /**
+   * Emit the current report snapshot at the throttled rate (or forced).
+   *
+   * @param force Force an immediate emission.
+   */
   const emit = (force = false) => {
     report.durationMs = performance.now() - started;
     if (force || report.durationMs - lastEmit >= 150) {
@@ -59,6 +74,14 @@ export async function inspectBackupFiles(input: {
     for (const d of input.files) {
       input.signal.throwIfAborted();
       await input.guard();
+
+      /**
+       * Append one verification issue for the current file.
+       *
+       * @param code Issue code.
+       * @param message Issue message.
+       * @param actual Optional actual values to attach.
+       */
       const issue = (
         code: LocalVerificationIssue["code"],
         message: string,
@@ -92,7 +115,7 @@ export async function inspectBackupFiles(input: {
         }
       } catch (e: any) {
         input.signal.throwIfAborted();
-        // A missing/changed root is not another damaged file: stop the disk task.
+        // A missing/changed root is not just another corrupt file: it should abort the whole disk task.
         await input.guard();
         issue(
           e.code === "ENOENT"

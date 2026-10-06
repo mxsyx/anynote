@@ -57,8 +57,11 @@ import {
   registerDirectory,
   validateDirectory,
 } from "./workspace.js";
+
 const uuid = z.string().uuid(),
   hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
+
+/** Full database-creation SQL for schema v1. */
 export const legacySchema = `
 CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,schema_version INTEGER NOT NULL DEFAULT 1,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
 CREATE TABLE nodes(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES nodes(id),kind TEXT NOT NULL CHECK(kind IN ('folder','note')),title TEXT NOT NULL,sort_key INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,deleted_by TEXT,favorite INTEGER NOT NULL DEFAULT 0,tags TEXT NOT NULL DEFAULT '[]');
@@ -70,7 +73,11 @@ CREATE TABLE note_revisions(id TEXT PRIMARY KEY,note_id TEXT NOT NULL REFERENCES
 CREATE TABLE changes(seq INTEGER PRIMARY KEY AUTOINCREMENT,entity_id TEXT NOT NULL,operation TEXT NOT NULL,payload_json TEXT NOT NULL,created_at INTEGER NOT NULL);
 CREATE VIRTUAL TABLE fts_notes USING fts5(note_id UNINDEXED,title,body,tokenize='trigram');
 `;
+
+/** Current schema version (v1 base schema + v2 upgrade). */
 export const schema = legacySchema + upgradeSQL;
+
+/** Generic validation schema for operation input fields. */
 const inputSchema = z
   .object({
     notebookId: uuid.optional(),
@@ -104,6 +111,15 @@ const inputSchema = z
       .optional(),
   })
   .strict();
+
+/**
+ * Knowledge base storage service.
+ *
+ * Holds SQLite connections for multiple Notebooks (writable LRU + read-only
+ * LRU), serializes writes, and handles transactions, resource closures,
+ * indexes, archive import/export, and directory write locks. All operations are
+ * dispatched through `run`.
+ */
 export class Storage {
   root: string;
   maxWriteConnections: number;
@@ -151,6 +167,18 @@ export class Storage {
     this.writeLocks = new Map();
     recoverTemporaryJobs(this.root);
   }
+
+  /**
+   * Dispatch a storage operation.
+   *
+   * Some operations take a fast path (update checks, directories, search,
+   * remote maintenance, etc.), while the rest are queued into the global serial
+   * queue to preserve transaction order.
+   *
+   * @param op Operation name.
+   * @param input Operation input payload.
+   * @returns The operation result.
+   */
   run(op: string, input: Record<string, unknown> = {}): Promise<any> {
     if (op === "cancelExtensionUpdateCheck")
       return Promise.resolve().then(() => cancelExtensionUpdateCheck(this));
@@ -194,13 +222,34 @@ export class Storage {
     this.queue = next.catch(() => {});
     return next;
   }
+
+  /**
+   * Resolve a Notebook's directory (an externally registered directory or the UUID directory inside the workspace).
+   *
+   * @param id Notebook ID.
+   * @returns The Notebook directory path.
+   */
   directory(id: string) {
     uuid.parse(id);
     return this.externalDirectories.get(id)?.path || join(this.root, id);
   }
+
+  /**
+   * Resolve a safe relative path inside a Notebook.
+   *
+   * @param id Notebook ID.
+   * @param relative Relative path.
+   * @returns The resolved absolute path.
+   */
   notebookPath(id: string, relative: string) {
     return assertLocalPath(this.directory(id), relative);
   }
+
+  /**
+   * List all Notebooks in the workspace and externally registered.
+   *
+   * @returns The Notebook catalog.
+   */
   notebookCatalog() {
     return [
       ...readdirSync(this.root, { withFileTypes: true })
@@ -212,6 +261,12 @@ export class Storage {
       })),
     ];
   }
+
+  /**
+   * Read each Notebook's metadata; v1 is auto-upgraded by opening, and failures are marked unavailable.
+   *
+   * @returns Notebook registry entries with status.
+   */
   registry() {
     return this.notebookCatalog().map((entry) => {
       try {
@@ -236,6 +291,13 @@ export class Storage {
       }
     });
   }
+
+  /**
+   * Get a read-only connection (LRU eviction, validating identity and version).
+   *
+   * @param id Notebook ID.
+   * @returns The open database handle.
+   */
   read(id: string) {
     uuid.parse(id);
     if (this.dbs.has(id)) {
@@ -275,6 +337,12 @@ export class Storage {
       throw e;
     }
   }
+
+  /**
+   * Evict the least recently used writable connection and release its write lock when over the limit.
+   *
+   * @param exclude Notebook ID to keep.
+   */
   trimWrites(exclude?: string) {
     for (const [id, db] of this.dbs) {
       if (this.dbs.size <= this.maxWriteConnections) break;
@@ -285,6 +353,13 @@ export class Storage {
       this.writeLocks.delete(id);
     }
   }
+
+  /**
+   * Get a writable connection (migrating v1 if needed, acquiring the write lock, and refreshing the notebook.json cache).
+   *
+   * @param id Notebook ID.
+   * @returns The open database handle.
+   */
   open(id: string) {
     uuid.parse(id);
     if (this.dbs.has(id)) {
@@ -351,7 +426,15 @@ export class Storage {
       throw e;
     }
   }
-  // Fast paths are scoped to the current write lease; reopens require one fresh cut.
+
+  // The fast path is limited to the current write lease; reopening requires a fresh revision.
+
+  /**
+   * Read the backup revision under the current write lease (`undefined` when there is no connection or lineage).
+   *
+   * @param id Notebook ID.
+   * @returns The backup revision, or `undefined`.
+   */
   localBackupRevision(id: string) {
     const db = this.dbs.get(id);
     if (!db) return undefined;
@@ -359,6 +442,13 @@ export class Storage {
     const lineageId = this.writeDbLineages.get(id);
     return revision && lineageId ? { ...revision, lineageId } : undefined;
   }
+
+  /**
+   * Run the v1→v2 migration within a transaction, backfilling resource closures and search indexes.
+   *
+   * @param db Open database handle.
+   * @param rootDir Optional Notebook root directory.
+   */
   migrate(db: SqlDatabase, rootDir?: string) {
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -378,6 +468,18 @@ export class Storage {
       throw e;
     }
   }
+
+  /**
+   * Capture the resource closure referenced by a revision, recursively expanding whiteboard-embedded images.
+   *
+   * @param db Open database handle.
+   * @param revisionId Revision ID.
+   * @param body Revision body.
+   * @param primary Primary resource ID, if any.
+   * @param rootDir Optional Notebook root directory.
+   * @param previousRevision Previous revision ID for reuse.
+   * @param changed Resource IDs changed since the previous revision.
+   */
   capture(
     db: SqlDatabase,
     revisionId: string,
@@ -434,6 +536,14 @@ export class Storage {
       }
     }
   }
+
+  /**
+   * Record a revision's title/tags/favorite metadata for history restore.
+   *
+   * @param db Open database handle.
+   * @param revisionId Revision ID.
+   * @param noteId Note ID.
+   */
   recordRevision(db: SqlDatabase, revisionId: string, noteId: string) {
     const n = this.node(db, noteId, true);
     db.prepare(
@@ -449,6 +559,15 @@ export class Storage {
       }),
     );
   }
+
+  /**
+   * Read a revision's metadata; returns `null` when missing or mismatched.
+   *
+   * @param db Open database handle.
+   * @param revisionId Revision ID.
+   * @param noteId Note ID.
+   * @returns The revision metadata, or `null`.
+   */
   revisionMetadata(db: SqlDatabase, revisionId: string, noteId: string) {
     const row = db
       .prepare(
@@ -471,6 +590,16 @@ export class Storage {
       return null;
     }
   }
+
+  /**
+   * Run a mutation within a transaction, recording a changes row and bumping the content sequence.
+   *
+   * @param db Open database handle.
+   * @param id Notebook ID.
+   * @param op Operation name.
+   * @param fn Mutation to run.
+   * @returns Result of the mutation.
+   */
   tx(db: SqlDatabase, id: string, op: string, fn: () => any) {
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -485,6 +614,15 @@ export class Storage {
       throw e;
     }
   }
+
+  /**
+   * Read a node; trashed nodes are excluded by default.
+   *
+   * @param db Open database handle.
+   * @param id Node ID.
+   * @param includeDeleted Include trashed nodes.
+   * @returns The node row.
+   */
   node(db: SqlDatabase, id: string, includeDeleted = false) {
     uuid.parse(id);
     const n = db.prepare("SELECT * FROM nodes WHERE id=?").get(id);
@@ -492,6 +630,14 @@ export class Storage {
       throw Error("条目不存在或已在回收站");
     return n;
   }
+
+  /**
+   * Validate the parent chain: it must be a folder and must not form a cycle.
+   *
+   * @param db Open database handle.
+   * @param id Parent node ID.
+   * @param source Node ID being moved.
+   */
   parent(db: SqlDatabase, id: string | null | undefined, source?: string) {
     const seen = new Set();
     while (id) {
@@ -503,6 +649,13 @@ export class Storage {
       id = n.parent_id;
     }
   }
+
+  /**
+   * Rebuild a note's link index and full-text index (including body, PDF text, annotations, and tags).
+   *
+   * @param db Open database handle.
+   * @param id Note ID.
+   */
   index(db: SqlDatabase, id: string) {
     db.prepare("DELETE FROM note_links WHERE source_note_id=?").run(id);
     const source =
@@ -544,6 +697,14 @@ export class Storage {
         ].join("\n"),
       );
   }
+
+  /**
+   * Read a note's full detail (node fields plus note type/body, etc.).
+   *
+   * @param db Open database handle.
+   * @param id Note ID.
+   * @returns The note detail row.
+   */
   get(db: SqlDatabase, id: string): SqlRow {
     const n = this.node(db, id, true);
     const detail = db
@@ -553,6 +714,18 @@ export class Storage {
       .get(id);
     return { ...n, ...detail, tags: JSON.parse(n.tags) };
   }
+
+  /**
+   * Run a queued storage operation.
+   *
+   * Covers extension data/download, directory registration, archive tasks,
+   * extension directories, Notebook and node lifecycle, history, search, file
+   * import, resource reads, snapshots, and archives.
+   *
+   * @param op Operation name.
+   * @param raw Raw operation payload.
+   * @returns The operation result.
+   */
   async execute(op: string, raw: Record<string, any>): Promise<any> {
     if (
       [
@@ -562,6 +735,7 @@ export class Storage {
       ].includes(op)
     )
       return extensionCleanupOperation(this, op, raw);
+
     if (op === "readLocalBackupRevision") {
       const id = uuid.parse(raw.notebookId),
         db = this.open(id);
@@ -578,6 +752,7 @@ export class Storage {
       localResourceEntries(this, id, db);
       return this.localBackupRevision(id);
     }
+
     if (op === "createLocalBackupCapture") {
       const dir = assertLocalPath(
         this.root,
@@ -589,6 +764,7 @@ export class Storage {
       );
       return captureLocalNotebook(this, uuid.parse(raw.notebookId), dir);
     }
+
     if (op === "createBackupSnapshot") {
       const dir = assertLocalPath(
         this.root,
@@ -600,9 +776,12 @@ export class Storage {
       );
       return createFileSnapshot(this, uuid.parse(raw.notebookId), dir);
     }
+
     if (op === "registerNotebookDirectory")
       return registerDirectory(this, raw, { 1: legacySchema, 2: schema });
+
     if (op === "detachNotebookDirectory") return detachDirectory(this, raw);
+
     if (
       [
         "archiveExportBudget",
@@ -620,6 +799,7 @@ export class Storage {
         );
       return startArchiveJob(this, op, raw);
     }
+
     if (op === "publishArchiveDirectory") {
       const id = uuid.parse(raw.id);
       const dir = assertLocalPath(
@@ -630,6 +810,7 @@ export class Storage {
       renameSync(dir, join(this.root, id));
       return { id };
     }
+
     if (
       [
         "getExtensionUpdateSettings",
@@ -641,6 +822,7 @@ export class Storage {
       const { updateOperation } = await import("./extension-updates.js");
       return updateOperation(this, op, raw);
     }
+
     if (
       [
         "listExtensionDirectories",
@@ -651,12 +833,14 @@ export class Storage {
       const { directoryConfig } = await import("./extension-directories.js");
       return directoryConfig(this, op, raw);
     }
+
     if (op === "installDownloadedExtension") {
       const { installDownloadedExtension } = await import(
         "./extension-download.js"
       );
       return installDownloadedExtension(this, raw);
     }
+
     if (
       [
         "previewExtension",
@@ -680,10 +864,13 @@ export class Storage {
       const { extensionCatalog } = await import("./extension-catalog.js");
       return extensionCatalog(this, op, raw);
     }
+
     const extra = await advancedOperations(this, op, raw);
     if (extra.handled) return extra.result;
     const p = inputSchema.parse(raw);
+
     if (op === "listNotebooks") return this.registry();
+
     if (op === "createNotebook") {
       const id = randomUUID(),
         dir = join(this.root, id);
@@ -705,10 +892,13 @@ export class Storage {
       );
       return { id, name: p.title || "我的知识库" };
     }
+
     if (op === "importArchive") return this.importArchive(p.data!);
+
     const notebookId = uuid.parse(p.notebookId),
       db = this.open(notebookId),
       id = p.id!;
+
     if (op === "listNodes")
       return db
         .prepare(
@@ -716,7 +906,9 @@ export class Storage {
         )
         .all()
         .map((n) => ({ ...n, tags: JSON.parse(n.tags) }));
+
     if (op === "getNote") return this.get(db, id!);
+
     if (op === "createNode") {
       this.parent(db, p.parentId);
       const newId = randomUUID(),
@@ -753,6 +945,7 @@ export class Storage {
         return this.get(db, newId);
       });
     }
+
     if (op === "saveNote") {
       const n = this.node(db, id!),
         previous = this.get(db, id!),
@@ -795,6 +988,7 @@ export class Storage {
         return this.get(db, id!);
       });
     }
+
     if (op === "moveNode") {
       this.node(db, id!);
       this.parent(db, p.parentId, id);
@@ -805,6 +999,7 @@ export class Storage {
         return this.get(db, id!);
       });
     }
+
     if (op === "trashNode" || op === "restoreNode") {
       const n = this.node(db, id!, true),
         operation = randomUUID(),
@@ -829,6 +1024,7 @@ export class Storage {
         return true;
       });
     }
+
     if (op === "history")
       return db
         .prepare(
@@ -836,6 +1032,7 @@ export class Storage {
         )
         .all(id!)
         .map((r) => ({ ...r, metadata: this.revisionMetadata(db, r.id, id!) }));
+
     if (op === "restoreRevision") {
       const r = db
           .prepare("SELECT body FROM note_revisions WHERE id=? AND note_id=?")
@@ -874,6 +1071,7 @@ export class Storage {
         return this.get(db, id!);
       });
     }
+
     if (op === "search") {
       const q = p.query?.trim() || "";
       if (!q) return [];
@@ -892,6 +1090,7 @@ export class Storage {
         .all(q, q, q)
         .map((n) => ({ ...n, tags: JSON.parse(n.tags) }));
     }
+
     if (op === "importFile") {
       const bytes = Buffer.from(p.data!, "base64");
       if (bytes.length > 50 * 1024 * 1024) throw Error("文件超过 50MB 限制");
@@ -968,6 +1167,7 @@ export class Storage {
         return this.get(db, noteId);
       });
     }
+
     if (["getAsset", "getAssetInfo", "getAssetRange"].includes(op)) {
       const r = db
         .prepare(
@@ -1027,6 +1227,7 @@ export class Storage {
       if (hash(b) !== r.hash) throw Error("资源损坏，请从备份恢复");
       return { data: b.toString("base64"), mime: r.mime, hash: r.hash };
     }
+
     if (op === "exportArchive" || op === "snapshot") {
       const bundle = await this.exportArchive(notebookId);
       if (op === "snapshot") {
@@ -1042,6 +1243,7 @@ export class Storage {
           db.prepare("SELECT name FROM notebook_meta").get()!.name + ".anynote",
       };
     }
+
     if (op === "restoreSnapshot") {
       if (!/^\d+\.anynote$/.test(p.name || "")) throw Error("无效快照名称");
       const data = readFileSync(
@@ -1049,6 +1251,7 @@ export class Storage {
       ).toString("base64");
       return this.importArchive(data);
     }
+
     if (op === "listSnapshots") {
       const dir = this.notebookPath(p.notebookId!, "snapshots");
       return existsSync(dir)
@@ -1061,6 +1264,13 @@ export class Storage {
     }
     throw Error("未知操作");
   }
+
+  /**
+   * Export a Notebook's full archive (consistent database + all assets + manifest).
+   *
+   * @param id Notebook ID.
+   * @returns The archive data and metadata.
+   */
   async exportArchive(id: string) {
     const db = this.open(id),
       tmp = this.notebookPath(id, "export-" + randomUUID() + ".sqlite");
@@ -1115,6 +1325,13 @@ export class Storage {
       this.trimWrites();
     }
   }
+
+  /**
+   * Import a new Notebook from a base64 archive (validating paths, manifest, and asset hashes).
+   *
+   * @param data Base64 archive data.
+   * @returns The imported Notebook metadata.
+   */
   async importArchive(data: string) {
     const bytes = Buffer.from(data || "", "base64");
     if (bytes.length > 100 * 1024 * 1024) throw Error("导入包超过 100MB");
@@ -1189,6 +1406,14 @@ export class Storage {
       throw e;
     }
   }
+
+  /**
+   * Validate an archive directory's structure, identity, assets, and tree, and migrate it to the current schema.
+   *
+   * @param dir Archive directory.
+   * @param m Archive manifest.
+   * @param id Notebook ID.
+   */
   validateArchiveDirectory(dir: string, m: SqlRow, id: string) {
     const db = new DatabaseSync(join(dir, "notebook.sqlite"));
     try {
@@ -1269,6 +1494,8 @@ export class Storage {
       db.close();
     }
   }
+
+  /** Close the storage: terminate tasks, close all connections, and release write locks. */
   close() {
     closeExtensionUpdateChecks(this);
     closeExtensionDirectories(this);

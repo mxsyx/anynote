@@ -1,10 +1,14 @@
 import { fileURLToPath } from "node:url";
 import type { BundledExtension } from "./contracts.js";
+
+/** Path to the extension host Worker entry file. */
 export const workerPath = fileURLToPath(
   new URL("./worker.js", import.meta.url),
 );
-// This registry is part of the application release. Downloaded manifests cannot
-// add an entry here or elevate a third-party extension to Node execution.
+
+// This registry is part of the app release. Downloaded manifests cannot append entries here,
+// nor promote a third-party extension to the Node execution layer.
+/** Bundled first-party extension registry. */
 export const bundledExtensions: BundledExtension[] = [
   {
     manifest: {

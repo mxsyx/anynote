@@ -8,6 +8,16 @@ import { restoreLogicalFiles } from "./file-logical.js";
 import { restoreSnapshotFiles } from "./file-s3.js";
 import { S3Objects, CloudflareClient } from "./providers.js";
 import type { Task } from "@anynote/types/runtime.js";
+
+/**
+ * Start a background cloud restore task that downloads, verifies, and publishes a new Notebook.
+ *
+ * @param s Storage service.
+ * @param target Backup target.
+ * @param provider Remote provider client.
+ * @param generationId Generation ID to restore.
+ * @returns Descriptor with the created task ID.
+ */
 export function startCloudRestore(
   s: Storage,
   target: BackupTarget,

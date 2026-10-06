@@ -1,11 +1,15 @@
 import type { ExtensionContext } from "./contracts.js";
+
 export type { ExtensionContext } from "./contracts.js";
+
 import { z } from "zod";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { SqlRow } from "@anynote/types/runtime.js";
 import { CommandRegistry, createAPI } from "./index.js";
+
 const uuid = z.string().uuid(),
   key = z.string().regex(/^[a-zA-Z0-9._:-]{1,240}$/);
+
 const permissions = [
   "notes:read",
   "notes:write",
@@ -15,6 +19,7 @@ const permissions = [
   "settings:read",
   "settings:write",
 ] as const;
+
 const manifestSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9.-]{2,100}$/),
@@ -24,7 +29,19 @@ const manifestSchema = z
     permissions: z.array(z.enum(permissions)).max(20),
   })
   .strict();
-/** Host must explicitly trust a bundled factory. No arbitrary plugin files are loaded. */
+
+/**
+ * Create a first-party extension host.
+ *
+ * The host must explicitly trust factories bundled with the app and never
+ * loads arbitrary plugin files; every host call passes through a permission
+ * and Notebook-scope façade, so renderer-provided notebook IDs, paths, SQL,
+ * and actor identity cannot cross that boundary.
+ *
+ * @param storage Storage service (via `run`).
+ * @param options Host options (trusted extension IDs).
+ * @returns The extension host API.
+ */
 export function createExtensionHost(
   storage: Pick<Storage, "run">,
   { trustedIds = [] }: { trustedIds?: string[] } = {},
@@ -34,8 +51,18 @@ export function createExtensionHost(
       string,
       { active: boolean; disposers: (() => unknown)[] }
     >();
+
   return {
     commands,
+
+    /**
+     * Activate an extension after validating its manifest and grant, returning its API and deactivation function.
+     *
+     * @param manifest Extension manifest row.
+     * @param grant Extension grant row.
+     * @param factory Trusted extension factory.
+     * @returns The activated session API.
+     */
     async activate(
       manifest: SqlRow,
       grant: SqlRow,
@@ -50,6 +77,8 @@ export function createExtensionHost(
         throw Error("扩展权限未授权");
       const session = { active: true, disposers: [] as (() => unknown)[] };
       sessions.set(m.id, session);
+
+      /** Run all disposers in reverse to revoke extension capabilities, aggregating errors on failure. */
       const cleanup = () => {
         if (!session.active) return;
         session.active = false;
@@ -64,6 +93,14 @@ export function createExtensionHost(
         if (errors.length)
           throw new AggregateError(errors, "扩展清理失败，能力已撤销");
       };
+
+      /**
+       * Dispatch an extension call to storage operations per the permission policy, strictly validating arguments.
+       *
+       * @param method Host method name.
+       * @param raw Raw method input.
+       * @returns The method result.
+       */
       const transport = async (method: string, raw: unknown) => {
         if (!session.active) throw Error("扩展已停用");
         const policy: Record<string, (typeof permissions)[number]> = {
@@ -78,7 +115,7 @@ export function createExtensionHost(
         };
         if (!policy[method] || !m.permissions.includes(policy[method]))
           throw Error("扩展没有此操作权限");
-        // Renderer-supplied notebook IDs, paths, SQL and actor identities cannot cross this facade.
+        // Renderer-provided notebook IDs, paths, SQL, and actor identity cannot cross this façade.
         const base = { notebookId };
         if (method === "notes.get")
           return storage.run("getNote", {
@@ -164,6 +201,7 @@ export function createExtensionHost(
             .parse(raw),
         });
       };
+
       const api = createAPI(transport),
         context = {
           api,
@@ -201,6 +239,8 @@ export function createExtensionHost(
         deactivate: cleanup,
       };
     },
+
+    /** Deactivate all sessions and run their disposers. */
     dispose() {
       for (const session of sessions.values()) {
         session.active = false;

@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+/** Directory or extension URL: must be an HTTPS URL without credentials or fragments. */
 export const directoryURL = z
   .string()
   .max(2048)
@@ -10,6 +12,8 @@ export const directoryURL = z
       return false;
     }
   }, "目录和扩展地址必须是无凭据、无片段的 HTTPS URL");
+
+/** One entry in an extension directory. */
 export const directoryEntrySchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9.-]{2,80}$/),
@@ -38,6 +42,8 @@ export const directoryEntrySchema = z
     fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
+
+/** Extension directory manifest file (`anynote.extension-directory.v1`). */
 export const extensionDirectorySchema = z
   .object({
     format: z.literal("anynote.extension-directory.v1"),
@@ -51,4 +57,6 @@ export const extensionDirectorySchema = z
       ),
   })
   .strict();
+
+/** Extension directory entry type. */
 export type DirectoryEntry = z.infer<typeof directoryEntrySchema>;

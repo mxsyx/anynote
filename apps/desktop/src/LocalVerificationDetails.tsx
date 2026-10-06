@@ -1,11 +1,15 @@
 import { useState } from "react";
 import type { LocalVerificationReport } from "@anynote/types";
+
+/** Display labels for verification statuses. */
 const statuses = {
   checking: "正在完整校验",
   passed: "完整校验通过",
   failed: "校验发现异常",
   interrupted: "校验已中断",
 };
+
+/** Show a local backup verification report (stats, timing, and a paginated issue list). */
 export default function LocalVerificationDetails({
   report,
 }: {

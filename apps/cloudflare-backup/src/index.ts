@@ -9,17 +9,46 @@ import type {
   WorkerEnv,
 } from "@anynote/types/runtime.js";
 import { gate, maintenance, state, usable } from "./maintenance.js";
+
 export { MaintenanceCoordinator } from "./maintenance-coordinator.js";
+
+/** UUID format for version/lineage/device IDs. */
 const uuid = /^[a-f0-9-]{36}$/i;
+
+/** Set of allowed entity tables. */
 const tables = new Set<string>(logicalTables);
+
+/** Maximum size of a single object. */
 const objectLimit = cloudObjectLimit;
+
+/**
+ * Compute the SHA-256 hex digest of a byte sequence.
+ *
+ * @param bytes Source bytes to hash.
+ * @returns Lowercase hex digest.
+ */
 const digest = async (bytes: BufferSource) =>
   Array.from(
     new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
     (b) => b.toString(16).padStart(2, "0"),
   ).join("");
+
+/**
+ * Build a JSON response that disables caching.
+ *
+ * @param body Response payload.
+ * @param status HTTP status code (default 200).
+ * @returns JSON response with `Cache-Control: no-store`.
+ */
 const response = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+
+/**
+ * Read and parse the request body (capped at 5 MiB).
+ *
+ * @param request Incoming request.
+ * @returns Parsed JSON payload.
+ */
 async function json(request: Request) {
   if (Number(request.headers.get("content-length")) > 5 * 1024 * 1024)
     throw Error("请求预算超限");
@@ -27,6 +56,14 @@ async function json(request: Request) {
   if (text.length > 5 * 1024 * 1024) throw Error("请求预算超限");
   return JSON.parse(text);
 }
+
+/**
+ * Read and verify the logical manifest of one generation from R2.
+ *
+ * @param env Worker environment bindings.
+ * @param generation Generation row whose manifest is loaded.
+ * @returns Verified manifest document.
+ */
 async function loadManifest(
   env: WorkerEnv,
   generation: SqlRow,
@@ -40,19 +77,26 @@ async function loadManifest(
     throw Error("manifest 校验失败");
   return JSON.parse(new TextDecoder().decode(bytes));
 }
+
+// Cloudflare Worker: single-user self-hosted logical backup service (D1 metadata + R2 objects).
 export default {
   async fetch(request: Request, env: WorkerEnv) {
     try {
       if (!env.APP_TOKEN)
         return response({ error: "服务未配置 APP_TOKEN" }, 503);
+
+      // Constant-time Bearer token comparison.
       const supplied = request.headers.get("Authorization") || "",
         expected = "Bearer " + env.APP_TOKEN;
       let mismatch = supplied.length ^ expected.length;
       for (let i = 0; i < expected.length; i++)
         mismatch |= (supplied.charCodeAt(i) || 0) ^ expected.charCodeAt(i);
       if (mismatch) return response({ error: "鉴权失败" }, 401);
+
       const url = new URL(request.url),
         path = url.pathname;
+
+      // Capability negotiation.
       if (path === "/v1/capabilities" && request.method === "GET")
         return response({
           protocolVersion: 1,
@@ -70,6 +114,8 @@ export default {
           ],
           objectMaxBytes: objectLimit,
         });
+
+      // Cross-notebook/lineage version discovery (paginated).
       if (path === "/v1/backups" && request.method === "GET") {
         const raw = url.searchParams.get("cursor");
         if (raw && raw.length > 1000) throw Error("分页参数无效");
@@ -134,10 +180,13 @@ export default {
               : null,
         });
       }
+
       const match = path.match(/^\/v1\/notebooks\/([a-f0-9-]{36})(.*)$/i);
       if (!match) return response({ error: "接口不存在" }, 404);
       const notebookId = match[1],
         tail = match[2];
+
+      // Retention requests are serialized by the per-notebook maintenance coordinator.
       if (
         tail === "/retention/apply" &&
         request.method === "POST" &&
@@ -148,6 +197,7 @@ export default {
         ).fetch(
           request as unknown as import("@cloudflare/workers-types").Request,
         );
+
       const managed = await maintenance(
         request,
         env,
@@ -157,6 +207,8 @@ export default {
         json,
       );
       if (managed) return managed;
+
+      // Backup planning: validate protocol and writer, register a staging generation, and return missing objects.
       if (tail === "/backup/plan" && request.method === "POST") {
         const m = await json(request);
         if (
@@ -284,6 +336,8 @@ export default {
           status: prior?.status || "staging",
         });
       }
+
+      // Object upload: validate length and SHA-256, write to R2, and record the verified object.
       const upload = tail.match(
         /^\/backup\/([a-f0-9-]{36})\/objects\/([a-f0-9]{64})$/,
       );
@@ -330,6 +384,8 @@ export default {
           .run();
         return response({ verified: true });
       }
+
+      // Commit: verify object completeness, compute the entity delta, and atomically publish the branch head via CAS.
       const commit = tail.match(/^\/backup\/([a-f0-9-]{36})\/commit$/);
       if (commit && request.method === "POST") {
         const generation = await env.DB.prepare(
@@ -441,6 +497,8 @@ export default {
           snapshotSeq: generation.snapshot_seq,
         });
       }
+
+      // List committed versions of a branch.
       if (tail === "/backups" && request.method === "GET") {
         const lineage = url.searchParams.get("lineageId");
         if (!uuid.test(lineage || "")) throw Error("lineageId 无效");
@@ -451,6 +509,8 @@ export default {
           .all();
         return response({ items: rows.results });
       }
+
+      // Read the manifest of a committed version.
       const manifest = tail.match(/^\/backups\/([a-f0-9-]{36})\/manifest$/);
       if (manifest && request.method === "GET") {
         const generation = await env.DB.prepare(
@@ -462,6 +522,8 @@ export default {
           return response({ error: "版本未提交" }, 404);
         return response(await loadManifest(env, generation));
       }
+
+      // Download a verified object.
       const object = tail.match(/^\/objects\/([a-f0-9]{64})$/);
       if (object && request.method === "GET") {
         const verified = await env.DB.prepare(
@@ -483,6 +545,8 @@ export default {
           },
         );
       }
+
+      // Query one generation's status (to confirm after a lost commit response).
       const status = tail.match(/^\/backup\/([a-f0-9-]{36})$/);
       if (status && request.method === "GET") {
         const generation = await env.DB.prepare(

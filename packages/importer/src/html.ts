@@ -1,10 +1,3 @@
-export interface ImportInput {
-  title?: string;
-  html?: string;
-  url?: string;
-  mode?: string;
-  files?: { name: string; data: string; mime: string }[];
-}
 import { Readability } from "@mozilla/readability";
 import createDOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
@@ -12,6 +5,29 @@ import { randomUUID } from "node:crypto";
 import TurndownService from "turndown";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { safeDownload } from "./network.js";
+
+/** Input parameters for web page/HTML import. */
+export interface ImportInput {
+  title?: string;
+  html?: string;
+  url?: string;
+  mode?: string;
+  files?: { name: string; data: string; mime: string }[];
+}
+
+/**
+ * Convert a web link or HTML into storable Markdown.
+ *
+ * It fetches (or receives) the HTML, attempts Readability extraction, sanitizes
+ * with DOMPurify, localizes images (download / adjacent file / inline data URL),
+ * and converts with Turndown, while producing an import report. Any image
+ * localization failure degrades to placeholder text and is reported.
+ *
+ * @param input Import input with URL, HTML, mode, and adjacent resource files.
+ * @param signal Abort signal.
+ * @param progress Progress callback.
+ * @returns The converted title, body, source, resources, and report.
+ */
 export async function prepareImport(
   input: ImportInput,
   signal: AbortSignal | undefined,
@@ -37,6 +53,8 @@ export async function prepareImport(
     const title = (original.title || input.title || "网页收藏")
       .trim()
       .slice(0, 240);
+
+    // Backfill common lazy-load attributes into src to simplify later localization.
     const lazy = [...original.querySelectorAll("img")];
     for (const img of lazy) {
       const src =
@@ -46,6 +64,7 @@ export async function prepareImport(
         img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s/)[0];
       if (src) img.setAttribute("src", src);
     }
+
     const article =
       input.mode === "page"
         ? null
@@ -67,6 +86,7 @@ export async function prepareImport(
     });
     const container = original.createElement("div");
     container.innerHTML = clean;
+
     const files = input.files || [],
       resources: { id: string; mime: string; name: string; data: string }[] =
         [],
@@ -84,9 +104,11 @@ export async function prepareImport(
         localized: 0,
         failed: 0,
       };
+
     const images = [...container.querySelectorAll("img")];
     if (images.length > 200) throw Error("图片数量超过 200");
     let bytes = 0;
+
     for (let i = 0; i < images.length; i++) {
       signal?.throwIfAborted();
       progress(`正在本地化图片 ${i + 1}/${images.length}`);
@@ -155,11 +177,14 @@ export async function prepareImport(
         img.replaceWith(placeholder);
       }
     }
+
     const td = new TurndownService({
       headingStyle: "atx",
       codeBlockStyle: "fenced",
       bulletListMarker: "-",
     });
+
+    // Convert HTML tables into GFM tables.
     td.addRule("table", {
       filter: "table",
       replacement: (_, node) => {
@@ -189,6 +214,8 @@ export async function prepareImport(
         );
       },
     });
+
+    // Keep only http/https/mailto links; degrade the rest to plain text.
     td.addRule("safe-links", {
       filter: "a",
       replacement: (text, node) => {
@@ -203,6 +230,7 @@ export async function prepareImport(
         }
       },
     });
+
     const body = td.turndown(container.innerHTML);
     return {
       title: article?.title?.slice(0, 240) || title,

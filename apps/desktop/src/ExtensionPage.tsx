@@ -14,6 +14,8 @@ import type {
   InstallableManifest,
 } from "@anynote/plugin-sdk/declarative";
 import { Puzzle, Globe, Play, Sparkles } from "lucide-react";
+
+/** Display metadata of first-party extensions. */
 const extensions = [
   {
     id: "anynote.whiteboard",
@@ -34,6 +36,15 @@ const extensions = [
     icon: <Globe />,
   },
 ];
+
+/**
+ * Extension management page.
+ *
+ * Includes first-party hosting, first-party extension toggles, update checks,
+ * directory browsing, install review (signature/fingerprint/permissions),
+ * trusted publishers, authorization and data migration/restore for installed
+ * extensions, and the AI proposal interface description.
+ */
 export default function ExtensionPage({
   notebookId,
   onCreated,
@@ -64,6 +75,8 @@ export default function ExtensionPage({
     [publishers, setPublishers] = useState<
       { fingerprint: string; publisher: string }[]
     >([]);
+
+  /** Re-fetch installed extensions and trusted publishers. */
   const refresh = async () => {
     setInstalled(await request("listExtensions", { notebookId }));
     setPublishers(await request("listPublishers"));
@@ -79,6 +92,12 @@ export default function ExtensionPage({
       .then(setInstalled)
       .catch((e) => setError(e.message));
   }, [notebookId]);
+
+  /**
+   * Run an extension action uniformly; refresh the list when done.
+   *
+   * @param fn Action to run.
+   */
   const action = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
@@ -92,6 +111,17 @@ export default function ExtensionPage({
       setBusy(false);
     }
   };
+
+  /**
+   * Download/check an extension package and enter the review state.
+   *
+   * `update` checks for an update to an installed extension, and `fromDirectory`
+   * indicates a download from a directory snapshot.
+   *
+   * @param input Download input.
+   * @param update Whether this is an update check.
+   * @param fromDirectory Whether it comes from a directory snapshot.
+   */
   const download = (
     input: Record<string, unknown>,
     update = false,
@@ -138,6 +168,14 @@ export default function ExtensionPage({
         setDownloading(false);
       }
     });
+
+  /**
+   * Configure an extension under the current Notebook scope (enable/authorize/revoke, etc.).
+   *
+   * @param e Installed extension.
+   * @param input Configuration input.
+   * @returns The action promise.
+   */
   const configure = (e: InstalledExtension, input: Record<string, unknown>) =>
     action(() =>
       request("configureExtension", {

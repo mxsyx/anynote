@@ -7,17 +7,25 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-
 import { z } from "zod";
 import { DatabaseSync } from "@anynote/types/runtime.js";
 import { assertLocalPath } from "./workspace.js";
+
+/** Task lease marker file schema. */
 const record = z
   .object({
     id: z.string().uuid(),
     kind: z.enum(["archive-jobs", "backup-jobs"]),
   })
   .strict();
-/** Independent SQLite lease survives directory publication and is released by process exit. */
+
+/**
+ * An independent SQLite lease can be published across directories and is released automatically when the process exits.
+ *
+ * @param root Root directory.
+ * @param kind Job kind.
+ * @returns The temp job workspace (directory and release function).
+ */
 export function temporaryJob(
   root: string,
   kind: "archive-jobs" | "backup-jobs",
@@ -57,7 +65,12 @@ export function temporaryJob(
     },
   };
 }
-/** Only tracked jobs whose lease can be acquired are abandoned. Never remove an active or legacy directory. */
+
+/**
+ * Only reclaim registered jobs whose lease can be acquired; never delete active or legacy directories.
+ *
+ * @param root Root directory.
+ */
 export function recoverTemporaryJobs(root: string) {
   const leases = assertLocalPath(root, "_local/job-leases");
   if (!existsSync(leases)) return;
@@ -79,7 +92,7 @@ export function recoverTemporaryJobs(root: string) {
       rmSync(marker, { force: true });
       rmSync(file, { force: true });
     } catch {
-      /* Live lease, unsafe path, malformed marker or I/O failure: retain for a later retry. */
+      /* Active lease, unsafe path, corrupt marker, or I/O failure: keep for a later retry. */
     } finally {
       db?.close();
     }

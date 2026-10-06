@@ -1,3 +1,4 @@
+/** Note snapshot readable and writable by extensions. */
 export interface NoteSnapshot {
   id: string;
   title: string;
@@ -7,6 +8,8 @@ export interface NoteSnapshot {
   tags: string[];
   note_type: string;
 }
+
+/** Input for adding an image resource. */
 export interface ImageInput {
   id: string;
   expectedRevision: number;
@@ -14,6 +17,8 @@ export interface ImageInput {
   mime: "image/png" | "image/jpeg" | "image/webp";
   name: string;
 }
+
+/** Host API exposed to extensions (validated by permissions and Notebook scope). */
 export interface AnynoteAPI {
   notes: {
     get(id: string): Promise<NoteSnapshot>;
@@ -44,6 +49,7 @@ export interface AnynoteAPI {
   };
 }
 
+/** Context passed to an extension's `activate`. */
 export interface ExtensionContext {
   api: AnynoteAPI;
   registerCommand: (

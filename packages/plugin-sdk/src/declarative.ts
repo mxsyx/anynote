@@ -1,4 +1,6 @@
 /** Portable contribution contracts; executable transforms run only in the isolated guest interpreter. */
+
+/** One field in an extension settings form. */
 export type ExtensionSettingField = {
   key: string;
   label: string;
@@ -14,17 +16,24 @@ export type ExtensionSettingField = {
     }
   | { kind: "boolean"; default: boolean }
 );
+
+/** A set of settings form fields declared by an extension. */
 export interface ExtensionSettingsContribution {
   version: 1;
   fields: ExtensionSettingField[];
 }
+
+/** Current values of extension settings. */
 export type ExtensionSettingsValues = Record<string, string | number | boolean>;
+
+/** Extension settings snapshot with a compatibility flag. */
 export interface ExtensionSettingsSnapshot {
   revision: number;
   compatible: boolean;
   values: ExtensionSettingsValues;
 }
-/** Data-only, top-level transformations; no migration code is executed. */
+
+/** Pure-data top-level field changes; no migration code is executed. */
 export interface ExtensionDataMigration {
   id: string;
   title: string;
@@ -36,6 +45,8 @@ export interface ExtensionDataMigration {
   defaults?: ScriptState;
   remove?: string[];
 }
+
+/** Overview of extension data's current versions and available backups. */
 export interface ExtensionDataOverview {
   targets: {
     target: "settings" | "scriptState";
@@ -50,6 +61,8 @@ export interface ExtensionDataOverview {
     version: number;
   }[];
 }
+
+/** One pending data migration/restore preview. */
 export interface ExtensionDataReview {
   reviewId: string;
   mode: "migration" | "restore";
@@ -61,10 +74,14 @@ export interface ExtensionDataReview {
   toVersion: number;
   expiresAt: number;
 }
+
+/** Result after applying a data migration/restore. */
 export interface ExtensionDataApplyResult {
   backupId: string;
   revision: number;
 }
+
+/** Editor node contributed by a declarative extension. */
 export interface DeclarativeNode {
   type: string;
   title: string;
@@ -72,6 +89,8 @@ export interface DeclarativeNode {
   presentation: "callout" | "details";
   fields: { key: string; label: string; default?: string }[];
 }
+
+/** Command contributed by a declarative extension. */
 export interface DeclarativeCommand {
   id: string;
   title: string;
@@ -79,6 +98,8 @@ export interface DeclarativeCommand {
     | { kind: "appendMarkdown"; body: string }
     | { kind: "insertBlock"; type: string };
 }
+
+/** Declarative extension manifest. */
 export interface DeclarativeManifest {
   id: string;
   name: string;
@@ -94,12 +115,16 @@ export interface DeclarativeManifest {
     dataMigrations?: ExtensionDataMigration[];
   };
 }
+
+/** Extension source and trust information. */
 export interface ExtensionSource {
   signed: boolean;
   trusted: boolean;
   fingerprint?: string;
   publisher?: string;
 }
+
+/** Signed extension package structure (Ed25519). */
 export interface SignedExtensionPackage {
   format: "anynote.extension.v1";
   algorithm: "Ed25519";
@@ -108,6 +133,8 @@ export interface SignedExtensionPackage {
   manifest: InstallableManifest;
   signature: string;
 }
+
+/** Persisted record of an installed extension. */
 export interface InstalledExtension {
   downloadURL?: string;
   source?: ExtensionSource;
@@ -117,11 +144,14 @@ export interface InstalledExtension {
   enabled: boolean;
   granted: boolean;
 }
-/** Declarative, current-Notebook-only indexed search. No guest host callbacks. */
+
+/** Declarative, current-Notebook-only index search; no guest host callbacks. */
 export interface ScriptSearchRequest {
   query: string;
   limit: number;
 }
+
+/** Search context: query, truncation flag, and results. */
 export interface ScriptSearchContext {
   query: string;
   truncated: boolean;
@@ -133,25 +163,38 @@ export interface ScriptSearchContext {
     snippet: string;
   }[];
 }
+
+/** Async search request with a request ID. */
 export interface ScriptAsyncSearchRequest extends ScriptSearchRequest {
   id: string;
 }
-/** Guest capability object: only declared current-notebook queries. */
+
+/** Guest capability object: limited to declared current-Notebook queries. */
+
+/** Guest network request. */
 export interface ScriptNetworkRequest {
   id: string;
   url: string;
 }
+
+/** Guest network request result. */
 export interface ScriptNetworkResult {
   url: string;
   mime: "text/plain" | "application/json";
   text: string;
 }
+
+/** Guest network capability interface. */
 export interface ScriptNetworkAPI {
   request(requestId: string): Promise<ScriptNetworkResult>;
 }
+
+/** Guest host capability interface (index search). */
 export interface ScriptHostAPI {
   search(queryId: string): Promise<ScriptSearchContext>;
 }
+
+/** Input for a body transform script. */
 export interface MarkdownTransformInput {
   searchContext?: ScriptSearchContext;
   settings?: ExtensionSettingsValues;
@@ -160,6 +203,8 @@ export interface MarkdownTransformInput {
   body: string;
   revision: number;
 }
+
+/** Persistable script state value. */
 export type ScriptStateValue =
   | null
   | boolean
@@ -167,16 +212,24 @@ export type ScriptStateValue =
   | string
   | ScriptStateValue[]
   | { [key: string]: ScriptStateValue };
+
+/** Script state object. */
 export interface ScriptState {
   [key: string]: ScriptStateValue;
 }
+
+/** Input for a stateful body transform script. */
 export interface StatefulMarkdownTransformInput extends MarkdownTransformInput {
   state: ScriptState;
 }
+
+/** Output of a stateful body transform script. */
 export interface StatefulMarkdownTransformResult {
   body: string;
   state: ScriptState;
 }
+
+/** Command contributed by a restricted script extension. */
 export interface ScriptCommand {
   id: string;
   title: string;
@@ -188,6 +241,8 @@ export interface ScriptCommand {
     networkRequests?: ScriptNetworkRequest[];
   };
 }
+
+/** Restricted script extension manifest. */
 export interface ScriptManifest {
   id: string;
   name: string;
@@ -211,13 +266,18 @@ export interface ScriptManifest {
     dataMigrations?: ExtensionDataMigration[];
   };
 }
+
+/** Installable extension manifest (declarative or restricted script). */
 export type InstallableManifest = DeclarativeManifest | ScriptManifest;
+
+/** Command with extension identity and checksum. */
 export type ExtensionCommand = (DeclarativeCommand | ScriptCommand) & {
   extensionId: string;
   extensionName: string;
   checksum: string;
 };
 
+/** One entry in an extension directory. */
 export interface ExtensionDirectoryEntry {
   id: string;
   name: string;
@@ -236,11 +296,15 @@ export interface ExtensionDirectoryEntry {
   checksum: string;
   fingerprint: string;
 }
+
+/** Extension directory manifest. */
 export interface ExtensionDirectory {
   format: "anynote.extension-directory.v1";
   name: string;
   entries: ExtensionDirectoryEntry[];
 }
+
+/** Locally saved extension directory source. */
 export interface SavedExtensionDirectory {
   id: string;
   name: string;

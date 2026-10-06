@@ -1,5 +1,8 @@
 import { z } from "zod";
+
 const uuid = z.string().uuid();
+
+/** Backup target connection config (S3 or Cloudflare). */
 export const configSchema = z
   .object({
     notebookId: uuid,

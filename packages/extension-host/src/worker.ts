@@ -2,8 +2,9 @@ import { pathToFileURL } from "node:url";
 import { createAPI } from "@anynote/plugin-sdk/index.js";
 import type { ExtensionContext } from "@anynote/plugin-sdk/contracts.js";
 import { errorMessage, jsonValue, limits } from "./protocol.js";
-// Only bundled, application-selected code reaches this entry. Utility processes
-// have Node privileges; no third-party manifest can select this execution tier.
+
+// Only app-bundled, app-selected code reaches this entry. The Utility Process has Node
+// privileges; no third-party manifest can choose this execution layer.
 const electronPort = (
   process as unknown as {
     parentPort?: {
@@ -12,11 +13,18 @@ const electronPort = (
     };
   }
 ).parentPort;
+
+/**
+ * Send a message to the host via the Electron port or Node IPC.
+ *
+ * @param message Message to send.
+ */
 const post = (message: unknown) => {
   if (electronPort) electronPort.postMessage(message);
   else if (process.send) process.send(message);
   else throw Error("扩展消息通道不可用");
 };
+
 let active = true,
   activated = false,
   sequence = 0;
@@ -26,6 +34,8 @@ const pending = new Map<
   { resolve: (value: unknown) => void; reject: (e: Error) => void }
 >();
 let dispose: (() => unknown) | undefined;
+
+// Extension-side API: forwards calls to the host and tracks in-flight requests.
 const api = createAPI((method, input) => {
   if (!active) return Promise.reject(Error("扩展已停用"));
   if (pending.size >= limits.maxPending)
@@ -41,6 +51,8 @@ const api = createAPI((method, input) => {
     }
   });
 });
+
+/** Context provided to an extension's `activate`. */
 const context: ExtensionContext = {
   api,
   registerCommand(id, handler) {
@@ -56,6 +68,12 @@ const context: ExtensionContext = {
     };
   },
 };
+
+/**
+ * Handle one message from the host.
+ *
+ * @param raw Raw message.
+ */
 async function receive(raw: unknown) {
   const message = raw as {
     kind: string;
@@ -109,9 +127,16 @@ async function receive(raw: unknown) {
       post({ kind: "result", id: message.id, error: errorMessage(error) });
   }
 }
+
+/**
+ * Message entry point; exits the process when handling fails.
+ *
+ * @param raw Raw message.
+ */
 const onMessage = (raw: unknown) => {
   void receive(raw).catch(() => process.exit(1));
 };
+
 if (electronPort) electronPort.on("message", (event) => onMessage(event.data));
 else process.on("message", onMessage);
 process.on("disconnect", () => process.exit(0));

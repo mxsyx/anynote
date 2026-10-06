@@ -4,12 +4,16 @@ import type {
   ExtensionDirectory,
   SavedExtensionDirectory,
 } from "@anynote/plugin-sdk/declarative";
+
+/** Result of one directory fetch (with snapshot ID and expiry). */
 type Snapshot = ExtensionDirectory & {
   snapshotId: string;
   url: string;
   finalURL: string;
   expiresAt: number;
 };
+
+/** Extension directory browser: manage HTTPS directory sources, refresh snapshots, and browse entries. */
 export default function ExtensionDirectoryBrowser({
   disabled,
   onDownload,
@@ -41,6 +45,12 @@ export default function ExtensionDirectoryBrowser({
       generation.current++;
     };
   }, []);
+
+  /**
+   * Run one async action uniformly and maintain busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -52,6 +62,12 @@ export default function ExtensionDirectoryBrowser({
       if (mounted.current) setBusy(false);
     }
   };
+
+  /**
+   * Refresh one directory source's snapshot (with race generation checking).
+   *
+   * @param id Directory source ID.
+   */
   const refresh = (id: string) =>
     act(async () => {
       const current = ++generation.current;

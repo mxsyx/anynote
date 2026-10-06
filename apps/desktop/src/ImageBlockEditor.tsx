@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { imageBlock, resizeImageBlock } from "@anynote/protocol/image.js";
 import ResourceImage from "./ResourceImage";
+
+/** Image extension block editor: preview the image and adjust its display width. */
 export default function ImageBlockEditor({
   source,
   notebookId,
@@ -19,6 +21,12 @@ export default function ImageBlockEditor({
   const image = imageBlock(source)!;
   const [width, setWidth] = useState(String(image.width || 640)),
     [error, setError] = useState("");
+
+  /**
+   * Apply a new display width (`undefined` means auto).
+   *
+   * @param value Target width in pixels, or `undefined` for auto.
+   */
   const apply = (value: number | undefined) => {
     try {
       onChange(resizeImageBlock(source, value, crypto.randomUUID()));

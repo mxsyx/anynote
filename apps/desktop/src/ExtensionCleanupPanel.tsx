@@ -5,6 +5,8 @@ import type {
   ExtensionCleanupNamespace,
   ExtensionCleanupReview,
 } from "@anynote/types/extension-cleanup";
+
+/** Plugin data cleanup panel: list namespaces, choose backups, preview, and confirm permanent cleanup. */
 export default function ExtensionCleanupPanel({
   notebookId,
   refreshKey,
@@ -48,6 +50,8 @@ export default function ExtensionCleanupPanel({
       generation.current++;
     };
   }, [notebookId, refreshKey]);
+
+  /** Re-fetch the namespace list and clear the selection. */
   const reload = async () => {
     const token = generation.current;
     setBusy(true);
@@ -67,6 +71,13 @@ export default function ExtensionCleanupPanel({
       if (generation.current === token) setBusy(false);
     }
   };
+
+  /**
+   * Preview deleting the selected backups or the entire namespace.
+   *
+   * @param entry Namespace entry.
+   * @param mode Cleanup mode.
+   */
   const preview = async (
     entry: ExtensionCleanupNamespace,
     mode: "backups" | "namespace",
@@ -99,6 +110,8 @@ export default function ExtensionCleanupPanel({
       if (generation.current === token) setBusy(false);
     }
   };
+
+  /** Confirm cleanup (requires typing the extension ID verbatim). */
   const apply = async () => {
     if (!review) return;
     const token = generation.current;

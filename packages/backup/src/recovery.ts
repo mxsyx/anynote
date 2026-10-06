@@ -15,25 +15,58 @@ import type { Credentials, BackupTarget } from "@anynote/types/runtime.js";
 import { configSchema } from "./connection.js";
 import { S3Objects, CloudflareClient, digest } from "./providers.js";
 import { startCloudRestore } from "./restore-task.js";
+
 const uuid = z.string().uuid(),
   connectionSchema = configSchema.omit({ notebookId: true, targetId: true });
+
+/** Saved cloud recovery connection (without credentials, which are stored encrypted separately). */
 type Connection = Omit<
   z.infer<typeof connectionSchema>,
   "token" | "accessKeyId" | "secretAccessKey" | "sessionToken"
 > & { id: string };
+
+/** Operation names related to cloud recovery on a brand-new device. */
 export const recoveryOperations = [
   "configureCloudRecovery",
   "listCloudRecoveryConnections",
   "discoverCloudBackups",
   "restoreCloudBackup",
 ];
+
+/**
+ * Managed path of the recovery connections config file.
+ *
+ * @param s Storage service.
+ * @returns Config file path.
+ */
 function file(s: Storage) {
   return assertLocalPath(s.root, "_local/recovery-connections.json");
 }
+
+/**
+ * Read saved cloud recovery connections.
+ *
+ * @param s Storage service.
+ * @returns Saved connections.
+ */
 function read(s: Storage): Connection[] {
   const path = file(s);
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : [];
 }
+
+/**
+ * Handle cloud recovery on a brand-new device: save a standalone connection, discover cloud versions with pagination, and restore.
+ *
+ * Connection info is decoupled from the Notebook/target config and credentials
+ * are encrypted by the host; S3 discovery lists objects and verifies commit
+ * records, while Cloudflare uses the server discovery endpoint.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @param secret Credential read/write helper.
+ * @returns Handled flag with the operation result.
+ */
 export async function recoveryOperation(
   s: Storage,
   op: string,
@@ -41,6 +74,7 @@ export async function recoveryOperation(
   secret: (s: Storage, id: string, value?: Credentials) => Promise<Credentials>,
 ) {
   if (!recoveryOperations.includes(op)) return { handled: false };
+
   if (op === "listCloudRecoveryConnections")
     return {
       handled: true,
@@ -49,6 +83,7 @@ export async function recoveryOperation(
         credentialsMode: s.vault ? "system-encrypted" : "session-only",
       })),
     };
+
   if (op === "configureCloudRecovery") {
     const p = connectionSchema.parse(raw),
       url = new URL(p.endpoint);
@@ -83,6 +118,7 @@ export async function recoveryOperation(
     renameSync(path + ".tmp", path);
     return { handled: true, result: connection };
   }
+
   const p = z
       .object({
         connectionId: uuid,
@@ -100,6 +136,7 @@ export async function recoveryOperation(
       connection.provider === "s3"
         ? new S3Objects(connection, credentials)
         : new CloudflareClient(connection, credentials);
+
   if (op === "restoreCloudBackup") {
     if (!p.notebookId || !p.lineageId || !p.generationId)
       throw Error("请选择云端版本");
@@ -114,6 +151,7 @@ export async function recoveryOperation(
       result: startCloudRestore(s, target, provider, p.generationId),
     };
   }
+
   if (provider instanceof CloudflareClient) {
     const capability = await provider.call("/v1/capabilities");
     if (!capability.capabilities?.includes("backup-discovery-v1"))
@@ -126,6 +164,7 @@ export async function recoveryOperation(
       ),
     };
   }
+
   const cursor = p.cursor
     ? z
         .object({

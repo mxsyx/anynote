@@ -13,7 +13,11 @@ import type { InstalledExtension } from "@anynote/plugin-sdk/declarative.js";
 import { assertLocalPath } from "./workspace.js";
 import { extensionCatalog } from "./extension-catalog.js";
 import { downloadExtension } from "./extension-download.js";
+
+/** Timestamp validation (non-negative safe integer). */
 const timestamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
+/** Update-check result for one extension. */
 const resultSchema = z
   .object({
     extensionId: z.string().max(81),
@@ -25,6 +29,8 @@ const resultSchema = z
     error: z.string().max(300).optional(),
   })
   .strict();
+
+/** Update-check settings. */
 const settingsSchema = z
   .object({
     enabled: z.boolean(),
@@ -34,14 +40,26 @@ const settingsSchema = z
     results: z.array(resultSchema).max(64),
   })
   .strict();
+
+/** Update-check settings type. */
 type Settings = z.infer<typeof settingsSchema>;
+
+/** Update-check runtime state for each Storage instance. */
 interface Runtime {
   closed: boolean;
   running: boolean;
   controller?: AbortController;
   token?: string;
 }
+
 const states = new WeakMap<Storage, Runtime>();
+
+/**
+ * Get (or initialize) the update-check runtime state for the current Storage.
+ *
+ * @param s Storage service.
+ * @returns The update-check runtime state.
+ */
 function runtime(s: Storage) {
   let r = states.get(s);
   if (!r) {
@@ -51,6 +69,12 @@ function runtime(s: Storage) {
   if (r.closed) throw Error("知识库服务已关闭");
   return r;
 }
+
+/**
+ * Shut down update checks and abort in-flight requests.
+ *
+ * @param s Storage service.
+ */
 export function closeExtensionUpdateChecks(s: Storage) {
   const r = states.get(s) || { closed: false, running: false };
   r.closed = true;
@@ -58,6 +82,13 @@ export function closeExtensionUpdateChecks(s: Storage) {
   r.token = undefined;
   states.set(s, r);
 }
+
+/**
+ * Read the update-check settings; returns defaults when the file is absent.
+ *
+ * @param s Storage service.
+ * @returns Config path and settings.
+ */
 function load(s: Storage) {
   const path = assertLocalPath(s.root, "_local/extensions/update-checks.json");
   if (!existsSync(path))
@@ -73,8 +104,18 @@ function load(s: Storage) {
     };
   const bytes = readFileSync(path);
   if (bytes.length > 256 * 1024) throw Error("更新检查配置超过预算");
-  return { path, settings: settingsSchema.parse(JSON.parse(bytes.toString())) };
+  return {
+    path,
+    settings: settingsSchema.parse(JSON.parse(bytes.toString())),
+  };
 }
+
+/**
+ * Atomically save the update-check settings.
+ *
+ * @param path Config file path.
+ * @param settings Settings to persist.
+ */
 function save(path: string, settings: Settings) {
   settingsSchema.parse(settings);
   const json = JSON.stringify(settings);
@@ -84,6 +125,15 @@ function save(path: string, settings: Settings) {
   writeFileSync(tmp, json, { mode: 0o600, flush: true });
   renameSync(tmp, path);
 }
+
+/**
+ * Handle update-check settings read, configure, start, and commit operations.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export async function updateOperation(
   s: Storage,
   op: string,
@@ -92,6 +142,7 @@ export async function updateOperation(
   const r = runtime(s),
     c = load(s),
     settings = c.settings;
+
   if (op === "getExtensionUpdateSettings") {
     z.object({}).strict().parse(raw);
     const sources: InstalledExtension[] = await extensionCatalog(
@@ -117,6 +168,7 @@ export async function updateOperation(
       ),
     };
   }
+
   if (op === "configureExtensionUpdates") {
     const p = z
       .object({
@@ -134,6 +186,7 @@ export async function updateOperation(
     r.token = undefined;
     return true;
   }
+
   if (op === "beginExtensionUpdateCheck") {
     const p = z
       .object({ force: z.boolean(), now: timestamp })
@@ -157,6 +210,7 @@ export async function updateOperation(
       sources: await extensionCatalog(s, "listExtensionUpdateSources", {}),
     };
   }
+
   if (op === "commitExtensionUpdateCheck") {
     const p = z
       .object({
@@ -175,6 +229,15 @@ export async function updateOperation(
   }
   throw Error("更新检查操作无效");
 }
+
+/**
+ * Run one extension update check (optionally forced), returning whether it actually ran.
+ *
+ * @param s Storage service.
+ * @param force Force a check regardless of interval.
+ * @param now Current time provider.
+ * @returns Whether a check actually ran.
+ */
 export async function checkExtensionUpdates(
   s: Storage,
   force = false,
@@ -243,6 +306,14 @@ export async function checkExtensionUpdates(
     if (r.controller === controller) r.controller = undefined;
   }
 }
+
+/**
+ * Start the periodic scheduler for extension update checks.
+ *
+ * @param s Storage service.
+ * @param options Scheduler options (poll interval and clock).
+ * @returns Handle exposing `tick` and `dispose`.
+ */
 export function startExtensionUpdateScheduler(
   s: Storage,
   { intervalMs = 60_000, now = Date.now } = {},
@@ -262,6 +333,11 @@ export function startExtensionUpdateScheduler(
   };
 }
 
+/**
+ * Cancel an in-flight update check.
+ *
+ * @param s Storage service.
+ */
 export function cancelExtensionUpdateCheck(s: Storage) {
   const r = runtime(s);
   r.controller?.abort();

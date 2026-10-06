@@ -15,19 +15,29 @@ import {
   DatabaseSync as NativeDatabaseSync,
   backup as nativeBackup,
 } from "node:sqlite";
-// Dynamic SQL projections keep one explicit escape hatch. Row generics describe
-// known query results; schema and input validation still happen at runtime.
+
+// Dynamic SQL projection keeps an explicit escape hatch. Row generics describe known query results,
+// while schema and input validation still happen at runtime.
+/** Generic type for dynamic SQL rows. */
 export type SqlRow = Record<string, any>;
+
+/** SQLite statement interface with row generics. */
 export interface SqlStatement extends Omit<StatementSync, "get" | "all"> {
   get<Row extends SqlRow = SqlRow>(...params: SQLInputValue[]): Row | undefined;
   all<Row extends SqlRow = SqlRow>(...params: SQLInputValue[]): Row[];
 }
+
+/** SQLite database interface used by the knowledge base. */
 export type SqlDatabase = Omit<NativeDatabaseSync, "prepare"> & {
   prepare(sql: string): SqlStatement;
 };
+
+/** `node:sqlite` database constructor re-typed with row generics. */
 export const DatabaseSync = NativeDatabaseSync as unknown as {
   new (...args: ConstructorParameters<typeof NativeDatabaseSync>): SqlDatabase;
 };
+
+/** Runtime state of an in-app background task. */
 export interface Task {
   id: string;
   notebookId: string;
@@ -62,6 +72,8 @@ export interface Task {
   outputName?: string;
   outputSize?: number;
 }
+
+/** Configuration and recent state of a remote backup target. */
 export interface BackupTarget {
   id: string;
   notebookId: string;
@@ -86,29 +98,41 @@ export interface BackupTarget {
   createdAt?: number;
   lastError?: string | null;
 }
+
+/** Access credentials for a backup target. */
 export interface Credentials {
   token?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
   sessionToken?: string;
 }
+
+/** System-encrypted credential access interface implemented by the host. */
 export interface Vault {
   set(id: string, value: Credentials): Promise<unknown>;
   get(id: string): Promise<Credentials>;
 }
+
+/** Progress callback for archive import/export. */
 export type ArchiveProgress = (
   processed: number,
   path: string,
   total?: number,
   available?: number,
 ) => void;
+
+/** Generic type for extension command/operation parameters. */
 export type Parameters = Record<string, unknown>;
+
+/** Cloudflare D1 statement interface (with row generics). */
 export interface WorkerStatement
   extends Omit<D1PreparedStatement, "bind" | "first" | "all"> {
   bind(...values: unknown[]): WorkerStatement;
   first<T = SqlRow>(column?: string): Promise<T | null>;
   all<T = SqlRow>(): Promise<{ results: T[]; success: boolean; meta: unknown }>;
 }
+
+/** Environment bindings for a Cloudflare Worker. */
 export interface WorkerEnv {
   APP_TOKEN: string;
   DB: Omit<D1Database, "prepare" | "batch"> & {
@@ -118,17 +142,23 @@ export interface WorkerEnv {
   BUCKET: R2Bucket;
   MAINTENANCE?: DurableObjectNamespace;
 }
+
+/** One entity object in a logical backup. */
 export interface Entity {
   table: string;
   key: string;
   hash: string;
   size: number;
 }
+
+/** One content chunk of a large file. */
 export interface FileChunk {
   sha256: string;
   size: number;
   key?: string;
 }
+
+/** One asset in a logical backup. */
 export interface Asset {
   path: string;
   sha256: string;
@@ -137,6 +167,8 @@ export interface Asset {
   chunks?: FileChunk[];
   key?: string;
 }
+
+/** Manifest description of a logical backup. */
 export interface LogicalManifest {
   notebookName?: string;
   format: string;
@@ -153,9 +185,23 @@ export interface LogicalManifest {
   expectedHead?: string;
   writerEpoch?: number;
 }
+
+/**
+ * Normalize any error into a readable string.
+ *
+ * @param error Error to normalize.
+ * @returns The error message.
+ */
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Snapshot the database to the given path using SQLite Online Backup.
+ *
+ * @param db Open database handle.
+ * @param path Destination file path.
+ * @returns Result of the backup operation.
+ */
 export const backup = (db: SqlDatabase, path: string) =>
   nativeBackup(db as unknown as NativeDatabaseSync, path);

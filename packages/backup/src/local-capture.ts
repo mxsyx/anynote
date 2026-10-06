@@ -9,11 +9,21 @@ import { backup, DatabaseSync } from "@anynote/types/runtime.js";
 import type { SqlDatabase } from "@anynote/types/runtime.js";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Capture } from "@anynote/backup-local";
+
+/** Persistent resource-closure query spanning current resources, revisions, annotations, and PDF text. */
 const resourceRoots = `SELECT asset_hash FROM resources
   UNION SELECT asset_hash FROM revision_resources
   UNION SELECT target_asset_hash FROM annotations
   UNION SELECT asset_hash FROM note_text`;
-/** Reads the same durable resource closure for capture and revision fast checks. */
+
+/**
+ * Read the same persistent resource closure for capture and fast version checks.
+ *
+ * @param s Storage service.
+ * @param notebookId Notebook ID.
+ * @param db Open database handle.
+ * @returns Rows of referenced resources ordered by path.
+ */
 export function localResourceEntries(
   s: Storage,
   notebookId: string,
@@ -48,7 +58,15 @@ export function localResourceEntries(
       return { path: a.path, size: a.size, sha256: a.hash, source };
     });
 }
-/** Runs inside the storage write queue; caller pins the Notebook until all target I/O has finished. */
+
+/**
+ * Run within the storage write queue; callers must pin the Notebook until all target I/O finishes.
+ *
+ * @param s Storage service.
+ * @param notebookId Notebook ID.
+ * @param dir Destination directory for the capture.
+ * @returns The capture result.
+ */
 export async function captureLocalNotebook(
   s: Storage,
   notebookId: string,
@@ -85,7 +103,7 @@ export async function captureLocalNotebook(
       captured.prepare("PRAGMA foreign_key_check").all().length
     )
       throw Error("源数据库完整性检查失败");
-    // Only prune the disposable captured DB, retaining historical/trash/plugin roots.
+    // Only clean up resources in the one-shot capture database, keeping revision/trash/plugin references.
     captured.exec(`DELETE FROM assets WHERE hash NOT IN (${resourceRoots});`);
     return {
       notebookId,

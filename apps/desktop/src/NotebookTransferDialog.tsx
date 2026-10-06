@@ -2,12 +2,21 @@ import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { Notebook, NoteNode } from "@anynote/types";
 import { request } from "./api";
+
+/** Result of a cross-database copy/move. */
 export type TransferResult = {
   status: "completed" | "copied-source-changed" | "copied-target-changed";
   id: string;
   count: number;
   nodeMap: Record<string, string>;
 };
+
+/**
+ * Cross-notebook copy or move dialog.
+ *
+ * Select a target Notebook and target folder, then submit; the operation ID is
+ * fixed for the component's lifetime to allow safe retries.
+ */
 export default function NotebookTransferDialog({
   books,
   source,

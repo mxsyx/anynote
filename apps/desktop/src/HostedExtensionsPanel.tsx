@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type { HostedExtensionStatus } from "@anynote/extension-host/contracts";
 import type { NoteNode } from "@anynote/types";
+
+/** Display labels for hosted extension runtime states. */
 const states = {
   disabled: "未授权",
   idle: "等待命令激活",
@@ -9,6 +11,8 @@ const states = {
   active: "运行中",
   failed: "运行失败",
 };
+
+/** First-party extension host panel: authorize/disable and run commands. */
 export default function HostedExtensionsPanel({
   notebookId,
   onCreated,
@@ -36,6 +40,12 @@ export default function HostedExtensionsPanel({
       generation.current++;
     };
   }, [notebookId]);
+
+  /**
+   * Run one hosted action and re-fetch the status when done.
+   *
+   * @param fn Action to run.
+   */
   async function action(fn: () => Promise<unknown>) {
     const version = generation.current;
     setBusy(true);

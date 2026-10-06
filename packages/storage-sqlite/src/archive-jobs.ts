@@ -16,8 +16,17 @@ import {
 } from "./archive-stream.js";
 import type { Storage } from "./index.js";
 import { assertLocalPath } from "./workspace.js";
+
 const id = z.string().uuid(),
   file = z.string().max(4096).refine(isAbsolute);
+
+/**
+ * Compute the full archive size and destination disk budget for one Notebook.
+ *
+ * @param s Storage service.
+ * @param notebookId Notebook ID.
+ * @returns Archive size and disk budget.
+ */
 export function archiveBudget(s: Storage, notebookId: string) {
   const db = s.open(id.parse(notebookId));
   const databaseBytes =
@@ -43,6 +52,15 @@ export function archiveBudget(s: Storage, notebookId: string) {
     estimatedDestinationBytes: outputBudget(bytes, assets.count + 2),
   };
 }
+
+/**
+ * Start a background streaming archive job (export or import) and return a task handle.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The created task handle.
+ */
 export function startArchiveJob(s: Storage, op: string, raw: unknown) {
   const p = (
     op === "startExportArchiveFile"
@@ -78,6 +96,14 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
   };
   s.jobs.set(job.id, job);
   const signal = job.controller!.signal;
+
+  /**
+   * Update archive job progress and processed byte count.
+   *
+   * @param done Number of processed items.
+   * @param path Current path.
+   * @param total Total number of items, if known.
+   */
   const progress = (
     done: number,
     path: string,
@@ -196,6 +222,16 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
   return { id: job.id, status: job.status };
 }
 
+/**
+ * Validate the archive directory and database in a separate thread, then publish it as a new Notebook.
+ *
+ * @param s Storage service.
+ * @param dir Archive directory.
+ * @param manifest Archive manifest.
+ * @param job Task to update.
+ * @param signal Abort signal.
+ * @returns The published Notebook info.
+ */
 export async function validateAndPublish(
   s: Storage,
   dir: string,
@@ -211,10 +247,18 @@ export async function validateAndPublish(
       { workerData: { dir, manifest, id: newId } },
     );
     job.worker = worker;
+
+    /** Terminate the validation thread on cancellation. */
     const abort = () => {
       void worker.terminate().then(() => reject(signal.reason), reject);
     };
     signal.addEventListener("abort", abort, { once: true });
+
+    /**
+     * Finish waiting and clean up listeners.
+     *
+     * @param error Error to reject with, or `null` to resolve.
+     */
     const finish = (error: Error | null) => {
       signal.removeEventListener("abort", abort);
       error ? reject(error) : resolve();

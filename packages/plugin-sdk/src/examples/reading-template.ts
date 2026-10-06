@@ -1,4 +1,6 @@
-// This first-party example imports only the public SDK contract through its context.
+// This first-party example only imports public SDK contracts through its context.
+
+/** Example extension manifest. */
 export const manifest = {
   id: "anynote.reading-template",
   name: "阅读模板示例",
@@ -6,6 +8,13 @@ export const manifest = {
   runtime: "trusted-first-party",
   permissions: ["notes:write"],
 };
+
+/**
+ * Register the example extension's "create reading record" command.
+ *
+ * @param context Extension context (api and registerCommand).
+ * @returns The command unregister function.
+ */
 export function activate({
   api,
   registerCommand,

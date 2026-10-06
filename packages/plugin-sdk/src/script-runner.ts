@@ -17,6 +17,8 @@ import type {
   StatefulMarkdownTransformInput,
   StatefulMarkdownTransformResult,
 } from "./declarative.js";
+
+/** Execution budgets for restricted scripts. */
 export const scriptLimits = Object.freeze({
   wallMs: 2000,
   cpuMs: 250,
@@ -24,14 +26,28 @@ export const scriptLimits = Object.freeze({
   scriptBytes: 64 * 1024,
   bodyCharacters: 2_000_000,
 });
+
+/** Host capabilities required to run a script (async search and network). */
 export interface ScriptHostOptions {
   requests: ScriptAsyncSearchRequest[];
   networkRequests?: ScriptNetworkRequest[];
   request?: (id: string) => Promise<ScriptNetworkResult>;
   search: (queryId: string) => Promise<ScriptSearchContext>;
 }
+
+/** Number of currently running scripts. */
 let active = 0;
-/** Worker isolation protects responsiveness; QuickJS/WASM provides guest/host separation. */
+
+/**
+ * Worker isolation guarantees responsiveness; QuickJS/WASM separates guest from host.
+ *
+ * @param script Script source.
+ * @param input Transform input.
+ * @param signal Optional abort signal.
+ * @param stateful Whether to run the stateful transform.
+ * @param host Optional host capabilities.
+ * @returns The transform result.
+ */
 function runGuest(
   script: string,
   input: MarkdownTransformInput | StatefulMarkdownTransformInput,
@@ -60,6 +76,7 @@ function runGuest(
   if (signal?.aborted) return Promise.reject(Error("扩展已停用或执行已撤销"));
   if (active >= 2) return Promise.reject(Error("脚本执行繁忙，请稍后重试"));
   active++;
+
   return new Promise((resolve, reject) => {
     let worker: Worker;
     try {
@@ -79,7 +96,15 @@ function runGuest(
       reject(e);
       return;
     }
+
     let finished = false;
+
+    /**
+     * Finish this execution: clear timers and listeners, then release the concurrency slot once the worker truly stops.
+     *
+     * @param error Error to reject with, if any.
+     * @param body Result body to resolve with.
+     */
     const finish = (
       error?: Error,
       body?: string | StatefulMarkdownTransformResult,
@@ -88,7 +113,7 @@ function runGuest(
       finished = true;
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
-      // Do not release concurrency until the worker has actually stopped.
+      // Release the concurrency slot only after the worker truly stops.
       void worker.terminate().then(
         () => {
           active--;
@@ -101,6 +126,7 @@ function runGuest(
         },
       );
     };
+
     const abort = () => finish(Error("扩展已停用或执行已撤销"));
     const timer = setTimeout(
       () => finish(Error("脚本执行超时")),
@@ -111,6 +137,7 @@ function runGuest(
     worker.once("exit", () => {
       if (!finished) finish(Error("脚本执行进程提前退出"));
     });
+
     let calls = 0,
       pending = false;
     worker.on("message", (message: unknown) => {
@@ -223,6 +250,15 @@ function runGuest(
   });
 }
 
+/**
+ * Run one stateless Markdown body transform.
+ *
+ * @param script Script source.
+ * @param input Transform input.
+ * @param signal Optional abort signal.
+ * @param host Optional host capabilities.
+ * @returns The transformed body.
+ */
 export function runMarkdownTransform(
   script: string,
   input: MarkdownTransformInput,
@@ -231,6 +267,16 @@ export function runMarkdownTransform(
 ): Promise<string> {
   return runGuest(script, input, signal, false, host) as Promise<string>;
 }
+
+/**
+ * Run one Markdown body transform with persisted state.
+ *
+ * @param script Script source.
+ * @param input Transform input.
+ * @param signal Optional abort signal.
+ * @param host Optional host capabilities.
+ * @returns The transformed body and new state.
+ */
 export function runStatefulMarkdownTransform(
   script: string,
   input: StatefulMarkdownTransformInput,

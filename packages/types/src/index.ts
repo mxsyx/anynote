@@ -1,3 +1,4 @@
+/** Registration info of a Notebook. */
 export interface Notebook {
   id: string;
   name: string;
@@ -6,6 +7,8 @@ export interface Notebook {
   external?: boolean;
   unavailable?: boolean;
 }
+
+/** A node in the directory tree (folder or note). */
 export interface NoteNode {
   id: string;
   parent_id: string | null;
@@ -25,11 +28,15 @@ export interface NoteNode {
   head_revision_id?: string;
   source_uri?: string;
 }
+
+/** One hit in a cross-notebook search. */
 export interface SearchResult extends NoteNode {
   notebookId: string;
   notebookName: string;
   path: string;
 }
+
+/** Search response with partial-failure and truncation info. */
 export interface SearchResponse {
   requestId: string;
   results: SearchResult[];
@@ -38,6 +45,8 @@ export interface SearchResponse {
   cancelled: boolean;
   searched: number;
 }
+
+/** One note history revision. */
 export interface Revision {
   id: string;
   note_id: string;
@@ -51,10 +60,14 @@ export interface Revision {
     favorite: number;
   } | null;
 }
+
+/** Local snapshot info. */
 export interface Snapshot {
   createdAt: number;
   size?: number;
 }
+
+/** All operation names the renderer can call through the IPC façade. */
 export type Operation =
   | "setLocalBackupScope"
   | "startLocalBackupGroup"
@@ -172,6 +185,8 @@ export type Operation =
   | "detachNotebookDirectory"
   | "searchWorkspace"
   | "cancelSearch";
+
+/** Typed IPC façade exposed to the renderer by preload. */
 export interface AnynoteBridge {
   request<T>(op: Operation, input?: Record<string, unknown>): Promise<T>;
 }

@@ -2,6 +2,16 @@ import { lookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
+
+/**
+ * Whether an IP literal is a public address (for SSRF protection).
+ *
+ * Rejects loopback, private, link-local, reserved, multicast, and similar
+ * addresses; for IPv6 only globally routable prefixes are accepted.
+ *
+ * @param raw IP literal.
+ * @returns True when the address is public.
+ */
 export function isPublicAddress(raw: string) {
   const address = raw.replace(/^\[|\]$/g, "").toLowerCase();
   if (isIP(address) === 4) {
@@ -27,6 +37,16 @@ export function isPublicAddress(raw: string) {
     );
   return false;
 }
+
+/**
+ * Parse a URL and ensure it resolves to a public address.
+ *
+ * Only credential-free HTTP(S) URLs are allowed, and every resolved address
+ * must be public.
+ *
+ * @param raw URL to resolve.
+ * @returns The parsed URL object and the first DNS record.
+ */
 export async function resolvePublic(raw: string) {
   const u = new URL(raw);
   if (!["http:", "https:"].includes(u.protocol) || u.username || u.password)
@@ -39,6 +59,18 @@ export async function resolvePublic(raw: string) {
     throw Error("为保护本机数据，不允许访问私网、回环、链路本地或保留地址");
   return { url: u, record: records[0] };
 }
+
+/**
+ * Download an HTTP(S) resource with SSRF, redirect, size, and timeout protection.
+ *
+ * It validates the actual socket remote address before connecting, follows
+ * redirects automatically (up to 5 by default), and caps size via both
+ * Content-Length and streamed accumulation.
+ *
+ * @param raw Target URL.
+ * @param options Abort signal, size limit, redirect count, allowed protocols, and connection isolation.
+ * @returns Response bytes and content-type info.
+ */
 export async function safeDownload(
   raw: string,
   {
@@ -60,6 +92,7 @@ export async function safeDownload(
     throw Error("下载地址协议不允许");
   const { url, record } = await resolvePublic(raw);
   signal?.throwIfAborted();
+
   return new Promise<{
     data: Buffer;
     mime: string;

@@ -15,6 +15,8 @@ import {
   type DirectoryEntry,
 } from "@anynote/protocol/extension-directory.js";
 import { downloadExtension } from "./extension-download.js";
+
+/** Config of one saved extension directory. */
 const configEntry = z
   .object({
     id: z.string().uuid(),
@@ -22,6 +24,8 @@ const configEntry = z
     url: directoryURL,
   })
   .strict();
+
+/** List of saved extension directories (max 8, unique URLs and IDs). */
 const configSchema = z
   .array(configEntry)
   .max(8)
@@ -31,14 +35,24 @@ const configSchema = z
       new Set(entries.map((e) => e.id)).size === entries.length,
     "目录地址或 ID 重复",
   );
+
+/** Cached snapshot of one directory fetch. */
 interface Snapshot {
   id: string;
   url: string;
   expiresAt: number;
   entries: DirectoryEntry[];
 }
+
 const snapshots = new WeakMap<Storage, Map<string, Snapshot>>();
 const fetching = new WeakMap<Storage, Map<string, string>>();
+
+/**
+ * Read the directory config; returns an empty list when the file is absent.
+ *
+ * @param s Storage service.
+ * @returns Config path and parsed entries.
+ */
 function config(s: Storage) {
   const path = assertLocalPath(s.root, "_local/extensions/directories.json");
   if (!existsSync(path)) return { path, entries: configSchema.parse([]) };
@@ -46,6 +60,15 @@ function config(s: Storage) {
   if (bytes.length > 24 * 1024) throw Error("目录配置超过预算");
   return { path, entries: configSchema.parse(JSON.parse(bytes.toString())) };
 }
+
+/**
+ * List/save/remove locally saved extension directories and invalidate the corresponding cache.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The current directory entries.
+ */
 export function directoryConfig(
   s: Storage,
   op: string,
@@ -90,6 +113,15 @@ export function directoryConfig(
   }
   return c.entries;
 }
+
+/**
+ * Fetch an extension directory snapshot or download a specific extension from a snapshot.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The directory snapshot or downloaded extension.
+ */
 export async function remoteDirectory(
   s: Storage,
   op: string,
@@ -172,9 +204,20 @@ export async function remoteDirectory(
   );
 }
 
+/**
+ * Cancel in-flight directory fetches.
+ *
+ * @param s Storage service.
+ */
 export function cancelDirectoryLoads(s: Storage) {
   fetching.get(s)?.clear();
 }
+
+/**
+ * Shut down directory cache and fetch state.
+ *
+ * @param s Storage service.
+ */
 export function closeExtensionDirectories(s: Storage) {
   snapshots.get(s)?.clear();
   snapshots.delete(s);

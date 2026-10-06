@@ -17,9 +17,26 @@ import {
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 import { persistDirectories } from "./workspace.js";
+
 const uuid = z.string().uuid(),
   digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+/** Common input locating a node within a Notebook. */
 const ref = z.object({ notebookId: uuid, id: uuid });
+
+/**
+ * Write a resource into a content-addressed path and validate the image type.
+ *
+ * When an object with the same hash already exists, its integrity is verified;
+ * otherwise a temp file is written and then atomically renamed.
+ *
+ * @param s Storage service.
+ * @param db Open database handle.
+ * @param notebookId Notebook ID.
+ * @param resource Resource input (id, data, mime, name).
+ * @param max Maximum allowed size in bytes.
+ * @returns Resource descriptor (id, hash, path, size, and name).
+ */
 export function writeResource(
   s: Storage,
   db: SqlDatabase,
@@ -59,6 +76,13 @@ export function writeResource(
   }
   return { id, hash, path, size: bytes.length, mime, name };
 }
+
+/**
+ * Bind a resource to the database: insert a new resource or rebind an asset version to an existing resource.
+ *
+ * @param db Open database handle.
+ * @param r Resource row.
+ */
 function bind(db: SqlDatabase, r: SqlRow) {
   db.prepare("INSERT OR IGNORE INTO assets VALUES(?,?,?,?)").run(
     r.hash,
@@ -75,7 +99,26 @@ function bind(db: SqlDatabase, r: SqlRow) {
       "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
     ).run(r.id, r.hash, r.name);
 }
+
+/** Type of the save-note function. */
 export type SaveNote = typeof save;
+
+/**
+ * Save a note body within a single transaction.
+ *
+ * It first checks the revision (optimistic concurrency), then adds a revision,
+ * rebinds resources, captures the resource closure, records metadata and
+ * rebuilds indexes, and finally runs the effect and returns the saved note.
+ *
+ * @param s Storage service.
+ * @param db Open database handle.
+ * @param p Parsed note payload.
+ * @param body Note body to save.
+ * @param resources Resources to bind.
+ * @param actor Actor recording the revision.
+ * @param effect Side effect run after saving.
+ * @returns The saved note.
+ */
 export function save(
   s: Storage,
   db: SqlDatabase,
@@ -120,11 +163,26 @@ export function save(
     return saved;
   });
 }
+
+/**
+ * Handle advanced operations that require multiple domain modules to cooperate.
+ *
+ * Covers cross-database transfer, remote/local backup, cleanup, ordering, the
+ * task center, import, annotations, extension state, whiteboard/video, open
+ * export, and AI proposals; returns `{ handled: false }` when no operation
+ * matches.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns Handled flag with the operation result.
+ */
 export async function advancedOperations(s: Storage, op: string, raw: unknown) {
   if (op === "transferNode") {
     const { transferNode } = await import("./transfer.js");
     return { handled: true, result: transferNode(s, raw) };
   }
+
   if (
     [
       "remoteWriter",
@@ -162,15 +220,20 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     const { backupOperation } = await import("@anynote/backup/service.js");
     return backupOperation(s, op, raw);
   }
+
   if (["previewCleanup", "applyCleanup"].includes(op)) {
     const { cleanupOperation } = await import("./cleanup.js");
     return { handled: true, result: cleanupOperation(s, op, raw) };
   }
+
   if (op === "placeNode") {
     const { placeNode } = await import("./organization.js");
     return { handled: true, result: placeNode(s, raw) };
   }
+
   let result;
+
+  // The following operations are handled inline in this function.
   const handled = new Set([
     "addResource",
     "getBacklinks",
@@ -198,6 +261,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "extensionSetState",
   ]);
   if (!handled.has(op)) return { handled: false };
+
   if (["extensionGetState", "extensionSetState"].includes(op)) {
     const p = z
         .object({
@@ -229,6 +293,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     }
     return { handled: true, result };
   }
+
   if (op === "extensionPatch") {
     const p = ref
         .extend({
@@ -274,6 +339,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     );
     return { handled: true, result };
   }
+
   if (op === "listTasks") {
     const p = z.object({ id: uuid.optional() }).passthrough().parse(raw);
     result = [...s.jobs.values()]
@@ -282,6 +348,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       .slice(-100);
     return { handled: true, result };
   }
+
   if (op === "cancelTask") {
     const p = z.object({ id: uuid }).strict().parse(raw),
       job = s.jobs.get(p.id);
@@ -293,6 +360,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     }
     return { handled: true, result: true };
   }
+
   if (op === "startImport") {
     const p = z
       .object({
@@ -377,6 +445,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     });
     return { handled: true, result: { id, status: job.status } };
   }
+
   if (op === "commitImport") {
     const p = raw as Awaited<
         ReturnType<typeof import("@anynote/importer/html.js").prepareImport>
@@ -415,6 +484,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     });
     return { handled: true, result };
   }
+
   if (op === "getExtensionSettings" || op === "setExtensionSetting") {
     const p = z
         .object({
@@ -446,6 +516,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       );
     return { handled: true, result };
   }
+
   if (op === "renameNotebook") {
     const p = z
         .object({ notebookId: uuid, title: z.string().trim().min(1).max(240) })
@@ -471,6 +542,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     }
     return { handled: true, result };
   }
+
   if (op === "addResource") {
     const p = ref
         .extend({
@@ -494,6 +566,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       [r],
     );
   }
+
   if (op === "getBacklinks") {
     const p = ref.strict().parse(raw);
     s.node(s.open(p.notebookId), p.id);
@@ -518,6 +591,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     }
     result.sort((a, b) => b.updated_at - a.updated_at);
   }
+
   if (op === "listAnnotations") {
     const p = ref.strict().parse(raw),
       db = s.open(p.notebookId);
@@ -529,6 +603,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       .all(p.id)
       .map((a) => ({ ...a, selector: JSON.parse(a.selector_json) }));
   }
+
   if (op === "addAnnotation") {
     const p = ref
         .extend({
@@ -576,6 +651,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       return { id };
     });
   }
+
   if (op === "deleteAnnotation") {
     const p = ref.strict().parse(raw),
       db = s.open(p.notebookId),
@@ -593,6 +669,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       return true;
     });
   }
+
   if (op === "indexPdf") {
     const p = ref
         .extend({
@@ -613,6 +690,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     s.index(db, p.id);
     result = true;
   }
+
   if (op === "getImportReport") {
     const p = ref.strict().parse(raw),
       db = s.open(p.notebookId);
@@ -622,6 +700,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         .get(p.id)?.report_json || "null",
     );
   }
+
   if (op === "getWhiteboard") {
     const p = ref
       .extend({ noteId: uuid, revisionId: uuid.optional() })
@@ -648,6 +727,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     }
     result = data;
   }
+
   if (op === "saveWhiteboard") {
     const p = ref
         .extend({
@@ -760,6 +840,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       : (n.body || "") + "\n\n" + block;
     result = save(s, db, p, body, resources);
   }
+
   if (op === "insertVideo") {
     const p = ref
         .extend({
@@ -790,11 +871,13 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         extensionBlock("core.video", randomUUID(), video),
     );
   }
+
   if (op === "exportMarkdown") {
     const { exportMarkdown } = await import("./open-export.js");
     const p = z.object({ notebookId: uuid }).strict().parse(raw);
     result = exportMarkdown(s, p.notebookId);
   }
+
   if (["proposePatch", "applyProposal", "undoProposal"].includes(op)) {
     const { proposalOperation } = await import(
       "@anynote/plugin-sdk/proposals.js"

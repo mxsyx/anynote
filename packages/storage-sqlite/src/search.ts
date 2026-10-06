@@ -2,7 +2,10 @@ import { setImmediate } from "node:timers/promises";
 import { z } from "zod";
 import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+
 const uuid = z.string().uuid();
+
+/** Input parameters for cross-notebook search. */
 const input = z
   .object({
     requestId: uuid,
@@ -21,6 +24,14 @@ const input = z
     budgetMs: z.number().int().min(50).max(10000).default(2000),
   })
   .strict();
+
+/**
+ * Query notes within a single Notebook by conditions (folder subtree, type, tags, and hit snippets).
+ *
+ * @param db Open database handle.
+ * @param p Parsed query parameters.
+ * @returns Matching note rows.
+ */
 function queryBook(db: SqlDatabase, p: SqlRow) {
   const query = p.query.trim(),
     params = [],
@@ -85,6 +96,14 @@ function queryBook(db: SqlDatabase, p: SqlRow) {
       };
     });
 }
+
+/**
+ * Fill in folder paths for search results (caching queried parents, up to 1000 levels).
+ *
+ * @param db Open database handle.
+ * @param notes Note rows to annotate.
+ * @returns Note rows with their folder paths.
+ */
 function paths(db: SqlDatabase, notes: SqlRow[]) {
   const parents = new Map();
   const get = db.prepare("SELECT title,parent_id FROM nodes WHERE id=?");
@@ -106,6 +125,18 @@ function paths(db: SqlDatabase, notes: SqlRow[]) {
     };
   });
 }
+
+/**
+ * Run a global search across registered Notebooks.
+ *
+ * Supports type, folder-subtree, tag, and update-time filters; it advances
+ * notebook by notebook under a cross-notebook soft time budget, allows
+ * cancellation and partial results, and returns warnings and a truncation flag.
+ *
+ * @param s Storage service.
+ * @param raw Raw search payload.
+ * @returns Aggregated search results.
+ */
 export async function searchWorkspace(s: Storage, raw: unknown) {
   const p = input.parse(raw);
   if (p.folderId && p.notebookIds?.length !== 1)
@@ -179,6 +210,13 @@ export async function searchWorkspace(s: Storage, raw: unknown) {
     s.searches.delete(p.requestId);
   }
 }
+
+/**
+ * Cancel an in-flight search request.
+ *
+ * @param s Storage service.
+ * @param raw Raw payload carrying the request id.
+ */
 export function cancelSearch(s: Storage, raw: unknown) {
   const { requestId } = z.object({ requestId: uuid }).strict().parse(raw);
   const pending = s.searches?.get(requestId);
@@ -186,7 +224,14 @@ export function cancelSearch(s: Storage, raw: unknown) {
   return !!pending;
 }
 
-/** Script reads use one authorized notebook, FTS literal phrase and a minimal projection. */
+/**
+ * Script reads use a single authorized Notebook, FTS literal phrases, and a minimal projection.
+ *
+ * @param db Open database handle.
+ * @param query Search query.
+ * @param limit Maximum number of hits.
+ * @returns Matching script context rows.
+ */
 export function searchScriptContext(
   db: SqlDatabase,
   query: string,
@@ -196,10 +241,10 @@ export function searchScriptContext(
   const rows = db
     .prepare(
       `SELECT n.id,n.title,n.revision,t.note_type,
-    substr(snippet(fts_notes,2,'','', '…',32),1,512) snippet
-    FROM nodes n JOIN notes t ON t.node_id=n.id JOIN fts_notes ON fts_notes.note_id=n.id
-    WHERE n.deleted_at IS NULL AND n.id<>? AND fts_notes MATCH ?
-    ORDER BY n.updated_at DESC,n.id LIMIT ?`,
+   substr(snippet(fts_notes,2,'','', '…',32),1,512) snippet
+   FROM nodes n JOIN notes t ON t.node_id=n.id JOIN fts_notes ON fts_notes.note_id=n.id
+   WHERE n.deleted_at IS NULL AND n.id<>? AND fts_notes MATCH ?
+   ORDER BY n.updated_at DESC,n.id LIMIT ?`,
     )
     .all(excludeId, '"' + query.replaceAll('"', '""') + '"', limit + 1);
   return {

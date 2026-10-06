@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { SqlRow } from "@anynote/types/runtime.js";
+
 const input = z
   .object({
     notebookId: z.string().uuid(),
@@ -12,6 +13,21 @@ const input = z
     proposalId: z.string().uuid().optional(),
   })
   .strict();
+
+/**
+ * Handle AI proposal generation, application, and undo.
+ *
+ * Proposals are stored in `extension_data`; both apply and undo use
+ * revision-conditional writes so a note modified after the proposal is never
+ * overwritten by mistake. Operations include `proposePatch`, `applyProposal`,
+ * and `undoProposal`.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @param save Save-note function used to apply patches.
+ * @returns The operation result.
+ */
 export function proposalOperation(
   s: Storage,
   op: string,
@@ -21,6 +37,7 @@ export function proposalOperation(
   const p = input.parse(raw),
     db = s.open(p.notebookId),
     note = s.get(db, p.id);
+
   if (op === "proposePatch") {
     if (!p.body) throw Error("提案内容为空");
     if (note.revision !== p.expectedRevision)
@@ -40,6 +57,7 @@ export function proposalOperation(
     ).run("anynote.ai.proposals", proposal.id, JSON.stringify(proposal));
     return proposal;
   }
+
   const row = db
     .prepare(
       "SELECT value_json FROM extension_data WHERE extension_id=? AND key=?",
@@ -48,6 +66,7 @@ export function proposalOperation(
   if (!row) throw Error("提案不存在");
   const proposal = JSON.parse(row.value_json);
   if (proposal.noteId !== p.id) throw Error("提案目标不匹配");
+
   if (op === "applyProposal") {
     if (proposal.status === "applied") return note;
     if (
@@ -71,6 +90,7 @@ export function proposalOperation(
       },
     );
   }
+
   if (
     proposal.status !== "applied" ||
     note.revision !== proposal.appliedRevision

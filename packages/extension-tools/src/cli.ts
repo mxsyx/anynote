@@ -17,8 +17,22 @@ import { verifyExtensionPackage } from "./signature.js";
 import { settingsChecksum } from "./settings.js";
 import { dryRunCommand } from "./commands.js";
 import { extensionTemplate, templateKinds } from "./templates.js";
+
+/**
+ * Pretty-print JSON with two-space indentation and append a newline.
+ *
+ * @param value Value to serialize.
+ * @returns The formatted JSON string.
+ */
 const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
-/** Bounded regular files only; no project code is imported by the tool. */
+
+/**
+ * Accept only regular files within budget; the tool never introduces project code.
+ *
+ * @param path File path.
+ * @param limit Maximum bytes to read.
+ * @returns The file bytes.
+ */
 function readBytes(path: string, limit: number) {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
@@ -39,9 +53,24 @@ function readBytes(path: string, limit: number) {
     closeSync(fd);
   }
 }
+
+/**
+ * Read and parse a size-limited JSON file.
+ *
+ * @param path File path.
+ * @param limit Maximum bytes to read.
+ * @returns The parsed JSON value.
+ */
 export function readJSON(path: string, limit: number) {
   return JSON.parse(readBytes(path, limit).toString("utf8")) as unknown;
 }
+
+/**
+ * Load a manifest: verify the signature (if a signed package), select the schema by runtime, and compute the checksum.
+ *
+ * @param path Manifest file path.
+ * @returns The loaded manifest info.
+ */
 function loadManifest(path: string) {
   const bytes = readBytes(path, 160 * 1024),
     raw: unknown = JSON.parse(bytes.toString("utf8"));
@@ -66,6 +95,15 @@ function loadManifest(path: string) {
     ...(verified ? { fingerprint: verified.fingerprint } : {}),
   };
 }
+
+/**
+ * Generate an extension project template in the given directory (with manifest, fixture, and build script).
+ *
+ * @param directory Target directory.
+ * @param id Extension ID.
+ * @param kind Template kind.
+ * @returns The created project info.
+ */
 function createProject(
   directory: string,
   id: string,
@@ -162,8 +200,16 @@ function createProject(
     throw error;
   }
 }
+
+/** CLI usage text. */
 const usage =
   "init <新目录> <扩展ID> <declarative|transform|stateful|preferences> | validate <manifest或签名包.json> | run <manifest或签名包.json> <命令ID> <fixture.json> [新结果.json]";
+
+/**
+ * CLI entry point: the init / validate / run subcommands.
+ *
+ * @param args Command-line arguments.
+ */
 export async function main(args: string[]) {
   const [command, ...rest] = args;
   if (command === "--help" || command === "help") {
@@ -224,6 +270,7 @@ export async function main(args: string[]) {
   }
   throw Error("用法：" + usage);
 }
+
 try {
   await main(process.argv.slice(2));
 } catch (error) {

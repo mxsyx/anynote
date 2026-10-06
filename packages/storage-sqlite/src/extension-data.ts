@@ -14,15 +14,20 @@ import {
   validateSettings,
 } from "./extension-settings.js";
 import { cancelScripts } from "./script-commands.js";
+
 export {
   extensionMigrationSchema,
   validateMigrationDeclarations,
 } from "@anynote/extension-tools/migrations.js";
+
+/** Base input for data operations (notebook, extension, and manifest checksum). */
 const base = z.object({
   notebookId: z.string().uuid(),
   extensionId: z.string(),
   checksum: z.string().regex(/^[a-f0-9]{64}$/),
 });
+
+/** Extension data row schema. */
 const rowSchema = z
   .object({
     value_json: z.string().max(128 * 1024),
@@ -30,13 +35,34 @@ const rowSchema = z
     revision: z.number().int().positive(),
   })
   .strict();
+
+/** Extension data row type. */
 type Row = z.infer<typeof rowSchema>;
+
 const targetSchema = z.enum(["settings", "scriptState"]);
+
+/** Data target: settings or script state. */
 type Target = z.infer<typeof targetSchema>;
+
+/**
+ * extension_data key for a data target.
+ *
+ * @param target Data target.
+ * @returns The corresponding storage key.
+ */
 const key = (target: Target) =>
   target === "settings" ? "settings:form" : "script:state";
+
+/**
+ * Compute the SHA-256 digest of a string.
+ *
+ * @param value Input string.
+ * @returns Lowercase hex digest.
+ */
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
+
+/** Schema of an extension data backup. */
 const backupSchema = z
   .object({
     format: z.literal("anynote.extension-data-backup.v1"),
@@ -48,6 +74,8 @@ const backupSchema = z
     row: rowSchema,
   })
   .strict();
+
+/** One pending data migration/restore review. */
 type Review = ExtensionDataReview & {
   book: string;
   extension: string;
@@ -57,12 +85,28 @@ type Review = ExtensionDataReview & {
   backupId?: string;
   backupHash?: string;
 };
+
 const reviews = new WeakMap<Storage, Map<string, Review>>(),
   closed = new WeakSet<Storage>();
+
+/**
+ * Shut down the extension data migration/restore service and clear reviews.
+ *
+ * @param s Storage service.
+ */
 export function closeExtensionDataReviews(s: Storage) {
   closed.add(s);
   reviews.delete(s);
 }
+
+/**
+ * Read and validate the row of a data target (throws when absent or over budget).
+ *
+ * @param db Open database handle.
+ * @param extension Extension ID.
+ * @param target Data target.
+ * @returns The validated data row.
+ */
 function readRow(db: SqlDatabase, extension: string, target: Target): Row {
   const raw = db
     .prepare(
@@ -75,6 +119,15 @@ function readRow(db: SqlDatabase, extension: string, target: Target): Row {
     throw Error("扩展数据超过备份预算");
   return row;
 }
+
+/**
+ * Read and validate one data backup.
+ *
+ * @param db Open database handle.
+ * @param extension Extension ID.
+ * @param backupId Backup ID.
+ * @returns The validated backup.
+ */
 function getBackup(db: SqlDatabase, extension: string, backupId: string) {
   const raw = db
     .prepare(
@@ -87,6 +140,15 @@ function getBackup(db: SqlDatabase, extension: string, backupId: string) {
   if (data.extensionId !== extension) throw Error("备份不属于此扩展");
   return { data, hash: hash(raw) };
 }
+
+/**
+ * Compute the new data row from a migration rule (rename/delete/default).
+ *
+ * @param rule Migration rule.
+ * @param row Current data row.
+ * @param manifest Installable manifest.
+ * @returns The transformed data row.
+ */
 function transform(
   rule: ExtensionDataMigration,
   row: Row,
@@ -131,6 +193,21 @@ function transform(
     revision: row.revision + 1,
   };
 }
+
+/**
+ * Extension data overview, migration/restore preview, and confirmed apply.
+ *
+ * Previews record the before/after content and digests; apply re-checks that
+ * the current row and backup are unchanged, atomically saves a copy of the
+ * original value, then writes the new value and an idempotent receipt.
+ *
+ * @param s Storage service.
+ * @param db Open database handle.
+ * @param manifest Installable manifest.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export function extensionDataOperation(
   s: Storage,
   db: SqlDatabase,
@@ -139,6 +216,7 @@ export function extensionDataOperation(
   raw: unknown,
 ) {
   if (closed.has(s)) throw Error("存储已关闭");
+
   if (op === "getExtensionDataOverview") {
     const p = base.strict().parse(raw);
     const targets = (["settings", "scriptState"] as const).flatMap((target) => {
@@ -176,6 +254,7 @@ export function extensionDataOperation(
       .sort((a, b) => b.createdAt - a.createdAt);
     return { targets, backups };
   }
+
   if (
     op === "previewExtensionDataMigration" ||
     op === "previewExtensionDataRestore"
@@ -247,6 +326,7 @@ export function extensionDataOperation(
       expiresAt,
     };
   }
+
   const p = base
     .extend({ reviewId: z.string().uuid(), operationId: z.string().uuid() })
     .strict()

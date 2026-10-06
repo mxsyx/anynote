@@ -21,6 +21,14 @@ import {
 } from "@anynote/protocol/rich.js";
 import DocumentView, { type BoardBlock } from "./DocumentView";
 import type { NoteNode } from "@anynote/types";
+
+/**
+ * A single editable rich-text block (Tiptap).
+ *
+ * Uses Markdown as the content type and supports toolbar formatting, slash
+ * commands, link validation, and a selection bubble menu; it does not call
+ * back during IME composition to avoid interrupting input.
+ */
 function BlockEditor({
   source,
   onChange,
@@ -66,6 +74,8 @@ function BlockEditor({
   });
   useEffect(() => {
     if (!editor) return;
+
+    // Re-emit Markdown once IME composition ends so no characters are lost during input.
     const emit = () =>
       requestAnimationFrame(() => {
         if (!editor.isDestroyed) callback.current(editor.getMarkdown());
@@ -74,6 +84,12 @@ function BlockEditor({
     el.addEventListener("compositionend", emit);
     return () => el.removeEventListener("compositionend", emit);
   }, [editor]);
+
+  /**
+   * Insert a block via a slash command; if the previous character is `/`, delete it first.
+   *
+   * @param kind Block kind to insert.
+   */
   const insert = (kind: string) => {
     if (!editor || editor.view.composing) return;
     let chain = editor.chain().focus();
@@ -269,6 +285,14 @@ function BlockEditor({
     </div>
   );
 }
+
+/**
+ * Rich-text (block-level) editor.
+ *
+ * Splits the body into blocks: plain blocks use Tiptap, image/plugin blocks use
+ * dedicated editors, and the rest render with the read-only DocumentView;
+ * supports moving blocks up/down and drag-and-drop reordering.
+ */
 export default function RichEditor({
   notebookId,
   note,
@@ -288,6 +312,7 @@ export default function RichEditor({
 }) {
   const [extensions, setExtensions] = useState<InstalledExtension[]>([]);
   useEffect(() => {
+    /** Load installed extensions and subscribe to extension change events. */
     const load = () =>
       installedExtensions(notebookId)
         .then(setExtensions)
@@ -296,6 +321,13 @@ export default function RichEditor({
     window.addEventListener("anynote:extensions-changed", load);
     return () => window.removeEventListener("anynote:extensions-changed", load);
   }, [notebookId]);
+
+  /**
+   * If the block is an authorized extension's editor node, return its node definition.
+   *
+   * @param source Block source.
+   * @returns The node definition, or `undefined`.
+   */
   const nodeFor = (source: string) => {
     const b = parseBlocks(source)[0];
     return b.kind === "extension" &&
@@ -326,6 +358,12 @@ export default function RichEditor({
     setError("");
     lastBody.current = body;
   }, [note.id]);
+
+  /**
+   * Patch the body with the replaced block text and update it.
+   *
+   * @param replacement Replacement block text.
+   */
   const update = (replacement: string) => {
     if (!editing) return;
     try {
@@ -353,6 +391,8 @@ export default function RichEditor({
     start: number;
     placement: "before" | "after";
   } | null>(null);
+
+  /** Clear the drag session and drop hint. */
   const clearDrag = () => {
     drag.current = null;
     setDropHint(null);
@@ -360,6 +400,13 @@ export default function RichEditor({
   useEffect(() => {
     clearDrag();
   }, [note.id, notebookId, body]);
+
+  /**
+   * Move a block up/down via the buttons.
+   *
+   * @param block Block to move.
+   * @param direction `-1` up, `1` down.
+   */
   const move = (block: RichBlock, direction: -1 | 1) => {
     if (editing || composing.current) return;
     try {
@@ -372,6 +419,8 @@ export default function RichEditor({
     }
   };
   let shown = false;
+
+  /** Render the block currently being edited (image / plugin / plain rich text). */
   const activeEditor = () => {
     shown = true;
     if (imageBlock(editing!.source))

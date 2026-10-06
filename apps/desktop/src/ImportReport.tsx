@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
+
+/** Data structure of an import report. */
 interface Report {
   localized: number;
   failed: number;
@@ -8,6 +10,8 @@ interface Report {
   createdAt: number;
   media: { source: string; status: string; error?: string }[];
 }
+
+/** Show a note's import report (localization results and failed media). */
 export default function ImportReport({
   notebookId,
   noteId,

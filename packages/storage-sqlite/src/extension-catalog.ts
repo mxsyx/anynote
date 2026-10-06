@@ -6,11 +6,13 @@ import { searchScriptContext } from "./search.js";
 import { validateScriptSearchContext } from "@anynote/extension-tools/search-context.js";
 import { extensionDataOperation } from "./extension-data.js";
 import { installableManifestSchema } from "@anynote/extension-tools/manifest.js";
+
 export {
   declarativeManifestSchema,
   scriptManifestSchema,
   installableManifestSchema,
 } from "@anynote/extension-tools/manifest.js";
+
 import { z } from "zod";
 import {
   readExtensionSettings,
@@ -35,8 +37,11 @@ import {
   verifyExtensionPackage,
 } from "./extension-signature.js";
 import { extensionURLSchema } from "./extension-signature.js";
+
 const id = z.string().regex(/^[a-z][a-z0-9.-]{2,80}$/),
   uuid = z.string().uuid();
+
+/** Persisted record of an installed extension. */
 const entrySchema = z
   .object({
     downloadURL: extensionURLSchema.optional(),
@@ -60,7 +65,16 @@ const entrySchema = z
     ),
   })
   .strict();
+
+/** Extension registry (up to 64 extensions). */
 const registrySchema = z.array(entrySchema).max(64);
+
+/**
+ * Read and validate the extension registry, re-checking checksums and signatures.
+ *
+ * @param s Storage service.
+ * @returns Registry path and parsed entries.
+ */
 function catalog(s: Storage) {
   const path = assertLocalPath(s.root, "_local/extensions/registry.json");
   if (!existsSync(path)) return { path, entries: registrySchema.parse([]) };
@@ -81,9 +95,31 @@ function catalog(s: Storage) {
   }
   return { path, entries };
 }
+
+/**
+ * Compute the SHA-256 checksum of an extension manifest.
+ *
+ * @param m Manifest object.
+ * @returns Lowercase hex checksum.
+ */
 function checksum(m: unknown) {
   return createHash("sha256").update(JSON.stringify(m)).digest("hex");
 }
+
+/**
+ * Single entry point for the installed extension catalog.
+ *
+ * Covers manifest preview, install/uninstall, publisher trust, Notebook
+ * authorization, settings read/write, data migration, and restricted command
+ * execution preparation. All operations require a consistent extension
+ * checksum and a trusted publisher.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @param options Additional catalog options.
+ * @returns The operation result.
+ */
 export async function extensionCatalog(
   s: Storage,
   op: string,
@@ -101,6 +137,7 @@ export async function extensionCatalog(
   } = {},
 ) {
   const c = catalog(s),
+    /** Atomically save the extension registry. */
     save = () => {
       mkdirSync(dirname(c.path), { recursive: true });
       const tmp = c.path + "." + randomUUID();
@@ -130,6 +167,13 @@ export async function extensionCatalog(
     if (bytes.length > 64 * 1024) throw Error("来源信任配置超过预算");
     publishers = trustSchema.parse(JSON.parse(bytes.toString()));
   }
+
+  /**
+   * Compute an extension's source info (signed, fingerprint, publisher, and trusted).
+   *
+   * @param entry Registry entry.
+   * @returns The source info.
+   */
   const source = (entry: z.infer<typeof entrySchema>) => {
     if (!entry.signedPackage) return { signed: false, trusted: true };
     const verified = verifyExtensionPackage(entry.signedPackage);
@@ -140,6 +184,13 @@ export async function extensionCatalog(
       trusted: publishers.some((p) => p.fingerprint === verified.fingerprint),
     };
   };
+
+  /**
+   * Validate a manifest or signed package, returning the pending entry and its source info.
+   *
+   * @param raw Raw manifest or package.
+   * @returns The reviewed entry with source info.
+   */
   const review = (raw: unknown) => {
     const p = z
       .object({
@@ -166,6 +217,7 @@ export async function extensionCatalog(
     };
     return { entry, source: source(entry) };
   };
+
   if (op === "previewExtension") {
     const r = review(raw);
     return {
@@ -186,6 +238,7 @@ export async function extensionCatalog(
         : null,
     };
   }
+
   if (
     [
       "getExtensionDataOverview",
@@ -228,6 +281,7 @@ export async function extensionCatalog(
       throw Error("扩展已停用");
     return extensionDataOperation(s, db, entry.manifest, op, raw);
   }
+
   if (
     op === "getInstalledExtensionSettings" ||
     op === "saveInstalledExtensionSettings"
@@ -292,6 +346,7 @@ export async function extensionCatalog(
     cancelScripts(s, entry.manifest.id, p.notebookId);
     return result;
   }
+
   if (op === "listExtensionUpdateSources") {
     z.object({}).strict().parse(raw);
     return c.entries
@@ -312,10 +367,12 @@ export async function extensionCatalog(
         granted: false,
       }));
   }
+
   if (op === "listPublishers") {
     z.object({}).strict().parse(raw);
     return publishers;
   }
+
   if (op === "configurePublisher") {
     const p = z
       .object({
@@ -353,6 +410,7 @@ export async function extensionCatalog(
     renameSync(tmp, trustPath);
     return true;
   }
+
   if (op === "installExtension") {
     const reviewed = review(raw),
       entry = reviewed.entry;
@@ -400,6 +458,7 @@ export async function extensionCatalog(
       granted: false,
     };
   }
+
   if (op === "listExtensions" || op === "listExtensionCommands") {
     const p = z.object({ notebookId: uuid }).strict().parse(raw),
       db = s.open(p.notebookId);
@@ -440,6 +499,7 @@ export async function extensionCatalog(
         })),
       );
   }
+
   if (op === "uninstallExtension") {
     const p = z.object({ extensionId: id }).strict().parse(raw);
     c.entries = c.entries.filter((e) => e.manifest.id !== p.extensionId);
@@ -447,6 +507,7 @@ export async function extensionCatalog(
     cancelScripts(s, p.extensionId);
     return true;
   }
+
   const p = z
     .object({
       extensionId: id,
@@ -478,6 +539,7 @@ export async function extensionCatalog(
   const e = c.entries.find((e) => e.manifest.id === p.extensionId);
   if (!e || e.checksum !== p.checksum)
     throw Error("扩展已改变，请重新检查并授权");
+
   if (op === "configureExtension") {
     if (p.scope === "global") {
       if (
@@ -525,6 +587,7 @@ export async function extensionCatalog(
     if (p.enabled === false) cancelScripts(s, e.manifest.id, p.notebookId);
     return true;
   }
+
   if (
     op !== "runExtensionCommand" ||
     !p.notebookId ||
@@ -711,7 +774,8 @@ export async function extensionCatalog(
         ((note.body || "").endsWith("\n\n") ? "" : "\n\n") +
         addition;
   if (body.length > 2_000_000) throw Error("正文超出 2MB 编辑预算");
-  // The note and command receipt share the existing domain transaction.
+
+  // Notes and command receipts share the same existing domain transaction.
   const { save: saveNote } = await import("./operations.js");
   return saveNote(
     s,

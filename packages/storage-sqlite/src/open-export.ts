@@ -5,6 +5,8 @@ import { posix } from "node:path";
 import { parseBlocks, resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+
+/** Mapping from MIME type to export file extension. */
 const suffix: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -12,6 +14,14 @@ const suffix: Record<string, string> = {
   "application/pdf": "pdf",
   "application/vnd.anynote.whiteboard+json": "excalidraw.json",
 };
+
+/**
+ * Export a Notebook as an open Markdown folder ZIP (current, non-deleted content only).
+ *
+ * @param s Storage service.
+ * @param id Notebook ID.
+ * @returns Base64 ZIP data and the suggested file name.
+ */
 export function exportMarkdown(s: Storage, id: string) {
   const db = s.open(id),
     nodes = db
@@ -28,6 +38,14 @@ export function exportMarkdown(s: Storage, id: string) {
     resourceMap = new Map(resources.map((r) => [r.id, r])),
     paths = new Map(),
     files: Record<string, Uint8Array> = {};
+
+  /**
+   * Resolve a resource, preferring the revision-frozen asset hash.
+   *
+   * @param resourceId Resource ID.
+   * @param head Head revision ID.
+   * @returns The resolved resource row, or `null`.
+   */
   const resolve = (resourceId: string, head: string) => {
     const current = resourceMap.get(resourceId);
     if (!current) return null;
@@ -38,12 +56,21 @@ export function exportMarkdown(s: Storage, id: string) {
       .get(head, resourceId);
     return pinned ? { ...current, ...pinned } : current;
   };
+
+  /**
+   * Normalize a title into a safe file/directory name.
+   *
+   * @param n Node row.
+   * @returns A safe name.
+   */
   const safe = (n: SqlRow) =>
     n.title
       .normalize("NFC")
       .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
       .replace(/[. ]+$/, "")
       .slice(0, 80) || "未命名";
+
+  // Compute each node's export-relative path (with folder prefix and unique suffix).
   for (const n of nodes) {
     const folders = [];
     let cur: SqlRow | undefined = n;
@@ -68,14 +95,36 @@ export function exportMarkdown(s: Storage, id: string) {
     );
   }
   let total = 0;
+
+  /**
+   * Write one export file and track the total, throwing past 100MB.
+   *
+   * @param path Destination path within the export.
+   * @param bytes File contents.
+   */
   const put = (path: string, bytes: Buffer) => {
     total -= files[path]?.length || 0;
     total += bytes.length;
     if (total > 100 * 1024 * 1024) throw Error("开放导出超过 100MB");
     files[path] = bytes;
   };
+
+  /**
+   * Destination path of a resource within the export.
+   *
+   * @param r Resource row.
+   * @returns Destination asset path.
+   */
   const assetPath = (r: SqlRow) =>
     `_assets/${r.hash}.${suffix[r.mime] || "bin"}`;
+
+  /**
+   * Export a single resource; whiteboard scenes inline their embedded images as portable data URLs.
+   *
+   * @param r Resource row.
+   * @param head Head revision ID.
+   * @returns Destination path of the exported resource.
+   */
   const exportResource = (r: SqlRow, head: string) => {
     const dest = assetPath(r);
     if (files[dest]) return dest;
@@ -108,6 +157,8 @@ export function exportMarkdown(s: Storage, id: string) {
     put(dest, bytes);
     return dest;
   };
+
+  // Export node by node: Markdown rewrites resources/extension blocks/internal links; attachments and annotation sidecars are copied directly.
   for (const n of nodes) {
     if (n.kind === "folder") continue;
     const path = paths.get(n.id);

@@ -1,4 +1,27 @@
+/** Pattern matching resource references in the body: `anynote-resource:<uuid>`. */
 export const resourcePattern = /anynote-resource:([a-f0-9-]{36})/gi;
+
+/** Body block: a plain Markdown segment or a `:::anynote` extension block. */
+type Block =
+  | { kind: "markdown"; source: string; start: number; end: number }
+  | {
+      kind: "extension";
+      attrs: Record<string, string>;
+      data: unknown;
+      source: string;
+      start: number;
+      end: number;
+    };
+
+/**
+ * Split the body into Markdown segments and `:::anynote{...}` extension blocks.
+ *
+ * Content inside code fences (``` or ~~~) is protected, so `:::anynote`
+ * directives within them are not recognized as extension blocks.
+ *
+ * @param source Full Markdown body.
+ * @returns Blocks in order of appearance.
+ */
 export function parseBlocks(source: string) {
   const ranges = [];
   let fence = null,
@@ -22,16 +45,6 @@ export function parseBlocks(source: string) {
     offset += line.length;
   }
   if (fence) ranges.push([begin, source.length]);
-  type Block =
-    | { kind: "markdown"; source: string; start: number; end: number }
-    | {
-        kind: "extension";
-        attrs: Record<string, string>;
-        data: unknown;
-        source: string;
-        start: number;
-        end: number;
-      };
   const blocks: Block[] = [];
   const pattern =
     /^:::anynote\{([^\n]*)\}\r?\n([\s\S]*?)^:::[ \t]*(?:\r?\n|$)/gm;
@@ -73,6 +86,17 @@ export function parseBlocks(source: string) {
     });
   return blocks;
 }
+
+/**
+ * Collect every resource ID referenced in the body.
+ *
+ * Besides explicit `anynote-resource:` references, it recursively scans all
+ * `*resourceId` fields in extension blocks, covering indirect references such
+ * as whiteboard-embedded images.
+ *
+ * @param body Markdown body.
+ * @returns Deduplicated list of resource IDs.
+ */
 export function resourceIds(body: string) {
   const ids = new Set([...body.matchAll(resourcePattern)].map((m) => m[1]));
   for (const b of parseBlocks(body)) {
@@ -95,9 +119,28 @@ export function resourceIds(body: string) {
   }
   return [...ids];
 }
+
+/**
+ * Generate the Markdown source of a `:::anynote` extension block.
+ *
+ * @param type Block type.
+ * @param id Block ID.
+ * @param data Block data.
+ * @returns The generated Markdown source.
+ */
 export function extensionBlock(type: string, id: string, data: unknown) {
   return `:::anynote{type="${type}" version="1" id="${id}"}\n${JSON.stringify(data)}\n:::\n`;
 }
+
+/**
+ * Parse YouTube video info from a URL.
+ *
+ * Only accepts https youtube.com / youtu.be links with a valid 11-character
+ * video ID; returns `null` when unrecognized.
+ *
+ * @param raw Raw URL.
+ * @returns Parsed video info, or `null`.
+ */
 export function youtube(raw: string) {
   try {
     const u = new URL(raw);

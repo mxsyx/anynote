@@ -1,10 +1,20 @@
 import { installableManifestSchema } from "./manifest.js";
+
+/** Extension project template kinds that can be generated. */
 export const templateKinds = [
   "declarative",
   "transform",
   "stateful",
   "preferences",
 ] as const;
+
+/**
+ * Generate a validated example extension manifest for a template kind.
+ *
+ * @param id Extension ID.
+ * @param kind Template kind.
+ * @returns The generated example manifest.
+ */
 export function extensionTemplate(
   id: string,
   kind: (typeof templateKinds)[number],

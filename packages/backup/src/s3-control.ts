@@ -7,6 +7,8 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import type { S3Objects } from "./providers.js";
+
+/** S3 maintenance control record (active writers/readers, retired and committed versions, cleanup plan). */
 export interface S3Control {
   version: 1;
   revision: number;
@@ -16,6 +18,8 @@ export interface S3Control {
   committed: string[];
   plan?: S3Plan;
 }
+
+/** One S3 remote cleanup plan. */
 export interface S3Plan {
   id: string;
   status: "planned" | "deleting" | "completed";
@@ -32,12 +36,41 @@ export interface S3Plan {
   graceHours: number;
   cursor: number;
 }
+
+/**
+ * Whether an error means the object is missing.
+ *
+ * @param e Error to inspect.
+ * @returns True when the error indicates a missing object.
+ */
 const missing = (e: any) =>
   e.$metadata?.httpStatusCode === 404 ||
   ["NoSuchKey", "NotFound"].includes(e.name);
+
+/**
+ * Whether an error is a conditional-write conflict.
+ *
+ * @param e Error to inspect.
+ * @returns True when the error indicates a conflict.
+ */
 export const conflict = (e: any) =>
   [409, 412].includes(e.$metadata?.httpStatusCode);
+
+/**
+ * Object key for the maintenance control data.
+ *
+ * @param base Base prefix.
+ * @returns Full control object key.
+ */
 const key = (base: string) => `${base}/maintenance/control.json`;
+
+/**
+ * Read and strictly validate the S3 maintenance control record (returns `null` when absent).
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @returns Control value with its etag, or `null`.
+ */
 export async function readControl(
   objects: S3Objects,
   base: string,
@@ -143,6 +176,15 @@ export async function readControl(
     throw e;
   }
 }
+
+/**
+ * Conditionally write the maintenance control record (by etag, or requiring creation).
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param value Control record to persist.
+ * @param etag Expected etag for the conditional write.
+ */
 export async function saveControl(
   objects: S3Objects,
   base: string,
@@ -161,6 +203,15 @@ export async function saveControl(
     }),
   );
 }
+
+/**
+ * Mutate the maintenance control record in a read-modify-write loop, retrying on conflict.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param fn Mutation function applied to the current control record.
+ * @returns Result of the mutation function.
+ */
 export async function mutateControl<T>(
   objects: S3Objects,
   base: string,
@@ -180,13 +231,20 @@ export async function mutateControl<T>(
   }
   throw Error("S3 维护并发冲突，请重试");
 }
+
+/**
+ * Probe bucket versioning and conditional-write support, initializing the control record on first success.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ */
 export async function activateControl(objects: S3Objects, base: string) {
   const bucket = await objects.client.send(
     new GetBucketVersioningCommand({ Bucket: objects.bucket }),
   );
   if (bucket.Status !== "Enabled")
     throw Error("S3 远端清理需要已启用的桶版本管理；应用不会自动改变桶设置");
-  // Probe only a random private key. Never test a precondition on user data.
+  // Only probe with random private keys; never test preconditions against user data.
   const probe = `${base}/maintenance/probe-${randomUUID()}`;
   const versions: string[] = [];
   try {
@@ -281,6 +339,17 @@ export async function activateControl(objects: S3Objects, base: string) {
     }
   }
 }
+
+/**
+ * Register active writers/readers in the control record, revoking and committing when done.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param kind Activity kind (writer or reader).
+ * @param generationId Generation ID the activity belongs to.
+ * @param fn Operation to run while the activity is registered.
+ * @returns Result of the wrapped operation.
+ */
 export async function withS3Activity<T>(
   objects: S3Objects,
   base: string,
@@ -323,6 +392,13 @@ export async function withS3Activity<T>(
   }
 }
 
+/**
+ * Cancel one generation: revoke its writer registration and mark it retired if not yet committed.
+ *
+ * @param objects S3 accessor.
+ * @param base Base prefix.
+ * @param generationId Generation ID to cancel.
+ */
 export async function cancelS3Generation(
   objects: S3Objects,
   base: string,

@@ -5,6 +5,8 @@ import type {
   ExtensionDataOverview,
   ExtensionDataReview,
 } from "@anynote/plugin-sdk/declarative";
+
+/** Extension data migration and restore controls: overview, preview, and confirmed apply. */
 export default function ExtensionDataControls({
   entry,
   notebookId,
@@ -48,6 +50,13 @@ export default function ExtensionDataControls({
       generation.current++;
     };
   }, [notebookId, entry.manifest.id, entry.checksum]);
+
+  /**
+   * Preview one migration or restore; generates a new idempotent operation ID on success.
+   *
+   * @param kind Preview kind (migration or restore).
+   * @param id Backup ID.
+   */
   const preview = async (kind: "migration" | "restore", id: string) => {
     const token = generation.current;
     setBusy(true);
@@ -74,6 +83,8 @@ export default function ExtensionDataControls({
       if (generation.current === token) setBusy(false);
     }
   };
+
+  /** Confirm applying the current preview (including backup) and refresh the overview. */
   const apply = async () => {
     if (!review) return;
     const token = generation.current;
@@ -100,6 +111,8 @@ export default function ExtensionDataControls({
       if (generation.current === token) setBusy(false);
     }
   };
+
+  /** Re-read the data overview (targets and backup lists). */
   const reload = async () => {
     const token = generation.current;
     setBusy(true);

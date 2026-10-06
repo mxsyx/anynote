@@ -15,11 +15,15 @@ import type { Storage } from "@anynote/storage-sqlite/index.js";
 import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
 import type { Asset, FileChunk } from "@anynote/types/runtime.js";
 import { backup, DatabaseSync } from "@anynote/types/runtime.js";
+
+/** A local object source: file, offset, and size. */
 export interface FileSource {
   file: string;
   offset: number;
   size: number;
 }
+
+/** Backup file descriptor. */
 export interface FileDescriptor {
   path: string;
   size: number;
@@ -28,6 +32,8 @@ export interface FileDescriptor {
   chunks?: FileChunk[];
   key?: string;
 }
+
+/** Manifest of a file snapshot. */
 export interface FileManifest {
   format: "anynote.notebook";
   formatVersion: 1;
@@ -43,12 +49,22 @@ export interface FileManifest {
   includesHistory: true;
   includesTrash: true;
 }
+
+/** Local file snapshot: directory, manifest, and per-file path mapping. */
 export interface FileSnapshot {
   dir: string;
   manifest: FileManifest;
   files: Map<string, string>;
 }
-/** Called inside the storage queue. The caller keeps a Notebook pin until upload ends. */
+
+/**
+ * Call within the storage queue; the caller must hold a Notebook pin until all uploads finish.
+ *
+ * @param s Storage service.
+ * @param notebookId Notebook ID.
+ * @param dir Snapshot destination directory.
+ * @returns The created file snapshot.
+ */
 export async function createFileSnapshot(
   s: Storage,
   notebookId: string,
@@ -96,7 +112,7 @@ export async function createFileSnapshot(
       includesHistory: true,
       includesTrash: true,
     };
-    // The DB hash is calculated outside the queue. No complete ZIP or asset buffer.
+    // The database hash is computed outside the queue. No full ZIP or asset buffer is built.
     let total = database.size;
     if (assets.length > limits.entries - 2) throw Error("备份文件数量超过预算");
     const files = new Map([["notebook.sqlite", file]]);
@@ -113,6 +129,14 @@ export async function createFileSnapshot(
     snapshot.close();
   }
 }
+
+/**
+ * Read a byte range from a source (capped at 20 MiB).
+ *
+ * @param source Source descriptor.
+ * @param signal Optional abort signal.
+ * @returns Bytes read from the source.
+ */
 export async function readSource(source: FileSource, signal?: AbortSignal) {
   signal?.throwIfAborted();
   if (source.size > cloudObjectLimit) throw Error("读取对象超过20MiB预算");
@@ -136,6 +160,15 @@ export async function readSource(source: FileSource, signal?: AbortSignal) {
     await handle.close();
   }
 }
+
+/**
+ * Verify snapshot source files, hash chunks, and return a content-addressed source map.
+ *
+ * @param snapshot File snapshot to inspect.
+ * @param signal Abort signal.
+ * @param progress Progress callback.
+ * @returns Map of content hashes to sources.
+ */
 export async function prepareFiles(
   snapshot: FileSnapshot,
   signal: AbortSignal,
@@ -184,6 +217,16 @@ export async function prepareFiles(
   manifestSchema.parse(snapshot.manifest);
   return objects;
 }
+
+/**
+ * Download and chunk-verify a single file before restoring it.
+ *
+ * @param dir Destination directory.
+ * @param descriptor File descriptor.
+ * @param download Chunk downloader.
+ * @param signal Abort signal.
+ * @param onBytes Callback reporting written bytes.
+ */
 export async function restoreFile(
   dir: string,
   descriptor: FileDescriptor,
@@ -225,6 +268,14 @@ export async function restoreFile(
     await handle.close();
   }
 }
+
+/**
+ * Verify the total size and file-count budgets for the restore directory, and check free disk space.
+ *
+ * @param dir Destination directory.
+ * @param databaseBytes Database size in bytes.
+ * @param assets Assets to be restored.
+ */
 export async function verifyDirectoryBudget(
   dir: string,
   databaseBytes: number,

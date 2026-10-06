@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { request } from "./api";
+
+/** One cleanup preview (candidate files and reclaimable bytes). */
 interface Plan {
   id: string;
   bytes: number;
   files: { path: string; kind: string; size: number }[];
 }
+
+/** Local storage cleanup: preview and clean orphan files and expired snapshots. */
 export default function LocalCleanup({
   notebookId,
   onCleaned,
@@ -18,6 +22,12 @@ export default function LocalCleanup({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [result, setResult] = useState("");
+
+  /**
+   * Run an async action uniformly and maintain busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const action = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");

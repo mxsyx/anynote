@@ -20,7 +20,11 @@ import "pdfjs-dist/web/pdf_viewer.css";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { request } from "./api";
 GlobalWorkerOptions.workerSrc = worker;
+
+/** Normalized relative hit rectangle (0–1). */
 type Rect = { x: number; y: number; width: number; height: number };
+
+/** One PDF highlight annotation. */
 type Annotation = {
   id: string;
   page: number;
@@ -30,6 +34,15 @@ type Annotation = {
   target_asset_hash: string;
   selector: Rect[];
 };
+
+/**
+ * PDF reader.
+ *
+ * Loads the resource via on-demand chunked (range) requests, renders pages and
+ * the text layer, and supports paging, zoom, in-document search, full-text
+ * indexing, password unlock, and creating/deleting highlight annotations from
+ * selected text.
+ */
 export default function PdfReader({
   resourceId,
   size,
@@ -63,6 +76,8 @@ export default function PdfReader({
     canvas = useRef<HTMLCanvasElement>(null),
     text = useRef<HTMLDivElement>(null),
     pageRef = useRef<HTMLDivElement>(null);
+
+  /** Re-fetch the current note's annotation list. */
   const reload = () =>
     request<Annotation[]>("listAnnotations", { notebookId, id: noteId })
       .then(setAnnotations)
@@ -72,6 +87,8 @@ export default function PdfReader({
   }, [notebookId, noteId]);
   useEffect(() => {
     let cancelled = false;
+
+    // Transfer the PDF in on-demand chunks so large files are not loaded whole.
     const range = new PDFDataRangeTransport(size, new Uint8Array());
     range.requestDataRange = (begin, end) => {
       void (async () => {
@@ -138,6 +155,8 @@ export default function PdfReader({
         | ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]>
         | undefined,
       layer: TextLayer | undefined;
+
+    // Remember the page number and redraw the canvas and text layer on paging/zoom.
     localStorage.setItem(key, String(page));
     doc
       .getPage(page)
@@ -178,6 +197,8 @@ export default function PdfReader({
     let cancelled = false;
     (async () => {
       if (!indexRequested) return;
+
+      // Extract text (up to 500 pages / about 4.5MB) and write it to the local full-text index.
       let body = "";
       setIndexStatus("正在提取可搜索文本…");
       for (let i = 1; i <= Math.min(doc.numPages, 500); i++) {
@@ -206,6 +227,8 @@ export default function PdfReader({
       cancelled = true;
     };
   }, [doc, notebookId, noteId, assetHash, indexRequested]);
+
+  /** Search the document for a keyword, return matching pages, and jump to the first hit. */
   const search = async () => {
     if (!doc || !query.trim()) return;
     setSearching(true);
@@ -231,6 +254,8 @@ export default function PdfReader({
       setSearching(false);
     }
   };
+
+  /** Record the text selection on the page, convert it to normalized rectangles, and store the pending annotation reference. */
   const selection = () => {
     const s = window.getSelection(),
       container = pageRef.current;
@@ -256,6 +281,8 @@ export default function PdfReader({
     setRects(r);
     setQuote(s.toString().slice(0, 10000));
   };
+
+  /** Save a yellow highlight and annotation for the current selection. */
   const annotate = async () => {
     try {
       await request("addAnnotation", {

@@ -1,7 +1,8 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { Storage } from "./index.js";
+
+// Archive validation worker entry: uses only schema/migration/index helpers and does not open a workspace connection.
 try {
-  // Validation uses only schema/migration/index helpers; no workspace connections.
   const validator = Object.create(Storage.prototype) as Storage;
   validator.validateArchiveDirectory(
     workerData.dir,

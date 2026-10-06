@@ -1,3 +1,4 @@
+/** SQL that upgrades schema v1 to v2: adds resource revisions, annotations, links, and text index tables. */
 export const upgradeSQL = `
 ALTER TABLE notes ADD COLUMN source_uri TEXT;
 ALTER TABLE resources ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;

@@ -17,7 +17,10 @@ import { z } from "zod";
 import type { SqlRow } from "@anynote/types/runtime.js";
 import { DatabaseSync } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+
 const uuid = z.string().uuid();
+
+/** Validation schema for external Notebook directory registration. */
 const registrySchema = z
   .array(
     z
@@ -29,12 +32,25 @@ const registrySchema = z
       .strict(),
   )
   .max(1000);
+
+/**
+ * Read registered external Notebook directories.
+ *
+ * @param root Storage root directory.
+ * @returns Registered directories.
+ */
 export function loadDirectories(root: string) {
   const file = join(root, "_local", "notebook-directories.json");
   return existsSync(file)
     ? registrySchema.parse(JSON.parse(readFileSync(file, "utf8")))
     : [];
 }
+
+/**
+ * Atomically persist the external Notebook directory registration.
+ *
+ * @param s Storage service.
+ */
 export function persistDirectories(s: Storage) {
   const dir = join(s.root, "_local");
   mkdirSync(dir, { recursive: true });
@@ -46,7 +62,15 @@ export function persistDirectories(s: Storage) {
   );
   renameSync(file + ".tmp", file);
 }
-// Refuse symlinks for Notebook-owned files. The chosen root is canonicalized once.
+
+// Reject symlinks to Notebook-owned files. The selected root is canonicalized once at creation.
+/**
+ * Resolve and validate a safe relative path inside a Notebook (rejecting symlinks and escapes).
+ *
+ * @param root Notebook root directory.
+ * @param relative Relative path.
+ * @returns The resolved absolute path.
+ */
 export function assertLocalPath(root: string, relative: string) {
   if (existsSync(root) && realpathSync(root) !== resolve(root))
     throw Error("Notebook 目录路径已改变或包含符号链接");
@@ -68,10 +92,16 @@ export function assertLocalPath(root: string, relative: string) {
   }
   return path;
 }
+
+/**
+ * Acquire an exclusive write lock on the Notebook directory (returns the release function).
+ *
+ * @param root Notebook root directory.
+ * @returns Function releasing the lock.
+ */
 export function acquireWriteLock(root: string) {
-  // A separate SQLite connection holds an OS-backed exclusive lease for the
-  // directory. Process exit releases it automatically; no PID reuse or stale
-  // lock deletion race. Keep the lease file in place to retain one lock inode.
+  // An independent SQLite connection holds an OS-backed exclusive lease. It is released automatically on process exit,
+  // so there is no PID-reuse or time-based stale-lock race. The lease file is kept to maintain the same lock inode.
   const file = assertLocalPath(root, ".anynote-lease.sqlite");
   for (const suffix of ["-journal", "-wal", "-shm"])
     assertLocalPath(root, ".anynote-lease.sqlite" + suffix);
@@ -94,6 +124,13 @@ export function acquireWriteLock(root: string) {
     }
   };
 }
+
+/**
+ * Fully validate a Notebook directory's structure, identity, asset hashes, and directory tree.
+ *
+ * @param root Notebook root directory.
+ * @param schemas Known schema versions by number.
+ */
 export function validateDirectory(
   root: string,
   schemas: Record<number, string>,
@@ -181,6 +218,15 @@ export function validateDirectory(
     db.close();
   }
 }
+
+/**
+ * Validate and register an external Notebook directory, returning its metadata (idempotent).
+ *
+ * @param s Storage service.
+ * @param raw Raw operation payload.
+ * @param schemas Known schema versions by number.
+ * @returns The Notebook metadata.
+ */
 export function registerDirectory(
   s: Storage,
   raw: unknown,
@@ -199,7 +245,7 @@ export function registerDirectory(
         ...s.open(id).prepare("SELECT * FROM notebook_meta").get(),
         external: s.externalDirectories.has(id),
       };
-  // Reopening a registered directory is idempotent and uses its existing lease.
+  // Reopening a registered directory is idempotent and reuses its existing lease.
   for (const entry of s.externalDirectories.values())
     if (entry.path === root && s.dbs.has(entry.id))
       return {
@@ -245,6 +291,13 @@ export function registerDirectory(
     throw e;
   }
 }
+
+/**
+ * Move a Notebook out of the workspace: release connections and write locks while keeping the original directory files.
+ *
+ * @param s Storage service.
+ * @param raw Raw operation payload.
+ */
 export function detachDirectory(s: Storage, raw: unknown) {
   const { notebookId } = z.object({ notebookId: uuid }).strict().parse(raw);
   const entry = s.externalDirectories.get(notebookId);

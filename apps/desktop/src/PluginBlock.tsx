@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { DeclarativeNode } from "@anynote/plugin-sdk/declarative";
 import { parseBlocks } from "@anynote/protocol/markdown";
+
+/** Render a declarative extension block read-only (callout or details). */
 export function PluginBlock({
   node,
   data,
@@ -28,6 +30,8 @@ export function PluginBlock({
     </aside>
   );
 }
+
+/** Edit a declarative extension block's fields in place. */
 export function PluginBlockEditor({
   node,
   source,

@@ -4,6 +4,8 @@ import type {
   ExtensionSettingsContribution,
   ExtensionSettingsValues,
 } from "@anynote/plugin-sdk/declarative.js";
+
+/** Base properties shared by all settings fields. */
 const base = {
   key: z
     .string()
@@ -12,7 +14,11 @@ const base = {
   label: z.string().min(1).max(80),
   description: z.string().max(240).optional(),
 };
+
+/** Value bounds for numeric fields. */
 const bounded = z.number().finite().min(-1e9).max(1e9);
+
+/** Extension settings form declaration validation (cross-validating defaults and ranges). */
 export const extensionSettingsSchema = z
   .object({
     version: z.literal(1),
@@ -66,6 +72,8 @@ export const extensionSettingsSchema = z
         ctx.addIssue({ code: "custom", message: "数字设置默认值或范围无效" });
     }
   });
+
+/** Persistence envelope format for settings, carrying the schema checksum and current values. */
 export const settingsEnvelopeSchema = z
   .object({
     format: z.literal("anynote.extension-settings.v1"),
@@ -73,9 +81,24 @@ export const settingsEnvelopeSchema = z
     values: z.record(z.union([z.string(), z.number().finite(), z.boolean()])),
   })
   .strict();
+
+/**
+ * Compute the SHA-256 checksum of a settings form to detect schema changes.
+ *
+ * @param form Settings contribution definition.
+ * @returns Lowercase hex checksum.
+ */
 export function settingsChecksum(form: ExtensionSettingsContribution) {
   return createHash("sha256").update(JSON.stringify(form)).digest("hex");
 }
+
+/**
+ * Dynamically build a validator from the settings form and validate one set of values.
+ *
+ * @param form Settings contribution definition.
+ * @param raw Raw settings values.
+ * @returns The validated settings values.
+ */
 export function validateSettings(
   form: ExtensionSettingsContribution,
   raw: unknown,

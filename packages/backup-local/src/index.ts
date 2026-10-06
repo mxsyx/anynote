@@ -1,17 +1,23 @@
 import { inspectBackupFiles, LocalVerificationError } from "./verification.js";
+
 export { LocalVerificationError } from "./verification.js";
+
 import type { LocalVerificationReport } from "@anynote/types/local-backup.js";
+
 export type {
   LocalVerificationReport,
   LocalVerificationIssue,
   LocalVerificationIssueCode,
 } from "@anynote/types/local-backup.js";
+
 import {
   inspectFilesystem,
   requireLocalFilesystem,
   probeReplacement,
 } from "./filesystem.js";
+
 export { inspectFilesystem } from "./filesystem.js";
+
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, rmdir, stat, statfs, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -31,19 +37,27 @@ import {
   safePath,
   token,
 } from "./files.js";
+
 export { hashFile, safePath } from "./files.js";
+
 const uuid = z.string().uuid(),
   sha = z.string().regex(/^[a-f0-9]{64}$/);
+
+/** Minimal description of one file in a backup manifest. */
 const descriptor = z.object({
   path: z.string(),
   size: z.number().int().nonnegative().safe(),
   sha256: sha,
   token: z.string().optional(),
 });
+
+/** Asset descriptor in a backup manifest (path must be content-addressed). */
 const asset = descriptor.refine(
   (a) => a.path === `assets/sha256/${a.sha256.slice(0, 2)}/${a.sha256}.bin`,
   "资源路径无效",
 );
+
+/** Local backup manifest file schema (`anynote.local-backup`). */
 export const manifestSchema = z
   .object({
     format: z.literal("anynote.local-backup"),
@@ -75,12 +89,18 @@ export const manifestSchema = z
     )
       ctx.addIssue({ code: "custom", message: "备份清单包含重复或冲突资源" });
   });
+
+/** Backup manifest type. */
 export type Manifest = z.infer<typeof manifestSchema>;
+
+/** Local backup target identity and path. */
 export interface LocalTarget {
   deviceId?: string;
   id: string;
   path: string;
 }
+
+/** Backup revision used to detect whether the source changed. */
 export interface BackupRevision {
   notebookId: string;
   lineageId: string;
@@ -88,6 +108,8 @@ export interface BackupRevision {
   schemaVersion: number;
   storageEpoch: string;
 }
+
+/** One source data capture (database snapshot + asset list). */
 export interface Capture {
   revision?: BackupRevision;
   notebookId: string;
@@ -98,6 +120,8 @@ export interface Capture {
   assets: { path: string; size: number; sha256: string; source: string }[];
   release(): Promise<void>;
 }
+
+/** Progress snapshot of a backup run. */
 export interface Progress {
   phase: string;
   copiedFiles: number;
@@ -110,13 +134,21 @@ export interface Progress {
   revision?: Manifest["revision"];
   totalBytes?: number;
 }
+
+/** Identity marker of a backup root directory. */
 const rootSchema = z.object({
   format: z.literal("anynote.local-backup-root"),
   formatVersion: z.literal(1),
   targetId: uuid,
   createdAt: z.string().datetime(),
 });
-/** Initialize only after the user's directory selection; normal tasks never recreate a missing root. */
+
+/**
+ * Resolve the source path; it is initialized only after the user picks a directory, and regular tasks never recreate a missing root.
+ *
+ * @param source Source path to resolve.
+ * @returns The canonical or safe source path.
+ */
 async function sourcePath(source: string) {
   try {
     return await canonical(source);
@@ -125,6 +157,18 @@ async function sourcePath(source: string) {
     throw e;
   }
 }
+
+/**
+ * Initialize a local backup target.
+ *
+ * Requires the target volume to support local backup and to not overlap any
+ * source directory; an existing managed root reuses its identity, otherwise a
+ * fresh `AnynoteBackup` directory and identity marker are created exclusively.
+ *
+ * @param selected Selected destination path.
+ * @param sources Source directories that must not overlap.
+ * @returns The initialized local target.
+ */
 export async function initializeTarget(
   selected: string,
   sources: string[],
@@ -139,7 +183,7 @@ export async function initializeTarget(
     const marker = rootSchema.parse(await readJSON(path, "backup-root.json"));
     return { id: marker.targetId, path };
   }
-  await mkdir(path); // Exclusive: never initialize an existing unrelated directory.
+  await mkdir(path); // 独占：绝不复用已存在的无关目录。
   const id = randomUUID();
   await atomicJSON(path, "backup-root.json", {
     format: "anynote.local-backup-root",
@@ -149,6 +193,13 @@ export async function initializeTarget(
   });
   return { id, path };
 }
+
+/**
+ * Verify the target identity, device, and path stability, and ensure it does not overlap the source directories.
+ *
+ * @param target Local backup target.
+ * @param sources Source directories to check overlap against.
+ */
 export async function guard(target: LocalTarget, sources: string[] = []) {
   uuid.parse(target.id);
   let root: string;
@@ -182,9 +233,16 @@ export async function guard(target: LocalTarget, sources: string[] = []) {
       throw Error("源与目标路径重叠");
   return root;
 }
+
+/**
+ * Acquire an exclusive write lock on the target (returns the release function).
+ *
+ * @param target Local backup target.
+ * @returns Function releasing the lock.
+ */
 async function lock(target: LocalTarget) {
   await guard(target);
-  // OS-backed exclusive lease: process death releases it, avoiding time-based stale-lock deletion and PID reuse.
+  // OS-level exclusive lease: released on process exit, avoiding time-based stale-lock deletion and PID reuse issues.
   for (const suffix of ["", "-journal", "-wal", "-shm"])
     await safePath(target.path, ".backup-lock.sqlite" + suffix);
   const db = new DatabaseSync(
@@ -200,6 +258,13 @@ async function lock(target: LocalTarget) {
   }
   return () => db.close();
 }
+
+/**
+ * Verify the backup database's integrity, identity, and resource closure against the manifest.
+ *
+ * @param file Database file path.
+ * @param m Manifest identity and file descriptors to check.
+ */
 function checkDatabase(
   file: string,
   m: {
@@ -236,6 +301,16 @@ function checkDatabase(
     db.close();
   }
 }
+
+/**
+ * Whether the target file matches the descriptor; `full` forces a hash recomputation.
+ *
+ * @param root Root directory.
+ * @param d File descriptor.
+ * @param full Force a full hash recomputation.
+ * @param signal Optional abort signal.
+ * @returns True when the file matches.
+ */
 async function matches(
   root: string,
   d: z.infer<typeof descriptor>,
@@ -254,6 +329,14 @@ async function matches(
     throw e;
   }
 }
+
+/**
+ * Read and validate the backup manifest of one Notebook.
+ *
+ * @param target Local backup target.
+ * @param book Notebook ID.
+ * @returns The manifest, or `null` when absent.
+ */
 async function readManifest(target: LocalTarget, book: string) {
   const value = await optionalJSON(
     target.path,
@@ -265,6 +348,8 @@ async function readManifest(target: LocalTarget, book: string) {
     throw Error("备份清单身份不匹配");
   return m;
 }
+
+/** Incomplete-commit record schema. */
 const preparedSchema = z.object({
   taskId: uuid,
   oldHash: sha.nullable(),
@@ -276,6 +361,15 @@ const preparedSchema = z.object({
     schema_version: z.number().int(),
   }),
 });
+
+/**
+ * Clean up managed assets per the manifest and finish the commit (idempotent and retryable).
+ *
+ * @param target Local backup target.
+ * @param m Manifest describing the cleanup.
+ * @param signal Optional abort signal.
+ * @param onDeleted Callback invoked after each deletion.
+ */
 async function cleanup(
   target: LocalTarget,
   m: Manifest,
@@ -283,7 +377,7 @@ async function cleanup(
   onDeleted?: () => void,
 ) {
   const root = join(target.path, "notebooks", m.notebookId);
-  // Keep prepared until all managed cleanup succeeds; retries are idempotent.
+  // Keep `prepared` until all managed cleanup succeeds; retries are idempotent.
   for (const d of m.cleanup) {
     signal?.throwIfAborted();
     await guard(target);
@@ -314,6 +408,14 @@ async function cleanup(
   });
   return current;
 }
+
+/**
+ * Reconcile one interrupted commit: verify the prepared record and finish publishing and cleanup.
+ *
+ * @param target Local backup target.
+ * @param book Notebook ID.
+ * @returns Whether there is still cleanup pending.
+ */
 async function reconcile(
   target: LocalTarget,
   book: string,
@@ -358,7 +460,7 @@ async function reconcile(
   await atomicJSON(root, "notebook.json", p.bootstrap);
   m.database.token = await token(file);
   m.bootstrap.token = await token(await safePath(root, "notebook.json"));
-  // Prepared must reflect tokens too, so a later cleanup interruption can reconcile safely.
+  // `prepared` must also reflect the token so a later interrupted cleanup can be reconciled safely.
   await atomicJSON(root, ".backup/prepared.json", {
     ...p,
     manifest: m,
@@ -372,6 +474,16 @@ async function reconcile(
     return { pendingCleanup: true };
   }
 }
+
+/**
+ * Plan one backup: compute the manifest, files to copy, space requirements, and an approval token.
+ *
+ * @param target Local backup target.
+ * @param notebookId Notebook ID.
+ * @param c Source capture.
+ * @param signal Abort signal.
+ * @returns The backup plan.
+ */
 async function planCapture(
   target: LocalTarget,
   notebookId: string,
@@ -507,6 +619,8 @@ async function planCapture(
     approvalToken,
   };
 }
+
+/** Backup space and change estimate. */
 export interface BackupEstimate {
   notebookId: string;
   copyAssets: number;
@@ -522,7 +636,18 @@ export interface BackupEstimate {
   approvalToken: string;
   revision: Manifest["revision"];
 }
+
+/** Local disk backup service: preview, backup, rebuild, verify, restore, and delete. */
 export class LocalBackupService {
+  /**
+   * Preview one backup's copy/delete/space estimate without modifying the target.
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @param capture Capture provider.
+   * @param signal Abort signal.
+   * @returns The backup estimate.
+   */
   async preview(
     target: LocalTarget,
     notebookId: string,
@@ -571,6 +696,14 @@ export class LocalBackupService {
       }
     }
   }
+
+  /**
+   * Read the current manifest info of one Notebook on the target.
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @returns Manifest summary info.
+   */
   async info(target: LocalTarget, notebookId: string) {
     uuid.parse(notebookId);
     await guard(target);
@@ -584,6 +717,19 @@ export class LocalBackupService {
     };
   }
 
+  /**
+   * Run one local backup.
+   *
+   * It first reconciles interrupted commits, can quickly skip capture when the
+   * source revision is unchanged; otherwise it copies missing assets and the
+   * database snapshot, verifies, writes the prepared record and publishes
+   * atomically, then cleans up managed old assets.
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @param capture Capture provider.
+   * @param options Backup options (revision reader, progress callback, abort signal).
+   */
   async backup(
     target: LocalTarget,
     notebookId: string,
@@ -617,6 +763,12 @@ export class LocalBackupService {
       verificationMs: 0,
     };
     let lastProgressAt = 0;
+
+    /**
+     * Emit progress at the throttled rate (or on phase change).
+     *
+     * @param phase Progress phase.
+     */
     const emit = (phase = p.phase) => {
       const now = Date.now();
       if (phase === p.phase && now - lastProgressAt < 150) return;
@@ -710,7 +862,7 @@ export class LocalBackupService {
               break;
             }
           }
-          // Confirm the same source cut again after asynchronous target checks.
+          // After the async target checks, confirm the source revision has not changed again.
           const current = await options.readRevision!();
           if (
             intact &&
@@ -769,8 +921,8 @@ export class LocalBackupService {
         !m.cleanup.length &&
         previous?.verificationStatus !== "rebuilt-needs-review"
       ) {
-        // Rebind a reopened writer and refresh tokens verified by the planner.
-        // DB/assets are unchanged; only the current manifest needs publication.
+        // Re-bind a writer that was reopened and refresh the token verified by the planner.
+        // The database and assets are unchanged, so only the current manifest needs to be published.
         if (previous) {
           const refreshed: Manifest = {
             ...previous,
@@ -874,7 +1026,7 @@ export class LocalBackupService {
       });
       p.verificationMs += performance.now() - verificationStarted;
       options.fault?.("prepared");
-      // Cancellation is deferred from this point until a determinable commit has been completed.
+      // From this point until a determinate commit completes, cancellation is deferred.
       emit("提交中");
       if (!dbSame) {
         await guard(target);
@@ -920,6 +1072,15 @@ export class LocalBackupService {
       }
     }
   }
+
+  /**
+   * Rebuild a missing backup manifest from the existing database on the target (marked for manual review).
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @param signal Abort signal.
+   * @returns The rebuilt manifest.
+   */
   async rebuildManifest(
     target: LocalTarget,
     notebookId: string,
@@ -998,6 +1159,13 @@ export class LocalBackupService {
       release();
     }
   }
+
+  /**
+   * Delete all managed files of one Notebook on the target (unknown/user files are preserved).
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   */
   async deleteNotebook(target: LocalTarget, notebookId: string) {
     uuid.parse(notebookId);
     const release = await lock(target);
@@ -1018,11 +1186,20 @@ export class LocalBackupService {
       }
       await guard(target);
       await unlink(await safePath(root, ".backup/manifest.json"));
-      // Keep unknown files and directories, including user files, intact.
+      // Unknown files and directories (including user files) are left untouched.
     } finally {
       release();
     }
   }
+
+  /**
+   * Run a full verification of one Notebook's backup and update the verification timestamp.
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @param signal Abort signal.
+   * @param onReport Optional report callback.
+   */
   async verify(
     target: LocalTarget,
     notebookId: string,
@@ -1037,7 +1214,7 @@ export class LocalBackupService {
       signal.throwIfAborted();
       await guard(target);
       m.lastFullVerifiedAt = new Date().toISOString();
-      // A pending prepared record remains authoritative; do not invalidate its manifest hash.
+      // The pending prepared record is still authoritative: do not let its manifest hash become stale.
       if (
         !(await exists(
           target.path,
@@ -1054,6 +1231,15 @@ export class LocalBackupService {
       release();
     }
   }
+
+  /**
+   * Run a full verification while holding the lock.
+   *
+   * @param target Local backup target.
+   * @param book Notebook ID.
+   * @param signal Abort signal.
+   * @param onReport Optional report callback.
+   */
   private async verifyLocked(
     target: LocalTarget,
     book: string,
@@ -1077,6 +1263,16 @@ export class LocalBackupService {
     if (report.status !== "passed") throw new LocalVerificationError(report);
     return m;
   }
+
+  /**
+   * Verify the backup and then copy it to the destination directory (rejecting overlap and same-name overwrite).
+   *
+   * @param target Local backup target.
+   * @param notebookId Notebook ID.
+   * @param destination Destination directory.
+   * @param signal Abort signal.
+   * @returns The restored destination path.
+   */
   async restore(
     target: LocalTarget,
     notebookId: string,

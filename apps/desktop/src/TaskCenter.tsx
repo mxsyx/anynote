@@ -3,6 +3,8 @@ import { request } from "./api";
 import LocalVerificationDetails from "./LocalVerificationDetails";
 import type { LocalVerificationReport, NoteNode } from "@anynote/types";
 import { X, LoaderCircle, Check, AlertCircle } from "lucide-react";
+
+/** Display structure of a background task (import/export/backup/restore, etc.). */
 export interface Task {
   id: string;
   type: string;
@@ -37,6 +39,8 @@ export interface Task {
   totalBytes?: number;
   diskBudgetBytes?: number;
 }
+
+/** Task center: poll background tasks and show progress, verification reports, and restore entry points. */
 export default function TaskCenter({
   onClose,
   onOpen,
@@ -49,6 +53,7 @@ export default function TaskCenter({
   const [jobs, setJobs] = useState<Task[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
+    /** Fetch the task list once. */
     const poll = () =>
       request<Task[]>("listTasks")
         .then(setJobs)

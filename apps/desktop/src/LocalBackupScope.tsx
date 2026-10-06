@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import type { Notebook } from "@anynote/types";
 import { request } from "./api";
+
+/**
+ * Notebook scope selector for local disk backup.
+ *
+ * Supports select-all/clear, saving the scope, and starting a batch backup or
+ * restore for that scope.
+ */
 export default function LocalBackupScope({
   diskId,
   beforeBackup,
@@ -41,6 +48,12 @@ export default function LocalBackupScope({
       alive = false;
     };
   }, [diskId]);
+
+  /**
+   * Run an async action uniformly and maintain busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");

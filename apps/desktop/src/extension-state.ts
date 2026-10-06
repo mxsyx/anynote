@@ -1,6 +1,14 @@
 import { request } from "./api";
 import type { InstalledExtension } from "@anynote/plugin-sdk/declarative";
+
 const cache = new Map<string, Promise<InstalledExtension[]>>();
+
+/**
+ * Read a Notebook's installed extensions (with a per-Notebook promise cache).
+ *
+ * @param notebookId Notebook ID.
+ * @returns Installed extensions.
+ */
 export function installedExtensions(notebookId: string) {
   let value = cache.get(notebookId);
   if (!value) {
@@ -15,6 +23,10 @@ export function installedExtensions(notebookId: string) {
   }
   return value;
 }
+
+/**
+ * Invalidate the extension cache and broadcast a change event.
+ */
 export function extensionsChanged() {
   cache.clear();
   window.dispatchEvent(new Event("anynote:extensions-changed"));

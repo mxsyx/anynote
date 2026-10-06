@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import RemoteMaintenance from "./RemoteMaintenance";
 import { request } from "./api";
 import { Cloud, Plus, X, Check } from "lucide-react";
+
+/** A remote backup target. */
 interface Target {
   id: string;
   name: string;
@@ -16,12 +18,16 @@ interface Target {
   intervalMinutes?: number;
   lastError?: string;
 }
+
+/** A committed remote version. */
 interface Version {
   id: string;
   createdAt: string;
   snapshotSeq: number;
   assets: number;
 }
+
+/** Remote backup target panel: configure S3/Cloudflare, test connections, view history, and restore. */
 export default function BackupTargets({
   notebookId,
   onStarted,
@@ -39,11 +45,19 @@ export default function BackupTargets({
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<Target | null>(null),
     [versions, setVersions] = useState<Version[]>([]);
+
+  /** Re-fetch the target list. */
   const reload = () =>
     request<Target[]>("listBackupTargets", { notebookId }).then(setTargets);
   useEffect(() => {
     void reload();
   }, [notebookId]);
+
+  /**
+   * Run an async action uniformly and maintain busy/error state.
+   *
+   * @param fn Action to run.
+   */
   const action = async (fn: () => Promise<void>) => {
     setError("");
     setBusy(true);

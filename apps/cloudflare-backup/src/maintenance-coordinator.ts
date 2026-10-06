@@ -2,21 +2,38 @@ import type { DurableObjectState } from "@cloudflare/workers-types";
 import type { WorkerEnv } from "@anynote/types/runtime.js";
 import { maintenance, state } from "./maintenance.js";
 
-/** One globally unique actor per Notebook. No time-based stealing of a live lock. */
+/** One globally unique actor per Notebook. A live lock is never stolen by time. */
 export class MaintenanceCoordinator {
   private owner = crypto.randomUUID();
   private queue: Promise<unknown> = Promise.resolve();
   private initialized = false;
+
   constructor(
     private ctx: DurableObjectState,
     private env: WorkerEnv,
   ) {}
+
+  /**
+   * Run one operation serially and register the queue tail with `waitUntil`.
+   *
+   * @param fn Operation to execute.
+   * @returns Result of the operation.
+   */
   private serial<T>(fn: () => Promise<T>): Promise<T> {
     const job = this.queue.then(fn);
     this.queue = job.catch(() => {});
     this.ctx.waitUntil(this.queue);
     return job;
   }
+
+  /**
+   * Initialize the coordinator identity.
+   *
+   * A new instance clears execution locks left by the previous incarnation;
+   * legacy locks without an actor owner are deliberately never stolen.
+   *
+   * @param book Notebook ID this coordinator is bound to.
+   */
   private async initialize(book: string) {
     const prior = await this.ctx.storage.get<string>("book");
     if (prior && prior !== book) throw Error("维护协调器身份不匹配");
@@ -32,6 +49,13 @@ export class MaintenanceCoordinator {
       this.initialized = true;
     }
   }
+
+  /**
+   * Handle a maintenance request: set an alarm and clear it once done as needed.
+   *
+   * @param request Maintenance request.
+   * @returns Response produced by the maintenance handler.
+   */
   fetch(request: Request) {
     return this.serial(async () => {
       const url = new URL(request.url);
@@ -41,7 +65,7 @@ export class MaintenanceCoordinator {
       if (!match || request.method !== "POST")
         return Response.json({ error: "接口不存在" }, { status: 404 });
       await this.initialize(match[1]);
-      // Persist the alarm before any destructive work. It survives actor resets.
+      // Persist the alarm before any destructive work so it survives actor resets.
       await this.ctx.storage.setAlarm(Date.now() + 10000);
       try {
         return (await maintenance(
@@ -63,6 +87,8 @@ export class MaintenanceCoordinator {
       }
     });
   }
+
+  /** Timer trigger: keep advancing confirmed deletion plans until no maintenance work remains. */
   alarm() {
     return this.serial(async () => {
       const book = await this.ctx.storage.get<string>("book");
@@ -84,7 +110,7 @@ export class MaintenanceCoordinator {
         return;
       }
 
-      // Only a previously confirmed deleting plan is eligible for automatic work.
+      // Only deletion plans that were previously confirmed are eligible for automatic advancement.
       await this.ctx.storage.setAlarm(Date.now() + 30000);
       const response = await maintenance(
         new Request(

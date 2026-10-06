@@ -5,6 +5,8 @@ import type {
   ExtensionSettingsSnapshot,
   ExtensionSettingsValues,
 } from "@anynote/plugin-sdk/declarative";
+
+/** Edit an extension's settings form under the current Notebook (handling version conflicts and defaults). */
 export default function ExtensionSettingsForm({
   entry,
   notebookId,
@@ -28,6 +30,12 @@ export default function ExtensionSettingsForm({
     extensionId: entry.manifest.id,
     checksum: entry.checksum,
   };
+
+  /**
+   * Receive a settings snapshot, fill the draft, and report an error when incompatible.
+   *
+   * @param next The received settings snapshot.
+   */
   const receive = (next: ExtensionSettingsSnapshot) => {
     setSnapshot(next);
     setDraft(
@@ -59,6 +67,8 @@ export default function ExtensionSettingsForm({
       generation.current++;
     };
   }, [notebookId, entry.manifest.id, entry.checksum]);
+
+  /** Manually reload settings. */
   const load = async () => {
     const token = generation.current;
     setBusy(true);
@@ -76,6 +86,8 @@ export default function ExtensionSettingsForm({
       if (generation.current === token) setBusy(false);
     }
   };
+
+  /** Validate the draft and save settings (with the expected revision). */
   const save = async () => {
     if (!snapshot) return;
     const token = generation.current;

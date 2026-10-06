@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+/** One synchronous script search request (query of at least 3 characters, at most 20 results). */
 export const scriptSearchRequestSchema = z
   .object({
     query: z
@@ -13,6 +15,8 @@ export const scriptSearchRequestSchema = z
     limit: z.number().int().min(1).max(20),
   })
   .strict();
+
+/** Full structure of a search context. */
 export const scriptSearchContextSchema = z
   .object({
     query: scriptSearchRequestSchema.shape.query,
@@ -32,6 +36,13 @@ export const scriptSearchContextSchema = z
       .max(20),
   })
   .strict();
+
+/**
+ * Validate a search context: check the byte budget and result deduplication.
+ *
+ * @param raw Raw search context.
+ * @returns The validated search context.
+ */
 export function validateScriptSearchContext(raw: unknown) {
   const value = scriptSearchContextSchema.parse(raw);
   if (Buffer.byteLength(JSON.stringify(value)) > 32 * 1024)
@@ -41,6 +52,7 @@ export function validateScriptSearchContext(raw: unknown) {
   return value;
 }
 
+/** Script-declared async search request list (1–4 entries, unique IDs). */
 export const scriptAsyncSearchSchema = z
   .array(
     scriptSearchRequestSchema

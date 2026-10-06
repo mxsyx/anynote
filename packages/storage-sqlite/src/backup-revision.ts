@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { SqlDatabase } from "@anynote/types/runtime.js";
 
+/** Backup revision schema: notebook, lineage, content seq, schema version, and storage epoch. */
 export const backupRevisionSchema = z.object({
   notebookId: z.string().uuid(),
   lineageId: z.string().uuid(),
@@ -9,8 +10,12 @@ export const backupRevisionSchema = z.object({
   schemaVersion: z.literal(2),
   storageEpoch: z.string().regex(/^\d+$/),
 });
+
+/** Backup revision type. */
 export type BackupRevision = z.infer<typeof backupRevisionSchema>;
-// Every durable v2 table. FTS and its shadow tables are regenerable caches.
+
+// All persisted v2 tables. FTS and its shadow tables are rebuildable caches.
+/** Persisted tables that participate in the backup revision contract. */
 const tables = [
   "notebook_meta",
   "nodes",
@@ -26,6 +31,8 @@ const tables = [
   "extension_data",
   "import_reports",
 ];
+
+/** Definitions for the backup revision marker table and each persisted table's triggers. */
 const definitions = [
   {
     name: "_backup_revision",
@@ -35,21 +42,43 @@ const definitions = [
     ["INSERT", "UPDATE", "DELETE"].map((op) => ({
       name: `_backup_${table}_${op.toLowerCase()}`,
       sql: `CREATE TRIGGER _backup_${table}_${op.toLowerCase()} AFTER ${op} ON ${table} BEGIN
-      SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;
-      SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;
-      UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;
-    END`,
+     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;
+     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;
+     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;
+   END`,
     })),
   ),
 ];
+
+/** SQL used to create the backup revision marker structure. */
 export const revisionSQL = definitions.map((d) => d.sql).join(";\n") + ";";
+
+/**
+ * Normalize SQL text for structural comparison (collapse whitespace, drop trailing semicolon).
+ *
+ * @param s SQL text.
+ * @returns Normalized SQL text.
+ */
 const normalize = (s: string) =>
   s.trim().replace(/\s+/g, " ").replace(/;$/, "");
+
+/**
+ * Whether the database contains the backup revision marker table.
+ *
+ * @param db Open database handle.
+ * @returns True when the marker table exists.
+ */
 export function hasRevisionMetadata(db: SqlDatabase) {
   return !!db
     .prepare("SELECT 1 FROM sqlite_master WHERE name='_backup_revision'")
     .get();
 }
+
+/**
+ * Assert the database structure exactly matches the backup revision contract.
+ *
+ * @param db Open database handle.
+ */
 export function assertRevisionSchema(db: SqlDatabase) {
   const knownTables = new Set([
     ...tables,
@@ -82,7 +111,13 @@ export function assertRevisionSchema(db: SqlDatabase) {
   )
     throw Error("备份版本标记结构不完整或不兼容");
 }
-/** Optional, exactly validated storage metadata; preserves compatibility with existing v2 archives. */
+
+/**
+ * Optionally but strictly validated storage metadata; compatible with existing v2 archives.
+ *
+ * @param db Open database handle.
+ * @param reference Reference database used to validate structure.
+ */
 export function assertNotebookSchema(db: SqlDatabase, reference: SqlDatabase) {
   if (hasRevisionMetadata(db)) {
     assertRevisionSchema(db);
@@ -96,7 +131,14 @@ export function assertNotebookSchema(db: SqlDatabase, reference: SqlDatabase) {
   )
     throw Error("数据库结构不兼容");
 }
-/** Persist tracking metadata; restored/reidentified databases explicitly start a new lineage. */
+
+/**
+ * Persist tracking metadata; a restored/re-identified database explicitly starts a new lineage.
+ *
+ * @param db Open database handle.
+ * @param resetLineage Start a fresh lineage.
+ * @returns The initialized backup revision.
+ */
 export function initializeBackupRevision(
   db: SqlDatabase,
   resetLineage = false,
@@ -118,7 +160,13 @@ export function initializeBackupRevision(
     throw e;
   }
 }
-/** Undefined means capture-and-hash fallback; never guess that a broken tracker is current. */
+
+/**
+ * Read the backup revision; `undefined` means fall back to capturing and hashing, never treating a corrupt tracker as current.
+ *
+ * @param db Open database handle.
+ * @returns The backup revision, or `undefined`.
+ */
 export function readBackupRevision(
   db: SqlDatabase,
 ): BackupRevision | undefined {
@@ -129,8 +177,8 @@ export function readBackupRevision(
       db
         .prepare(
           `SELECT m.id AS notebookId,r.lineage_id AS lineageId,
-      CAST(m.content_seq AS TEXT) AS contentSeq,m.schema_version AS schemaVersion,
-      CAST(r.storage_epoch AS TEXT) AS storageEpoch FROM notebook_meta m CROSS JOIN _backup_revision r WHERE r.id=1 AND r.format=1`,
+     CAST(m.content_seq AS TEXT) AS contentSeq,m.schema_version AS schemaVersion,
+     CAST(r.storage_epoch AS TEXT) AS storageEpoch FROM notebook_meta m CROSS JOIN _backup_revision r WHERE r.id=1 AND r.format=1`,
         )
         .get(),
     );

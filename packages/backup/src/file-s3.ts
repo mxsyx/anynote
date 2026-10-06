@@ -11,6 +11,19 @@ import {
   verifyDirectoryBudget,
 } from "./file-snapshot.js";
 import { digest, S3Objects } from "./providers.js";
+
+/**
+ * Upload a file snapshot: dedupe chunks, write the manifest, and commit a marker.
+ *
+ * @param objects S3 accessor.
+ * @param snapshot File snapshot to upload.
+ * @param target Backup target.
+ * @param generationId Target generation ID.
+ * @param signal Abort signal.
+ * @param progress Progress callback.
+ * @param onBytes Callback reporting uploaded bytes.
+ * @returns Commit result with generation id and snapshot seq.
+ */
 async function uploadSnapshotFilesCore(
   objects: S3Objects,
   snapshot: FileSnapshot,
@@ -86,7 +99,7 @@ async function uploadSnapshotFilesCore(
     }),
   );
   const markerKey = `${base}/generations/${generationId}/COMMITTED.json`;
-  // Cancellation is disabled once publication starts, just as for Cloudflare commit.
+  // Once publishing starts, cancellation is disabled to match Cloudflare's commit behavior.
   await objects.put(markerKey, marker);
   if (
     digest(await objects.get(markerKey, { maxBytes: marker.length })) !==
@@ -95,11 +108,15 @@ async function uploadSnapshotFilesCore(
     throw Error("提交记录校验失败");
   return { generationId, snapshotSeq: saved.snapshotSeq };
 }
+
+/** Chunk descriptor schema. */
 const chunk = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   size: z.number().int().positive().max(cloudObjectLimit),
   key: z.string().max(1000),
 });
+
+/** File descriptor schema. */
 const descriptor = z.object({
   path: z.string(),
   size: z.number().int().nonnegative(),
@@ -108,6 +125,19 @@ const descriptor = z.object({
   chunks: z.array(chunk).min(1).max(2048).optional(),
   mimeType: z.string().optional(),
 });
+
+/**
+ * Download and verify the manifest and chunks, restoring them into a local directory.
+ *
+ * @param objects S3 accessor.
+ * @param target Backup target.
+ * @param generationId Generation ID to restore.
+ * @param dir Destination directory.
+ * @param signal Abort signal.
+ * @param onBytes Callback reporting processed bytes.
+ * @param onTotal Callback reporting the total byte count.
+ * @returns Restored file manifest.
+ */
 async function restoreSnapshotFilesCore(
   objects: S3Objects,
   target: BackupTarget,
@@ -188,6 +218,12 @@ async function restoreSnapshotFilesCore(
   };
 }
 
+/**
+ * S3 file snapshot upload that registers writer activity.
+ *
+ * @param args Arguments forwarded to {@link uploadSnapshotFilesCore}.
+ * @returns Commit result of the upload.
+ */
 export function uploadSnapshotFiles(
   ...args: Parameters<typeof uploadSnapshotFilesCore>
 ) {
@@ -199,6 +235,13 @@ export function uploadSnapshotFiles(
     () => uploadSnapshotFilesCore(...args),
   );
 }
+
+/**
+ * S3 file snapshot restore that registers reader activity.
+ *
+ * @param args Arguments forwarded to {@link restoreSnapshotFilesCore}.
+ * @returns Restored file manifest.
+ */
 export function restoreSnapshotFiles(
   ...args: Parameters<typeof restoreSnapshotFilesCore>
 ) {

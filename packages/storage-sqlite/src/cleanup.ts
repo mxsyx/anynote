@@ -11,7 +11,16 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+
 const uuid = z.string().uuid();
+
+/**
+ * Collect cleanable candidates: unreferenced orphan resources and local snapshots beyond the retention policy.
+ *
+ * @param s Storage service.
+ * @param p Operation payload.
+ * @returns Candidate items to clean.
+ */
 function candidates(s: Storage, p: SqlRow) {
   if (s.pins.get(p.notebookId))
     throw Error("Notebook 正在备份或导出，请稍后清理");
@@ -24,6 +33,13 @@ function candidates(s: Storage, p: SqlRow) {
         .map((a) => a.hash),
     ),
     items: SqlRow[] = [];
+
+  /**
+   * Record one candidate (regular files only), keeping its size and identity metadata for re-checking.
+   *
+   * @param relative Relative path of the candidate.
+   * @param kind Candidate kind.
+   */
   const add = (relative: string, kind: string) => {
     const stat = lstatSync(join(root, relative));
     if (!stat.isFile() || stat.isSymbolicLink()) return;
@@ -67,6 +83,19 @@ function candidates(s: Storage, p: SqlRow) {
   }
   return items;
 }
+
+/**
+ * Local resource cleanup: preview candidates first, then move them to quarantine and delete after explicit confirmation.
+ *
+ * Before execution it re-checks whether candidate size and identity changed
+ * to avoid deleting files that became referenced; failures during deletion
+ * roll back files already moved.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export function cleanupOperation(s: Storage, op: string, raw: unknown) {
   if (op === "previewCleanup") {
     const p = z

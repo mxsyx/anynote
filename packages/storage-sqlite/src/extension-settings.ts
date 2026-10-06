@@ -8,12 +8,22 @@ import {
   settingsChecksum,
   validateSettings,
 } from "@anynote/extension-tools/settings.js";
+
 export {
   extensionSettingsSchema,
   settingsEnvelopeSchema,
   settingsChecksum,
   validateSettings,
 } from "@anynote/extension-tools/settings.js";
+
+/**
+ * Read extension settings: validate the definition digest and structure, falling back to defaults and flagging when incompatible.
+ *
+ * @param db Open database handle.
+ * @param extensionId Extension ID.
+ * @param form Settings contribution definition.
+ * @returns The stored settings or the incompatible fallback.
+ */
 export function readExtensionSettings(
   db: SqlDatabase,
   extensionId: string,
@@ -46,6 +56,17 @@ export function readExtensionSettings(
     return { revision: row.revision, compatible: false, values: defaults };
   }
 }
+
+/**
+ * Write extension settings: requires compatibility and a version match, then bumps the revision on success.
+ *
+ * @param db Open database handle.
+ * @param extensionId Extension ID.
+ * @param form Settings contribution definition.
+ * @param raw Raw settings values.
+ * @param expectedRevision Revision the caller expects.
+ * @returns The new settings snapshot.
+ */
 export function writeExtensionSettings(
   db: SqlDatabase,
   extensionId: string,

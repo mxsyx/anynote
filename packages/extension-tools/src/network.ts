@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { isIP } from "node:net";
+
+/** Script network request URL: an HTTPS host URL without credentials, fragments, or non-standard ports. */
 export const scriptNetworkURL = z
   .string()
   .max(2048)
@@ -23,6 +25,8 @@ export const scriptNetworkURL = z
     }
   }, "网络请求须为无凭据、无片段、标准端口的 HTTPS 域名地址")
   .transform((v) => new URL(v).href);
+
+/** Script-declared network request list (1–4 entries, unique IDs). */
 export const scriptNetworkRequestsSchema = z
   .array(
     z
@@ -38,6 +42,13 @@ export const scriptNetworkRequestsSchema = z
     (v) => new Set(v.map((r) => r.id)).size === v.length,
     "网络请求 ID 重复",
   );
+
+/**
+ * Validate the host-returned network result structure and check the byte budget.
+ *
+ * @param raw Raw network result.
+ * @returns The validated network result.
+ */
 export function validateScriptNetworkResult(raw: unknown) {
   const value = z
     .object({

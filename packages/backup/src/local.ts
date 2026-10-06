@@ -23,7 +23,10 @@ import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
 import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
 import type { Task } from "@anynote/types/runtime.js";
 import type { Capture } from "@anynote/backup-local";
+
 const uuid = z.string().uuid();
+
+/** Revision structure of a local backup target record. */
 const revisionSchema = z.object({
   notebookId: uuid,
   lineageId: uuid,
@@ -31,6 +34,8 @@ const revisionSchema = z.object({
   schemaVersion: z.number().int(),
   storageEpoch: z.string(),
 });
+
+/** Persisted config of a local backup target. */
 const config = z.object({
   id: uuid,
   diskId: uuid,
@@ -49,17 +54,41 @@ const config = z.object({
   pendingCleanup: z.boolean().optional(),
   lastProgress: z.string().optional(),
 });
+
+/** Local backup target type. */
 export type LocalBackupTarget = z.infer<typeof config>;
+
 const engines = new LocalBackupService(),
   queues = new WeakMap<Storage, Map<string, Promise<unknown>>>();
+
+/**
+ * Managed path of the target config file.
+ *
+ * @param s Storage service.
+ * @returns Config file path.
+ */
 function file(s: Storage) {
   return assertLocalPath(s.root, "_local/local-backup-targets.json");
 }
+
+/**
+ * Read and validate all local backup targets.
+ *
+ * @param s Storage service.
+ * @returns Local backup targets.
+ */
 export function readLocalTargets(s: Storage): LocalBackupTarget[] {
   return existsSync(file(s))
     ? z.array(config).parse(JSON.parse(readFileSync(file(s), "utf8")))
     : [];
 }
+
+/**
+ * Atomically write the target config.
+ *
+ * @param s Storage service.
+ * @param targets Targets to persist.
+ */
 function write(s: Storage, targets: LocalBackupTarget[]) {
   const path = file(s);
   mkdirSync(join(path, ".."), { recursive: true });
@@ -70,15 +99,39 @@ function write(s: Storage, targets: LocalBackupTarget[]) {
   writeFileSync(temp, JSON.stringify(targets), { flush: true, mode: 0o600 });
   renameSync(temp, path);
 }
+
+/**
+ * Update selected fields of one target.
+ *
+ * @param s Storage service.
+ * @param id Target ID.
+ * @param patch Fields to change.
+ */
 function update(s: Storage, id: string, patch: Partial<LocalBackupTarget>) {
   write(
     s,
     readLocalTargets(s).map((t) => (t.id === id ? { ...t, ...patch } : t)),
   );
 }
+
+/**
+ * Convert a target config into an engine target.
+ *
+ * @param t Local backup target.
+ * @returns Engine target descriptor.
+ */
 function engineTarget(t: LocalBackupTarget): LocalTarget {
   return { id: t.diskId, path: t.path };
 }
+
+/**
+ * Capture the source Notebook snapshot, releasing the temp directory and write-connection pin afterwards.
+ *
+ * @param s Storage service.
+ * @param t Local backup target.
+ * @param signal Abort signal.
+ * @returns The captured snapshot.
+ */
 async function captureOwned(
   s: Storage,
   t: LocalBackupTarget,
@@ -91,6 +144,12 @@ async function captureOwned(
     });
   const workspace = temporaryJob(s.root, "backup-jobs");
   s.pins.set(t.notebookId, (s.pins.get(t.notebookId) || 0) + 1);
+
+  /**
+   * Release the temp directory, write-connection pin, and workspace lease.
+   *
+   * @returns A promise that resolves once everything is released.
+   */
   const release = async () => {
     try {
       rmSync(workspace.dir, { recursive: true, force: true });
@@ -116,6 +175,13 @@ async function captureOwned(
     throw e;
   }
 }
+
+/**
+ * Classify an underlying error into a stable error code.
+ *
+ * @param error Error to classify.
+ * @returns Stable error code.
+ */
 function errorCode(error: any) {
   if (
     error.code &&
@@ -132,6 +198,8 @@ function errorCode(error: any) {
   if (/源.*缺失|源.*不存在/.test(error.message)) return "SOURCE_ASSET_MISSING";
   return "BACKUP_FAILED";
 }
+
+/** Operation names related to local backup. */
 export const localOperations = [
   "configureLocalBackup",
   "setLocalBackupScope",
@@ -147,12 +215,26 @@ export const localOperations = [
   "deleteLocalNotebookBackup",
   "rebuildLocalBackupManifest",
 ];
+
+/**
+ * Single entry point for local backup operations.
+ *
+ * Covers target configuration, scope settings, preview, backup, verification,
+ * restore, manifest rebuild, and deletion; tasks on the same disk are queued
+ * through a serial queue, and a task handle is returned.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @returns Handled flag with the operation result.
+ */
 export async function localBackupOperation(
   s: Storage,
   op: string,
   raw: unknown,
 ) {
   if (!localOperations.includes(op)) return { handled: false };
+
   if (op === "setLocalBackupScope") {
     const p = z
       .object({ diskId: uuid, notebookIds: z.array(uuid).max(1000) })
@@ -191,8 +273,9 @@ export async function localBackupOperation(
       });
     });
     write(s, [...all.filter((t) => t.diskId !== p.diskId), ...next]);
-    return { handled: true, result: next }; // Excluded copies stay on disk.
+    return { handled: true, result: next }; // 被排除的副本仍保留在磁盘上。
   }
+
   if (op === "startLocalBackupGroup") {
     const p = z
       .object({
@@ -244,6 +327,8 @@ export async function localBackupOperation(
       job.error = e.message;
       return { handled: true, result: { id: job.id } };
     }
+
+    /** Abort still-running child tasks when the group task is cancelled. */
     const abort = () => {
       for (const child of children)
         if (child.status === "running") child.controller?.abort();
@@ -294,6 +379,7 @@ export async function localBackupOperation(
       });
     return { handled: true, result: { id: job.id } };
   }
+
   if (op === "configureLocalBackup") {
     const p = z
       .object({
@@ -304,7 +390,7 @@ export async function localBackupOperation(
       .strict()
       .parse(raw);
     s.open(p.notebookId);
-    // Reject overlap with every registered Notebook, including externally opened directories.
+    // Reject overlap with every registered Notebook (including externally opened directories).
     const target = await initializeTarget(p.path, [
       s.root,
       ...s.notebookCatalog().map((b) => s.directory(b.id)),
@@ -363,6 +449,7 @@ export async function localBackupOperation(
     write(s, [...targets.filter((a) => a.id !== t.id), t]);
     return { handled: true, result: t };
   }
+
   if (op === "listLocalBackupTargets") {
     const p = z.object({ notebookId: uuid.optional() }).strict().parse(raw);
     const targets = readLocalTargets(s).filter(
@@ -419,6 +506,7 @@ export async function localBackupOperation(
       ),
     };
   }
+
   const p = z
     .object({
       notebookId: uuid,
@@ -438,6 +526,7 @@ export async function localBackupOperation(
     (t) => t.id === p.targetId && t.notebookId === p.notebookId,
   );
   if (!t) throw Error("本地备份目标不存在");
+
   if (op === "previewLocalBackup") {
     const result = await engines.preview(
       engineTarget(t),
@@ -448,11 +537,13 @@ export async function localBackupOperation(
     );
     return { handled: true, result };
   }
+
   if (op === "getLocalBackupInfo")
     return {
       handled: true,
       result: await engines.info(engineTarget(t), t.notebookId),
     };
+
   if (op === "setLocalBackupSchedule") {
     if (p.enabled === undefined) throw Error("请指定自动备份状态");
     update(s, t.id, {
@@ -463,13 +554,15 @@ export async function localBackupOperation(
     });
     return { handled: true, result: true };
   }
+
   if (op === "removeLocalBackupTarget") {
     write(
       s,
       readLocalTargets(s).filter((a) => a.id !== t.id),
     );
-    return { handled: true, result: true }; // Deselecting leaves the current disk copy untouched.
+    return { handled: true, result: true }; // 取消选择不会动当前磁盘副本。
   }
+
   const active = [...s.jobs.values()].find(
     (j) => j.targetId === t.id && ["running", "committing"].includes(j.status),
   );
@@ -478,6 +571,7 @@ export async function localBackupOperation(
       throw Error("请先等待运行中的任务完成");
     return { handled: true, result: { id: active.id } };
   }
+
   if (op === "deleteLocalNotebookBackup") {
     if (queues.get(s)?.has(t.diskId))
       throw Error("目标有待执行任务，请稍后删除");
@@ -492,6 +586,7 @@ export async function localBackupOperation(
     });
     return { handled: true, result: true };
   }
+
   const controller = new AbortController(),
     signal = controller.signal;
   const job: Task = {
@@ -524,6 +619,12 @@ export async function localBackupOperation(
         signal.throwIfAborted();
         update(s, t.id, { lastAttempt: Date.now() });
         const target = engineTarget(t);
+
+        /**
+         * Map a verification report onto the task progress.
+         *
+         * @param report Verification report.
+         */
         const verification = (
           report: import("@anynote/types/local-backup.js").LocalVerificationReport,
         ) => {
@@ -538,6 +639,7 @@ export async function localBackupOperation(
             job.progress = "完整校验通过，正在恢复到本机新目录";
           }
         };
+
         if (op === "rebuildLocalBackupManifest") {
           job.progress = "正在从数据库重建备份清单";
           await engines.rebuildManifest(target, t.notebookId, signal);
@@ -576,7 +678,7 @@ export async function localBackupOperation(
             job,
             signal,
           );
-          workspace = { ...workspace, dir: "" }; // Published into the repository with a new Notebook identity.
+          workspace = { ...workspace, dir: "" }; // 已以新 Notebook 身份发布进仓库。
           job.restoredId = result.id;
           job.restoreResult = {
             restoredId: result.id,
@@ -586,6 +688,11 @@ export async function localBackupOperation(
           };
           job.progress = "已恢复当前副本为新的 Notebook";
         } else {
+          /**
+           * Map backup progress onto the task state.
+           *
+           * @param p Progress snapshot.
+           */
           const progress = (p: Progress) => {
             if (["提交中", "清理中"].includes(p.phase))
               job.status = "committing";
@@ -678,6 +785,8 @@ export async function localBackupOperation(
       }
     });
   queue.set(t.diskId, job.promise);
+
+  /** Remove this job from the queue once it finishes to keep the queue from growing unbounded. */
   const done = () => {
     if (queue.get(t.diskId) === job.promise) queue.delete(t.diskId);
   };

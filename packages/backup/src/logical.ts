@@ -7,6 +7,8 @@ import { schema } from "@anynote/storage-sqlite/index.js";
 import type { BackupTarget, LogicalManifest } from "@anynote/types/runtime.js";
 import { DatabaseSync } from "@anynote/types/runtime.js";
 import { digest } from "./providers.js";
+
+/** Entity table names involved in logical backup. */
 const tables = [
   "notebook_meta",
   "nodes",
@@ -20,6 +22,13 @@ const tables = [
   "changes",
   "import_reports",
 ];
+
+/**
+ * Split an archive bundle into line-by-line logical entity objects and a manifest.
+ *
+ * @param bundle Zipped archive bundle.
+ * @returns Extracted logical entities and the derived manifest.
+ */
 export function logicalBundle(bundle: Buffer) {
   const files = unzipSync(bundle),
     archive = JSON.parse(Buffer.from(files["manifest.json"]).toString()),
@@ -65,6 +74,16 @@ export function logicalBundle(bundle: Buffer) {
     rmSync(root, { recursive: true, force: true });
   }
 }
+
+/**
+ * Convert an archive bundle into logical entities and upload them to Cloudflare.
+ *
+ * @param client Cloudflare client.
+ * @param bundle Zipped archive bundle.
+ * @param target Backup target.
+ * @param options Generation id, progress callback, and abort signal.
+ * @returns Commit result of the upload.
+ */
 export async function uploadLogical(
   client: import("./providers.js").CloudflareClient,
   bundle: Buffer,
@@ -135,6 +154,14 @@ export async function uploadLogical(
     snapshotSeq: manifest.snapshotSeq,
   };
 }
+
+/**
+ * List committed remote versions under one lineage.
+ *
+ * @param client Cloudflare client.
+ * @param target Backup target.
+ * @returns Listed remote versions.
+ */
 export async function listLogical(
   client: import("./providers.js").CloudflareClient,
   target: BackupTarget,
@@ -145,6 +172,15 @@ export async function listLogical(
     )
   ).items;
 }
+
+/**
+ * Download a logical version from Cloudflare and reassemble it into an archive bundle.
+ *
+ * @param client Cloudflare client.
+ * @param target Backup target.
+ * @param generationId Generation ID to restore.
+ * @returns Zipped archive bundle.
+ */
 export async function restoreLogical(
   client: import("./providers.js").CloudflareClient,
   target: BackupTarget,
@@ -156,6 +192,8 @@ export async function restoreLogical(
   const pinned = capabilities.capabilities?.includes("restore-pin");
   if (pinned) await client.call(pinPath, { method: "POST", body: { pinId } });
   let renewalError;
+
+  // Periodically renew the pin during restore so the active version is not cleaned up.
   const timer = pinned
     ? setInterval(() => {
         void client

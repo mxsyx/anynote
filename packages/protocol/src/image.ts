@@ -1,15 +1,27 @@
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { parseBlocks, extensionBlock } from "./markdown.js";
+
 const parser = unified().use(remarkParse);
 const resource = /^[a-f0-9-]{36}$/i;
+
+/** Description of an editable standalone local image block. */
 export interface ImageBlock {
   resourceId: string;
   alt: string;
   title?: string;
   width?: number;
 }
-/** Only standalone local images and validated v1 image directives are editable. */
+
+/**
+ * Parse a standalone local image block.
+ *
+ * Accepts only the standalone `![alt](anynote-resource:…)` image syntax or a
+ * validated `core.image` v1 extension directive; anything else returns `null`.
+ *
+ * @param source Markdown source of the block.
+ * @returns The image block description, or `null` when it is not editable as an image.
+ */
 export function imageBlock(source: string): ImageBlock | null {
   const blocks = parseBlocks(source);
   if (blocks.length !== 1) return null;
@@ -68,6 +80,18 @@ export function imageBlock(source: string): ImageBlock | null {
     title: image.title || undefined,
   };
 }
+
+/**
+ * Change an image block's display width (32–4096 pixels).
+ *
+ * A `width` of `undefined` clears the width limit. Non-image blocks, invalid
+ * identity, or out-of-range widths throw.
+ *
+ * @param source Image block source.
+ * @param width Target width in pixels, or `undefined` to clear.
+ * @param id Image resource ID.
+ * @returns The updated Markdown source.
+ */
 export function resizeImageBlock(
   source: string,
   width: number | undefined,
@@ -99,6 +123,14 @@ export function resizeImageBlock(
   if (!resource.test(id)) throw Error("图片块身份无效");
   return extensionBlock("core.image", id, { ...image, width });
 }
+
+/**
+ * Serialize an image block into Markdown image syntax, escaping alt and collapsing the title to one line.
+ *
+ * @param image Image block.
+ * @param url Image URL.
+ * @returns The Markdown image source.
+ */
 export function imageMarkdown(image: ImageBlock, url: string) {
   const escape = (value: string) =>
     value.replace(/([\\[\]])/g, "\\$1").replace(/\r?\n/g, " ");

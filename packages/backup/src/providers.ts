@@ -10,8 +10,24 @@ import {
 import { unzipSync, zipSync } from "fflate";
 import { createHash } from "node:crypto";
 import type { BackupTarget, Credentials } from "@anynote/types/runtime.js";
+
+/**
+ * Compute the SHA-256 hex digest of a byte sequence.
+ *
+ * @param bytes Source bytes to hash.
+ * @returns Lowercase hex digest.
+ */
 export const digest = (bytes: Uint8Array) =>
   createHash("sha256").update(bytes).digest("hex");
+
+/**
+ * Read a response body with a maximum byte limit and optional cancellation.
+ *
+ * @param r Response whose body is read.
+ * @param maxBytes Maximum number of bytes to read.
+ * @param signal Optional abort signal.
+ * @returns Concatenated body bytes.
+ */
 async function boundedBody(
   r: Response,
   maxBytes: number,
@@ -38,10 +54,13 @@ async function boundedBody(
     reader.releaseLock();
   }
 }
+
+/** Accessor for S3-compatible object storage (put/get/list, etc.). */
 export class S3Objects {
   bucket: string;
   prefix: string;
   client: S3Client;
+
   constructor(
     config: Pick<BackupTarget, "endpoint"> & Partial<BackupTarget>,
     credentials: Credentials,
@@ -61,9 +80,24 @@ export class S3Objects {
       },
     });
   }
+
+  /**
+   * Join a logical key into a full object key (with prefix).
+   *
+   * @param key Logical key.
+   * @returns Prefixed object key.
+   */
   key(key: string) {
     return `${this.prefix}/${key}`;
   }
+
+  /**
+   * Upload an object.
+   *
+   * @param key Logical object key.
+   * @param bytes Object contents.
+   * @param signal Optional abort signal.
+   */
   async put(key: string, bytes: Uint8Array, signal?: AbortSignal) {
     await this.client.send(
       new PutObjectCommand({
@@ -75,11 +109,25 @@ export class S3Objects {
       { abortSignal: signal },
     );
   }
+
+  /**
+   * Delete an object.
+   *
+   * @param key Logical object key.
+   */
   async delete(key: string) {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: this.key(key) }),
     );
   }
+
+  /**
+   * Download an object with a maximum byte limit.
+   *
+   * @param key Logical object key.
+   * @param options Download options (max bytes and abort signal).
+   * @returns Object bytes.
+   */
   async get(
     key: string,
     {
@@ -109,6 +157,14 @@ export class S3Objects {
       body.destroy();
     }
   }
+
+  /**
+   * Whether an object exists (404 returns false).
+   *
+   * @param key Logical object key.
+   * @param signal Optional abort signal.
+   * @returns True when the object exists.
+   */
   async has(key: string, signal?: AbortSignal) {
     try {
       await this.client.send(
@@ -126,6 +182,14 @@ export class S3Objects {
       throw e;
     }
   }
+
+  /**
+   * List one page of objects (up to 1000), returning entries and the next cursor.
+   *
+   * @param prefix Key prefix to list.
+   * @param token Continuation token for the next page.
+   * @returns Page items and the next continuation token, if any.
+   */
   async listPage(prefix: string, token?: string) {
     const response = await this.client.send(
       new ListObjectsV2Command({
@@ -145,6 +209,13 @@ export class S3Objects {
       next: response.IsTruncated ? response.NextContinuationToken : undefined,
     };
   }
+
+  /**
+   * List all objects under a prefix (up to 100 pages; throws when exceeded).
+   *
+   * @param prefix Key prefix to list.
+   * @returns Every matching object entry.
+   */
   async list(prefix: string) {
     const items = [];
     let token: string | undefined;
@@ -169,6 +240,15 @@ export class S3Objects {
     throw Error("远端版本数量超过列举预算");
   }
 }
+
+/**
+ * Upload a consistent snapshot: dedupe assets by hash, write the version manifest, and commit a marker.
+ *
+ * @param objects S3 accessor.
+ * @param bundle Zipped snapshot bundle.
+ * @param options Snapshot identity, progress callback, and abort signal.
+ * @returns Commit result with generation id, snapshot seq, and manifest key.
+ */
 async function uploadSnapshotCore(
   objects: S3Objects,
   bundle: Buffer,
@@ -243,6 +323,15 @@ async function uploadSnapshotCore(
     manifestKey,
   };
 }
+
+/**
+ * List remote restorable committed versions, skipping retired and non-branch versions.
+ *
+ * @param objects S3 accessor.
+ * @param notebookId Notebook ID.
+ * @param lineageId Lineage ID.
+ * @returns Restorable committed versions.
+ */
 export async function listSnapshots(
   objects: S3Objects,
   notebookId: string,
@@ -282,6 +371,14 @@ export async function listSnapshots(
   }
   return result;
 }
+
+/**
+ * Download and verify one version's manifest and objects, reassembling them into an archive bundle.
+ *
+ * @param objects S3 accessor.
+ * @param options Version identity (notebook, lineage, generation).
+ * @returns Zipped snapshot bundle.
+ */
 async function restoreSnapshotCore(
   objects: S3Objects,
   {
@@ -331,9 +428,12 @@ async function restoreSnapshotCore(
   files["manifest.json"] = Buffer.from(JSON.stringify(m));
   return Buffer.from(zipSync(files));
 }
+
+/** Client for the Cloudflare Worker backup service. */
 export class CloudflareClient {
   url: string;
   token: string;
+
   constructor(
     config: Pick<BackupTarget, "endpoint"> & Partial<BackupTarget>,
     secrets: Credentials,
@@ -341,6 +441,14 @@ export class CloudflareClient {
     this.url = config.endpoint.replace(/\/$/, "");
     this.token = secrets.token!;
   }
+
+  /**
+   * Issue one JSON/byte request, parsing the server error message on failure.
+   *
+   * @param path Request path.
+   * @param options Request options (method, body, bytes, abort signal).
+   * @returns Parsed JSON response.
+   */
   async call(
     path: string,
     {
@@ -381,9 +489,26 @@ export class CloudflareClient {
     }
     return JSON.parse((await boundedBody(r, 5 * 1024 ** 2, signal)).toString());
   }
+
+  /**
+   * Upload one object.
+   *
+   * @param path Object path.
+   * @param bytes Object contents.
+   * @param signal Optional abort signal.
+   * @returns Response from the upload call.
+   */
   async uploadObject(path: string, bytes: Uint8Array, signal?: AbortSignal) {
     return this.call(path, { method: "PUT", bytes, signal });
   }
+
+  /**
+   * Download one object with a maximum byte limit.
+   *
+   * @param path Object path.
+   * @param options Download options (max bytes and abort signal).
+   * @returns Object bytes.
+   */
   async downloadObject(
     path: string,
     {
@@ -405,6 +530,12 @@ export class CloudflareClient {
   }
 }
 
+/**
+ * S3 snapshot upload that registers writer activity.
+ *
+ * @param args Arguments forwarded to {@link uploadSnapshotCore}.
+ * @returns Commit result of the snapshot upload.
+ */
 export function uploadSnapshot(...args: Parameters<typeof uploadSnapshotCore>) {
   return withS3Activity(
     args[0],
@@ -414,6 +545,13 @@ export function uploadSnapshot(...args: Parameters<typeof uploadSnapshotCore>) {
     () => uploadSnapshotCore(...args),
   );
 }
+
+/**
+ * S3 snapshot restore that registers reader activity.
+ *
+ * @param args Arguments forwarded to {@link restoreSnapshotCore}.
+ * @returns Zipped snapshot bundle.
+ */
 export function restoreSnapshot(
   ...args: Parameters<typeof restoreSnapshotCore>
 ) {

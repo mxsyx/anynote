@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
+
+/** Inline local image: read from a content-addressed resource and render as an object URL. */
 export default function ResourceImage({
   notebookId,
   noteId,

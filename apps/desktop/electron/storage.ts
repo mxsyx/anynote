@@ -3,10 +3,21 @@ import { startBackupScheduler } from "@anynote/backup/scheduler.js";
 import { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Credentials } from "@anynote/types/runtime.js";
 import type { PendingRequest, SecretResponse, StorageRequest } from "./ipc.js";
+
+// Storage process entry: holds SQLite connections, serializes writes, and runs the backup and extension-update schedulers.
 const storage = new Storage(process.argv[2]);
 const secretRequests = new Map<number, PendingRequest>();
 const parentPort = process.parentPort;
 let secretCounter = 0;
+
+/**
+ * Request system-encrypted credential access (set/get) from the main process, with a timeout.
+ *
+ * @param op Operation (set or get).
+ * @param secretId Secret identifier.
+ * @param value Credential value to set.
+ * @returns The requested credential.
+ */
 const vaultRequest = (
   op: "set" | "get",
   secretId: string,
@@ -21,18 +32,21 @@ const vaultRequest = (
     secretRequests.set(id, { resolve, reject, timer });
     parentPort.postMessage({ type: "secret", id, op, secretId, value });
   });
+
 storage.vault = {
   set: (id: string, value: Credentials) => vaultRequest("set", id, value),
   get: (id: string) => vaultRequest("get", id) as Promise<Credentials>,
 };
 const scheduler = startBackupScheduler(storage);
 const extensionScheduler = startExtensionUpdateScheduler(storage);
+
 process.on("exit", () => {
   extensionScheduler.dispose();
   scheduler.dispose();
   storage.close();
 });
 process.on("SIGTERM", () => process.exit(0));
+
 parentPort.on(
   "message",
   async ({ data }: { data: StorageRequest | SecretResponse }) => {

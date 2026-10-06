@@ -13,6 +13,8 @@ import {
 import { safeDownload } from "@anynote/importer/network.js";
 import { downloadScriptNetwork } from "./script-network.js";
 import { extensionCatalog } from "./extension-catalog.js";
+
+/** Execution plan for one restricted script command (prepared before running in the isolated executor). */
 export interface ScriptPlan {
   kind: "script-plan";
   source: string;
@@ -24,15 +26,32 @@ export interface ScriptPlan {
   networkRequests?: ScriptNetworkRequest[];
   controller: AbortController;
 }
+
 const closed = new WeakSet<Storage>();
+
+/**
+ * Shut down the script service and cancel all running scripts.
+ *
+ * @param s Storage service.
+ */
 export function closeScripts(s: Storage) {
   closed.add(s);
   cancelScripts(s);
 }
+
 const running = new WeakMap<
   Storage,
   Set<{ extensionId: string; notebookId: string; controller: AbortController }>
 >();
+
+/**
+ * Register one script execution (concurrency capped at 2) and return its cancel controller.
+ *
+ * @param s Storage service.
+ * @param extensionId Extension ID.
+ * @param notebookId Notebook ID.
+ * @returns The cancel controller for the script.
+ */
 export function registerScript(
   s: Storage,
   extensionId: string,
@@ -49,6 +68,14 @@ export function registerScript(
   jobs.add({ extensionId, notebookId, controller });
   return controller;
 }
+
+/**
+ * Cancel running scripts matching an extension/Notebook.
+ *
+ * @param s Storage service.
+ * @param extensionId Optional extension ID filter.
+ * @param notebookId Optional Notebook ID filter.
+ */
 export function cancelScripts(
   s: Storage,
   extensionId?: string,
@@ -61,6 +88,14 @@ export function cancelScripts(
     )
       job.controller.abort();
 }
+
+/**
+ * Run an operation serially within the storage write queue.
+ *
+ * @param s Storage service.
+ * @param operation Operation to run.
+ * @returns Result of the operation.
+ */
 function enqueue<T>(s: Storage, operation: () => Promise<T>) {
   const result = s.queue.then(() => {
     if (closed.has(s)) throw Error("知识库服务已关闭");
@@ -69,6 +104,20 @@ function enqueue<T>(s: Storage, operation: () => Promise<T>) {
   s.queue = result.catch(() => {});
   return result;
 }
+
+/**
+ * Run an installed restricted script command.
+ *
+ * It first prepares the execution plan in the write queue (enumerating search
+ * /network/state/settings), then runs the script in the isolated executor
+ * (async host calls requeue as needed), and finally commits the body and state
+ * under a revision condition in the write queue.
+ *
+ * @param s Storage service.
+ * @param raw Raw operation payload.
+ * @param download Network download implementation.
+ * @returns The operation result.
+ */
 export async function runInstalledCommand(
   s: Storage,
   raw: Record<string, unknown>,
@@ -86,6 +135,7 @@ export async function runInstalledCommand(
             requests: plan.asyncSearch ?? [],
             networkRequests: plan.networkRequests,
             request: async (id: string) => {
+              /** Re-check the declaration to ensure permissions/content did not change during execution. */
               const check = () =>
                 enqueue(s, async () => {
                   if (plan.controller.signal.aborted)

@@ -10,14 +10,44 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+
 const uuid = z.string().uuid();
+
+/**
+ * Compute the SHA-256 digest of a string or bytes.
+ *
+ * @param value Input string or bytes.
+ * @returns Lowercase hex digest.
+ */
 const digest = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");
+
+/** Namespace for source-side completion receipts. */
 const sourceReceiptNamespace = "anynote.core.transfer-source";
+
+/** Namespace for target-side completion receipts. */
 const targetReceiptNamespace = "anynote.core.transfer-target";
+
+/**
+ * Read all rows of a table in rowid order.
+ *
+ * @param db Open database handle.
+ * @param table Table name.
+ * @returns All table rows.
+ */
 function rows(db: SqlDatabase, table: string) {
   return db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all();
 }
+
+/**
+ * Collect the full closure needed for a cross-database transfer (nodes, revisions, resources, assets, annotations, etc.).
+ *
+ * @param s Storage service.
+ * @param db Open database handle.
+ * @param bookId Notebook ID.
+ * @param rootId Root node ID of the subtree.
+ * @returns The transfer closure data.
+ */
 function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
   const allNodes = rows(db, "nodes"),
     children = new Map();
@@ -92,12 +122,29 @@ function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
     throw Error("跨库记录超过 100MB 预算");
   return result;
 }
+
+/**
+ * Insert a record using the row's field names.
+ *
+ * @param db Open database handle.
+ * @param table Target table.
+ * @param row Row to insert.
+ */
 function insert(db: SqlDatabase, table: string, row: SqlRow) {
   const keys = Object.keys(row);
   db.prepare(
     `INSERT INTO ${table}(${keys.join(",")}) VALUES(${keys.map(() => "?").join(",")})`,
   ).run(...keys.map((key) => row[key]));
 }
+
+/**
+ * Read an idempotent receipt.
+ *
+ * @param db Open database handle.
+ * @param namespace Receipt namespace.
+ * @param operationId Operation ID.
+ * @returns The stored receipt value.
+ */
 function readReceipt(db: SqlDatabase, namespace: string, operationId: string) {
   const row = db
     .prepare(
@@ -106,6 +153,15 @@ function readReceipt(db: SqlDatabase, namespace: string, operationId: string) {
     .get(namespace, operationId);
   return row ? JSON.parse(row.value_json) : null;
 }
+
+/**
+ * Write an idempotent receipt.
+ *
+ * @param db Open database handle.
+ * @param namespace Receipt namespace.
+ * @param operationId Operation ID.
+ * @param value Value to store.
+ */
 function receipt(
   db: SqlDatabase,
   namespace: string,
@@ -120,6 +176,19 @@ function receipt(
     revision: 1,
   });
 }
+
+/**
+ * Copy or move an item subtree across Notebooks.
+ *
+ * It first commits the target copy and rewrites internal references (resources
+ * and internal links); in move mode it then moves the item to the trash in the
+ * source database. The operation id and receipts make retries idempotent, and
+ * source/target changes preserve the original data.
+ *
+ * @param s Storage service.
+ * @param raw Raw operation payload.
+ * @returns The operation result.
+ */
 export function transferNode(s: Storage, raw: unknown) {
   const p = z
     .object({
@@ -167,6 +236,13 @@ export function transferNode(s: Storage, raw: unknown) {
       const revisionMap = new Map(
         data.revisions.map((row) => [row.id, randomUUID()]),
       );
+
+      /**
+       * Rewrite resource references and internal links pointing into the subtree within the body.
+       *
+       * @param text Body text to rewrite.
+       * @returns The rewritten text.
+       */
       const rewrite = (text: string) =>
         text
           .replace(
@@ -193,8 +269,8 @@ export function transferNode(s: Storage, raw: unknown) {
       const hashMap = new Map(),
         preparedAssets: SqlRow[] = [];
       let budget = 0;
-      // Asset files are staged before the destination transaction. Any failure
-      // leaves source knowledge untouched; unreferenced files remain eligible for GC.
+      // Assets are written to a staging location before the target transaction. Any failure leaves the source knowledge intact;
+      // unreferenced files can still be reclaimed by GC.
       for (const asset of data.assets) {
         let bytes = readFileSync(s.notebookPath(p.notebookId, asset.path));
         if (bytes.length !== asset.size || digest(bytes) !== asset.hash)
@@ -349,8 +425,8 @@ export function transferNode(s: Storage, raw: unknown) {
     } catch {
       return { ...copied.result, status: "copied-target-changed" };
     }
-    // Destination was committed first. Resume only if source still matches that
-    // exact copy; never trash edits made after an interrupted operation.
+    // The target has already committed. Continue only when the source still exactly matches this copy; never trash
+    // edits made after an interrupted operation.
     let current;
     try {
       current = snapshot(s, source, p.notebookId, p.id);

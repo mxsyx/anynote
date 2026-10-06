@@ -1,5 +1,7 @@
 import { request } from "./api";
 import type { Notebook, NoteNode } from "@anynote/types";
+
+/** Create a sample Notebook and welcome note in an empty workspace (called on first launch). */
 export async function seed() {
   const book = await request<Notebook>("createNotebook", {
     title: "我的知识花园",

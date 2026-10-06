@@ -16,19 +16,31 @@ import type {
   InstalledExtension,
   InstallableManifest,
 } from "@anynote/plugin-sdk/declarative.js";
+
+/** One pending-review download. */
 interface Review {
   package: unknown;
   url: string;
   expiresAt: number;
   expectedInstalledChecksum: string | null;
 }
+
+/** Download runtime state for each Storage instance. */
 interface State {
   jobs: Set<AbortController>;
   reviews: Map<string, Review>;
   closed: boolean;
 }
+
 const states = new WeakMap<Storage, State>();
 let active = 0;
+
+/**
+ * Get (or initialize) the download runtime state for the current Storage.
+ *
+ * @param s Storage service.
+ * @returns The download runtime state.
+ */
 function state(s: Storage) {
   let current = states.get(s);
   if (!current) {
@@ -38,6 +50,12 @@ function state(s: Storage) {
   if (current.closed) throw Error("知识库服务已关闭");
   return current;
 }
+
+/**
+ * Shut down the download service, aborting in-flight jobs and clearing pending reviews.
+ *
+ * @param s Storage service.
+ */
 export function closeExtensionDownloads(s: Storage) {
   const current = states.get(s) || {
     jobs: new Set<AbortController>(),
@@ -49,12 +67,21 @@ export function closeExtensionDownloads(s: Storage) {
   current.reviews.clear();
   states.set(s, current);
 }
+
+/**
+ * Cancel in-flight downloads and clear pending reviews.
+ *
+ * @param s Storage service.
+ * @returns Always true.
+ */
 export function cancelExtensionDownloads(s: Storage) {
   const current = state(s);
   for (const controller of current.jobs) controller.abort();
   current.reviews.clear();
   return true;
 }
+
+/** Preview result of one download. */
 interface Preview {
   manifest: InstallableManifest;
   checksum: string;
@@ -65,7 +92,23 @@ interface Preview {
     source: ExtensionSource;
   } | null;
 }
-// Test transport injection is internal-only, never selected by an IPC argument or an environment flag.
+
+// Test transport injection is internal only; it is never selected by IPC arguments or environment variables.
+/**
+ * Download and verify an extension package (or extension directory).
+ *
+ * Supports a direct URL or a trusted remote update source of an installed
+ * extension; it performs signature verification, directory entry matching,
+ * anti-rollback checks, and budget limits. Unless `checkOnly`, it returns a
+ * pending review instead of installing directly.
+ *
+ * @param s Storage service.
+ * @param op Operation name.
+ * @param raw Raw operation payload.
+ * @param download Network download implementation.
+ * @param options Download options (directory mode, expected entry, check-only, abort signal).
+ * @returns The download result (directory, current, available, or review).
+ */
 export async function downloadExtension(
   s: Storage,
   op: string,
@@ -122,6 +165,8 @@ export async function downloadExtension(
       url = extensionURLSchema.parse(installed.downloadURL);
     }
     controller.signal.throwIfAborted();
+
+    /** Reject immediately with the cancellation reason when the download is cancelled. */
     const aborted = new Promise<never>((_, reject) => {
       abortListener = () =>
         reject(controller.signal.reason || Error("扩展下载已取消"));
@@ -139,7 +184,7 @@ export async function downloadExtension(
       aborted,
     ]);
     controller.signal.throwIfAborted();
-    // Defense in depth for the final URL and decoded bytes as well as transport limits.
+    // Defense in depth: beyond transport limits, also validate the final URL and decoded bytes.
     extensionURLSchema.parse(response.url);
     if (response.data.length > (options.directory ? 256 : 160) * 1024)
       throw Error("下载内容超过预算");
@@ -237,7 +282,15 @@ export async function downloadExtension(
     active--;
   }
 }
-// Called only inside the storage write queue. Install exactly the reviewed snapshot, with no second download.
+
+// Call only within the storage write queue: install the reviewed snapshot exactly, without downloading again.
+/**
+ * Install a reviewed download snapshot.
+ *
+ * @param s Storage service.
+ * @param raw Raw payload carrying the review id.
+ * @returns The install result.
+ */
 export async function installDownloadedExtension(
   s: Storage,
   raw: Record<string, unknown>,

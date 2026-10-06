@@ -10,11 +10,21 @@ import ResourceImage from "./ResourceImage";
 import { request } from "./api";
 import type { NoteNode } from "@anynote/types";
 import { PenLine, Play, ExternalLink } from "lucide-react";
+
+/** Location info of a whiteboard block. */
 export type BoardBlock = {
   blockId: string;
   resourceId?: string;
   previewResourceId?: string;
 };
+
+/**
+ * Read-only note rendering view.
+ *
+ * Parses Markdown and extension blocks: whiteboard, video, and plugin nodes;
+ * unknown blocks degrade to downloadable raw content; images resolve through
+ * content-addressed resources and links are handled by `onLink`.
+ */
 export default function DocumentView({
   notebookId,
   note,
@@ -28,6 +38,7 @@ export default function DocumentView({
 }) {
   const [extensions, setExtensions] = useState<InstalledExtension[]>([]);
   useEffect(() => {
+    /** Load installed extensions and subscribe to extension change events. */
     const load = () => {
       installedExtensions(notebookId)
         .then(setExtensions)

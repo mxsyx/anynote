@@ -3,7 +3,13 @@ import type {
   LocalBackupAPI,
   LocalBackupTask,
 } from "@anynote/types/local-backup.js";
-/** Host integrations provide an authorized transport. This grants no extension-host capabilities. */
+
+/**
+ * Host integration providing an authorized transport channel for local backup; it grants no extension host capabilities.
+ *
+ * @param transport Transport function.
+ * @returns The frozen local backup API.
+ */
 export function createLocalBackupAPI(transport: Transport): LocalBackupAPI {
   const call = <T>(op: string, input: object = {}) =>
     transport(op, { ...input }) as Promise<T>;

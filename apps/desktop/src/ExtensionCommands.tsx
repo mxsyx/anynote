@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { request } from "./api";
 import type { ExtensionCommand } from "@anynote/plugin-sdk/declarative";
 import type { HostedExtensionStatus } from "@anynote/extension-host/contracts";
+
+/** Extension command panel: lists authorized declarative commands and first-party hosted commands. */
 export default function ExtensionCommands({
   notebookId,
   onRun,
@@ -17,6 +19,8 @@ export default function ExtensionCommands({
   const [hosted, setHosted] = useState<HostedExtensionStatus[]>([]);
   useEffect(() => {
     let active = true;
+
+    // First-party hosted extensions: keep only enabled, non-failed instances.
     request<HostedExtensionStatus[]>("listHostedExtensions", { notebookId })
       .then((rows) => {
         if (active)

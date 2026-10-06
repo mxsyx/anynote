@@ -18,6 +18,7 @@ import {
   jsonValue,
   errorMessage,
 } from "./protocol.js";
+
 export type {
   BundledExtension,
   HostProcess,
@@ -26,11 +27,14 @@ export type {
 } from "./contracts.js";
 export { bundledExtensions, workerPath } from "./bundled.js";
 
+/** One in-flight request (with timeout timer). */
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }
+
+/** Session runtime state for one "extension × Notebook" pair. */
 interface Session {
   active: boolean;
   state: "activating" | "active";
@@ -44,8 +48,17 @@ interface Session {
   registrations: Map<string, () => unknown>;
   idle?: ReturnType<typeof setTimeout>;
 }
-/** One process per bundled extension + Notebook. Node code is trusted; this is
- * fault isolation, not an OS security sandbox. Only the broker sees Storage. */
+
+/**
+ * One independent process per "bundled first-party extension × Notebook".
+ *
+ * Extension code is trusted; this provides fault isolation rather than an
+ * OS-level security sandbox. Only the broker can access Storage; neither the
+ * renderer nor the extension can directly name a storage operation or path.
+ *
+ * @param options Host options (storage bridge, extension registry, and limits).
+ * @returns The process extension host API.
+ */
 export function createProcessExtensionHost(options: {
   storage: {
     run: (op: string, input?: Record<string, unknown>) => Promise<any>;
@@ -62,6 +75,7 @@ export function createProcessExtensionHost(options: {
   );
   if (registry.size !== options.extensions.length)
     throw Error("重复的首方扩展");
+
   const enabled = new Set<string>(),
     sessions = new Map<string, Session>(),
     errors = new Map<string, string>();
@@ -69,16 +83,41 @@ export function createProcessExtensionHost(options: {
   const processes = new Set<HostProcess>();
   const timeoutMs = options.timeoutMs ?? limits.timeoutMs;
   let disposed = false;
+
+  /**
+   * Session key: the combination of Notebook and extension.
+   *
+   * @param notebookId Notebook ID.
+   * @param extensionId Extension ID.
+   * @returns The session key.
+   */
   const key = (notebookId: string, extensionId: string) =>
     notebookId + ":" + extensionId;
+
+  /**
+   * Look up a bundled first-party extension by ID.
+   *
+   * @param id Extension ID.
+   * @returns The bundled extension.
+   */
   const lookup = (id: string) => {
     const extension = registry.get(id);
     if (!extension) throw Error("扩展不在随应用发布的首方清单中");
     return extension;
   };
+
+  /** Throw when the host has already been closed. */
   const check = () => {
     if (disposed) throw Error("扩展宿主已关闭");
   };
+
+  /**
+   * Stop and clean up one session (optionally validating against the expected session identity to avoid stopping a new session by mistake).
+   *
+   * @param k Session key.
+   * @param error Optional error that caused the stop.
+   * @param expected Expected session identity.
+   */
   function stop(k: string, error?: Error, expected?: Session) {
     const session = sessions.get(k);
     if (!session || !session.active || (expected && expected !== session))
@@ -94,8 +133,8 @@ export function createProcessExtensionHost(options: {
       pending.reject(error ?? Error("扩展已停用"));
     }
     session.pending.clear();
-    // Best effort disposer execution followed by process termination. A blocked
-    // guest cannot veto revocation or keep the main application waiting.
+    // Best-effort run the disposer, then terminate the process. A stuck guest must not veto revocation or
+    // keep the main app waiting.
     const child = session.process;
     if (child) {
       try {
@@ -110,11 +149,27 @@ export function createProcessExtensionHost(options: {
       timer.unref?.();
     }
   }
+
+  /**
+   * Reset and arm the idle timeout, stopping the session automatically when it fires.
+   *
+   * @param k Session key.
+   * @param session Session to arm.
+   */
   function armIdle(k: string, session: Session) {
     clearTimeout(session.idle);
     session.idle = setTimeout(() => stop(k, undefined, session), limits.idleMs);
     session.idle.unref?.();
   }
+
+  /**
+   * Create a pending promise with a timeout and register it on the session.
+   *
+   * @param k Session key.
+   * @param session Session to register on.
+   * @param id Request ID.
+   * @returns Promise resolving to the response.
+   */
   function deferred(k: string, session: Session, id: number) {
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(
@@ -125,6 +180,15 @@ export function createProcessExtensionHost(options: {
       session.pending.set(id, { resolve, reject, timer });
     });
   }
+
+  /**
+   * Send an activate/execute message to the extension process after it is ready, and return its response.
+   *
+   * @param k Session key.
+   * @param session Session to send on.
+   * @param kind Message kind.
+   * @returns The extension's response.
+   */
   async function send(
     k: string,
     session: Session,
@@ -143,13 +207,22 @@ export function createProcessExtensionHost(options: {
     }
     return result;
   }
+
+  /**
+   * Dispatch an extension API call to the host façade per the allowlist, validating scalar arguments.
+   *
+   * @param api Extension API object.
+   * @param method Method name.
+   * @param input Method input.
+   * @returns The method result.
+   */
   async function callAPI(
     api: AnynoteAPI,
     method: string,
     input: Record<string, unknown>,
   ) {
-    // Dispatch through the existing schema/permission/Notebook facade, never
-    // through a renderer-selected Storage operation or a guest-provided path.
+    // Dispatch through the existing schema/permission/Notebook façade, never a renderer-chosen
+    // Storage operation or a guest-provided path.
     const scalarKeys: Record<string, string[]> = {
       "notes.get": ["id"],
       "search.query": ["query"],
@@ -190,6 +263,15 @@ export function createProcessExtensionHost(options: {
         throw Error("扩展没有此操作权限");
     }
   }
+
+  /**
+   * Create and activate an independent process session for one "extension × Notebook".
+   *
+   * @param notebookId Notebook ID.
+   * @param extension Bundled extension.
+   * @param k Session key.
+   * @returns The created session.
+   */
   function start(notebookId: string, extension: BundledExtension, k: string) {
     if (processes.size >= limits.maxProcesses)
       throw Error("扩展宿主进程达到上限，请先停用其他扩展");
@@ -209,7 +291,7 @@ export function createProcessExtensionHost(options: {
     };
     sessions.set(k, session);
     session.ready = deferred(k, session, 0);
-    // Observe readiness failures even when revocation happens before send().
+    // Observe readiness failure even if revoked before sending, to avoid an unhandled rejection.
     void session.ready.catch(() => {});
     session.activation = broker
       .activate(
@@ -284,6 +366,12 @@ export function createProcessExtensionHost(options: {
                     stop(k, Error(errorMessage(error)), session),
                   )
                   .finally(() => session.apiCalls--);
+
+                /**
+                 * Send an API result back while the session is still active.
+                 *
+                 * @param value Value to send.
+                 */
                 function reply(value: unknown) {
                   if (session.active) child.postMessage(value);
                 }
@@ -308,7 +396,14 @@ export function createProcessExtensionHost(options: {
       });
     return session;
   }
+
   return {
+    /**
+     * List the enabled and runtime status of first-party extensions under a Notebook.
+     *
+     * @param notebookId Notebook ID.
+     * @returns Extension status entries.
+     */
     async list(notebookId: string): Promise<HostedExtensionStatus[]> {
       check();
       requestSchema.parse({ notebookId, extensionId: "anynote.scope" });
@@ -327,6 +422,13 @@ export function createProcessExtensionHost(options: {
         };
       });
     },
+
+    /**
+     * Enable/disable the given extension under a Notebook; disabling stops the matching session.
+     *
+     * @param raw Raw configuration payload.
+     * @returns The updated extension status.
+     */
     async configure(raw: unknown) {
       check();
       const input = configureSchema.parse(raw);
@@ -347,6 +449,13 @@ export function createProcessExtensionHost(options: {
       errors.delete(k);
       return true;
     },
+
+    /**
+     * Validate and execute an extension command under a Notebook.
+     *
+     * @param raw Raw execution payload.
+     * @returns The command result.
+     */
     async execute(raw: unknown) {
       check();
       const input = executeSchema.parse(raw),
@@ -356,7 +465,7 @@ export function createProcessExtensionHost(options: {
       if (errors.has(k)) throw Error("扩展运行失败，请重新授权后重试");
       if (!extension.manifest.commands.some((c) => c.id === input.commandId))
         throw Error("扩展命令未声明");
-      // Validate payload before spawning a process or mutating data.
+      // Validate the payload before spawning a process or changing data.
       const value = jsonValue(input.input);
       const session = sessions.get(k) ?? start(input.notebookId, extension, k);
       await session.activation;
@@ -368,6 +477,12 @@ export function createProcessExtensionHost(options: {
         if (session.active && !session.pending.size) armIdle(k, session);
       }
     },
+
+    /**
+     * Revoke authorization for all extensions under a Notebook and stop their sessions.
+     *
+     * @param notebookId Notebook ID.
+     */
     revokeNotebook(notebookId: string) {
       for (const id of registry.keys()) {
         const k = key(notebookId, id);
@@ -377,6 +492,8 @@ export function createProcessExtensionHost(options: {
         errors.delete(k);
       }
     },
+
+    /** Close the host and stop all sessions. */
     dispose() {
       disposed = true;
       authorizations.clear();
