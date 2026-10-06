@@ -18,9 +18,24 @@ import {
   moveRichBlock,
   moveRichBlockTo,
   type RichBlock,
+  type RichBlockReason,
 } from "@anynote/protocol/rich.js";
 import DocumentView, { type BoardBlock } from "./DocumentView";
 import type { NoteNode } from "@anynote/types";
+
+/** 富文本无法安全表示的块原因，用于就地提示并导向源码编辑。 */
+const degradeReason: Record<RichBlockReason, string> = {
+  extension: "扩展指令块，请使用源码编辑",
+  oversize: "文档或块过大，请使用源码编辑",
+  footnote: "包含脚注，请使用源码编辑",
+  escape: "包含转义字符，请使用源码编辑",
+  html: "包含 HTML，请使用源码编辑",
+  reference: "包含引用式链接或定义，请使用源码编辑",
+  "aligned-table": "包含对齐表格，请使用源码编辑",
+  "code-meta": "包含带信息的代码块，请使用源码编辑",
+  budget: "块结构过于复杂，请使用源码编辑",
+  unsupported: "包含富文本暂不支持的语法，请使用源码编辑",
+};
 
 /**
  * A single editable rich-text block (Tiptap).
@@ -486,6 +501,12 @@ export default function RichEditor({
           if (shown) return null;
           return activeEditor();
         }
+        // 图片与已授权的声明式节点即使不可富文本编辑，也有专用编辑器。
+        const special = Boolean(
+            imageBlock(block.source) || nodeFor(block.source),
+          ),
+          editable = block.editable || special,
+          hint = editable ? "" : degradeReason[block.reason ?? "unsupported"];
         return (
           <div
             className="rich-block"
@@ -552,6 +573,11 @@ export default function RichEditor({
             }}
           >
             <div className="rich-block-move">
+              {hint && (
+                <span className="rich-block-hint" role="note">
+                  {hint}
+                </span>
+              )}
               <button
                 type="button"
                 className="rich-drag-handle"
@@ -605,29 +631,16 @@ export default function RichEditor({
             />
             <button
               className="rich-block-action"
-              aria-label={
-                block.editable ||
-                imageBlock(block.source) ||
-                nodeFor(block.source)
-                  ? "编辑此块"
-                  : "使用源码编辑此块"
-              }
+              title={editable ? undefined : hint}
+              aria-label={editable ? "编辑此块" : "使用源码编辑此块"}
               onClick={() => {
-                if (
-                  block.editable ||
-                  imageBlock(block.source) ||
-                  nodeFor(block.source)
-                ) {
+                if (editable) {
                   setEditing(block);
                   setError("");
                 } else onSource();
               }}
             >
-              {block.editable ||
-              imageBlock(block.source) ||
-              nodeFor(block.source)
-                ? "编辑此块"
-                : "源码编辑"}
+              {editable ? "编辑此块" : "源码编辑"}
             </button>
           </div>
         );

@@ -14,6 +14,7 @@ import {
   parseBlocks,
   youtube,
 } from "@anynote/protocol/markdown.js";
+import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 import { listTaskHistory } from "./task-history.js";
@@ -247,6 +248,9 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "listAnnotations",
     "addAnnotation",
     "deleteAnnotation",
+    "createPdfNote",
+    "reanchorAnnotation",
+    "beginPdfIndex",
     "indexPdf",
     "getImportReport",
     "startImport",
@@ -679,25 +683,204 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     });
   }
 
-  if (op === "indexPdf") {
+  if (op === "createPdfNote") {
     const p = ref
         .extend({
+          parentId: uuid.nullable().optional(),
+          title: z.string().trim().min(1).max(240),
           assetHash: z.string().regex(/^[a-f0-9]{64}$/),
-          body: z.string().max(5_000_000),
+          page: z.number().int().min(1).max(100000),
+          selector: z
+            .array(
+              z.object({
+                x: z.number().min(0).max(1),
+                y: z.number().min(0).max(1),
+                width: z.number().min(0).max(1),
+                height: z.number().min(0).max(1),
+              }),
+            )
+            .max(100),
+          quote: z.string().max(10000),
+          comment: z.string().max(10000).default(""),
+          color: z.enum(["yellow", "green", "blue"]).default("yellow"),
         })
         .strict()
         .parse(raw),
       db = s.open(p.notebookId),
+      n = s.get(db, p.id);
+    if (n.note_type !== "pdf") throw Error("仅为 PDF 笔记创建阅读笔记");
+    const asset = db
+      .prepare("SELECT asset_hash FROM resources WHERE id=?")
+      .get(n.primary_resource_id);
+    // The selection is anchored to the file version the reader is showing; a
+    // resource change after selection must fail rather than write a stale mark.
+    if (!asset || asset.asset_hash !== p.assetHash)
+      throw Error("批注目标文件版本已改变");
+    const parent = p.parentId === undefined ? n.parent_id : p.parentId;
+    s.parent(db, parent);
+    const annotationId = randomUUID(),
+      noteId = randomUUID(),
+      revision = randomUUID(),
+      now = Date.now(),
+      // The linked note keeps the passage and a link back to the exact page or
+      // annotation, so reading position survives closing the reader.
+      body = linkedPdfNoteBody({
+        title: p.title,
+        quote: p.quote,
+        comment: p.comment,
+        notebookId: p.notebookId,
+        noteId: p.id,
+        page: p.page,
+        annotationId,
+      });
+    result = s.tx(db, noteId, "pdf-note", () => {
+      db.prepare(
+        "INSERT INTO annotations(id,note_id,target_asset_hash,page,selector_json,quote,body,color,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+      ).run(
+        annotationId,
+        p.id,
+        p.assetHash,
+        p.page,
+        JSON.stringify(p.selector),
+        p.quote,
+        p.comment,
+        p.color,
+        now,
+      );
+      db.prepare(
+        "INSERT INTO nodes(id,parent_id,kind,title,sort_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+      ).run(noteId, parent || null, "note", p.title, now, now, now);
+      db.prepare("INSERT INTO notes(node_id,note_type) VALUES(?,?)").run(
+        noteId,
+        "markdown",
+      );
+      db.prepare(
+        "INSERT INTO note_revisions(id,note_id,body,created_at) VALUES(?,?,?,?)",
+      ).run(revision, noteId, body, now);
+      db.prepare("UPDATE notes SET head_revision_id=? WHERE node_id=?").run(
+        revision,
+        noteId,
+      );
+      s.recordRevision(db, revision, noteId);
+      s.capture(db, revision, body, null);
+      s.index(db, noteId);
+      s.index(db, p.id);
+      return { note: s.get(db, noteId), annotationId };
+    });
+  }
+
+  if (op === "reanchorAnnotation") {
+    const p = ref
+        .extend({ assetHash: z.string().regex(/^[a-f0-9]{64}$/) })
+        .strict()
+        .parse(raw),
+      db = s.open(p.notebookId),
       n = s.get(db, p.id),
+      asset = db
+        .prepare("SELECT asset_hash FROM resources WHERE id=?")
+        .get(n.primary_resource_id);
+    if (asset?.asset_hash !== p.assetHash)
+      throw Error("当前文件版本已改变，无法重新锚定");
+    const stale =
+      db
+        .prepare(
+          "SELECT count(*) n FROM annotations WHERE note_id=? AND deleted_at IS NULL AND target_asset_hash<>?",
+        )
+        .get(p.id, p.assetHash)?.n ?? 0;
+    if (!stale) throw Error("没有需要重新锚定的批注");
+    result = s.tx(db, randomUUID(), "annotation-reanchor", () => {
+      db.prepare(
+        "UPDATE annotations SET target_asset_hash=?,revision=revision+1 WHERE note_id=? AND deleted_at IS NULL AND target_asset_hash<>?",
+      ).run(p.assetHash, p.id, p.assetHash);
+      s.index(db, p.id);
+      return { reanchored: stale };
+    });
+  }
+
+  if (op === "beginPdfIndex") {
+    const p = ref
+        .extend({ assetHash: z.string().regex(/^[a-f0-9]{64}$/) })
+        .strict()
+        .parse(raw),
+      db = s.open(p.notebookId),
+      n = s.get(db, p.id);
+    if (n.note_type !== "pdf") throw Error("仅为 PDF 笔记建立文本索引");
+    const r = db
+      .prepare("SELECT asset_hash FROM resources WHERE id=?")
+      .get(n.primary_resource_id);
+    if (r?.asset_hash !== p.assetHash) throw Error("索引目标已过期");
+    // One extraction per PDF note: a running task is reused so reopening the
+    // reader does not stack duplicate background work.
+    const running = [...s.jobs.values()].find(
+      (j) =>
+        j.type === "pdf-index" &&
+        j.notebookId === p.notebookId &&
+        j.targetId === p.id &&
+        j.status === "running",
+    );
+    if (running)
+      return { handled: true, result: { id: running.id, reused: true } };
+    const job: Task = {
+      id: randomUUID(),
+      notebookId: p.notebookId,
+      type: "pdf-index",
+      status: "running",
+      progress: "正在提取可搜索文本",
+      createdAt: Date.now(),
+      targetId: p.id,
+    };
+    s.track(job);
+    return { handled: true, result: { id: job.id, reused: false } };
+  }
+
+  if (op === "indexPdf") {
+    const p = ref
+        .extend({
+          assetHash: z.string().regex(/^[a-f0-9]{64}$/),
+          body: z.string().max(5_000_000).default(""),
+          taskId: uuid.optional(),
+          error: z.string().max(2000).optional(),
+          coverage: z
+            .object({
+              totalPages: z.number().int().nonnegative(),
+              indexedPages: z.number().int().nonnegative(),
+              textChars: z.number().int().nonnegative(),
+              truncated: z.boolean(),
+            })
+            .strict()
+            .optional(),
+        })
+        .strict()
+        .parse(raw),
+      db = s.open(p.notebookId),
+      job = p.taskId ? s.jobs.get(p.taskId) : undefined;
+    // A task cancelled from the task centre stops here: the partial text built
+    // so far is discarded instead of silently publishing an incomplete index.
+    if (job && job.status === "cancelled")
+      return { handled: true, result: { indexed: false, cancelled: true } };
+    if (p.error) {
+      if (job) s.settle(job, "failed", { error: p.error });
+      return { handled: true, result: { indexed: false, cancelled: false } };
+    }
+    const n = s.get(db, p.id),
       r = db
         .prepare("SELECT asset_hash FROM resources WHERE id=?")
         .get(n.primary_resource_id);
-    if (r?.asset_hash !== p.assetHash) throw Error("索引目标已过期");
+    if (r?.asset_hash !== p.assetHash) {
+      if (job) s.settle(job, "failed", { error: "索引目标已过期" });
+      throw Error("索引目标已过期");
+    }
     db.prepare(
       "INSERT INTO note_text VALUES(?,?,?) ON CONFLICT(note_id) DO UPDATE SET asset_hash=excluded.asset_hash,body=excluded.body",
     ).run(p.id, p.assetHash, p.body);
     s.index(db, p.id);
-    result = true;
+    const coverage = p.coverage ? pdfIndexCoverage(p.coverage) : undefined;
+    if (job)
+      s.settle(job, "completed", {
+        progress: coverage?.message || "文本已加入本地搜索",
+        phase: coverage?.state,
+      });
+    result = { indexed: true, coverage };
   }
 
   if (op === "getImportReport") {

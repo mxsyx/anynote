@@ -8,6 +8,7 @@ import {
   richBlocks,
   patchRichBlock,
   moveRichBlock,
+  richSyntax,
 } from "../.build/packages/protocol/rich.js";
 const manifest = JSON.parse(
   readFileSync(
@@ -438,5 +439,79 @@ test("resized images keep original assets, survive archive and export as portabl
   );
   assert.ok(
     Buffer.from(files["EXPORT-REPORT.txt"]).toString().includes("图片显示尺寸"),
+  );
+});
+test("rich syntax boundary keeps CommonMark/GFM blocks editable and routes the rest to source with a reason", () => {
+  assert.deepEqual(richSyntax.gfm, [
+    "delete",
+    "table",
+    "tableRow",
+    "tableCell",
+  ]);
+  const editable = [
+    "- 顶层\n  - 嵌套一\n    - 嵌套二\n- 第二个",
+    "1. 有序\n   1. 嵌套有序",
+    "> 引用\n>\n> - 引用内列表",
+    "| A | B |\n| - | - |\n| 1 | 2 |",
+    "- [x] 完成\n  - [ ] 嵌套任务",
+    "   缩进代码块\n",
+    "```js\nconst re = /\\d+/;\n```",
+    "段落含[链接](https://example.com)与~~删除~~、`行内`。",
+    "硬换行末尾  \n第二行",
+  ];
+  for (const body of editable) {
+    const blocks = richBlocks(body);
+    assert.ok(
+      blocks.length > 0 && blocks.every((b) => b.editable),
+      JSON.stringify({ body, blocks }),
+    );
+  }
+  const fallback = [
+    ["脚注引用[^a]\n\n[^a]: 说明", "footnote"],
+    ["text[^x]", "footnote"],
+    ["字面 \\*星号\\* 文本", "escape"],
+    ["<script>bad()</script>", "html"],
+    ["[引用式][ref]\n\n[ref]: https://example.com", "reference"],
+    ["| A |\n| :- |\n| x |", "aligned-table"],
+    ["```js meta\ncode\n```", "code-meta"],
+    ["普通文本![图](https://example.com/a.png)混排", "unsupported"],
+  ];
+  for (const [body, reason] of fallback) {
+    assert.ok(
+      richBlocks(body).some((b) => !b.editable && b.reason === reason),
+      JSON.stringify({ body, reason, blocks: richBlocks(body) }),
+    );
+  }
+  assert.deepEqual(richBlocks("x".repeat(500001))[0], {
+    start: 0,
+    end: 500001,
+    source: "x".repeat(500001),
+    kind: "opaque",
+    editable: false,
+    reason: "oversize",
+  });
+  assert.equal(
+    richBlocks(':::anynote{type="core.video" version="1" id="x"}\n{}\n:::\n')[0]
+      .reason,
+    "extension",
+  );
+});
+test("nested list editing rewrites only the chosen block and preserves surrounding bytes", () => {
+  const source = "# 标题\r\n\r\n- 一\r\n  - 嵌套\r\n\r\n尾段\r\n";
+  const blocks = richBlocks(source),
+    list = blocks.find((b) => b.source.startsWith("- 一"));
+  assert.equal(list.editable, true);
+  assert.equal(list.reason, undefined);
+  const replacement = "- 一\r\n  - 嵌套改\r\n",
+    next = patchRichBlock(source, list, replacement);
+  assert.equal(next.slice(0, list.start), source.slice(0, list.start));
+  assert.equal(
+    next.slice(list.start + replacement.length),
+    source.slice(list.end),
+  );
+  assert.ok(next.includes("尾段"));
+  assert.throws(
+    () => patchRichBlock("已被外部修改" + source, list, replacement),
+    /改变/,
   );
 });

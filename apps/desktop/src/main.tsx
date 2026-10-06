@@ -3,6 +3,7 @@ import React, {
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -130,7 +131,11 @@ const icon = (n: NoteNode, size = 16) =>
 function App() {
   const [importOpen, setImportOpen] = useState(false),
     [tasksOpen, setTasksOpen] = useState(false),
-    [board, setBoard] = useState<BoardBlock | null>(null);
+    [board, setBoard] = useState<BoardBlock | null>(null),
+    [pdfAnchor, setPdfAnchor] = useState<{
+      noteId: string;
+      anchor: string;
+    } | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const [books, setBooks] = useState<Notebook[]>([]),
     [book, setBook] = useState<Notebook | null>(null),
@@ -386,6 +391,44 @@ function App() {
     };
   }, [flush]);
   const modeSequence = useRef(0);
+  const contentRef = useRef<HTMLElement>(null);
+  const scrollAnchor = useRef<number | null>(null);
+
+  // Restore the reading position (as a relative ratio) after a mode switch so
+  // long documents do not jump back to the top between preview/source/rich.
+  useLayoutEffect(() => {
+    const ratio = scrollAnchor.current;
+    if (ratio == null) return;
+    scrollAnchor.current = null;
+    /** Apply the saved ratio once the mode's column has a real scroll range. */
+    const apply = () => {
+      const el = contentRef.current;
+      if (!el) return false;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max <= 0) return false;
+      const behavior = el.style.scrollBehavior;
+      el.style.scrollBehavior = "auto";
+      el.scrollTop = Math.round(ratio * max);
+      el.style.scrollBehavior = behavior;
+      return true;
+    };
+    // The new mode lays out asynchronously, so its scroll range may still be
+    // empty; retry until the ratio lands, then stop instead of fighting the user.
+    if (apply()) return;
+    let frame = 0,
+      ticks = 0;
+    const retry = () => {
+      if (!apply() && ticks++ < 30) frame = requestAnimationFrame(retry);
+    };
+    frame = requestAnimationFrame(retry);
+    return () => cancelAnimationFrame(frame);
+  }, [mode]);
+
+  // Opening another note resets the viewport and drops any pending anchor.
+  useLayoutEffect(() => {
+    scrollAnchor.current = null;
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [active?.id]);
 
   /**
    * Switch between preview/source/rich modes; very large bodies fall back to source.
@@ -401,12 +444,21 @@ function App() {
     );
     try {
       await flush();
-      if (sequence === modeSequence.current && id === current.current?.id)
-        setMode(
-          new Blob([current.current?.body || ""]).size > 1024 ** 2
-            ? "source"
-            : next,
-        );
+      if (sequence !== modeSequence.current || id !== current.current?.id)
+        return;
+      const target: "preview" | "source" | "rich" =
+        new Blob([current.current?.body || ""]).size > 1024 ** 2
+          ? "source"
+          : next;
+      if (target === mode) return;
+      // Capture the reading position only when a real switch is about to happen,
+      // so no stale anchor survives a no-op or sequence-cancelled switch.
+      const el = contentRef.current;
+      if (el) {
+        const max = el.scrollHeight - el.clientHeight;
+        scrollAnchor.current = max > 0 ? el.scrollTop / max : 0;
+      }
+      setMode(target);
     } catch (e) {
       report(e);
     }
@@ -416,9 +468,10 @@ function App() {
    *
    * @param n Note node to open.
    * @param b Target Notebook.
+   * @param anchor Optional PDF return anchor to restore in the reader.
    */
   const openNote = useCallback(
-    async (n: NoteNode, b = bookRef.current) => {
+    async (n: NoteNode, b = bookRef.current, anchor = "") => {
       if (!b) return;
       try {
         await flush();
@@ -428,6 +481,9 @@ function App() {
         });
         current.current = note;
         dirty.current = false;
+        // Anchor is keyed by note so a later tree-navigation cannot consume a
+        // stale PDF return position.
+        setPdfAnchor(anchor ? { noteId: n.id, anchor } : null);
         setActive(note);
         if (new Blob([note.body || ""]).size > 1024 ** 2) setMode("source");
         setView("notes");
@@ -506,8 +562,13 @@ function App() {
    *
    * @param notebookId Target Notebook ID.
    * @param noteId Target note ID.
+   * @param anchor Optional PDF return anchor carried by the link.
    */
-  const openReference = async (notebookId: string, noteId: string) => {
+  const openReference = async (
+    notebookId: string,
+    noteId: string,
+    anchor = "",
+  ) => {
     try {
       const targetBook = books.find((b) => b.id === notebookId);
       if (!targetBook) throw Error("链接所属 Notebook 尚未打开");
@@ -517,7 +578,7 @@ function App() {
       });
       if (target.deleted_at) throw Error("链接目标已在回收站");
       if (bookRef.current?.id !== notebookId) await switchBook(targetBook);
-      await openNote(target, targetBook);
+      await openNote(target, targetBook, anchor);
     } catch (e) {
       report(e);
     }
@@ -532,7 +593,7 @@ function App() {
       /^anynote:\/\/notebook\/([a-f0-9-]{36})\/note\/([a-f0-9-]{36})(?:#([^\s]+))?$/i,
     );
     if (match) {
-      void openReference(match[1], match[2]);
+      void openReference(match[1], match[2], match[3] || "");
       return;
     }
     if (href.startsWith("#"))
@@ -1760,7 +1821,7 @@ function App() {
           </div>
         )}
         <div className="content-layout">
-          <section className="main-content">
+          <section className="main-content" ref={contentRef}>
             {listView ? (
               <div className="collection page">
                 <span className="eyebrow">YOUR KNOWLEDGE GARDEN</span>
@@ -2472,6 +2533,16 @@ function App() {
                             notebookId={book!.id}
                             noteId={active.id}
                             assetHash={asset.hash}
+                            noteTitle={active.title}
+                            anchor={
+                              pdfAnchor?.noteId === active.id
+                                ? pdfAnchor.anchor
+                                : undefined
+                            }
+                            onAnchorConsumed={() => setPdfAnchor(null)}
+                            onOpenNote={(id) =>
+                              void openReference(book!.id, id)
+                            }
                           />
                         </Suspense>
                       </>

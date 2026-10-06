@@ -5,50 +5,105 @@ import { unified } from "unified";
 import { parseBlocks } from "./markdown.js";
 
 const parser = unified().use(remarkParse).use(remarkGfm);
-const supported = new Set([
-  "paragraph",
-  "heading",
-  "text",
-  "emphasis",
-  "strong",
-  "delete",
-  "inlineCode",
-  "link",
-  "break",
-  "blockquote",
-  "list",
-  "listItem",
-  "code",
-  "thematicBreak",
-  "table",
-  "tableRow",
-  "tableCell",
-]);
 
 /**
- * Whether a Markdown AST node can be safely rendered as rich text.
+ * 首发富文本的语法边界：标准部分限定为 CommonMark 加选定的 GFM 子集，
+ * 扩展部分继续以带版本的指令块与资源引用协议表示。
  *
- * Only supported node types are allowed; the total node count is limited, and
- * aligned tables and code blocks with meta are excluded.
- *
- * @param root Markdown AST root node.
- * @returns True when the subtree is safe to render as rich text.
+ * 数组内为富文本模式可安全编辑的 mdast 节点类型。GFM 任务列表复用
+ * `list`/`listItem`（以 `checked` 区分），因此不单独列出。落在此边界之外的结构
+ * 一律保留原文并导向源码编辑。
  */
-function safe(root: RootContent) {
+export const richSyntax = {
+  commonmark: [
+    "paragraph",
+    "heading",
+    "text",
+    "emphasis",
+    "strong",
+    "inlineCode",
+    "link",
+    "break",
+    "blockquote",
+    "list",
+    "listItem",
+    "code",
+    "thematicBreak",
+  ],
+  gfm: ["delete", "table", "tableRow", "tableCell"],
+} as const;
+
+/** 富文本无法安全表示的块的原因，用于提示并导向源码编辑。 */
+export type RichBlockReason =
+  | "extension"
+  | "oversize"
+  | "footnote"
+  | "escape"
+  | "html"
+  | "reference"
+  | "aligned-table"
+  | "code-meta"
+  | "budget"
+  | "unsupported";
+
+const supported = new Set<string>([
+  ...richSyntax.commonmark,
+  ...richSyntax.gfm,
+]);
+
+// CommonMark 反斜杠转义：反斜杠后跟 ASCII 标点表示字面字符。转义文本在重新
+// 序列化时可能丢失反斜杠而改变语义（例如 \* 变成强调），因此包含转义的块只
+// 允许源码编辑。反斜杠位于代码块/行内代码中不属于转义，故仅检查 text 节点。
+const escaped = /\\[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
+
+/**
+ * Inspect a Markdown AST node for structures rich text cannot safely represent.
+ *
+ * Returns the first blocking reason found, or `null` when the whole subtree is
+ * within the supported syntax boundary.
+ *
+ * @param root Markdown AST node.
+ * @param source Full Markdown body.
+ * @param base Offset of the node's segment within `source`.
+ * @returns The blocking reason, or `null` when safe.
+ */
+function inspect(
+  root: RootContent,
+  source: string,
+  base: number,
+): RichBlockReason | null {
   const stack: RootContent[] = [root];
   let count = 0;
   while (stack.length) {
     const node = stack.pop()!;
-    if (
-      ++count > 5000 ||
-      !supported.has(node.type) ||
-      (node.type === "table" && node.align?.some((a) => a != null)) ||
-      (node.type === "code" && node.meta)
-    )
-      return false;
+    if (++count > 5000) return "budget";
+    if (node.type === "table") {
+      if (node.align?.some((a) => a != null)) return "aligned-table";
+    } else if (node.type === "code") {
+      if (node.meta) return "code-meta";
+    } else if (!supported.has(node.type)) {
+      if (node.type === "html") return "html";
+      if (
+        /^(link|image)Reference$/.test(node.type) ||
+        node.type === "definition"
+      )
+        return "reference";
+      if (/^footnote/.test(node.type)) return "footnote";
+      return "unsupported";
+    }
+    if (node.type === "text" && node.position) {
+      const start = node.position.start.offset,
+        end = node.position.end.offset;
+      if (
+        start != null &&
+        end != null &&
+        escaped.test(source.slice(base + start, base + end))
+      )
+        return "escape";
+    }
     if ("children" in node) stack.push(...node.children);
   }
-  return true;
+  return null;
 }
 
 /** A body block that the rich-text editor can handle. */
@@ -58,14 +113,17 @@ export interface RichBlock {
   source: string;
   kind: "markdown" | "extension" | "opaque";
   editable: boolean;
+  reason?: RichBlockReason;
 }
 
 /**
  * Split the body into rich-text blocks, marking whether each is rich-text editable.
  *
  * Extension blocks are not editable; a body longer than 500KB is degraded as a
- * whole into a single non-editable opaque block; Markdown blocks containing
- * footnote references keep source editing.
+ * whole into a single non-editable opaque block; Markdown blocks outside the
+ * {@link richSyntax} boundary (footnotes, escapes, HTML, reference links,
+ * aligned tables, code with meta, …) keep source editing and carry a
+ * {@link RichBlockReason} so the UI can explain the fallback.
  *
  * @param source Full Markdown body.
  * @returns The rich-text blocks.
@@ -74,24 +132,35 @@ export function richBlocks(source: string): RichBlock[] {
   const result: RichBlock[] = [];
   if (source.length > 500000)
     return [
-      { start: 0, end: source.length, source, editable: false, kind: "opaque" },
+      {
+        start: 0,
+        end: source.length,
+        source,
+        editable: false,
+        kind: "opaque",
+        reason: "oversize",
+      },
     ];
   for (const segment of parseBlocks(source)) {
     if (segment.kind === "extension") {
-      result.push({ ...segment, editable: false });
+      result.push({ ...segment, editable: false, reason: "extension" });
       continue;
     }
     const ast = parser.parse(segment.source);
     for (const node of ast.children) {
       const start = segment.start + node.position!.start.offset!,
         end = segment.start + node.position!.end.offset!,
-        text = source.slice(start, end);
+        text = source.slice(start, end),
+        reason =
+          inspect(node, source, segment.start) ??
+          (/\[\^[^\]]+\]/.test(text) ? "footnote" : null);
       result.push({
         start,
         end,
         source: text,
         kind: "markdown",
-        editable: safe(node) && !/\[\^[^\]]+\]/.test(text),
+        editable: !reason,
+        reason: reason ?? undefined,
       });
     }
   }

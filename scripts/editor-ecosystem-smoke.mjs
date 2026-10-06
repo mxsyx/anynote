@@ -31,6 +31,46 @@ const opaque =
 const body =
   "# 原始标题\n\n前文保留 **粗体**。\n\n| 列一 | 列二 |\n| --- | --- |\n| 甲 | 乙 |\n\n- [ ] 任务一\n- [x] 任务二\n\n" +
   opaque;
+/** Build a small multi-page PDF with extractable text for the reader checks. */
+function multiPagePdf(count) {
+  const kids = [],
+    objects = [
+      [1, "<< /Type /Catalog /Pages 2 0 R >>"],
+      [2, ""],
+      [3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"],
+    ];
+  let next = 4;
+  for (let i = 1; i <= count; i++) {
+    const page = next++,
+      content = next++,
+      stream = `BT /F1 18 Tf 40 220 Td (Anynote page ${i}) Tj ET`;
+    kids.push(`${page} 0 R`);
+    objects.push([
+      page,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 320] /Resources << /Font << /F1 3 0 R >> >> /Contents ${content} 0 R >>`,
+    ]);
+    objects.push([
+      content,
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    ]);
+  }
+  objects[1][1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${count} >>`;
+  const total = next - 1;
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  for (const [id, text] of objects) {
+    offsets[id] = Buffer.byteLength(pdf);
+    pdf += `${id} 0 obj\n${text}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${total + 1}\n0000000000 65535 f \n`;
+  for (let id = 1; id <= total; id++)
+    pdf += String(offsets[id]).padStart(10, "0") + " 00000 n \n";
+  return (
+    pdf +
+    `trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
+  );
+}
 const s = new Storage(join(root, "notebooks")),
   book = await s.run("createNotebook", { title: "编辑与生态" }),
   note = await s.run("createNode", {
@@ -49,11 +89,13 @@ async function check(name, fn) {
   report.checks.push({ name, status: "passed" });
   console.log(name + " — passed");
 }
-async function scan(name) {
-  const result = await new AxeBuilder({ page })
+async function scan(name, include) {
+  // `include` scopes the scan to the interface under test; the shared document
+  // chrome outside it is covered by its own gates.
+  const builder = new AxeBuilder({ page })
     .setLegacyMode(true)
-    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-    .analyze();
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"]);
+  const result = await (include ? builder.include(include) : builder).analyze();
   report.accessibility.push({ name, violations: result.violations });
   assert.equal(result.violations.length, 0, JSON.stringify(result.violations));
 }
@@ -1711,6 +1753,157 @@ try {
           globalThis.__updateOriginalGet;
       });
     }
+  });
+  await check("pdf-thumbnails-fit-and-linked-note", async () => {
+    await request("importFile", {
+      notebookId: book.id,
+      name: "阅读验收.pdf",
+      mime: "application/pdf",
+      data: Buffer.from(multiPagePdf(3)).toString("base64"),
+    });
+    await page.keyboard.press("Control+k");
+    await page
+      .getByPlaceholder("寻找一个想法，或一篇笔记…")
+      .fill("阅读验收.pdf");
+    await page
+      .locator(".command-results button")
+      .filter({ hasText: "阅读验收.pdf" })
+      .first()
+      .click();
+    await page.locator(".pdf-reader canvas").waitFor();
+    await page.waitForFunction(
+      () => document.querySelector(".pdf-reader canvas")?.width > 0,
+    );
+    await page.locator(".textLayer span").first().waitFor();
+    // Collapsible page thumbnails jump to a page.
+    await page
+      .getByRole("button", { name: "展开页缩略图", exact: true })
+      .click();
+    const thumbs = page.getByRole("region", { name: "页缩略图", exact: true });
+    await thumbs.getByRole("button", { name: "第 3 页", exact: true }).click();
+    await expect(
+      page.getByRole("spinbutton", { name: "PDF 页码", exact: true }),
+    ).toHaveValue("3");
+    await scan("PDF 缩略图面板", ".pdf-reader");
+    // Fit to width and fit to page are mutually exclusive toggles.
+    await page.getByRole("button", { name: "适应宽度", exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "适应宽度", exact: true })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.getByRole("button", { name: "适应页面", exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "适应页面", exact: true })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    // The background index reports a complete, searchable document.
+    await page
+      .getByText("已索引 3 页文本", { exact: false })
+      .waitFor({ timeout: 15000 });
+    // A selection on page 3 can become a highlight and a linked Markdown note.
+    await page.locator(".textLayer span").first().waitFor();
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const el = [
+        ...document.querySelectorAll(".pdf-page .textLayer span"),
+      ].find((span) => span.textContent && span.textContent.trim());
+      if (!el) throw new Error("没有可选择的文本层");
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    });
+    await page
+      .getByRole("textbox", { name: "批注正文", exact: true })
+      .fill("阅读验收批注");
+    await page
+      .getByRole("button", { name: "创建关联笔记", exact: true })
+      .click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "已创建阅读笔记" })
+      .waitFor();
+    await page.getByText("阅读验收批注", { exact: true }).waitFor();
+    await scan("PDF 关联笔记创建", ".pdf-reader");
+    await page
+      .getByRole("button", { name: "打开阅读笔记", exact: true })
+      .click();
+    await page.getByRole("button", { name: "阅读", exact: true }).click();
+    const back = page.getByRole("link", {
+      name: "返回 PDF 第 3 页",
+      exact: true,
+    });
+    await back.waitFor();
+    // Forget the remembered page so the return link, not localStorage, decides
+    // the restored reading position.
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage))
+        if (key.startsWith("anynote-pdf-")) localStorage.removeItem(key);
+    });
+    await back.click();
+    await expect(
+      page.getByRole("spinbutton", { name: "PDF 页码", exact: true }),
+    ).toHaveValue("3");
+    await page.locator(".pdf-reader").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/editor/pdf-reader.png" });
+  });
+  await check("mode-switch-keeps-reading-anchor", async () => {
+    const long = Array.from(
+      { length: 80 },
+      (_, i) => `## 段落 ${i + 1}\n\n第 ${i + 1} 段正文。`,
+    ).join("\n\n");
+    const anchorNote = await request("createNode", {
+      notebookId: book.id,
+      title: "阅读锚点验收",
+      body: long,
+    });
+    await page.keyboard.press("Control+k");
+    await page
+      .getByPlaceholder("寻找一个想法，或一篇笔记…")
+      .fill(anchorNote.title);
+    await page
+      .locator(".command-results button")
+      .filter({ hasText: anchorNote.title })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "阅读", exact: true }).click();
+    const scroller = page.locator(".main-content");
+    await page.waitForFunction(() => {
+      const el = document.querySelector(".main-content");
+      return !!el && el.scrollHeight > el.clientHeight + 200;
+    });
+    await scroller.evaluate((el) => {
+      // `scroll-behavior: smooth` would animate the jump, so an immediate read
+      // would see the old position; an instant jump keeps the check stable.
+      el.scrollTo({
+        top: Math.round((el.scrollHeight - el.clientHeight) * 0.5),
+        behavior: "instant",
+      });
+    });
+    const offset = () =>
+      scroller.evaluate((el) => {
+        const max = el.scrollHeight - el.clientHeight;
+        return max > 0 ? el.scrollTop / max : 0;
+      });
+    const before = await offset();
+    assert.ok(before > 0.3, "长文应可滚动");
+    // Dispatch the click directly: a normal click makes Playwright scroll the
+    // mode button into view, which would reset the column we just positioned.
+    await page
+      .getByRole("button", { name: "源码", exact: true })
+      .dispatchEvent("click");
+    await page.locator(".cm-editor").waitFor();
+    await page.waitForTimeout(150);
+    assert.ok(
+      Math.abs((await offset()) - before) < 0.15,
+      "切换模式应保留阅读位置",
+    );
   });
   report.status = "passed";
 } catch (e) {
