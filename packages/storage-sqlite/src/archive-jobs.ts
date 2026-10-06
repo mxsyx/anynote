@@ -94,7 +94,7 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
     createdAt: Date.now(),
     controller: new AbortController(),
   };
-  s.jobs.set(job.id, job);
+  s.track(job);
   const signal = job.controller!.signal;
 
   /**
@@ -201,14 +201,16 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
         temp = null;
         job.restoredId = result.id;
       }
-      job.status = "completed";
-      job.progress =
-        job.type === "archive-export"
-          ? "完整 Notebook 已导出，包含历史与回收站"
-          : "归档已校验并导入为新 Notebook";
+      s.settle(job, "completed", {
+        progress:
+          job.type === "archive-export"
+            ? "完整 Notebook 已导出，包含历史与回收站"
+            : "归档已校验并导入为新 Notebook",
+      });
     } catch (e: any) {
-      job.status = signal.aborted ? "cancelled" : "failed";
-      job.error = signal.aborted ? "归档任务已取消" : e.message;
+      s.settle(job, signal.aborted ? "cancelled" : "failed", {
+        error: signal.aborted ? "归档任务已取消" : e.message,
+      });
     } finally {
       if (temp) rmSync(temp, { recursive: true, force: true });
       release?.();

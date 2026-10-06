@@ -16,6 +16,7 @@ import {
 } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
+import { listTaskHistory } from "./task-history.js";
 import { persistDirectories } from "./workspace.js";
 
 const uuid = z.string().uuid(),
@@ -212,6 +213,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       "configureBackup",
       "listBackupTargets",
       "startBackup",
+      "queryPendingGeneration",
       "listRemoteBackups",
       "restoreRemoteBackup",
       "testBackupConnection",
@@ -247,6 +249,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "startImport",
     "listTasks",
     "cancelTask",
+    "retryTask",
     "commitImport",
     "saveWhiteboard",
     "getWhiteboard",
@@ -342,12 +345,16 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     return { handled: true, result };
   }
 
+  if (op === "retryTask") {
+    const { retryTask } = await import("./task-history.js");
+    return { handled: true, result: await retryTask(s, raw) };
+  }
+
   if (op === "listTasks") {
     const p = z.object({ id: uuid.optional() }).passthrough().parse(raw);
-    result = [...s.jobs.values()]
-      .filter((j) => !p.id || j.id === p.id)
-      .map(({ controller, worker, promise, ...j }) => j)
-      .slice(-100);
+    // Live tasks win over their own history record; history supplies the tasks
+    // of previous sessions so a restart still shows what ran.
+    result = listTaskHistory(s, p.id).slice(-100);
     return { handled: true, result };
   }
 
@@ -356,9 +363,9 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       job = s.jobs.get(p.id);
     if (!job) throw Error("任务不存在");
     if (job.status === "running") {
-      job.status = "cancelled";
       job.worker?.terminate();
       job.controller?.abort();
+      s.settle(job, "cancelled");
     }
     return { handled: true, result: true };
   }
@@ -407,7 +414,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         progress: "准备导入",
         createdAt: Date.now(),
       };
-    s.jobs.set(id, job);
+    s.track(job);
     const worker = new Worker(
       new URL(import.meta.resolve("@anynote/importer/worker.js")),
       { workerData: p },
@@ -417,8 +424,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       if (job.status !== "running") return;
       if (m.progress) job.progress = m.progress;
       if (m.error) {
-        job.status = "failed";
-        job.error = m.error;
+        s.settle(job, "failed", { error: m.error });
         worker.terminate();
       }
       if (m.result) {
@@ -429,21 +435,19 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
             notebookId: p.notebookId,
             parentId: p.parentId,
           });
-          job.status = "completed";
-          job.progress = "已导入并保存至本地";
-          job.report = m.result.report;
+          s.settle(job, "completed", {
+            progress: "已导入并保存至本地",
+            report: m.result.report,
+          });
         } catch (e: any) {
-          job.status = "failed";
-          job.error = e.message;
+          s.settle(job, "failed", { error: e.message });
         }
         worker.terminate();
       }
     });
     worker.on("error", (e) => {
-      if (job.status === "running") {
-        job.status = "failed";
-        job.error = e.message;
-      }
+      if (job.status === "running")
+        s.settle(job, "failed", { error: e.message });
     });
     return { handled: true, result: { id, status: job.status } };
   }

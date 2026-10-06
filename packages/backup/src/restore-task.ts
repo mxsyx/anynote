@@ -37,7 +37,7 @@ export function startCloudRestore(
     controller,
     processedBytes: 0,
   };
-  s.jobs.set(id, job);
+  s.track(job);
   job.promise = (async () => {
     let dir: string | undefined, release: (() => void) | undefined;
     try {
@@ -81,12 +81,14 @@ export function startCloudRestore(
         controller.signal,
       );
       dir = undefined;
-      job.restoredId = result.id;
-      job.status = "completed";
-      job.progress = "已恢复为新的 Notebook";
+      s.settle(job, "completed", {
+        restoredId: result.id,
+        progress: "已恢复为新的 Notebook",
+      });
     } catch (e: any) {
-      job.status = controller.signal.aborted ? "cancelled" : "failed";
-      job.error = controller.signal.aborted ? "恢复任务已取消" : e.message;
+      s.settle(job, controller.signal.aborted ? "cancelled" : "failed", {
+        error: controller.signal.aborted ? "恢复任务已取消" : e.message,
+      });
     } finally {
       if (dir) rmSync(dir, { recursive: true, force: true });
       release?.();

@@ -181,7 +181,7 @@ export async function manage(
     progress: "正在执行远端维护",
     createdAt: Date.now(),
   };
-  s.jobs.set(job.id, job);
+  s.track(job);
   try {
     let result;
     if (op === "takeoverRemoteWriter") {
@@ -246,17 +246,17 @@ export async function manage(
         job.progress = "正在分批清理远端版本和无引用对象";
       } while (!result.completed);
     }
-    job.status = "completed";
-    job.progress =
-      op === "takeoverRemoteWriter"
-        ? "已接管远端写入权；自动备份已关闭"
-        : op === "previewRemoteRetention"
-          ? "远端清理预览已生成，尚未删除"
-          : "远端清理已完成";
+    s.settle(job, "completed", {
+      progress:
+        op === "takeoverRemoteWriter"
+          ? "已接管远端写入权；自动备份已关闭"
+          : op === "previewRemoteRetention"
+            ? "远端清理预览已生成，尚未删除"
+            : "远端清理已完成",
+    });
     return result;
   } catch (e: any) {
-    job.status = "failed";
-    job.error = e.message;
+    s.settle(job, "failed", { error: e.message });
     throw e;
   }
 }

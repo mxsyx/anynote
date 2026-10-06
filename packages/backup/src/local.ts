@@ -304,8 +304,12 @@ export async function localBackupOperation(
         createdAt: Date.now(),
         controller,
         notebookResults: [],
+        retry: {
+          op: "startLocalBackupGroup",
+          payload: { diskId: p.diskId, mode: p.mode },
+        },
       };
-    s.jobs.set(job.id, job);
+    s.track(job);
     const children: Task[] = [];
     const names = new Map(
       s.registry().map((b) => [b.id, String(b.name || b.id)]),
@@ -323,8 +327,7 @@ export async function localBackupOperation(
         children.push(s.jobs.get(uuid.parse(result.id))!);
       }
     } catch (e: any) {
-      job.status = "failed";
-      job.error = e.message;
+      s.settle(job, "failed", { error: e.message });
       return { handled: true, result: { id: job.id } };
     }
 
@@ -361,18 +364,20 @@ export async function localBackupOperation(
       }),
     )
       .then(() => {
-        job.status = children.every((j) => j.status === "completed")
-          ? "completed"
-          : controller.signal.aborted ||
-              children.some((j) => j.status === "cancelled")
-            ? "cancelled"
-            : children.some((j) => j.status === "failed")
-              ? "failed"
-              : "waiting-disk";
+        s.settle(
+          job,
+          children.every((j) => j.status === "completed")
+            ? "completed"
+            : controller.signal.aborted ||
+                children.some((j) => j.status === "cancelled")
+              ? "cancelled"
+              : children.some((j) => j.status === "failed")
+                ? "failed"
+                : "waiting-disk",
+        );
       })
       .catch((e: any) => {
-        job.status = "failed";
-        job.error = e.message;
+        s.settle(job, "failed", { error: e.message });
       })
       .finally(() => {
         controller.signal.removeEventListener("abort", abort);
@@ -604,8 +609,14 @@ export async function localBackupOperation(
     createdAt: Date.now(),
     controller,
     processedBytes: 0,
+    // The approval token is intentionally not recorded: an abnormal deletion
+    // must be reviewed again against the current source cut.
+    retry: {
+      op,
+      payload: { notebookId: t.notebookId, targetId: t.id },
+    },
   };
-  s.jobs.set(job.id, job);
+  s.track(job);
   if (!queues.has(s)) queues.set(s, new Map());
   const queue = queues.get(s)!,
     previous = queue.get(t.diskId) || Promise.resolve();
@@ -755,21 +766,24 @@ export async function localBackupOperation(
             lastProgress: job.progress,
           });
         }
-        job.status = "completed";
+        s.settle(job, "completed");
       } catch (e: any) {
         if (e.verificationReport || e.report)
           job.verificationReport = e.verificationReport || e.report;
-        job.errorCode = signal.aborted ? "CANCELLED" : errorCode(e);
-        job.status = signal.aborted
-          ? "cancelled"
-          : job.errorCode === "TARGET_OFFLINE"
-            ? "waiting-disk"
-            : "failed";
-        job.error = signal.aborted
-          ? "任务已取消"
-          : job.status === "waiting-disk"
-            ? "等待磁盘 · " + e.message
-            : e.message;
+        const code = signal.aborted ? "CANCELLED" : errorCode(e),
+          status = signal.aborted
+            ? "cancelled"
+            : code === "TARGET_OFFLINE"
+              ? "waiting-disk"
+              : "failed";
+        s.settle(job, status, {
+          errorCode: code,
+          error: signal.aborted
+            ? "任务已取消"
+            : status === "waiting-disk"
+              ? "等待磁盘 · " + e.message
+              : e.message,
+        });
         try {
           update(s, t.id, { lastError: job.error });
         } catch {}

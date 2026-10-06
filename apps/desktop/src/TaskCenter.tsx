@@ -14,6 +14,9 @@ export interface Task {
   error?: string;
   errorCode?: string;
   phase?: string;
+  targetId?: string;
+  /** Operation recorded with the task so a restart can offer a real retry. */
+  retry?: { op: string; payload: Record<string, unknown> };
   verificationReport?: LocalVerificationReport;
   notebookResults?: {
     notebookId: string;
@@ -40,6 +43,14 @@ export interface Task {
   diskBudgetBytes?: number;
 }
 
+/** Result of a read-only pending generation query. */
+interface PendingGeneration {
+  pendingGeneration: string | null;
+  status: "none" | "committed" | "unknown";
+  lastGeneration?: string | null;
+  error?: string | null;
+}
+
 /** Task center: poll background tasks and show progress, verification reports, and restore entry points. */
 export default function TaskCenter({
   onClose,
@@ -51,7 +62,8 @@ export default function TaskCenter({
   onRestored?: (id: string) => void;
 }) {
   const [jobs, setJobs] = useState<Task[]>([]),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [pending, setPending] = useState<Record<string, string>>({});
   useEffect(() => {
     /** Fetch the task list once. */
     const poll = () =>
@@ -62,6 +74,38 @@ export default function TaskCenter({
     const timer = setInterval(poll, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  /** Re-dispatch a task recorded in the device history. */
+  const retry = async (id: string) => {
+    try {
+      await request("retryTask", { id });
+      setJobs(await request<Task[]>("listTasks"));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  /** Read the remote commit state of a target's pending generation. */
+  const queryPending = async (j: Task) => {
+    try {
+      const r = await request<PendingGeneration>("queryPendingGeneration", {
+        notebookId: j.notebookId,
+        targetId: j.targetId,
+      });
+      setPending((p) => ({
+        ...p,
+        [j.id]: r.pendingGeneration
+          ? `待确认提交 ${r.pendingGeneration.slice(0, 8)} · ${
+              r.status === "committed"
+                ? "远端已提交，重试可修复本地游标"
+                : "远端尚未确认此提交"
+            }${r.error ? " · " + r.error : ""}`
+          : `没有待确认的远端提交 · 上次成功版本 ${(r.lastGeneration || "无").slice(0, 8)}`,
+      }));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
   return (
     <div className="modal-overlay">
       <div
@@ -76,7 +120,9 @@ export default function TaskCenter({
             <X size={18} />
           </button>
         </div>
-        <p>导入、导出与备份在后台进行，你可以继续记录。</p>
+        <p>
+          导入、导出与备份在后台进行，你可以继续记录；重启后仍可查看最近任务、校验结果与恢复入口。
+        </p>
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -110,9 +156,14 @@ export default function TaskCenter({
                               ? "云备份恢复"
                               : "备份任务"}
               </strong>
-              <small>{new Date(j.createdAt).toLocaleTimeString("zh-CN")}</small>
+              <small>{new Date(j.createdAt).toLocaleString("zh-CN")}</small>
             </div>
             {j.status === "waiting-disk" && <p role="status">等待磁盘接入</p>}
+            {j.status === "interrupted" && (
+              <p role="status">
+                上次运行未结束（应用重启或退出），需重新执行。
+              </p>
+            )}
             <p>{j.error || j.progress}</p>
             {j.totalBytes !== undefined && (
               <p>
@@ -222,6 +273,22 @@ export default function TaskCenter({
                 取消任务
               </button>
             )}
+            {j.retry &&
+              ["failed", "cancelled", "interrupted", "waiting-disk"].includes(
+                j.status,
+              ) && (
+                <button className="secondary" onClick={() => retry(j.id)}>
+                  重试此任务
+                </button>
+              )}
+            {j.type === "backup" &&
+              j.targetId &&
+              ["failed", "interrupted"].includes(j.status) && (
+                <button className="secondary" onClick={() => queryPending(j)}>
+                  查询 pending generation
+                </button>
+              )}
+            {pending[j.id] && <p>{pending[j.id]}</p>}
           </div>
         ))}
       </div>

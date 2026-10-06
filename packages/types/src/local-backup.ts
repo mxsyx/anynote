@@ -210,6 +210,7 @@ export type LocalBackupTaskStatus =
   | "completed"
   | "failed"
   | "cancelled"
+  | "interrupted"
   | "waiting-disk";
 
 /** Execution result of one Notebook in a batch backup. */

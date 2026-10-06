@@ -48,9 +48,12 @@ export interface Task {
     | "completed"
     | "failed"
     | "cancelled"
-    | "waiting-disk";
+    | "waiting-disk"
+    | "interrupted";
   progress: string;
   createdAt: number;
+  /** Operation and payload needed to re-dispatch this task after a restart. */
+  retry?: { op: string; payload: Record<string, unknown> };
   targetId?: string;
   notebookResults?: LocalBackupNotebookResult[];
   verificationReport?: LocalVerificationReport;

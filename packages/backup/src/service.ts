@@ -17,11 +17,12 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
-import type {
-  BackupTarget,
-  Credentials,
-  SqlRow,
-  Task,
+import {
+  errorMessage,
+  type BackupTarget,
+  type Credentials,
+  type SqlRow,
+  type Task,
 } from "@anynote/types/runtime.js";
 import { uploadLogicalFiles } from "./file-logical.js";
 import { uploadSnapshotFiles } from "./file-s3.js";
@@ -100,6 +101,68 @@ async function secret(
 }
 
 /**
+ * Read-only check whether a pending generation was really committed remotely.
+ *
+ * A lost commit response leaves `pendingGeneration` on the target; this decides
+ * between "the remote has it" and "the upload never landed" without mutating
+ * anything, so it can back both the upload path and a plain status query.
+ *
+ * @param target Backup target owning the pending generation.
+ * @param provider Remote provider client.
+ * @param signal Abort signal.
+ * @returns The committed generation identity, or undefined when not committed.
+ */
+async function readCommittedGeneration(
+  target: BackupTarget,
+  provider: S3Objects | CloudflareClient,
+  signal: AbortSignal,
+) {
+  const generation = target.pendingGeneration;
+  if (!generation) return undefined;
+  const base = `${target.notebookId}/${target.lineageId}`;
+  if (provider instanceof CloudflareClient) {
+    const state = await provider.call(
+      `/v1/notebooks/${target.remoteNotebookId || target.notebookId}/backup/${generation}`,
+      { signal },
+    );
+    if (state.status === "committed")
+      return {
+        generationId: state.id,
+        snapshotSeq: state.snapshotSeq,
+      };
+    return undefined;
+  }
+  const prefix = `${base}/generations/${generation}`,
+    marker = JSON.parse(
+      (
+        await provider.get(prefix + "/COMMITTED.json", {
+          maxBytes: 65536,
+          signal,
+        })
+      ).toString(),
+    ),
+    bytes = await provider.get(prefix + "/manifest.json", {
+      maxBytes: 16 * 1024 ** 2,
+      signal,
+    });
+  if (digest(bytes) !== marker.manifestHash) throw Error("提交记录校验失败");
+  const manifest = JSON.parse(bytes.toString());
+  if (
+    manifest.generationId !== generation ||
+    manifest.notebookId !== target.notebookId ||
+    manifest.lineageId !== target.lineageId
+  )
+    throw Error("提交身份不匹配");
+  const managed = (await readControl(provider, base))?.value;
+  if (!managed || managed.committed.includes(generation))
+    return {
+      generationId: manifest.generationId,
+      snapshotSeq: manifest.snapshotSeq,
+    };
+  return undefined;
+}
+
+/**
  * Find a backup target by notebookId/targetId.
  *
  * @param s Storage service.
@@ -137,6 +200,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       "configureBackup",
       "listBackupTargets",
       "startBackup",
+      "queryPendingGeneration",
       "listRemoteBackups",
       "restoreRemoteBackup",
       "testBackupConnection",
@@ -287,6 +351,45 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     return { handled: true, result: { ok: true } };
   }
 
+  if (op === "queryPendingGeneration") {
+    // Read-only: the task center uses it to explain an interrupted commit
+    // without uploading, cancelS3Generation or moving the local cursor.
+    if (!target.pendingGeneration)
+      return {
+        handled: true,
+        result: {
+          pendingGeneration: null,
+          status: "none",
+          lastGeneration: target.lastGeneration ?? null,
+          lastError: target.lastError ?? null,
+        },
+      };
+    let status: "committed" | "unknown" = "unknown",
+      error: string | null = null;
+    try {
+      if (
+        await readCommittedGeneration(
+          target,
+          provider,
+          new AbortController().signal,
+        )
+      )
+        status = "committed";
+    } catch (e: any) {
+      error = errorMessage(e);
+    }
+    return {
+      handled: true,
+      result: {
+        pendingGeneration: target.pendingGeneration,
+        status,
+        lastGeneration: target.lastGeneration ?? null,
+        lastError: target.lastError ?? null,
+        error,
+      },
+    };
+  }
+
   if (op === "listRemoteBackups")
     return {
       handled: true,
@@ -319,8 +422,14 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       progress: "正在创建一致性备份切点",
       createdAt: Date.now(),
       controller,
+      // A re-run also re-reads the pending generation, so the retry entry is
+      // the recovery path for a commit that was interrupted mid-flight.
+      retry: {
+        op: "startBackup",
+        payload: { notebookId: p.notebookId, targetId: target.id },
+      },
     };
-  s.jobs.set(id, job);
+  s.track(job);
   target.lastAttempt = Date.now();
   write(
     s,
@@ -334,51 +443,11 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         job.progress = "正在确认上次提交结果";
         let confirmed;
         try {
-          if (provider instanceof CloudflareClient) {
-            const state = await provider.call(
-              `/v1/notebooks/${target.remoteNotebookId || p.notebookId}/backup/${target.pendingGeneration}`,
-              { signal: controller.signal },
-            );
-            if (state.status === "committed")
-              confirmed = {
-                generationId: state.id,
-                snapshotSeq: state.snapshotSeq,
-              };
-          } else {
-            const base = `${p.notebookId}/${target.lineageId}/generations/${target.pendingGeneration}`,
-              marker = JSON.parse(
-                (
-                  await provider.get(base + "/COMMITTED.json", {
-                    maxBytes: 65536,
-                    signal: controller.signal,
-                  })
-                ).toString(),
-              ),
-              bytes = await provider.get(base + "/manifest.json", {
-                maxBytes: 16 * 1024 ** 2,
-                signal: controller.signal,
-              });
-            if (digest(bytes) !== marker.manifestHash)
-              throw Error("提交记录校验失败");
-            const manifest = JSON.parse(bytes.toString());
-            if (
-              manifest.generationId !== target.pendingGeneration ||
-              manifest.notebookId !== p.notebookId ||
-              manifest.lineageId !== target.lineageId
-            )
-              throw Error("提交身份不匹配");
-            const managed = (
-              await readControl(provider, `${p.notebookId}/${target.lineageId}`)
-            )?.value;
-            if (
-              !managed ||
-              managed.committed.includes(target.pendingGeneration)
-            )
-              confirmed = {
-                generationId: manifest.generationId,
-                snapshotSeq: manifest.snapshotSeq,
-              };
-          }
+          confirmed = await readCommittedGeneration(
+            target,
+            provider,
+            controller.signal,
+          );
         } catch (e: any) {
           if (
             e.status !== 404 &&
@@ -407,8 +476,9 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
               lastError: null,
             },
           });
-          job.status = "completed";
-          job.progress = "已确认上次远端提交并修复本地游标";
+          s.settle(job, "completed", {
+            progress: "已确认上次远端提交并修复本地游标",
+          });
           return;
         }
         await s.run("commitBackupCursor", {
@@ -418,8 +488,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         });
       }
       if (target.lastAckSeq === seq) {
-        job.status = "completed";
-        job.progress = "没有变化，已跳过上传";
+        s.settle(job, "completed", { progress: "没有变化，已跳过上传" });
         return;
       }
       const base = assertLocalPath(s.root, "_local/backup-jobs");
@@ -488,17 +557,16 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           pendingGeneration: null,
         },
       });
-      job.status = "completed";
-      job.progress = `备份已验证并提交 · ${result.generationId.slice(0, 8)}`;
+      s.settle(job, "completed", {
+        progress: `备份已验证并提交 · ${result.generationId.slice(0, 8)}`,
+      });
     } catch (e: any) {
       if (controller.signal.aborted) {
-        job.status = "cancelled";
-        job.error = "备份任务已取消";
+        s.settle(job, "cancelled", { error: "备份任务已取消" });
         return;
       }
       if (job.status === "cancelled") return;
-      job.status = "failed";
-      job.error = e.message;
+      s.settle(job, "failed", { error: e.message });
       await s
         .run("commitBackupCursor", {
           notebookId: p.notebookId,

@@ -22,6 +22,7 @@ import {
 } from "./extension-download.js";
 import { closeExtensionDataReviews } from "./extension-data.js";
 import { closeScripts } from "./script-commands.js";
+import { loadTaskHistory, recordTask } from "./task-history.js";
 import { recoverTemporaryJobs } from "./temporary-jobs.js";
 import { unzipSync, zipSync } from "fflate";
 import { createHash, randomUUID } from "node:crypto";
@@ -44,7 +45,8 @@ import {
 import { join } from "node:path";
 import { z } from "zod";
 import { resourceIds } from "@anynote/protocol/markdown.js";
-import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
+import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
+import type { TaskRecord } from "./task-history.js";
 import { backup, DatabaseSync } from "@anynote/types/runtime.js";
 import { advancedOperations } from "./operations.js";
 import { diagnoseNotebook, preserveNotebookEvidence } from "./recovery.js";
@@ -132,6 +134,8 @@ export class Storage {
   pins: Map<string, number>;
   queue: Promise<unknown>;
   jobs: Map<string, import("@anynote/types/runtime.js").Task>;
+  /** Task evidence persisted on device so a restart can still explain what ran. */
+  taskHistory: TaskRecord[];
   externalDirectories: Map<string, { id: string; path: string; name: string }>;
   writeLocks: Map<string, () => void>;
   vault?: import("@anynote/types/runtime.js").Vault;
@@ -162,6 +166,7 @@ export class Storage {
     this.pins = new Map();
     this.queue = Promise.resolve();
     this.jobs = new Map();
+    this.taskHistory = loadTaskHistory(this.root);
     this.externalDirectories = new Map(
       loadDirectories(this.root).map((entry) => [entry.id, entry]),
     );
@@ -224,6 +229,33 @@ export class Storage {
     const next = this.queue.then(() => this.execute(op, input));
     this.queue = next.catch(() => {});
     return next;
+  }
+
+  /**
+   * Register a background task and persist its record, so the task is still
+   * explainable after a restart.
+   *
+   * @param job Live task.
+   * @returns The task.
+   */
+  track(job: Task) {
+    this.jobs.set(job.id, job);
+    recordTask(this, job);
+    return job;
+  }
+
+  /**
+   * Move a task into a final status and persist its evidence.
+   *
+   * @param job Live task.
+   * @param status Final status.
+   * @param patch Fields recorded together with the status.
+   * @returns The task.
+   */
+  settle(job: Task, status: Task["status"], patch: Partial<Task> = {}) {
+    Object.assign(job, patch, { status });
+    recordTask(this, job);
+    return job;
   }
 
   /**
@@ -1521,6 +1553,11 @@ export class Storage {
     closeExtensionCleanup(this);
     for (const controller of this.searches?.values() || []) controller.abort();
     for (const job of this.jobs.values()) {
+      // Tasks still running here are abandoned by this process; recording the
+      // interruption keeps the restart view honest instead of showing progress
+      // no worker will ever finish.
+      if (["running", "committing"].includes(job.status))
+        this.settle(job, "interrupted", { progress: "应用退出，任务已中断" });
       job.controller?.abort();
       job.worker?.terminate();
     }
