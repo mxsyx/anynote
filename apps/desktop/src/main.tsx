@@ -69,6 +69,7 @@ import LocalCleanup from "./LocalCleanup";
 import BackupTargets from "./BackupTargets";
 import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
+import RecoveryWizard from "./RecoveryWizard";
 import SourceEditor from "./SourceEditor";
 import NotebookTransferDialog from "./NotebookTransferDialog";
 import "./styles.css";
@@ -157,6 +158,7 @@ function App() {
     [searchInfo, setSearchInfo] = useState<SearchResponse | null>(null),
     [searchIndex, setSearchIndex] = useState(0),
     [modal, setModal] = useState<Modal | null>(null),
+    [recovery, setRecovery] = useState<Notebook | null>(null),
     [transfer, setTransfer] = useState<{
       node: NoteNode;
       mode: "copy" | "move";
@@ -537,14 +539,14 @@ function App() {
         }
         if (cancelled) return;
         setBooks(list);
-        await switchBook(
+        const preferred =
           list.find(
             (b) =>
               b.id === localStorage.getItem("anynote-book") && !b.unavailable,
-          ) ||
-            list.find((b) => !b.unavailable) ||
-            list[0],
-        );
+          ) || list.find((b) => !b.unavailable);
+        // When every Notebook is unavailable, open the recovery wizard instead of a failed switch.
+        if (preferred) await switchBook(preferred);
+        else if (list[0]) setRecovery(list[0]);
       } catch (e) {
         report(e);
       }
@@ -658,7 +660,15 @@ function App() {
     };
   }, [active?.id, active?.primary_resource_id, book]);
   useEffect(() => {
-    if (!modal && !searchOpen && !transfer && !importOpen && !tasksOpen) return;
+    if (
+      !modal &&
+      !searchOpen &&
+      !transfer &&
+      !importOpen &&
+      !tasksOpen &&
+      !recovery
+    )
+      return;
     const previous = focusBeforeDialog.current;
 
     /**
@@ -702,7 +712,7 @@ function App() {
       window.removeEventListener("keydown", trap);
       previous?.focus();
     };
-  }, [modal, searchOpen, transfer, importOpen, tasksOpen]);
+  }, [modal, searchOpen, transfer, importOpen, tasksOpen, recovery]);
   /**
    * Open a modal dialog and initialize its input fields.
    *
@@ -742,6 +752,7 @@ function App() {
         setSearchOpen(false);
         setMenu(false);
         setSwitcher(false);
+        setRecovery(null);
       }
     };
     window.addEventListener("keydown", key);
@@ -1152,6 +1163,20 @@ function App() {
           }}
         />
       )}
+      {recovery && (
+        <RecoveryWizard
+          notebook={recovery}
+          onClose={() => setRecovery(null)}
+          onStarted={() => setTasksOpen(true)}
+          onRestored={async (id) => {
+            const list = await request<Notebook[]>("listNotebooks");
+            setBooks(list);
+            setRecovery(null);
+            await switchBook(list.find((b) => b.id === id)!);
+            setToast("已从备份恢复为新的 Notebook");
+          }}
+        />
+      )}
       {board && active && book && (
         <Suspense
           fallback={<div className="board-overlay empty">正在加载白板…</div>}
@@ -1224,12 +1249,21 @@ function App() {
                 {books.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => void task(() => switchBook(b))}
+                    onClick={() => {
+                      setSwitcher(false);
+                      // Damaged Notebooks cannot be switched to; open the recovery wizard instead.
+                      if (b.unavailable) setRecovery(b);
+                      else void task(() => switchBook(b));
+                    }}
                   >
-                    <BookOpen size={16} />
+                    {b.unavailable ? (
+                      <RotateCcw size={16} />
+                    ) : (
+                      <BookOpen size={16} />
+                    )}
                     {b.name}
                     {b.unavailable
-                      ? "（目录不可用）"
+                      ? "（目录不可用，点击恢复）"
                       : b.external
                         ? " · 外部"
                         : ""}
@@ -2054,6 +2088,25 @@ function App() {
                         }
                       >
                         移出工作区
+                      </button>
+                    </div>
+                  ))}
+                {books
+                  .filter((b) => b.unavailable)
+                  .map((damaged) => (
+                    <div className="setting-row" key={"recovery-" + damaged.id}>
+                      <div>
+                        <h3>{damaged.name} · 需要恢复</h3>
+                        <p>
+                          {damaged.error ||
+                            "Notebook 无法打开；可进入只读诊断与恢复向导。"}
+                        </p>
+                      </div>
+                      <button
+                        className="secondary"
+                        onClick={() => setRecovery(damaged)}
+                      >
+                        诊断与恢复
                       </button>
                     </div>
                   ))}

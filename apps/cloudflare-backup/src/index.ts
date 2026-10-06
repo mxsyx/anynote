@@ -108,6 +108,7 @@ export default {
             "retention-gc",
             "calendar-retention",
             ...(env.MAINTENANCE ? ["maintenance-recovery-v1"] : []),
+            "maintenance-admin-v1",
             "restore-pin",
             "chunked-assets-v1",
             "backup-discovery-v1",

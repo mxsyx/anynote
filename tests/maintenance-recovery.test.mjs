@@ -2,6 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
+import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { MaintenanceCoordinator } from "../.build/apps/cloudflare-backup/src/maintenance-coordinator.js";
 function fixture(
   t,
@@ -61,7 +62,17 @@ function fixture(
       method: "POST",
       body: JSON.stringify({ planId: id, confirmed: true }),
     });
-  return { env, book, id, ctx, request, alarm: () => alarm };
+  return { env, book, id, execution, owner, ctx, request, alarm: () => alarm };
+}
+function call(f, path, { method = "GET", body } = {}) {
+  return worker.fetch(
+    new Request(`https://worker.invalid/v1/notebooks/${f.book}${path}`, {
+      method,
+      headers: { Authorization: "Bearer fixture" },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+    f.env,
+  );
 }
 test("new actor incarnation resumes an orphaned confirmed execution without expiring notebook gate", async (t) => {
   const f = fixture(t, { count: 10 });
@@ -152,5 +163,138 @@ test("ordinary object deletion failure keeps durable alarm and resumes after act
   assert.equal(
     f.env.DB.db.prepare("SELECT status FROM retention_plans").get().status,
     "completed",
+  );
+});
+test("legacy lock diagnosis is read-only and distinguishes unowned from coordinator-owned execution", async (t) => {
+  const f = fixture(t, { owner: null });
+  const readOnly = await call(f, "/retention/diagnostics");
+  assert.equal(readOnly.status, 200);
+  const d = await readOnly.json();
+  assert.equal(d.legacyLock, true);
+  assert.equal(d.notebookLocked, true);
+  assert.equal(d.plan.id, f.id);
+  assert.equal(d.plan.executionId, f.execution);
+  assert.equal(d.plan.executionOwner, null);
+  assert.ok(d.guidance.includes("旧请求"));
+  assert.equal(
+    f.env.DB.db.prepare("SELECT execution_id FROM retention_plans").get()
+      .execution_id,
+    f.execution,
+  );
+  const owned = fixture(t);
+  const managed = await (await call(owned, "/retention/diagnostics")).json();
+  assert.equal(managed.legacyLock, false);
+  assert.equal(managed.plan.executionOwner, owned.owner);
+});
+test("legacy lock release requires explicit confirmation and a stopped-requests attestation", async (t) => {
+  const f = fixture(t, { owner: null });
+  const unsigned = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: { planId: f.id, executionId: f.execution, confirmed: true },
+  });
+  assert.equal(unsigned.status, 400);
+  const unconfirmed = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: {
+      planId: f.id,
+      executionId: f.execution,
+      attestation: "legacy-requests-stopped",
+    },
+  });
+  assert.equal(unconfirmed.status, 400);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT execution_id FROM retention_plans").get()
+      .execution_id,
+    f.execution,
+  );
+});
+test("legacy lock release only clears the exact observed lock and records an audit row", async (t) => {
+  const f = fixture(t, { owner: null });
+  const mismatch = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: {
+      planId: f.id,
+      executionId: randomUUID(),
+      confirmed: true,
+      attestation: "legacy-requests-stopped",
+    },
+  });
+  assert.equal(mismatch.status, 409);
+  assert.equal((await mismatch.json()).error, "LEGACY_LOCK_CHANGED");
+  const released = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: {
+      planId: f.id,
+      executionId: f.execution,
+      confirmed: true,
+      attestation: "legacy-requests-stopped",
+    },
+  });
+  assert.equal(released.status, 200);
+  assert.equal((await released.json()).released, true);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT execution_id FROM retention_plans").get()
+      .execution_id,
+    null,
+  );
+  // The Notebook gate stays held; the plan must still finish through the normal path.
+  assert.equal(
+    f.env.DB.db.prepare("SELECT maintenance_id FROM notebook_state").get()
+      .maintenance_id,
+    f.id,
+  );
+  const audit = f.env.DB.db
+    .prepare("SELECT * FROM maintenance_admin_actions")
+    .get();
+  assert.equal(audit.action, "legacy-lock-release");
+  assert.equal(audit.plan_id, f.id);
+  assert.equal(audit.execution_id, f.execution);
+  assert.equal(audit.attestation, "legacy-requests-stopped");
+});
+test("release never clears a coordinator-owned lock", async (t) => {
+  const f = fixture(t);
+  const r = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: {
+      planId: f.id,
+      executionId: f.execution,
+      confirmed: true,
+      attestation: "legacy-requests-stopped",
+    },
+  });
+  assert.equal(r.status, 409);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT execution_id FROM retention_plans").get()
+      .execution_id,
+    f.execution,
+  );
+  assert.equal(
+    f.env.DB.db
+      .prepare("SELECT count(*) AS n FROM maintenance_admin_actions")
+      .get().n,
+    0,
+  );
+});
+test("after a legacy release the coordinator resumes the same plan from its cursor", async (t) => {
+  const f = fixture(t, { owner: null, count: 10 });
+  const released = await call(f, "/retention/legacy-lock/release", {
+    method: "POST",
+    body: {
+      planId: f.id,
+      executionId: f.execution,
+      confirmed: true,
+      attestation: "legacy-requests-stopped",
+    },
+  });
+  assert.equal(released.status, 200);
+  const resumed = await new MaintenanceCoordinator(f.ctx, f.env).fetch(
+    f.request(),
+  );
+  assert.equal(resumed.status, 200);
+  assert.equal((await resumed.json()).completed, false);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT generation_cursor FROM retention_plans").get()
+      .generation_cursor,
+    8,
   );
 });

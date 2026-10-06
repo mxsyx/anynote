@@ -23,7 +23,7 @@ APP_TOKEN 是独立应用 token，不使用 Cloudflare 管理凭据。所有接�
 
 对象上限 20MiB、控制请求上限 5MiB。服务端公布 `chunked-assets-v1` 能力，正式云任务将大附件按 16MiB 内容分块，仍保存完整文件的大小与 SHA-256；旧未分块版本继续可恢复。实现、预算及真实 112MiB 验收见 [大文件云备份](../../docs/STREAMING-CLOUD-BACKUP.md)。上传时服务端验证真实 SHA-256 与长度；staging 版本对恢复列表不可见；最终使用带 CHECK 约束的事务 guard、分支 CAS 和 D1 batch 原子发布。失败或响应丢失可重试同一 generation；旧 committed 版本继续可恢复。新设备以新的 lineage 建立独立分支。
 
-目前提供完整 checkpoint + D1 实体 delta、显式确认的数量/日周月保留与分批 GC、设备接管及恢复 pin。分块引用参与 GC 保护。尚未提供自动设备接管、动态租户管理或 E2EE；维护边界见 [远端维护](../../docs/REMOTE-MAINTENANCE.md)。真实 Cloudflare 上传/恢复、去重、客户端中断与响应丢失、幂等和并发 CAS 场景已通过，报告见 [cloudflare-acceptance.json](../../docs/cloudflare-acceptance.json)。本地合约测试使用 SQLite/R2 内存适配器；厂商级断网或区域故障演练尚未覆盖。
+目前提供完整 checkpoint + D1 实体 delta、显式确认的数量/日周月保留与分批 GC、设备接管、恢复 pin，以及旧维护锁的只读诊断与受限释放（`maintenance-admin-v1`）。分块引用参与 GC 保护。尚未提供自动设备接管、动态租户管理或 E2EE；维护边界见 [远端维护](../../docs/REMOTE-MAINTENANCE.md)。真实 Cloudflare 上传/恢复、去重、客户端中断与响应丢失、幂等和并发 CAS 场景已通过，报告见 [cloudflare-acceptance.json](../../docs/cloudflare-acceptance.json)。本地合约测试使用 SQLite/R2 内存适配器；厂商级断网或区域故障演练尚未覆盖。
 
 ## 全新设备版本发现
 

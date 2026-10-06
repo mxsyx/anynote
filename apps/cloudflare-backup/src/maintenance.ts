@@ -270,7 +270,7 @@ const sha = async (bytes: BufferSource) =>
   ).join("");
 
 /**
- * Handle remote maintenance endpoints: writer lookup/takeover, restore pins, retention preview, and cleanup.
+ * Handle remote maintenance endpoints: writer lookup/takeover, restore pins, retention preview/cleanup, lock diagnosis, and guarded release of a legacy execution lock.
  *
  * All writes rely on D1 conditional guards (gate) and the state revision for
  * concurrency safety; cleanup advances in cursor-based batches and is
@@ -456,6 +456,89 @@ export async function maintenance(
             ...JSON.parse(plan.body_json),
           }
         : null,
+    });
+  }
+
+  // Read-only diagnosis of the current cleanup lock. It never mutates the lock,
+  // so an admin can inspect a stuck Notebook before deciding anything.
+  if (tail === "/retention/diagnostics" && request.method === "GET") {
+    const current = await state(env, book);
+    const plan = current.maintenance_id
+      ? await env.DB.prepare(
+          "SELECT * FROM retention_plans WHERE id=? AND notebook_id=?",
+        )
+          .bind(current.maintenance_id, book)
+          .first()
+      : null;
+    const executionId = plan?.execution_id || null,
+      executionOwner = plan?.execution_owner || null,
+      // A pre-coordinator Worker wrote execution_id without an owner identity;
+      // the coordinator deliberately never clears such an unowned lock.
+      legacyLock = !!plan && !!executionId && !executionOwner;
+    return result({
+      notebookLocked: !!current.maintenance_id,
+      plan: plan
+        ? {
+            id: plan.id,
+            status: plan.status,
+            executionId,
+            executionOwner,
+            objectCursor: plan.object_cursor,
+            generationCursor: plan.generation_cursor,
+            createdAt: plan.created_at,
+          }
+        : null,
+      legacyLock,
+      guidance: legacyLock
+        ? "旧版无协调器身份的执行锁不会自动过期。请先确认旧请求已停止，再用 /retention/legacy-lock/release 提供计划与执行身份释放；不得按时间抢占。"
+        : null,
+    });
+  }
+
+  // Administrator release of a legacy execution lock. Only an exact, observed
+  // unowned execution lock can be cleared, and the caller must attest that the
+  // old requests have stopped; elapsed time is never used as evidence. The
+  // Notebook-level gate stays held so backups remain blocked until the plan
+  // finishes through the normal idempotent retry.
+  if (tail === "/retention/legacy-lock/release" && request.method === "POST") {
+    const p = await json(request);
+    validId(p.planId);
+    validId(p.executionId);
+    if (p.confirmed !== true) fail("释放旧维护锁需要显式确认");
+    if (p.attestation !== "legacy-requests-stopped")
+      fail("释放旧维护锁前必须确认旧请求已停止");
+    const guard = crypto.randomUUID();
+    try {
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM retention_plans p JOIN notebook_state s ON s.notebook_id=p.notebook_id WHERE p.id=? AND p.notebook_id=? AND p.status='deleting' AND p.execution_id=? AND p.execution_owner IS NULL AND s.maintenance_id=p.id) THEN 1 ELSE 0 END",
+        ).bind(guard, p.planId, book, p.executionId),
+        env.DB.prepare(
+          "UPDATE retention_plans SET execution_id=NULL WHERE id=? AND notebook_id=?",
+        ).bind(p.planId, book),
+        env.DB.prepare(
+          "INSERT INTO maintenance_admin_actions VALUES(?,?,?,?,?,?,?)",
+        ).bind(
+          crypto.randomUUID(),
+          book,
+          "legacy-lock-release",
+          p.planId,
+          p.executionId,
+          "legacy-requests-stopped",
+          Date.now(),
+        ),
+        clear(env, guard),
+      ]);
+    } catch {
+      // The observed lock already changed (released, taken by the coordinator,
+      // or belonging to another Notebook). Never clear it blindly.
+      return result({ error: "LEGACY_LOCK_CHANGED" }, 409);
+    }
+    return result({
+      released: true,
+      planId: p.planId,
+      notebookLocked: true,
+      next: "旧执行锁已释放，Notebook 锁保留；请在维护界面重试未完成的清理，由协调器续跑同一计划。",
     });
   }
 

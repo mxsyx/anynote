@@ -1,0 +1,1 @@
+CREATE TABLE maintenance_admin_actions(id TEXT PRIMARY KEY,notebook_id TEXT NOT NULL,action TEXT NOT NULL,plan_id TEXT NOT NULL,execution_id TEXT NOT NULL,attestation TEXT NOT NULL,created_at INTEGER NOT NULL);

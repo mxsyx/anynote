@@ -2110,6 +2110,40 @@ p {
   overflow-wrap: anywhere;
 }
 
+.recovery-dialog {
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+.recovery-dialog h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+.recovery-dialog section > p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: var(--secondary);
+  margin-bottom: 10px;
+}
+.recovery-dialog .local-backup-path {
+  overflow-wrap: anywhere;
+}
+.recovery-source {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.recovery-source select {
+  flex: 1;
+  min-width: 200px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
 .cloud-recovery {
   margin: 24px 0;
 }

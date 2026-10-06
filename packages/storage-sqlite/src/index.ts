@@ -47,6 +47,7 @@ import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
 import { backup, DatabaseSync } from "@anynote/types/runtime.js";
 import { advancedOperations } from "./operations.js";
+import { diagnoseNotebook, preserveNotebookEvidence } from "./recovery.js";
 import { upgradeSQL } from "./schema.js";
 import { cancelSearch, searchWorkspace } from "./search.js";
 import {
@@ -782,6 +783,15 @@ export class Storage {
 
     if (op === "detachNotebookDirectory") return detachDirectory(this, raw);
 
+    if (op === "diagnoseNotebook")
+      return diagnoseNotebook(this, raw, { 1: legacySchema, 2: schema });
+
+    if (op === "preserveNotebookEvidence")
+      return preserveNotebookEvidence(this, raw, {
+        1: legacySchema,
+        2: schema,
+      });
+
     if (
       [
         "archiveExportBudget",
@@ -894,6 +904,28 @@ export class Storage {
     }
 
     if (op === "importArchive") return this.importArchive(p.data!);
+
+    // Snapshots are plain `.anynote` files beside the database, so listing and restoring
+    // them must work even when the Notebook itself cannot be opened (damaged database).
+    if (op === "restoreSnapshot") {
+      if (!p.notebookId || !/^\d+\.anynote$/.test(p.name || ""))
+        throw Error("无效快照名称");
+      const snapshot = this.notebookPath(p.notebookId, "snapshots/" + p.name);
+      if (!existsSync(snapshot)) throw Error("快照不存在或已被移除");
+      return this.importArchive(readFileSync(snapshot).toString("base64"));
+    }
+
+    if (op === "listSnapshots") {
+      if (!p.notebookId) throw Error("缺少 Notebook");
+      const dir = this.notebookPath(p.notebookId, "snapshots");
+      return existsSync(dir)
+        ? readdirSync(dir)
+            .filter((n) => n.endsWith(".anynote"))
+            .sort()
+            .reverse()
+            .map((n) => ({ createdAt: Number(n.split(".")[0]) }))
+        : [];
+    }
 
     const notebookId = uuid.parse(p.notebookId),
       db = this.open(notebookId),
@@ -1244,24 +1276,6 @@ export class Storage {
       };
     }
 
-    if (op === "restoreSnapshot") {
-      if (!/^\d+\.anynote$/.test(p.name || "")) throw Error("无效快照名称");
-      const data = readFileSync(
-        this.notebookPath(p.notebookId!, "snapshots/" + p.name),
-      ).toString("base64");
-      return this.importArchive(data);
-    }
-
-    if (op === "listSnapshots") {
-      const dir = this.notebookPath(p.notebookId!, "snapshots");
-      return existsSync(dir)
-        ? readdirSync(dir)
-            .filter((n) => n.endsWith(".anynote"))
-            .sort()
-            .reverse()
-            .map((n) => ({ createdAt: Number(n.split(".")[0]) }))
-        : [];
-    }
     throw Error("未知操作");
   }
 

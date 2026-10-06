@@ -2,6 +2,8 @@
   "listNotebooks",
   "createNotebook",
   "importArchive",
+  "diagnoseNotebook",
+  "preserveNotebookEvidence",
   "listNodes",
   "getNote",
   "createNode",

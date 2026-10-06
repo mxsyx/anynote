@@ -6,6 +6,8 @@ export interface Notebook {
   created_at?: number;
   external?: boolean;
   unavailable?: boolean;
+  /** Diagnosis message when the Notebook is listed but cannot be opened. */
+  error?: string;
 }
 
 /** A node in the directory tree (folder or note). */
@@ -120,6 +122,8 @@ export type Operation =
   | "listNotebooks"
   | "createNotebook"
   | "importArchive"
+  | "diagnoseNotebook"
+  | "preserveNotebookEvidence"
   | "listNodes"
   | "getNote"
   | "createNode"
@@ -192,3 +196,4 @@ export interface AnynoteBridge {
 }
 
 export type * from "./local-backup.js";
+export type * from "./recovery.js";

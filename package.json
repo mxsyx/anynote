@@ -25,6 +25,8 @@
     "test:cloud:stream": "node --env-file-if-exists=.env.cloud scripts/cloud-stream-acceptance.mjs",
     "pretest:cloud:stream": "pnpm run build:backend",
     "cloud:deploy": "node scripts/cloud-deploy.mjs",
+    "cloud:legacy-lock": "node --env-file-if-exists=.env.cloud scripts/cloud-legacy-lock.mjs",
+    "precloud:legacy-lock": "pnpm run build:backend",
     "test:desktop:cloud": "node scripts/desktop-cloud-acceptance.mjs",
     "test:desktop:s3": "node --env-file-if-exists=.env.cloud scripts/desktop-cloud-acceptance.mjs --provider s3",
     "test:transfer": "node scripts/transfer-smoke.mjs",

@@ -30,6 +30,15 @@ export class D1 {
         "utf8",
       ),
     );
+    this.db.exec(
+      readFileSync(
+        new URL(
+          "../../apps/cloudflare-backup/migrations/0004.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
   }
   prepare(sql) {
     const self = this;
