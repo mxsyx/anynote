@@ -1,6 +1,6 @@
 # Anynote
 
-本地优先的个人知识库，基于 [产品设计文档](./Anynote-Design.md)。当前为可运行的桌面预览版，已包含文档扩展、网页导入、PDF 批注和远端备份闭环；完整 v1 发布门槛仍有未完成项，见 [实施记录](./docs/IMPLEMENTATION.md)。
+本地优先的个人知识库，基于 [产品设计文档](./docs/Anynote-Design.md)。当前为可运行的桌面预览版，已包含文档扩展、网页导入、PDF 批注和远端备份闭环；完整 v1 发布门槛仍有未完成项，见 [实施记录](./docs/IMPLEMENTATION.md)。
 
 ## 运行
 
@@ -62,9 +62,9 @@ pnpm run dev
 
 侧栏「本地优先，安心记录」进入备份页面，添加 S3 或 Cloudflare 目标。S3 填写 Endpoint、Bucket、Region、Prefix 和访问凭据，可选择寻址方式并填写临时 Session Token；OSS 必选虚拟主机寻址；Cloudflare 填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
 
-Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试前缀/Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。Wrangler 自动部署及真实 Cloudflare 验收已通过，结果见 [云验收报告](./docs/cloudflare-acceptance.json)；阿里云 OSS 的 S3 兼容 API 也已通过 7 项真实云检查，见 [OSS 验收报告](./docs/oss-acceptance.json)。
+Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试前缀/Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。Wrangler 自动部署及真实 Cloudflare 验收已通过，结果见云验收报告；阿里云 OSS 的 S3 兼容 API 也已通过 7 项真实云检查，见 OSS 验收报告。
 
-Cloudflare 生产页面及 Linux 打包应用均通过 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。OSS 生产页面和 Linux 打包应用也通过 9 项真实桌面检查：[生产页面报告](./docs/desktop-oss-acceptance.json)、[打包应用报告](./docs/desktop-oss-packaged-acceptance.json)。Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启和其他平台。
+Cloudflare 生产页面及 Linux 打包应用均通过 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。OSS 生产页面和 Linux 打包应用也通过 9 项真实桌面检查：生产页面报告、打包应用报告。Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启和其他平台。
 
 桌面凭据通过 Electron safeStorage 与系统密钥服务加密保存在设备目录；Linux keyring 不可用时拒绝持久化。浏览器开发预览仅在 API 进程内存保留凭据。凭据与目标游标不进入 Notebook 导出。自动备份只在应用运行且用户已启用该目标时执行；远端备份独立于本地保存，不提供双向同步。
 
@@ -109,7 +109,7 @@ pnpm run package
 
 性能与界面验收覆盖万篇笔记、千层目录、100MiB PDF、备份期间界面响应，以及三档视口、浅深主题、键盘和自动无障碍检查；步骤、机器、报告和人工验收边界见 [性能与界面验收](./docs/PERFORMANCE-UI-ACCEPTANCE.md)。脚本使用临时数据和本地 S3 服务，不读取云凭据。
 
-后端搜索基准可运行 `pnpm run benchmark:search`，在临时目录创建 10,000 篇合成笔记并输出 [基准报告](./docs/search-benchmark.json)；不覆盖完整桌面性能验收。
+后端搜索基准可运行 `pnpm run benchmark:search`，在临时目录创建 10,000 篇合成笔记并输出基准报告；不覆盖完整桌面性能验收。
 
 客户端 SIGKILL、提交结果确认、恢复中断重试和源 Notebook 目录不可用后的真实云演练见 [故障恢复演练](./docs/RECOVERY-DRILLS.md)，可运行 `pnpm run test:cloud:recovery` 重跑。
 

@@ -36,4 +36,7 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
-docs
+# docs 只提交 Markdown 文档，截图、验收报告与未启用工作流草稿不提交
+docs/screenshots/
+docs/*.json
+docs/*.yml

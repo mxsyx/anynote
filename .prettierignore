@@ -14,9 +14,5 @@ public/excalidraw/
 .env*
 .aws/
 pnpm-lock.yaml
-# Preserve recorded acceptance evidence without reformatting.
-docs/*acceptance.json
-docs/search-benchmark.json
-
-# Original product design supplied by the user.
-Anynote-Design.md
+# 用户提供的原始设计文档，不做重排
+docs/*-Design.md
