@@ -1457,6 +1457,96 @@ p {
 .image-reader .reader-tools {
   margin-bottom: 20px;
 }
+.image-rotate-box {
+  position: relative;
+  margin: auto;
+}
+.image-rotator {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+}
+.image-rotator img {
+  display: block;
+  max-width: none;
+  height: auto;
+  user-select: none;
+}
+.image-draw-layer {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+.image-region {
+  position: absolute;
+  border: 1px solid #d9a72a;
+  background: #f1d26040;
+  pointer-events: none;
+}
+.image-region.draft {
+  border-style: dashed;
+}
+.image-region.stale {
+  border-color: var(--muted);
+  background: #88888822;
+}
+.image-exif {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  text-align: left;
+  font-size: 11px;
+  color: var(--secondary);
+}
+.image-exif dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 14px;
+  margin: 8px 0 0;
+}
+.image-exif dt {
+  color: var(--muted);
+}
+.image-exif dd {
+  margin: 0;
+}
+.image-caption {
+  text-align: left;
+  margin-top: 20px;
+}
+.image-caption label {
+  display: block;
+  font-size: 11px;
+  color: var(--secondary);
+  margin-bottom: 6px;
+}
+.image-caption textarea {
+  resize: vertical;
+  width: 100%;
+  height: 70px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+.image-caption-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.image-caption-actions .small-note {
+  margin-top: 0;
+}
+.annotation-card > span {
+  font-size: 9px;
+  color: var(--muted);
+}
 @media (min-width: 1600px) {
   .document {
     max-width: 890px;

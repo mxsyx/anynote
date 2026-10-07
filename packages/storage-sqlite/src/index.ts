@@ -48,7 +48,12 @@ import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { TaskRecord } from "./task-history.js";
 import { backup, DatabaseSync } from "@anynote/types/runtime.js";
-import { advancedOperations } from "./operations.js";
+import {
+  advancedOperations,
+  isImageMime,
+  matchesImageSignature,
+} from "./operations.js";
+import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import { diagnoseNotebook, preserveNotebookEvidence } from "./recovery.js";
 import { upgradeSQL } from "./schema.js";
 import { cancelSearch, searchWorkspace } from "./search.js";
@@ -97,7 +102,13 @@ const inputSchema = z
     data: z.string().max(140_000_000).optional(),
     name: z.string().max(240).optional(),
     mime: z
-      .enum(["image/png", "image/jpeg", "image/webp", "application/pdf"])
+      .enum([
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/svg+xml",
+        "application/pdf",
+      ])
       .optional(),
     revisionId: uuid.optional(),
     noteId: uuid.optional(),
@@ -1165,15 +1176,12 @@ export class Storage {
         !(
           (mime === "application/pdf" &&
             bytes.subarray(0, 5).toString() === "%PDF-") ||
-          (mime === "image/png" &&
-            bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
-          (mime === "image/jpeg" && bytes[0] === 255 && bytes[1] === 216) ||
-          (mime === "image/webp" &&
-            bytes.subarray(0, 4).toString() === "RIFF" &&
-            bytes.subarray(8, 12).toString() === "WEBP")
+          (mime && isImageMime(mime) && matchesImageSignature(bytes, mime))
         )
       )
         throw Error("文件内容与类型不一致");
+      const overBudget = imageBudgetError(bytes, mime || "");
+      if (overBudget) throw Error(overBudget);
       const h = hash(bytes),
         path = `assets/sha256/${h.slice(0, 2)}/${h}.bin`,
         dest = this.notebookPath(p.notebookId!, path);

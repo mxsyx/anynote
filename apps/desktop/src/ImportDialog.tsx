@@ -137,7 +137,7 @@ export default function ImportDialog({
               <input
                 type="file"
                 multiple
-                accept=".png,.jpg,.jpeg,.webp"
+                accept=".png,.jpg,.jpeg,.webp,.svg"
                 onChange={(e) => setFiles(Array.from(e.target.files || []))}
               />
             </label>

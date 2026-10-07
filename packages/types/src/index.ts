@@ -147,6 +147,7 @@ export type Operation =
   | "listSnapshots"
   | "restoreSnapshot"
   | "addResource"
+  | "saveImageVersion"
   | "getBacklinks"
   | "listAnnotations"
   | "addAnnotation"

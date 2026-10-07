@@ -77,7 +77,7 @@ try {
     "base64",
   );
   await page
-    .locator('input[accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp"]')
+    .locator('input[accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp,.svg"]')
     .setInputFiles({
       name: "验证图片.png",
       mimeType: "image/png",
@@ -90,6 +90,33 @@ try {
       .evaluate((el) => el.complete && el.naturalWidth > 0),
     true,
   );
+  // The image reader exposes actual size, rotation (view-only), EXIF and a
+  // caption stored in the note body.
+  const reader = page.locator(".image-reader");
+  await reader.getByRole("button", { name: "实际尺寸", exact: true }).click();
+  await reader
+    .getByRole("button", { name: "顺时针旋转 90°", exact: true })
+    .click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".image-rotator")
+      ?.getAttribute("style")
+      ?.includes("rotate(90deg)"),
+  );
+  await reader.getByRole("button", { name: "适应窗口", exact: true }).click();
+  await reader.getByLabel("图片说明", { exact: true }).fill("验收说明");
+  await reader.getByRole("button", { name: "保存说明", exact: true }).click();
+  await page.waitForFunction(() => {
+    const root = document.querySelector(".image-reader"),
+      button =
+        root &&
+        [...root.querySelectorAll("button")].find((item) =>
+          item.textContent?.includes("保存说明"),
+        );
+    return !!button && button.disabled;
+  });
+  await reader.getByRole("button", { name: "信息", exact: true }).click();
+  await page.getByText(/尺寸 1 × 1 像素/).waitFor();
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -114,7 +141,7 @@ try {
     xref +
     "\n%%EOF";
   await page
-    .locator('input[accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp"]')
+    .locator('input[accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp,.svg"]')
     .setInputFiles({
       name: "验证文档.pdf",
       mimeType: "application/pdf",

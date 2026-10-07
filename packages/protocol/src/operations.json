@@ -23,6 +23,7 @@
   "listSnapshots",
   "restoreSnapshot",
   "addResource",
+  "saveImageVersion",
   "getBacklinks",
   "listAnnotations",
   "addAnnotation",

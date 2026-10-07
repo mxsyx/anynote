@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
+import { prepareImage } from "./imagePreview";
 
-/** Inline local image: read from a content-addressed resource and render as an object URL. */
+/**
+ * Inline local image: read a content-addressed resource and render a bounded,
+ * sanitized preview (SVG is sanitized and rasterized rather than executed).
+ */
 export default function ResourceImage({
   notebookId,
   noteId,
@@ -34,14 +38,15 @@ export default function ResourceImage({
       noteId,
       revisionId,
     })
-      .then((r) => {
+      .then(async (r) => {
         if (!r.mime.startsWith("image/")) throw Error("资源不是图片");
-        objectUrl = URL.createObjectURL(
-          new Blob([Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))], {
-            type: r.mime,
-          }),
-        );
-        if (!cancelled) setUrl(objectUrl);
+        const bytes = Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)),
+          preview = await prepareImage(bytes, r.mime, width || 1600);
+        if (cancelled) URL.revokeObjectURL(preview.url);
+        else {
+          objectUrl = preview.url;
+          setUrl(preview.url);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);
@@ -50,7 +55,7 @@ export default function ResourceImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [notebookId, noteId, resourceId, revisionId]);
+  }, [notebookId, noteId, resourceId, revisionId, width]);
   if (error)
     return <span className="missing-image">资源无法读取：{error}</span>;
   if (!url) return <span className="missing-image">正在读取本地图片…</span>;

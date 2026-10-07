@@ -27,11 +27,13 @@ try {
     );
   await page.keyboard.press("Control+s");
   await page.getByText("已保存至本地", { exact: true }).waitFor();
-  await page.locator('input[accept=".png,.jpg,.jpeg,.webp"]').setInputFiles({
-    name: "内联图片.png",
-    mimeType: "image/png",
-    buffer: png,
-  });
+  await page
+    .locator('input[accept=".png,.jpg,.jpeg,.webp,.svg"]')
+    .setInputFiles({
+      name: "内联图片.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
   await page.getByRole("button", { name: "阅读", exact: true }).click();
   await page.locator(".markdown-body img").first().waitFor();
   assert.ok(

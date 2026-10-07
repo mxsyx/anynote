@@ -15,6 +15,7 @@ import {
   youtube,
 } from "@anynote/protocol/markdown.js";
 import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
+import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 import { listTaskHistory } from "./task-history.js";
@@ -25,6 +26,44 @@ const uuid = z.string().uuid(),
 
 /** Common input locating a node within a Notebook. */
 const ref = z.object({ notebookId: uuid, id: uuid });
+
+/** Image MIME types the storage layer accepts. */
+export const imageMimes = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+] as const;
+
+/**
+ * Whether resource bytes carry a signature matching the declared image MIME.
+ *
+ * @param bytes Resource bytes.
+ * @param mime Declared MIME type.
+ * @returns `true` when the header matches.
+ */
+export function matchesImageSignature(bytes: Buffer, mime: string) {
+  return (
+    (mime === "image/png" &&
+      bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
+    (mime === "image/jpeg" && bytes[0] === 255 && bytes[1] === 216) ||
+    (mime === "image/webp" &&
+      bytes.subarray(0, 4).toString() === "RIFF" &&
+      bytes.subarray(8, 12).toString() === "WEBP") ||
+    (mime === "image/svg+xml" &&
+      /<svg[\s>]/i.test(bytes.subarray(0, 1024).toString("utf8")))
+  );
+}
+
+/**
+ * Whether a MIME type is one of the accepted image types.
+ *
+ * @param mime MIME type.
+ * @returns `true` for accepted image types.
+ */
+export function isImageMime(mime: string): mime is (typeof imageMimes)[number] {
+  return (imageMimes as readonly string[]).includes(mime);
+}
 
 /**
  * Write a resource into a content-addressed path and validate the image type.
@@ -53,17 +92,10 @@ export function writeResource(
 ) {
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data, "base64");
   if (bytes.length > max) throw Error("资源大小超过预算");
-  if (
-    (mime === "image/png" &&
-      bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") ||
-    (mime === "image/jpeg" && !(bytes[0] === 255 && bytes[1] === 216)) ||
-    (mime === "image/webp" &&
-      !(
-        bytes.subarray(0, 4).toString() === "RIFF" &&
-        bytes.subarray(8, 12).toString() === "WEBP"
-      ))
-  )
+  if (isImageMime(mime) && !matchesImageSignature(bytes, mime))
     throw Error("图片类型与内容不匹配");
+  const overBudget = imageBudgetError(bytes, mime);
+  if (overBudget) throw Error(overBudget);
   const hash = digest(bytes),
     path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
     dest = s.notebookPath(notebookId, path);
@@ -271,6 +303,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "extensionPatch",
     "extensionGetState",
     "extensionSetState",
+    "saveImageVersion",
   ]);
   if (!handled.has(op)) return { handled: false };
 
@@ -560,7 +593,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     const p = ref
         .extend({
           data: z.string().max(70_000_000),
-          mime: z.enum(["image/png", "image/jpeg", "image/webp"]),
+          mime: z.enum(imageMimes),
           name: z.string().max(240),
           expectedRevision: z.number().int().positive(),
         })
@@ -578,6 +611,42 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         `\n\n![${p.name.replace(/[[\]\\]/g, "")}](anynote-resource:${r.id})\n`,
       [r],
     );
+  }
+
+  if (op === "saveImageVersion") {
+    const p = ref
+        .extend({
+          expectedRevision: z.number().int().positive(),
+          assetHash: z.string().regex(/^[a-f0-9]{64}$/),
+          data: z.string().max(70_000_000),
+          mime: z.enum(imageMimes),
+          name: z.string().max(240),
+        })
+        .strict()
+        .parse(raw),
+      db = s.open(p.notebookId),
+      n = s.get(db, p.id),
+      current = db
+        .prepare(
+          "SELECT a.hash AS hash FROM resources r JOIN assets a ON a.hash=r.asset_hash WHERE r.id=?",
+        )
+        .get(n.primary_resource_id);
+    if (n.note_type !== "image") throw Error("仅为图片笔记保存新版本");
+    // The viewer edits a specific asset version; refuse to overwrite a newer
+    // one so an edited copy never silently replaces a concurrent change.
+    if (!current || current.hash !== p.assetHash)
+      throw Error("图片版本已改变，请重新打开后再保存");
+    if (digest(Buffer.from(p.data, "base64")) === p.assetHash)
+      throw Error("图片内容未改变");
+    const r = writeResource(s, db, p.notebookId, {
+      id: n.primary_resource_id,
+      data: p.data,
+      mime: p.mime,
+      name: p.name,
+    });
+    // Rebinding keeps the resource identity but points it at the new immutable
+    // asset, so annotations on the previous hash become stale rather than wrong.
+    result = save(s, db, p, n.body || "", [r]);
   }
 
   if (op === "getBacklinks") {

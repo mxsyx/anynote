@@ -77,6 +77,7 @@ import "./styles.css";
 const RichEditor = lazy(() => import("./RichEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
 const PdfReader = lazy(() => import("./PdfReader"));
+const ImageReader = lazy(() => import("./ImageReader"));
 /** Main workspace view. */
 type View =
   | "notes"
@@ -184,7 +185,6 @@ function App() {
       hash: string;
       size?: number;
     } | null>(null),
-    [zoom, setZoom] = useState(1),
     [treeScroll, setTreeScroll] = useState(0),
     [treeHeight, setTreeHeight] = useState(450);
   const [dropHint, setDropHint] = useState<{
@@ -492,7 +492,6 @@ function App() {
         setSearchOpen(false);
         setStatus("已保存至本地");
         setError("");
-        setZoom(1);
         recent.current = [
           n.id,
           ...recent.current.filter((id) => id !== n.id),
@@ -701,39 +700,24 @@ function App() {
   useEffect(() => {
     setAsset(null);
     if (!active?.primary_resource_id || !book) return;
-    let cancelled = false,
-      url = "";
-    if (active.note_type === "pdf") {
-      request<{ mime: string; hash: string; size: number }>("getAssetInfo", {
-        notebookId: book.id,
-        id: active.primary_resource_id,
-        noteId: active.id,
-      })
-        .then((r) => {
-          if (!cancelled)
-            setAsset({ ...r, data: "", bytes: new Uint8Array(), url: "" });
-        })
-        .catch(report);
-      return () => {
-        cancelled = true;
-      };
-    }
-    request<{ data: string; mime: string; hash: string }>("getAsset", {
+    if (active.note_type !== "pdf" && active.note_type !== "image") return;
+    let cancelled = false;
+    // The PDF and image readers load bytes on demand; the workspace only needs
+    // metadata and the asset hash for version checks and downloads.
+    request<{ mime: string; hash: string; size: number }>("getAssetInfo", {
       notebookId: book.id,
       id: active.primary_resource_id,
+      noteId: active.id,
     })
       .then((r) => {
-        const bytes = Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0));
-        url = URL.createObjectURL(new Blob([bytes], { type: r.mime }));
-        if (!cancelled) setAsset({ ...r, bytes, url });
-        else URL.revokeObjectURL(url);
+        if (!cancelled)
+          setAsset({ ...r, data: "", bytes: new Uint8Array(), url: "" });
       })
       .catch(report);
     return () => {
       cancelled = true;
-      if (url) URL.revokeObjectURL(url);
     };
-  }, [active?.id, active?.primary_resource_id, book]);
+  }, [active?.id, active?.primary_resource_id, active?.revision, book]);
   useEffect(() => {
     if (
       !modal &&
@@ -1201,7 +1185,7 @@ function App() {
         type="file"
         hidden
         multiple
-        accept=".png,.jpg,.jpeg,.webp"
+        accept=".png,.jpg,.jpeg,.webp,.svg"
         onChange={(e) => {
           void insertImages(e.target.files);
           e.target.value = "";
@@ -1270,7 +1254,7 @@ function App() {
         type="file"
         hidden
         multiple
-        accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp"
+        accept=".md,.txt,.pdf,.png,.jpg,.jpeg,.webp,.svg"
         onChange={(e) => {
           void importFiles(e.target.files);
           e.target.value = "";
@@ -2453,51 +2437,24 @@ function App() {
                     )
                   ) : asset ? (
                     active.note_type === "image" ? (
-                      <div className="image-reader">
-                        <div className="reader-tools">
-                          <button
-                            onClick={() =>
-                              setZoom((z) => Math.max(0.25, z - 0.25))
-                            }
-                          >
-                            −
-                          </button>
-                          <span>{Math.round(zoom * 100)}%</span>
-                          <button
-                            onClick={() =>
-                              setZoom((z) => Math.min(4, z + 0.25))
-                            }
-                          >
-                            +
-                          </button>
-                          <button onClick={() => setZoom(1)}>适应窗口</button>
-                          <button
-                            onClick={() =>
-                              void task(async () => {
-                                const r = await request<{
-                                  data: string;
-                                  mime: string;
-                                }>("getAsset", {
-                                  notebookId: book!.id,
-                                  id: active.primary_resource_id,
-                                  noteId: active.id,
-                                });
-                                download(r.data, active.title, r.mime);
-                              })
-                            }
-                          >
-                            <Download size={14} />
-                            原件
-                          </button>
-                        </div>
-                        <div className="image-canvas">
-                          <img
-                            src={asset.url}
-                            alt={active.title}
-                            style={{ width: zoom * 100 + "%" }}
-                          />
-                        </div>
-                      </div>
+                      <Suspense
+                        fallback={
+                          <div className="empty">正在加载图片阅读器…</div>
+                        }
+                      >
+                        <ImageReader
+                          key={active.id}
+                          notebookId={book!.id}
+                          noteId={active.id}
+                          resourceId={active.primary_resource_id!}
+                          assetHash={asset.hash}
+                          size={asset.size || 0}
+                          mime={asset.mime}
+                          title={active.title}
+                          note={active}
+                          onSaved={acceptSaved}
+                        />
+                      </Suspense>
                     ) : (
                       <>
                         <div className="asset-download">
