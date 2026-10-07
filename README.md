@@ -131,6 +131,8 @@ pnpm run package
 
 开发检查、提交钩子和 GitHub CI/CD 见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
+各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 在干净离线项目中校验兼容窗口与旧消费者。
+
 仓库包含 10 个 pnpm workspace，使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
 首方扩展的独立进程运行、Notebook 会话授权、命令惰性激活与故障回收见 [扩展宿主](./docs/EXTENSION-HOST.md)。使用 `pnpm run test:extension-host` 验证宿主及真实桌面流程。

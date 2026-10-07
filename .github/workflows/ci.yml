@@ -44,6 +44,10 @@ jobs:
           pnpm run build:sdk
           pnpm run build:extension-tools
           pnpm run build:first-party
+      - name: Assemble release matrix artifacts
+        run: pnpm run build:release
+      - name: Verify release matrix and legacy consumer
+        run: pnpm run test:release:matrix
       - uses: actions/upload-artifact@v7
         with:
           name: build-${{ github.sha }}
@@ -52,5 +56,6 @@ jobs:
             artifacts/plugin-sdk/
             artifacts/extension-tools/
             artifacts/first-party-adapters/
+            artifacts/release/
           if-no-files-found: error
           retention-days: 7

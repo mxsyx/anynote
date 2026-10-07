@@ -14,6 +14,12 @@ importers:
       '@anynote/extension-host':
         specifier: workspace:*
         version: link:packages/extension-host
+      '@anynote/first-party-adapters':
+        specifier: workspace:*
+        version: link:packages/first-party-adapters
+      '@anynote/plugin-sdk':
+        specifier: workspace:*
+        version: link:packages/plugin-sdk
       '@aws-sdk/client-s3':
         specifier: 3.888.0
         version: 3.888.0
