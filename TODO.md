@@ -30,7 +30,7 @@
 - [x] 失败媒体重试（§5）
 - [x] 媒体发现补齐（§5）
 - [x] SDK 扩展点补齐（§6）
-- [ ] 首方功能独立发布验证（§6）
+- [x] 首方功能独立发布验证（§6）
 - [ ] 公共包发布矩阵（§6）
 - [ ] 启动一致性巡检（§7）
 - [ ] 可导出脱敏日志与指标（§7）
@@ -114,7 +114,7 @@
 依据：设计 §16、§19；[SDK](packages/plugin-sdk/README.md)、[首方宿主](docs/EXTENSION-HOST.md)、[开发工作流](docs/DEVELOPMENT-WORKFLOW.md)。受限 QuickJS、签名、HTTPS 分发、目录浏览、自动检查更新、状态/设置迁移及清理均已实现。
 
 - [x] **P1 — SDK 扩展点补齐**：按真实需求开放作用域 Notebook/Node、事件、任务、Secrets、importer/exporter、backup/search/AI Provider 注册及公共 UI 贡献；补齐分页、取消、错误码、版本契约和权限合约。当前有限 notes/search/assets/settings、命令及本地备份宿主适配器不等于完整 SDK 草案。已新增 `AnynoteAPI` 的 `notebooks`、`nodes`、`notes.history`、`secrets`、`events`、`tasks`、`ui`、`providers` 扩展点与 `contract()` 版本/能力契约；统一 `ExtensionError` 错误码、游标分页（`nodes.list`/`search.page` 返回 `{items,nextCursor}`）与 `CallOptions.signal` 取消。受信首方宿主新增 `notebooks:read`、`nodes:read|write`、`secrets:read|write`、`events:subscribe`、`tasks:register`、`ui:contribute`、`providers:register` 权限门面并绑定当前 Notebook；Secrets 按 Provider ID 存于 Notebook 命名空间，复用 `extensionSet/GetState` 并新增原子 `extensionDeleteState`；事件仅按命令/参数触发扩展自身的 `note.created`/`note.updated`/`node.moved`/`node.trashed` 变更；任务/UI/Provider 注册经宿主 `bindings` 提供、随会话停用由 disposer 回收，纯 Transport 客户端得到 `unsupported`。`extension-host` 进程宿主扩充权限与 API 分派；`tests/sdk-extension-points.test.mjs` 与 `tests/types/contracts.ts` 覆盖权限、作用域、分页、取消、错误码、事件与注册回收。第三方可安装扩展的通用 JS/React、Provider 执行及中央市场仍不在范围。
-- [ ] **P1 — 首方功能独立发布验证**：白板、视频、导入及备份适配器逐步经公开 SDK 接入并独立打包，在干净外部项目安装运行；当前同仓库内建能力和阅读模板进程宿主不能替代所有首方插件的外部消费验证。
+- [x] **P1 — 首方功能独立发布验证**：白板、视频、导入及备份适配器逐步经公开 SDK 接入并独立打包，在干净外部项目安装运行；当前同仓库内建能力和阅读模板进程宿主不能替代所有首方插件的外部消费验证。已新增 `@anynote/first-party-adapters`：白板（`get`/`save`）、视频（`insert`/`fetchMeta`）、导入（`start`/`preview`/`getPreview`/`commit`/`retryMedia`/`report`）三项适配器只依赖公开 SDK，备份适配器复用 SDK 的 `createLocalBackupAPI`，统一由 `createFirstPartyAdapters(transport)` 绑定一个已授权 transport，并暴露版本与能力契约（`firstPartyAdapterVersion`/`firstPartyAdapterContractVersion`/`firstPartyAdapterCapabilities`）；适配器把可移植 `noteId` 映射为宿主 `id`，预览与确认共用同一份已转换结果，且不授予扩展新权限。`pnpm run build:first-party` 独立打包到 `artifacts/first-party-adapters`（依赖 `@anynote/plugin-sdk`）；`pnpm run test:first-party:package` 在该 tarball 与 SDK tarball 上写入只有两个离线依赖的干净项目，用 `tsc` 编译并实际运行，校验方法映射、备份不接受调用方路径、产物不含 Node/存储/宿主/脚本执行器，报告写入 `test-results/first-party-package.json`；`tests/first-party-adapters.test.mjs` 与 `tests/types/first-party-adapters.ts` 覆盖映射、冻结、契约与类型边界。真实首方插件经外部 SDK 运行完整功能（而非适配器契约）仍待后续接入。详见 [首方功能适配器](packages/first-party-adapters/README.md)。
 - [ ] **P1 — 公共包发布矩阵**：定义 Desktop、Worker、SDK、开发工具、首方插件、格式/schema 的独立版本与兼容窗口；准备 ESM/类型 exports、许可证、变更日志、发布产物和旧消费者测试。已有 workspace 与离线 tarball 消费通过，npm 发布和完整矩阵尚未完成。
 - [ ] **P1 — 插件网络真实端点验收**：使用受控公网 HTTPS 服务验证证书/主机名、DNS/实际地址、超时、撤销和响应预算；现有 Electron 受控 DNS/HTTPS fixture 不作为公网端点验收。
 - [ ] **P2 — 模块分层与循环依赖**：拆解 backup/storage、extension-tools/plugin-sdk 等循环，隔离领域服务、存储、UI 与厂商协议；建立无循环的包构建/TypeScript references 图。现有统一后端编译和 workspace 检查已实现，不重复建设。

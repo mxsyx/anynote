@@ -59,6 +59,8 @@
     "preextension:dev": "pnpm run build:backend",
     "build:extension-tools": "pnpm run build:backend && node scripts/build-extension-tools.mjs",
     "test:extension-tools:package": "pnpm run build:extension-tools && node scripts/build-sdk.mjs && node scripts/extension-tools-package-smoke.mjs",
+    "build:first-party": "pnpm run build:backend && node scripts/build-first-party-adapters.mjs",
+    "test:first-party:package": "pnpm run build:first-party && node scripts/first-party-package-smoke.mjs",
     "test:s3:second": "node scripts/s3-second-acceptance.mjs",
     "pretest:s3:second": "pnpm run build:backend",
     "test:recovery:portable": "node scripts/disaster-recovery.mjs",
