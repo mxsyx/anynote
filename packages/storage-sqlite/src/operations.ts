@@ -13,6 +13,7 @@ import { extensionBlock, parseBlocks } from "@anynote/protocol/markdown.js";
 import { videoCard } from "@anynote/protocol/video.js";
 import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
+import { importLimits } from "@anynote/protocol/import-limits.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 import { listTaskHistory } from "./task-history.js";
@@ -20,6 +21,174 @@ import { persistDirectories } from "./workspace.js";
 
 const uuid = z.string().uuid(),
   digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+/** Input shared by the direct import and the pre-submit preview. */
+const importInput = z
+  .object({
+    notebookId: uuid,
+    parentId: uuid.nullable().optional(),
+    url: z.string().url().max(4000).optional(),
+    html: z.string().max(10_000_000).optional(),
+    title: z.string().max(240).optional(),
+    mode: z.enum(["article", "page"]).optional(),
+    files: z
+      .array(
+        z.object({
+          name: z.string().max(1000),
+          mime: z.string().max(120),
+          data: z.string().max(28_000_000),
+        }),
+      )
+      .max(200)
+      .optional(),
+    /** Keep the source HTML as a resource beside the converted note. */
+    keepOriginal: z.boolean().optional(),
+  })
+  .strict();
+
+/**
+ * A prepared-but-uncommitted import result, held between the preview and the
+ * confirm step so the page is not fetched and converted twice.
+ */
+export interface ImportPreview {
+  result: Awaited<
+    ReturnType<typeof import("@anynote/importer/html.js").prepareImport>
+  >;
+  notebookId: string;
+  parentId: string | null;
+  /** Human-readable destination directory path inside the Notebook. */
+  target: string;
+  createdAt: number;
+}
+
+/** How long an uncommitted preview is kept before it is discarded. */
+const previewTtl = 30 * 60 * 1000;
+
+/** Maximum number of uncommitted previews held at once. */
+const previewLimit = 8;
+
+/**
+ * Build the human-readable destination path of a node's parent folder.
+ *
+ * @param db Open database handle.
+ * @param parentId Parent folder ID (or null for the Notebook root).
+ * @returns A `父 / 子` path, or a root label when the parent is null.
+ */
+function folderPath(db: SqlDatabase, parentId: string | null | undefined) {
+  const parts: string[] = [],
+    seen = new Set<string>();
+  let cur = parentId;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    const n = db
+      .prepare("SELECT title,parent_id FROM nodes WHERE id=?")
+      .get(cur);
+    if (!n) break;
+    parts.unshift(n.title);
+    cur = n.parent_id;
+  }
+  return parts.length ? parts.join(" / ") : "Notebook 根目录";
+}
+
+/**
+ * Drop expired or excess uncommitted previews so a preview that is never
+ * confirmed cannot hold its media in memory indefinitely.
+ *
+ * @param s Storage service.
+ */
+function pruneImportPreviews(s: Storage) {
+  const stale = Date.now() - previewTtl;
+  for (const [id, p] of s.importPreviews)
+    if (p.createdAt < stale) s.importPreviews.delete(id);
+  while (s.importPreviews.size > previewLimit)
+    s.importPreviews.delete(s.importPreviews.keys().next().value!);
+}
+
+/**
+ * Project a stored preview into the lightweight payload shown before submit.
+ *
+ * @param entry Stored preview.
+ * @param previewId Preview/task id.
+ * @returns The preview payload (with a truncated body for display).
+ */
+function previewPayload(entry: ImportPreview, previewId: string) {
+  const r = entry.result,
+    report = r.report,
+    body =
+      r.body.length > importLimits.previewChars
+        ? r.body.slice(0, importLimits.previewChars)
+        : r.body;
+  return {
+    previewId,
+    title: r.title,
+    body,
+    bodyTruncated: body.length < r.body.length,
+    target: entry.target,
+    source: report.source,
+    finalUrl: report.finalUrl,
+    fetchedAt: report.fetchedAt,
+    mode: report.mode,
+    fallback: report.fallback,
+    keepOriginal: report.keepOriginal,
+    originalHtml: report.originalHtml,
+    media: {
+      localized: report.localized,
+      failed: report.failed,
+      total: report.media.length,
+      bytes: report.bytes,
+      limitBytes: importLimits.totalBytes,
+      limitCount: importLimits.mediaCount,
+    },
+    resources: r.resources.length,
+  };
+}
+
+/**
+ * Store an uncommitted preview and evict expired or excess entries.
+ *
+ * @param s Storage service.
+ * @param id Preview/task id.
+ * @param entry Preview entry to store.
+ */
+function rememberImportPreview(s: Storage, id: string, entry: ImportPreview) {
+  s.importPreviews.set(id, entry);
+  pruneImportPreviews(s);
+}
+
+/**
+ * Spawn the importer worker for a validated input and track it as a task.
+ *
+ * The worker performs fetch/extract/convert off the main thread; the caller
+ * decides whether the result is committed directly or held for preview.
+ *
+ * @param s Storage service.
+ * @param p Validated import input.
+ * @param type Task type shown in the task center.
+ * @param progress Initial progress text.
+ * @returns The tracked task with its worker attached.
+ */
+function startImportTask(
+  s: Storage,
+  p: z.infer<typeof importInput>,
+  type: string,
+  progress: string,
+) {
+  const job: Task = {
+    id: randomUUID(),
+    notebookId: p.notebookId,
+    type,
+    status: "running",
+    progress,
+    createdAt: Date.now(),
+  };
+  s.track(job);
+  const worker = new Worker(
+    new URL(import.meta.resolve("@anynote/importer/worker.js")),
+    { workerData: p },
+  );
+  job.worker = worker;
+  return { job, worker };
+}
 
 /** Common input locating a node within a Notebook. */
 const ref = z.object({ notebookId: uuid, id: uuid });
@@ -231,7 +400,11 @@ export function save(
  * @param raw Raw operation payload.
  * @returns Handled flag with the operation result.
  */
-export async function advancedOperations(s: Storage, op: string, raw: unknown) {
+export async function advancedOperations(
+  s: Storage,
+  op: string,
+  raw: unknown,
+): Promise<{ handled: boolean; result?: any }> {
   if (op === "transferNode") {
     const { transferNode } = await import("./transfer.js");
     return { handled: true, result: transferNode(s, raw) };
@@ -306,6 +479,9 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "indexPdf",
     "getImportReport",
     "startImport",
+    "previewImport",
+    "getImportPreview",
+    "commitImportPreview",
     "listTasks",
     "cancelTask",
     "retryTask",
@@ -432,47 +608,13 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
   }
 
   if (op === "startImport") {
-    const p = z
-      .object({
-        notebookId: uuid,
-        parentId: uuid.nullable().optional(),
-        url: z.string().url().max(4000).optional(),
-        html: z.string().max(10_000_000).optional(),
-        title: z.string().max(240).optional(),
-        mode: z.enum(["article", "page"]).optional(),
-        files: z
-          .array(
-            z.object({
-              name: z.string().max(1000),
-              mime: z.string().max(120),
-              data: z.string().max(28_000_000),
-            }),
-          )
-          .max(200)
-          .optional(),
-      })
-      .strict()
-      .parse(raw);
+    const p = importInput.parse(raw);
     if (!p.url && !p.html) throw Error("请输入网页地址或 HTML");
     const importDb = s.open(p.notebookId);
     if (!extensionFlag(importDb, "anynote.html-import"))
       throw Error("网页导入扩展已停用");
     s.parent(importDb, p.parentId);
-    const id = randomUUID(),
-      job: Task = {
-        id,
-        notebookId: p.notebookId,
-        type: "import",
-        status: "running",
-        progress: "准备导入",
-        createdAt: Date.now(),
-      };
-    s.track(job);
-    const worker = new Worker(
-      new URL(import.meta.resolve("@anynote/importer/worker.js")),
-      { workerData: p },
-    );
-    job.worker = worker;
+    const { job, worker } = startImportTask(s, p, "import", "准备导入");
     worker.on("message", async (m) => {
       if (job.status !== "running") return;
       if (m.progress) job.progress = m.progress;
@@ -502,7 +644,85 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       if (job.status === "running")
         s.settle(job, "failed", { error: e.message });
     });
-    return { handled: true, result: { id, status: job.status } };
+    return { handled: true, result: { id: job.id, status: job.status } };
+  }
+
+  if (op === "previewImport") {
+    const p = importInput.parse(raw);
+    if (!p.url && !p.html) throw Error("请输入网页地址或 HTML");
+    const importDb = s.open(p.notebookId);
+    if (!extensionFlag(importDb, "anynote.html-import"))
+      throw Error("网页导入扩展已停用");
+    s.parent(importDb, p.parentId);
+    const target = folderPath(importDb, p.parentId),
+      { job, worker } = startImportTask(s, p, "import-preview", "准备预览");
+    worker.on("message", (m) => {
+      if (job.status !== "running") return;
+      if (m.progress) job.progress = m.progress;
+      if (m.error) {
+        s.settle(job, "failed", { error: m.error });
+        worker.terminate();
+      }
+      if (m.result) {
+        // Hold the converted result so confirming does not fetch or convert again.
+        rememberImportPreview(s, job.id, {
+          result: m.result,
+          notebookId: p.notebookId,
+          parentId: p.parentId ?? null,
+          target,
+          createdAt: Date.now(),
+        });
+        s.settle(job, "completed", { progress: "预览已就绪" });
+        worker.terminate();
+      }
+    });
+    worker.on("error", (e) => {
+      if (job.status === "running")
+        s.settle(job, "failed", { error: e.message });
+    });
+    return { handled: true, result: { id: job.id, status: job.status } };
+  }
+
+  if (op === "getImportPreview") {
+    const p = ref.strict().parse(raw);
+    pruneImportPreviews(s);
+    const job = s.jobs.get(p.id),
+      entry = s.importPreviews.get(p.id);
+    if (!job && !entry) throw Error("预览已失效，请重新预览");
+    result = {
+      status: job?.status || "completed",
+      progress: job?.progress || "预览已就绪",
+      error: job?.error,
+      preview: entry ? previewPayload(entry, p.id) : undefined,
+    };
+    return { handled: true, result };
+  }
+
+  if (op === "commitImportPreview") {
+    const p = z
+      .object({
+        notebookId: uuid,
+        parentId: uuid.nullable().optional(),
+        previewId: uuid,
+      })
+      .strict()
+      .parse(raw);
+    const entry = s.importPreviews.get(p.previewId);
+    if (!entry) throw Error("预览已失效，请重新预览");
+    if (
+      entry.notebookId !== p.notebookId ||
+      entry.parentId !== (p.parentId ?? null)
+    )
+      throw Error("预览目标已变化，请重新预览");
+    // Committing runs the existing import path directly (not through `s.run`)
+    // because this operation is already being served from the serial queue.
+    const committed = await advancedOperations(s, "commitImport", {
+      ...entry.result,
+      notebookId: p.notebookId,
+      parentId: p.parentId,
+    });
+    s.importPreviews.delete(p.previewId);
+    return { handled: true, result: committed.result };
   }
 
   if (op === "commitImport") {
@@ -537,7 +757,19 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         JSON.stringify(p.report),
       );
       s.recordRevision(db, rev, id);
-      s.capture(db, rev, p.body);
+      // The optionally kept source HTML is not referenced from the body, so pin
+      // it to this revision explicitly to keep it inside the resource closure.
+      const originalHtml = p.report.originalHtml?.resourceId;
+      s.capture(
+        db,
+        rev,
+        p.body,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        originalHtml ? [originalHtml] : [],
+      );
       s.index(db, id);
       return s.get(db, id);
     });

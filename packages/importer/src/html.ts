@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { randomUUID } from "node:crypto";
 import TurndownService from "turndown";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
+import { importLimits } from "@anynote/protocol/import-limits.js";
 import { safeDownload } from "./network.js";
 
 /** Input parameters for web page/HTML import. */
@@ -13,6 +14,8 @@ export interface ImportInput {
   url?: string;
   mode?: string;
   files?: { name: string; data: string; mime: string }[];
+  /** Keep the source HTML as a resource beside the converted note. */
+  keepOriginal?: boolean;
 }
 
 /**
@@ -34,17 +37,23 @@ export async function prepareImport(
   progress: (message: string) => void = () => {},
 ) {
   let html = input.html || "",
-    source = input.url || "https://anynote.invalid/";
+    source = input.url || "https://anynote.invalid/",
+    finalUrl: string | null = null;
   if (input.url) {
     progress("正在获取网页");
     const page = await safeDownload(input.url, {
       signal,
-      maxBytes: 10 * 1024 * 1024,
+      maxBytes: importLimits.htmlBytes,
     });
     html = decodeHtml(page.data, page.contentType || "");
     source = page.url;
+    finalUrl = page.url;
   }
-  if (!html || Buffer.byteLength(html) > 10 * 1024 * 1024)
+
+  // The fetch time is recorded once the HTML is in hand (received or fetched),
+  // so the report can state when this snapshot was taken.
+  const fetchedAt = Date.now();
+  if (!html || Buffer.byteLength(html) > importLimits.htmlBytes)
     throw Error("HTML 为空或超过 10MB");
   const dom = new JSDOM(html, { url: source });
   try {
@@ -91,10 +100,18 @@ export async function prepareImport(
       resources: { id: string; mime: string; name: string; data: string }[] =
         [],
       report = {
-        source: input.url ? source : null,
+        source: input.url || null,
+        finalUrl,
+        fetchedAt,
         createdAt: Date.now(),
         mode: input.mode || "article",
         fallback: input.mode !== "page" && !article,
+        keepOriginal: !!input.keepOriginal,
+        originalHtml: null as {
+          resourceId: string;
+          name: string;
+          size: number;
+        } | null,
         media: [] as {
           source: string;
           status: string;
@@ -103,10 +120,27 @@ export async function prepareImport(
         }[],
         localized: 0,
         failed: 0,
+        bytes: 0,
       };
 
+    // Optionally keep the source HTML beside the converted note so the original
+    // markup stays inspectable without re-fetching the page.
+    if (input.keepOriginal) {
+      const data = Buffer.from(html, "utf8"),
+        name = (title || "网页") + ".html",
+        originalId = randomUUID();
+      resources.push({
+        id: originalId,
+        name,
+        mime: "text/html",
+        data: data.toString("base64"),
+      });
+      report.originalHtml = { resourceId: originalId, name, size: data.length };
+    }
+
     const images = [...container.querySelectorAll("img")];
-    if (images.length > 200) throw Error("图片数量超过 200");
+    if (images.length > importLimits.mediaCount)
+      throw Error(`图片数量超过 ${importLimits.mediaCount}`);
     let bytes = 0;
 
     for (let i = 0; i < images.length; i++) {
@@ -137,13 +171,13 @@ export async function prepareImport(
         } else
           media = await safeDownload(new URL(src, source).href, {
             signal,
-            maxBytes: 20 * 1024 * 1024,
+            maxBytes: importLimits.mediaBytes,
           });
         if (!["image/png", "image/jpeg", "image/webp"].includes(media.mime))
           throw Error("暂不支持此图片类型");
         if (
-          media.data.length > 20 * 1024 * 1024 ||
-          (bytes += media.data.length) > 80 * 1024 * 1024
+          media.data.length > importLimits.mediaBytes ||
+          (bytes += media.data.length) > importLimits.totalBytes
         )
           throw Error("媒体大小超过预算");
         const data = media.data;
@@ -169,6 +203,7 @@ export async function prepareImport(
         img.setAttribute("src", "anynote-resource:" + id);
         report.media.push({ source: src, status: "localized", resourceId: id });
         report.localized++;
+        report.bytes += media.data.length;
       } catch (e: any) {
         report.failed++;
         report.media.push({ source: src, status: "failed", error: e.message });
@@ -235,7 +270,7 @@ export async function prepareImport(
     return {
       title: article?.title?.slice(0, 240) || title,
       body,
-      sourceUri: input.url ? source : null,
+      sourceUri: finalUrl,
       resources,
       report,
     };

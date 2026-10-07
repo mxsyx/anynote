@@ -236,6 +236,25 @@ test("HTML import sanitizes scripts/URLs, localizes authorized images and report
   assert.ok(!result.body.includes("onerror"));
   assert.ok(!result.body.includes("throw new Error"));
   assert.equal(resourceIds(result.body).length, 2);
+  // A pasted HTML document has no fetched URL but still records its fetch time.
+  assert.equal(result.report.finalUrl, null);
+  assert.equal(typeof result.report.fetchedAt, "number");
+  assert.equal(result.report.keepOriginal, false);
+  assert.equal(result.report.originalHtml, null);
+});
+test("HTML import can keep the source HTML as a pinned resource", async () => {
+  const html = `<title>原文</title><article><p>正文</p></article>`;
+  const result = await prepareImport(
+    { html, mode: "page", keepOriginal: true },
+    new AbortController().signal,
+  );
+  assert.equal(result.report.keepOriginal, true);
+  const original = result.report.originalHtml;
+  assert.equal(original.name, "原文.html");
+  assert.equal(original.size, Buffer.byteLength(html));
+  const saved = result.resources.find((r) => r.id === original.resourceId);
+  assert.equal(saved.mime, "text/html");
+  assert.equal(Buffer.from(saved.data, "base64").toString(), html);
 });
 test("network checks reject loopback, metadata, private, mapped IPv6 and reserved addresses", async () => {
   for (const ip of [
@@ -277,6 +296,67 @@ test("background import commits atomically and does not block editing", async (t
   assert.equal(
     (await call("getNote", { id: note.id })).body,
     "未被导入任务阻塞",
+  );
+});
+test("import preview shows the converted result and commits exactly what was previewed", async (t) => {
+  const { call } = await fixture(t);
+  const parent = await call("createNode", { kind: "folder", title: "资料" }),
+    child = await call("createNode", {
+      kind: "folder",
+      title: "子目录",
+      parentId: parent.id,
+    });
+  const html = `<title>预览文章</title><article><h1>标题</h1><p>正文内容</p><img src="data:image/png;base64,${png}"></article>`;
+  const started = await call("previewImport", {
+    html,
+    mode: "page",
+    parentId: child.id,
+    keepOriginal: true,
+  });
+  let state;
+  for (let i = 0; i < 300; i++) {
+    state = await call("getImportPreview", { id: started.id });
+    if (["completed", "failed", "cancelled"].includes(state.status)) break;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.equal(state.status, "completed", state.error);
+  assert.equal(state.preview.title, "预览文章");
+  assert.ok(state.preview.body.includes("正文内容"));
+  assert.equal(state.preview.target, "资料 / 子目录");
+  assert.equal(state.preview.media.localized, 1);
+  assert.equal(state.preview.media.total, 1);
+  assert.equal(state.preview.originalHtml.name, "预览文章.html");
+  assert.equal(state.preview.keepOriginal, true);
+  // The preview is read-only: no note exists until the user confirms.
+  assert.equal(
+    (await call("listNodes")).filter((n) => n.kind === "note").length,
+    0,
+  );
+
+  const note = await call("commitImportPreview", {
+    previewId: state.preview.previewId,
+    parentId: child.id,
+  });
+  assert.equal(note.parent_id, child.id);
+  const report = await call("getImportReport", { id: note.id });
+  assert.equal(report.media.length, 1);
+  assert.equal(
+    report.originalHtml.resourceId,
+    state.preview.originalHtml.resourceId,
+  );
+  // The kept source HTML is a real resource pinned to the note revision.
+  const asset = await call("getAsset", {
+    id: report.originalHtml.resourceId,
+    noteId: note.id,
+  });
+  assert.equal(Buffer.from(asset.data, "base64").toString(), html);
+  // A preview is consumed by the commit, so it cannot be committed twice.
+  await assert.rejects(
+    call("commitImportPreview", {
+      previewId: state.preview.previewId,
+      parentId: child.id,
+    }),
+    /预览已失效/,
   );
 });
 test("annotations are bound to asset hash, survive export and join text search", async (t) => {

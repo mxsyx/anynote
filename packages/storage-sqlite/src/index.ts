@@ -52,6 +52,7 @@ import {
   advancedOperations,
   isImageMime,
   matchesImageSignature,
+  type ImportPreview,
 } from "./operations.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import { diagnoseNotebook, preserveNotebookEvidence } from "./recovery.js";
@@ -153,6 +154,8 @@ export class Storage {
   secretMemory?: Map<string, import("@anynote/types/runtime.js").Credentials>;
   searches?: Map<string, AbortController>;
   cleanupPlans?: Map<string, import("@anynote/types/runtime.js").SqlRow>;
+  /** Uncommitted web-import previews kept between the preview and confirm steps. */
+  importPreviews: Map<string, ImportPreview>;
 
   constructor(
     root: string,
@@ -182,6 +185,7 @@ export class Storage {
       loadDirectories(this.root).map((entry) => [entry.id, entry]),
     );
     this.writeLocks = new Map();
+    this.importPreviews = new Map();
     recoverTemporaryJobs(this.root);
   }
 
@@ -234,6 +238,10 @@ export class Storage {
         "remoteRetentionState",
         "remoteProtectionAudit",
         "releaseRemoteProtection",
+        // Preview starts off the serial queue so a slow fetch never blocks
+        // editing; confirming the preview still commits in order.
+        "previewImport",
+        "getImportPreview",
       ].includes(op)
     )
       return advancedOperations(this, op, input).then((r) => r.result);
@@ -525,6 +533,8 @@ export class Storage {
    * @param rootDir Optional Notebook root directory.
    * @param previousRevision Previous revision ID for reuse.
    * @param changed Resource IDs changed since the previous revision.
+   * @param extraIds Resource IDs that are pinned to the revision without being
+   * referenced from the body (e.g. an optionally saved source HTML file).
    */
   capture(
     db: SqlDatabase,
@@ -534,9 +544,11 @@ export class Storage {
     rootDir?: string,
     previousRevision?: string,
     changed = new Set<string>(),
+    extraIds: Iterable<string> = [],
   ) {
     const ids = new Set(resourceIds(body));
     if (primary) ids.add(primary);
+    for (const extraId of extraIds) ids.add(extraId);
     const queue = [...ids];
     let budget = 0;
     while (queue.length) {
@@ -1575,5 +1587,6 @@ export class Storage {
     this.readDbs.clear();
     for (const release of this.writeLocks.values()) release();
     this.writeLocks.clear();
+    this.importPreviews.clear();
   }
 }

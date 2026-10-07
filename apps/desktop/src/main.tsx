@@ -1196,7 +1196,7 @@ function App() {
           notebookId={book.id}
           parentId={parentId}
           onClose={() => setImportOpen(false)}
-          onStarted={() => setTasksOpen(true)}
+          onImported={() => setToast("已导入并保存至本地")}
         />
       )}
       {tasksOpen && (
