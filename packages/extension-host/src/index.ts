@@ -2,6 +2,8 @@ import { createExtensionHost } from "@anynote/plugin-sdk/host.js";
 import type {
   AnynoteAPI,
   ExtensionContext,
+  PageRequest,
+  SecretRef,
 } from "@anynote/plugin-sdk/contracts.js";
 import type {
   BundledExtension,
@@ -225,6 +227,7 @@ export function createProcessExtensionHost(options: {
     // Storage operation or a guest-provided path.
     const scalarKeys: Record<string, string[]> = {
       "notes.get": ["id"],
+      "notes.history": ["id"],
       "search.query": ["query"],
       "settings.get": ["key"],
       "settings.set": ["key", "value"],
@@ -235,6 +238,18 @@ export function createProcessExtensionHost(options: {
     )
       throw Error("扩展 API 参数无效");
     switch (method) {
+      case "notebooks.current":
+        return api.notebooks.current();
+      case "nodes.list":
+        return api.nodes.list(
+          input as unknown as Parameters<AnynoteAPI["nodes"]["list"]>[0],
+        );
+      case "nodes.move":
+        return api.nodes.move(
+          input as unknown as Parameters<AnynoteAPI["nodes"]["move"]>[0],
+        );
+      case "nodes.trash":
+        return api.nodes.trash(input.id as string);
       case "notes.get":
         return api.notes.get(input.id as string);
       case "notes.create":
@@ -245,8 +260,15 @@ export function createProcessExtensionHost(options: {
         return api.notes.applyPatch(
           input as Parameters<AnynoteAPI["notes"]["applyPatch"]>[0],
         );
+      case "notes.history":
+        return api.notes.history(input.id as string);
       case "search.query":
         return api.search.query(input.query as string);
+      case "search.page":
+        return api.search.page(
+          input.query as string,
+          input as unknown as PageRequest,
+        );
       case "assets.read":
         return api.assets.read(
           input as Parameters<AnynoteAPI["assets"]["read"]>[0],
@@ -259,6 +281,15 @@ export function createProcessExtensionHost(options: {
         return api.settings.get(input.key as string);
       case "settings.set":
         return api.settings.set(input.key as string, input.value);
+      case "secrets.get":
+        return api.secrets.get(input as unknown as SecretRef);
+      case "secrets.set":
+        return api.secrets.set(
+          input as unknown as SecretRef,
+          input.value as string,
+        );
+      case "secrets.delete":
+        return api.secrets.delete(input as unknown as SecretRef);
       default:
         throw Error("扩展没有此操作权限");
     }

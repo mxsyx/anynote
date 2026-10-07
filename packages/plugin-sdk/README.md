@@ -2,6 +2,25 @@
 
 公开 SDK 没有 Node、Electron、数据库或 UI 框架依赖。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
 
+## 扩展点与调用合约
+
+`AnynoteAPI` 覆盖设计 §16.4 的扩展点：`notebooks`、`nodes`、`notes`、`search`、`assets`、`settings`、`secrets`、`events`、`tasks`、`ui`、`providers`，命令仍通过 `context.registerCommand` 注册（不重复暴露 `api.commands`）。注册类扩展点返回 `Disposable`，停用/卸载时随宿主统一回收。
+
+- `api.contract()` 返回 `{ sdk, api, capabilities }`：`sdk` 是 SDK 版本，`api` 是调用面合约版本，`capabilities` 列出当前调用面方法，插件可据此判断可用能力。
+- 分页：`nodes.list`、`search.page` 接受 `{ cursor, limit }`，返回 `{ items, nextCursor }`；`limit` 由宿主钳制，未知游标返回 `invalid`。
+- 取消：所有方法接受可选 `CallOptions.signal`，取消后在调用前后抛出 `aborted`。
+- 错误码：宿主按 `denied` / `invalid` / `not_found` / `conflict` / `busy` / `aborted` / `unsupported` / `internal` 抛出 `ExtensionError`，插件无需解析文案即可分支。
+- 权限合约：受信首方宿主新增 `notebooks:read`、`nodes:read`、`nodes:write`、`secrets:read`、`secrets:write`、`events:subscribe`、`tasks:register`、`ui:contribute`、`providers:register`；每个调用与注册都在权限门面内校验并绑定当前 Notebook。
+
+`events`、`tasks`、`ui`、`providers` 是宿主推送/注册能力，无法由请求/响应 Transport 承载：`createAPI(transport, bindings)` 需宿主提供 `bindings`。仅使用 Transport 的客户端调用这些方法会得到 `unsupported`。`providers.register` 只登记 `search/backup/ai/importer/exporter` 描述符，具体提供方执行仍由宿主实现；`secrets` 按 Provider ID 作用域存放，当前落在 Notebook 命名空间，设备级密钥库为后续范围。
+
+```ts
+import { createAPI } from "@anynote/plugin-sdk";
+const api = createAPI(transportFromTrustedHost);
+const { items, nextCursor } = await api.nodes.list({ limit: 50 });
+await api.secrets.set({ provider: "anynote.demo", key: "token" }, token);
+```
+
 ## 独立开发与打包
 
 ```sh
@@ -41,7 +60,7 @@ await api.notes.get(noteId);
 
 提交前重新校验启用、授权、清单和笔记版本，正文与幂等回执同一事务写入。更新、停用、撤销授权、卸载或关闭服务会取消在途脚本。已有扩展块必须按原文及数量保留，不能删除未知数据。公开包导出 `ScriptManifest`、`ScriptCommand`、`MarkdownTransformInput` 类型，公开 SDK 包不包含执行器或 QuickJS 依赖；独立开发工具包复用受限执行器。
 
-通用第三方 JS/React 模块、任意 NodeView、原生模块、动态 URL 网络访问、backup/AI Provider 注册及中央插件市场仍未开放。设备侧可选择开启自动检查更新，安装仍需人工审核。
+第三方可安装扩展仍不开放通用 JS/React 模块、任意 NodeView、原生模块、动态 URL 网络访问、Provider 执行及中央插件市场；`providers.register` 仅在受信首方宿主登记描述符。设备侧可选择开启自动检查更新，安装仍需人工审核。
 
 签名包可使用项目的 `pnpm run extension:package ...` 制作和验证，公开类型为 `SignedExtensionPackage`、`ExtensionSource`。签名验证、发布者信任与 Notebook 授权由桌面后端独立检查；信任发布者不会自动授予笔记权限。协议与制作流程见项目 `docs/EXTENSION-SIGNING.md`。独立 SDK 包只包含可移植类型，不包含私钥或 Node 签名实现。
 

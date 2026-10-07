@@ -29,9 +29,14 @@ export const manifestSchema = z
           "search:read",
           "settings:read",
           "settings:write",
+          "notebooks:read",
+          "nodes:read",
+          "nodes:write",
+          "secrets:read",
+          "secrets:write",
         ]),
       )
-      .max(7),
+      .max(24),
     commands: z
       .array(
         z

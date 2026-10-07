@@ -707,11 +707,16 @@ export async function advancedOperations(
     "extensionPatch",
     "extensionGetState",
     "extensionSetState",
+    "extensionDeleteState",
     "saveImageVersion",
   ]);
   if (!handled.has(op)) return { handled: false };
 
-  if (["extensionGetState", "extensionSetState"].includes(op)) {
+  if (
+    ["extensionGetState", "extensionSetState", "extensionDeleteState"].includes(
+      op,
+    )
+  ) {
     const p = z
         .object({
           notebookId: uuid,
@@ -730,6 +735,13 @@ export async function advancedOperations(
           )
           .get(p.extensionId, p.key)?.value_json || "null",
       );
+    else if (op === "extensionDeleteState")
+      result = s.tx(db, p.extensionId, "extension", () => {
+        db.prepare(
+          "DELETE FROM extension_data WHERE extension_id=? AND key=?",
+        ).run(p.extensionId, p.key);
+        return true;
+      });
     else {
       const value = JSON.stringify(p.value);
       if (!value || value.length > 100000) throw Error("状态大小超限");

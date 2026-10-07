@@ -21,7 +21,17 @@ export async function sdkContracts() {
   await api.settings.set("enabled", true);
   const settings: { enabled: boolean } | null =
     await api.settings.get("options");
-  void [revision, settings];
+  const contract = api.contract();
+  const capabilities: readonly string[] = contract.capabilities;
+  await api.nodes.list({ limit: 10 });
+  await api.secrets.set({ provider: "anynote.demo", key: "token" }, "secret");
+  void [revision, settings, capabilities];
+  // @ts-expect-error Secret values are always strings.
+  await api.secrets.set({ provider: "anynote.demo", key: "token" }, 42);
+  // @ts-expect-error Pagination cursors are opaque strings.
+  await api.nodes.list({ cursor: 1 });
+  // @ts-expect-error Task registration requires a run function.
+  api.tasks.register({ id: "anynote.demo.task", title: "任务" });
   // @ts-expect-error Conditional writes require an operation ID and revision.
   await api.notes.applyPatch({ id: "note-id", body: "text" });
   await api.assets.addImage({
