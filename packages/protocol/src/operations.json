@@ -66,6 +66,8 @@
   "placeNode",
   "previewCleanup",
   "applyCleanup",
+  "inspectIntegrity",
+  "getIntegrityReport",
   "openNotebookDirectory",
   "detachNotebookDirectory",
   "searchWorkspace",

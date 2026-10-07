@@ -619,8 +619,14 @@ function App() {
               b.id === localStorage.getItem("anynote-book") && !b.unavailable,
           ) || list.find((b) => !b.unavailable);
         // When every Notebook is unavailable, open the recovery wizard instead of a failed switch.
-        if (preferred) await switchBook(preferred);
-        else if (list[0]) setRecovery(list[0]);
+        if (preferred) {
+          await switchBook(preferred);
+          // Startup consistency inspection: read-only, budgeted and cancellable,
+          // so it never blocks opening the Notebook.
+          void request("inspectIntegrity", {
+            notebookId: preferred.id,
+          }).catch(() => {});
+        } else if (list[0]) setRecovery(list[0]);
       } catch (e) {
         report(e);
       }

@@ -201,6 +201,8 @@ export type Operation =
   | "placeNode"
   | "previewCleanup"
   | "applyCleanup"
+  | "inspectIntegrity"
+  | "getIntegrityReport"
   | "openNotebookDirectory"
   | "detachNotebookDirectory"
   | "searchWorkspace"
@@ -213,3 +215,4 @@ export interface AnynoteBridge {
 
 export type * from "./local-backup.js";
 export type * from "./recovery.js";
+export type * from "./integrity.js";

@@ -11,7 +11,7 @@ import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Capture } from "@anynote/backup-local";
 
 /** Persistent resource-closure query spanning current resources, revisions, annotations, and PDF text. */
-const resourceRoots = `SELECT asset_hash FROM resources
+export const resourceRoots = `SELECT asset_hash FROM resources
   UNION SELECT asset_hash FROM revision_resources
   UNION SELECT target_asset_hash FROM annotations
   UNION SELECT asset_hash FROM note_text`;

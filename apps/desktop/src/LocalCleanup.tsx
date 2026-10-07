@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { IntegrityReport } from "@anynote/types";
 import { request } from "./api";
 
 /** One cleanup preview (candidate files and reclaimable bytes). */
@@ -21,7 +22,13 @@ export default function LocalCleanup({
     [plan, setPlan] = useState<Plan | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [result, setResult] = useState("");
+    [result, setResult] = useState(""),
+    [report, setReport] = useState<IntegrityReport | null>(null);
+  useEffect(() => {
+    request<IntegrityReport | null>("getIntegrityReport", { notebookId })
+      .then(setReport)
+      .catch(() => {});
+  }, [notebookId]);
 
   /**
    * Run an async action uniformly and maintain busy/error state.
@@ -39,6 +46,28 @@ export default function LocalCleanup({
       setBusy(false);
     }
   };
+
+  /**
+   * Start a read-only consistency scan and poll briefly for its report.
+   *
+   * The scan is budgeted and usually finishes within a second, so the short
+   * poll is enough to refresh the summary without opening the task center.
+   */
+  const inspect = () =>
+    action(async () => {
+      await request("inspectIntegrity", { notebookId });
+      for (let i = 0; i < 20; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const latest = await request<IntegrityReport | null>(
+          "getIntegrityReport",
+          { notebookId },
+        );
+        if (latest && latest.checkedAt !== report?.checkedAt) {
+          setReport(latest);
+          return;
+        }
+      }
+    });
   return (
     <section className="local-cleanup">
       <h2 className="subheading">本地存储整理</h2>
@@ -128,6 +157,47 @@ export default function LocalCleanup({
                 确认永久清理这些文件
               </button>
             </>
+          )}
+        </div>
+      )}
+      <h2 className="subheading">启动一致性巡检</h2>
+      <p>
+        只读检查遗留临时文件、孤儿资源与缺失引用，并保留活动租约、历史与备份
+        pin； 巡检结果仅作提示，不会自动删除任何文件。
+      </p>
+      <div className="cleanup-options">
+        <button
+          className="secondary"
+          disabled={busy}
+          onClick={() => void inspect()}
+        >
+          运行一致性巡检
+        </button>
+      </div>
+      {report && (
+        <div className="cleanup-plan">
+          <strong>
+            {new Date(report.checkedAt).toLocaleString("zh-CN")} 的巡检结果
+          </strong>
+          <p>
+            临时文件 {report.counts.tempFiles} · 孤儿资源{" "}
+            {report.counts.orphanResources} · 无引用资源记录{" "}
+            {report.counts.unreferencedAssets} · 缺失引用{" "}
+            {report.counts.missingResources}
+            {report.counts.activeLeases
+              ? ` · 活动租约 ${report.counts.activeLeases}（已保护）`
+              : ""}
+            {report.truncated ? " · 达到预算，结果不完整" : ""}
+          </p>
+          {report.findings.length > 0 && (
+            <details>
+              <summary>查看具体发现（{report.findings.length} 项）</summary>
+              {report.findings.map((f, i) => (
+                <p key={i}>
+                  {f.path}：{f.message}
+                </p>
+              ))}
+            </details>
           )}
         </div>
       )}

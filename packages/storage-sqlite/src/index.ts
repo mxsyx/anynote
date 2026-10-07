@@ -23,6 +23,7 @@ import {
 import { closeExtensionDataReviews } from "./extension-data.js";
 import { closeScripts } from "./script-commands.js";
 import { loadTaskHistory, recordTask } from "./task-history.js";
+import { loadIntegrityReports } from "./integrity.js";
 import { recoverTemporaryJobs } from "./temporary-jobs.js";
 import { unzipSync, zipSync } from "fflate";
 import { createHash, randomUUID } from "node:crypto";
@@ -46,6 +47,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
+import type { IntegrityReport } from "@anynote/types";
 import type { TaskRecord } from "./task-history.js";
 import { backup, DatabaseSync } from "@anynote/types/runtime.js";
 import {
@@ -148,6 +150,8 @@ export class Storage {
   jobs: Map<string, import("@anynote/types/runtime.js").Task>;
   /** Task evidence persisted on device so a restart can still explain what ran. */
   taskHistory: TaskRecord[];
+  /** Last read-only consistency inspection report per Notebook. */
+  integrityReports: Map<string, IntegrityReport>;
   externalDirectories: Map<string, { id: string; path: string; name: string }>;
   writeLocks: Map<string, () => void>;
   vault?: import("@anynote/types/runtime.js").Vault;
@@ -181,6 +185,7 @@ export class Storage {
     this.queue = Promise.resolve();
     this.jobs = new Map();
     this.taskHistory = loadTaskHistory(this.root);
+    this.integrityReports = loadIntegrityReports(this.root);
     this.externalDirectories = new Map(
       loadDirectories(this.root).map((entry) => [entry.id, entry]),
     );
@@ -238,6 +243,9 @@ export class Storage {
         "remoteRetentionState",
         "remoteProtectionAudit",
         "releaseRemoteProtection",
+        // The consistency scan runs off the serial queue so it can be cancelled
+        // and never blocks editing; it stays read-only.
+        "inspectIntegrity",
         // Preview starts off the serial queue so a slow fetch never blocks
         // editing; confirming the preview still commits in order.
         "previewImport",

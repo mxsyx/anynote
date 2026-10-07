@@ -1,8 +1,42 @@
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import LocalVerificationDetails from "./LocalVerificationDetails";
-import type { LocalVerificationReport, NoteNode } from "@anynote/types";
+import type {
+  IntegrityReport,
+  LocalVerificationReport,
+  NoteNode,
+} from "@anynote/types";
 import { X, LoaderCircle, Check, AlertCircle } from "lucide-react";
+
+/** Summary of a web-import task report. */
+interface ImportTaskReport {
+  localized: number;
+  failed: number;
+  media: { source: string; status: string; error?: string }[];
+}
+
+/**
+ * Whether a task report is a read-only consistency inspection report.
+ *
+ * @param report Task report payload.
+ * @returns `true` for an integrity report.
+ */
+function isIntegrityReport(report: unknown): report is IntegrityReport {
+  return (
+    !!report &&
+    typeof report === "object" &&
+    (report as { format?: string }).format === "anynote.integrity-report"
+  );
+}
+
+/** Human-readable label of each inspection finding kind. */
+const findingLabels: Record<string, string> = {
+  "temp-file": "临时文件",
+  "orphan-resource": "孤儿资源",
+  "unreferenced-asset": "无引用资源记录",
+  "missing-resource": "缺失引用",
+  "active-lease": "活动租约（已保护）",
+};
 
 /** Display structure of a background task (import/export/backup/restore, etc.). */
 export interface Task {
@@ -32,11 +66,7 @@ export interface Task {
   }[];
   note?: NoteNode;
   restoredId?: string;
-  report?: {
-    localized: number;
-    failed: number;
-    media: { source: string; status: string; error?: string }[];
-  };
+  report?: ImportTaskReport | IntegrityReport;
   createdAt: number;
   processedBytes?: number;
   totalBytes?: number;
@@ -144,23 +174,25 @@ export default function TaskCenter({
                   ? "Notebook 范围任务"
                   : j.type === "pdf-index"
                     ? "PDF 文本索引"
-                    : j.type === "import-preview"
-                      ? "网页导入预览"
-                      : j.type === "import-media-retry"
-                        ? "失败媒体重试"
-                        : j.type === "import"
-                          ? "网页 / HTML 导入"
-                          : j.type === "archive-export"
-                            ? "Notebook 归档导出"
-                            : j.type === "archive-import"
-                              ? "Notebook 归档导入"
-                              : j.type === "local-restore"
-                                ? "本地备份恢复"
-                                : j.type === "local-verify"
-                                  ? "本地备份校验"
-                                  : j.type === "restore"
-                                    ? "云备份恢复"
-                                    : "备份任务"}
+                    : j.type === "integrity-inspection"
+                      ? "一致性巡检"
+                      : j.type === "import-preview"
+                        ? "网页导入预览"
+                        : j.type === "import-media-retry"
+                          ? "失败媒体重试"
+                          : j.type === "import"
+                            ? "网页 / HTML 导入"
+                            : j.type === "archive-export"
+                              ? "Notebook 归档导出"
+                              : j.type === "archive-import"
+                                ? "Notebook 归档导入"
+                                : j.type === "local-restore"
+                                  ? "本地备份恢复"
+                                  : j.type === "local-verify"
+                                    ? "本地备份校验"
+                                    : j.type === "restore"
+                                      ? "云备份恢复"
+                                      : "备份任务"}
               </strong>
               <small>{new Date(j.createdAt).toLocaleString("zh-CN")}</small>
             </div>
@@ -230,25 +262,57 @@ export default function TaskCenter({
                 ))}
               </details>
             )}
-            {j.report && (
+            {isIntegrityReport(j.report) ? (
               <>
                 <p>
-                  图片已本地化 {j.report.localized} 项 · 未下载{" "}
-                  {j.report.failed} 项
+                  只读巡检：临时文件 {j.report.counts.tempFiles} · 孤儿资源{" "}
+                  {j.report.counts.orphanResources} · 无引用资源记录{" "}
+                  {j.report.counts.unreferencedAssets} · 缺失引用{" "}
+                  {j.report.counts.missingResources}
+                  {j.report.counts.activeLeases
+                    ? ` · 活动租约 ${j.report.counts.activeLeases}（已保护）`
+                    : ""}
+                  {j.report.truncated ? " · 达到预算，结果不完整" : ""}
                 </p>
-                {j.report.failed > 0 && (
+                {j.report.findings.length > 0 && (
                   <details>
-                    <summary>查看未下载资源</summary>
-                    {j.report.media
-                      .filter((m) => m.status === "failed")
-                      .map((m, i) => (
-                        <p key={i}>
-                          {m.source}：{m.error}
-                        </p>
-                      ))}
+                    <summary>
+                      查看巡检发现（{j.report.findings.length} 项）
+                    </summary>
+                    {j.report.findings.map((f, i) => (
+                      <p key={i}>
+                        {findingLabels[f.kind] || f.kind} · {f.path}：
+                        {f.message}
+                      </p>
+                    ))}
                   </details>
                 )}
+                <p className="muted">
+                  结果仅供参考，不会自动删除任何文件；活动租约、历史与备份 pin
+                  均受保护。
+                </p>
               </>
+            ) : (
+              j.report && (
+                <>
+                  <p>
+                    图片已本地化 {j.report.localized} 项 · 未下载{" "}
+                    {j.report.failed} 项
+                  </p>
+                  {j.report.failed > 0 && (
+                    <details>
+                      <summary>查看未下载资源</summary>
+                      {j.report.media
+                        .filter((m) => m.status === "failed")
+                        .map((m, i) => (
+                          <p key={i}>
+                            {m.source}：{m.error}
+                          </p>
+                        ))}
+                    </details>
+                  )}
+                </>
+              )
             )}
             {j.restoredId && (
               <button

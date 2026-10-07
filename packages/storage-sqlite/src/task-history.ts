@@ -91,6 +91,8 @@ const payloads = {
     .strict(),
   // Reuses the current import report, so only the note is needed to retry.
   retryImportMedia: z.object({ notebookId: uuid, id: uuid }).strict(),
+  // The consistency scan is read-only and cheap to re-dispatch.
+  inspectIntegrity: z.object({ notebookId: uuid }).strict(),
 };
 
 /** Retry descriptor accepted for re-dispatch; payloads stay small and secret-free. */

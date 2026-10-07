@@ -664,6 +664,19 @@ export async function advancedOperations(
     return { handled: true, result: cleanupOperation(s, op, raw) };
   }
 
+  if (op === "inspectIntegrity" || op === "getIntegrityReport") {
+    const { startIntegrityInspection, readIntegrityReport } = await import(
+      "./integrity.js"
+    );
+    return {
+      handled: true,
+      result:
+        op === "inspectIntegrity"
+          ? startIntegrityInspection(s, raw)
+          : readIntegrityReport(s, raw),
+    };
+  }
+
   if (op === "placeNode") {
     const { placeNode } = await import("./organization.js");
     return { handled: true, result: placeNode(s, raw) };
