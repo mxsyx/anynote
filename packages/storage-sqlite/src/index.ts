@@ -24,6 +24,7 @@ import { closeExtensionDataReviews } from "./extension-data.js";
 import { closeScripts } from "./script-commands.js";
 import { loadTaskHistory, recordTask } from "./task-history.js";
 import { loadIntegrityReports } from "./integrity.js";
+import { Diagnostics, diagnosticsOperation } from "./diagnostics.js";
 import { recoverTemporaryJobs } from "./temporary-jobs.js";
 import { unzipSync, zipSync } from "fflate";
 import { createHash, randomUUID } from "node:crypto";
@@ -49,7 +50,7 @@ import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { IntegrityReport } from "@anynote/types";
 import type { TaskRecord } from "./task-history.js";
-import { backup, DatabaseSync } from "@anynote/types/runtime.js";
+import { backup, DatabaseSync, errorMessage } from "@anynote/types/runtime.js";
 import {
   advancedOperations,
   isImageMime,
@@ -71,6 +72,49 @@ import {
 
 const uuid = z.string().uuid(),
   hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
+
+/**
+ * Approximate the decoded size of a base64 payload.
+ *
+ * @param value Base64 string, when present.
+ * @returns Decoded byte count (rounded down).
+ */
+function base64Bytes(value: unknown) {
+  return typeof value === "string" ? Math.floor((value.length * 3) / 4) : 0;
+}
+
+/** Operations that move asset bytes, mapped to the direction recorded. */
+const assetOps: Record<string, "read" | "write"> = {
+  importFile: "write",
+  addResource: "write",
+  saveImageVersion: "write",
+  getAsset: "read",
+  getAssetRange: "read",
+};
+
+/**
+ * Extract the resource bytes moved by one operation for throughput metrics.
+ *
+ * @param op Operation name.
+ * @param input Operation input payload.
+ * @param result Operation result.
+ * @returns The read and write byte counts (zero when not an asset operation).
+ */
+function throughput(
+  op: string,
+  input: Record<string, any>,
+  result: any,
+): { read: number; write: number } {
+  const direction = assetOps[op];
+  if (!direction) return { read: 0, write: 0 };
+  const bytes =
+    direction === "write"
+      ? base64Bytes(input?.data)
+      : base64Bytes(result?.data);
+  return direction === "write"
+    ? { read: 0, write: bytes }
+    : { read: bytes, write: 0 };
+}
 
 /** Full database-creation SQL for schema v1. */
 export const legacySchema = `
@@ -152,6 +196,8 @@ export class Storage {
   taskHistory: TaskRecord[];
   /** Last read-only consistency inspection report per Notebook. */
   integrityReports: Map<string, IntegrityReport>;
+  /** Device-side metrics and redacted events exportable for diagnosis. */
+  diagnostics: Diagnostics;
   externalDirectories: Map<string, { id: string; path: string; name: string }>;
   writeLocks: Map<string, () => void>;
   vault?: import("@anynote/types/runtime.js").Vault;
@@ -186,6 +232,7 @@ export class Storage {
     this.jobs = new Map();
     this.taskHistory = loadTaskHistory(this.root);
     this.integrityReports = loadIntegrityReports(this.root);
+    this.diagnostics = new Diagnostics(this.root);
     this.externalDirectories = new Map(
       loadDirectories(this.root).map((entry) => [entry.id, entry]),
     );
@@ -195,7 +242,28 @@ export class Storage {
   }
 
   /**
-   * Dispatch a storage operation.
+   * Dispatch a storage operation and record its latency and throughput.
+   *
+   * @param op Operation name.
+   * @param input Operation input payload.
+   * @returns The operation result.
+   */
+  run(op: string, input: Record<string, unknown> = {}): Promise<any> {
+    const started = performance.now();
+    return this.dispatch(op, input, started).then(
+      (result) => {
+        this.observe(op, started, input, result);
+        return result;
+      },
+      (error) => {
+        this.observe(op, started, input, undefined, error);
+        throw error;
+      },
+    );
+  }
+
+  /**
+   * Route an operation to its fast path or the serial queue.
    *
    * Some operations take a fast path (update checks, directories, search,
    * remote maintenance, etc.), while the rest are queued into the global serial
@@ -203,9 +271,14 @@ export class Storage {
    *
    * @param op Operation name.
    * @param input Operation input payload.
+   * @param started Time the operation was dispatched, for queue-wait timing.
    * @returns The operation result.
    */
-  run(op: string, input: Record<string, unknown> = {}): Promise<any> {
+  private dispatch(
+    op: string,
+    input: Record<string, unknown>,
+    started: number,
+  ): Promise<any> {
     if (op === "cancelExtensionUpdateCheck")
       return Promise.resolve().then(() => cancelExtensionUpdateCheck(this));
     if (op === "checkExtensionUpdates")
@@ -230,6 +303,18 @@ export class Storage {
     if (op === "searchWorkspace") return searchWorkspace(this, input);
     if (op === "cancelSearch")
       return Promise.resolve(cancelSearch(this, input));
+    // Diagnostics are read/report-only and must never queue behind a slow
+    // write, so a plugin crash or mode switch is recorded promptly.
+    if (
+      [
+        "reportDiagnostic",
+        "getDiagnostics",
+        "getDiagnosticsSettings",
+        "setDiagnosticsSettings",
+        "clearDiagnostics",
+      ].includes(op)
+    )
+      return Promise.resolve(diagnosticsOperation(this, op, input));
     if (
       [
         "previewLocalBackup",
@@ -256,9 +341,60 @@ export class Storage {
       ].includes(op)
     )
       return advancedOperations(this, op, input).then((r) => r.result);
-    const next = this.queue.then(() => this.execute(op, input));
+    const next = this.queue.then(() => {
+      // Time spent waiting behind earlier writes is the queue latency; it is
+      // recorded separately from the operation's own execution time.
+      this.diagnostics.record({
+        category: "queue",
+        name: "queue.wait",
+        durationMs: performance.now() - started,
+      });
+      return this.execute(op, input);
+    });
     this.queue = next.catch(() => {});
     return next;
+  }
+
+  /**
+   * Record one dispatched operation's outcome, latency and resource bytes.
+   *
+   * @param op Operation name.
+   * @param started Time the operation was dispatched.
+   * @param input Operation input payload.
+   * @param result Operation result (when it succeeded).
+   * @param error Failure raised by the operation.
+   */
+  private observe(
+    op: string,
+    started: number,
+    input: Record<string, unknown>,
+    result?: any,
+    error?: unknown,
+  ) {
+    const durationMs = performance.now() - started;
+    this.diagnostics.record({
+      category: "queue",
+      name: "op." + op,
+      outcome: error ? "failed" : "ok",
+      durationMs,
+      detail: error ? `${op}: ${errorMessage(error)}` : undefined,
+    });
+    if (error) return;
+    const { read, write } = throughput(op, input, result);
+    if (read)
+      this.diagnostics.record({
+        category: "throughput",
+        name: "throughput.read",
+        durationMs,
+        bytes: read,
+      });
+    if (write)
+      this.diagnostics.record({
+        category: "throughput",
+        name: "throughput.write",
+        durationMs,
+        bytes: write,
+      });
   }
 
   /**
@@ -271,6 +407,11 @@ export class Storage {
   track(job: Task) {
     this.jobs.set(job.id, job);
     recordTask(this, job);
+    this.diagnostics.record({
+      category: "queue",
+      name: "task.started",
+      code: job.type,
+    });
     return job;
   }
 
@@ -285,7 +426,63 @@ export class Storage {
   settle(job: Task, status: Task["status"], patch: Partial<Task> = {}) {
     Object.assign(job, patch, { status });
     recordTask(this, job);
+    this.observeTask(job);
     return job;
+  }
+
+  /**
+   * Record a settled task's outcome and the backup/restore verification it
+   * produced, so failures and checksums are observable without the task center.
+   *
+   * @param job Settled task.
+   */
+  private observeTask(job: Task) {
+    // Only terminal statuses carry a result worth recording.
+    if (["running", "committing", "waiting-disk"].includes(job.status)) return;
+    const outcome =
+      job.status === "completed"
+        ? "ok"
+        : job.status === "failed"
+          ? "failed"
+          : job.status === "cancelled"
+            ? "cancelled"
+            : "interrupted";
+    this.diagnostics.record({
+      category: "queue",
+      name: "task." + job.type,
+      outcome,
+      code: job.errorCode,
+      durationMs: Math.max(0, Date.now() - job.createdAt),
+      bytes: job.processedBytes,
+      detail: job.error,
+      notable: outcome !== "ok",
+    });
+    const report = job.verificationReport;
+    if (report)
+      this.diagnostics.record({
+        category: "backup",
+        name: "backup.verify",
+        outcome:
+          report.status === "passed" && report.complete
+            ? "ok"
+            : report.status === "interrupted"
+              ? "interrupted"
+              : "failed",
+        code: report.status,
+        durationMs: report.durationMs,
+        bytes: report.checkedBytes,
+        detail: `文件 ${report.verifiedFiles}/${report.totalFiles}，问题 ${report.issues.length}`,
+        notable: true,
+      });
+    if (job.restoreResult)
+      this.diagnostics.record({
+        category: "restore",
+        name: "restore.result",
+        outcome: "ok",
+        code: job.restoreResult.verification.status,
+        bytes: job.restoreResult.verification.checkedBytes,
+        notable: true,
+      });
   }
 
   /**
@@ -663,6 +860,9 @@ export class Storage {
   /**
    * Run a mutation within a transaction, recording a changes row and bumping the content sequence.
    *
+   * Every commit and rollback is timed into the diagnostics store so SQLite
+   * latency is observable without inspecting the task center.
+   *
    * @param db Open database handle.
    * @param id Notebook ID.
    * @param op Operation name.
@@ -670,6 +870,7 @@ export class Storage {
    * @returns Result of the mutation.
    */
   tx(db: SqlDatabase, id: string, op: string, fn: () => any) {
+    const started = performance.now();
     db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
@@ -677,9 +878,24 @@ export class Storage {
         "INSERT INTO changes(entity_id,operation,payload_json,created_at) VALUES(?,?,?,?)",
       ).run(id, op, JSON.stringify(result), Date.now());
       db.exec("UPDATE notebook_meta SET content_seq=content_seq+1; COMMIT");
+      this.diagnostics.record({
+        category: "sqlite",
+        name: "sqlite.commit",
+        outcome: "ok",
+        code: op,
+        durationMs: performance.now() - started,
+      });
       return result;
     } catch (e: any) {
       db.exec("ROLLBACK");
+      this.diagnostics.record({
+        category: "sqlite",
+        name: "sqlite.commit",
+        outcome: "failed",
+        code: op,
+        durationMs: performance.now() - started,
+        detail: errorMessage(e),
+      });
       throw e;
     }
   }
@@ -1599,5 +1815,6 @@ export class Storage {
     for (const release of this.writeLocks.values()) release();
     this.writeLocks.clear();
     this.importPreviews.clear();
+    this.diagnostics.flush();
   }
 }

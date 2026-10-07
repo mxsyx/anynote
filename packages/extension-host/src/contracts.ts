@@ -28,3 +28,16 @@ export interface BundledExtension {
   manifest: HostedExtensionManifest;
   entry: string;
 }
+
+/**
+ * Lifecycle observation of one "extension × Notebook" session.
+ *
+ * Emitted so the host can record plugin startup and crashes for diagnostics
+ * without the extension code itself gaining any new capability.
+ */
+export interface HostedExtensionEvent {
+  kind: "start" | "ready" | "crash" | "stop" | "error";
+  extensionId: string;
+  notebookId: string;
+  error?: string;
+}

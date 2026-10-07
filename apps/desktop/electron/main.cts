@@ -127,6 +127,19 @@ else {
     const extensionHost = createProcessExtensionHost({
       storage: { run: callStore },
       extensions: bundledExtensions,
+      // Plugin starts and crashes are reported to the storage process so they
+      // land in the same redacted diagnostics store as the rest of the app.
+      onEvent: (event) => {
+        void callStore("reportDiagnostic", {
+          category: "plugin",
+          name: "plugin." + event.kind,
+          outcome:
+            event.kind === "crash" || event.kind === "error" ? "failed" : "ok",
+          code: event.extensionId,
+          detail: event.error,
+          notable: event.kind !== "stop",
+        }).catch(() => {});
+      },
       launch: (entry) => {
         const child = utilityProcess.fork(workerPath, [entry], {
           serviceName: "Anynote Extension Host",

@@ -203,6 +203,11 @@ export type Operation =
   | "applyCleanup"
   | "inspectIntegrity"
   | "getIntegrityReport"
+  | "reportDiagnostic"
+  | "getDiagnostics"
+  | "getDiagnosticsSettings"
+  | "setDiagnosticsSettings"
+  | "clearDiagnostics"
   | "openNotebookDirectory"
   | "detachNotebookDirectory"
   | "searchWorkspace"
@@ -216,3 +221,4 @@ export interface AnynoteBridge {
 export type * from "./local-backup.js";
 export type * from "./recovery.js";
 export type * from "./integrity.js";
+export type * from "./diagnostics.js";

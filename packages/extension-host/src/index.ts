@@ -8,6 +8,7 @@ import type {
 import type {
   BundledExtension,
   HostProcess,
+  HostedExtensionEvent,
   HostedExtensionStatus,
 } from "./contracts.js";
 import {
@@ -24,6 +25,7 @@ import {
 export type {
   BundledExtension,
   HostProcess,
+  HostedExtensionEvent,
   HostedExtensionManifest,
   HostedExtensionStatus,
 } from "./contracts.js";
@@ -68,6 +70,8 @@ export function createProcessExtensionHost(options: {
   extensions: BundledExtension[];
   launch: (entry: string) => HostProcess;
   timeoutMs?: number;
+  /** Optional lifecycle observer used to record plugin starts and crashes. */
+  onEvent?: (event: HostedExtensionEvent) => void;
 }) {
   const registry = new Map(
     options.extensions.map((extension) => {
@@ -119,8 +123,14 @@ export function createProcessExtensionHost(options: {
    * @param k Session key.
    * @param error Optional error that caused the stop.
    * @param expected Expected session identity.
+   * @param kind Explicit lifecycle kind; defaults to `error`/`stop` by the error.
    */
-  function stop(k: string, error?: Error, expected?: Session) {
+  function stop(
+    k: string,
+    error?: Error,
+    expected?: Session,
+    kind?: "crash" | "stop" | "error",
+  ) {
     const session = sessions.get(k);
     if (!session || !session.active || (expected && expected !== session))
       return;
@@ -130,6 +140,14 @@ export function createProcessExtensionHost(options: {
     session.registrations.clear();
     sessions.delete(k);
     if (error) errors.set(k, errorMessage(error));
+    // The key is `notebookId:extensionId`; a UUID never contains a colon.
+    const separator = k.indexOf(":");
+    options.onEvent?.({
+      kind: kind ?? (error ? "error" : "stop"),
+      notebookId: k.slice(0, separator),
+      extensionId: k.slice(separator + 1),
+      error: error ? errorMessage(error) : undefined,
+    });
     for (const pending of session.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(error ?? Error("扩展已停用"));
@@ -321,6 +339,11 @@ export function createProcessExtensionHost(options: {
       registrations: new Map(),
     };
     sessions.set(k, session);
+    options.onEvent?.({
+      kind: "start",
+      notebookId,
+      extensionId: extension.manifest.id,
+    });
     session.ready = deferred(k, session, 0);
     // Observe readiness failure even if revoked before sending, to avoid an unhandled rejection.
     void session.ready.catch(() => {});
@@ -341,7 +364,12 @@ export function createProcessExtensionHost(options: {
           child.on("exit", () => {
             processes.delete(child);
             if (session.active)
-              stop(k, Error("扩展进程已退出，请重新授权后重试"), session);
+              stop(
+                k,
+                Error("扩展进程已退出，请重新授权后重试"),
+                session,
+                "crash",
+              );
           });
           child.on("message", (raw) => {
             if (!session.active) return;
@@ -419,6 +447,11 @@ export function createProcessExtensionHost(options: {
       .then(() => {
         if (!session.active) throw Error("扩展已停用");
         session.state = "active";
+        options.onEvent?.({
+          kind: "ready",
+          notebookId,
+          extensionId: extension.manifest.id,
+        });
         armIdle(k, session);
       })
       .catch((error) => {

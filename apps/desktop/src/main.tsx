@@ -67,6 +67,7 @@ import ExtensionCommands from "./ExtensionCommands";
 import ExtensionPage from "./ExtensionPage";
 import Backlinks from "./Backlinks";
 import LocalCleanup from "./LocalCleanup";
+import Diagnostics from "./Diagnostics";
 import BackupTargets from "./BackupTargets";
 import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
@@ -458,7 +459,20 @@ function App() {
         const max = el.scrollHeight - el.clientHeight;
         scrollAnchor.current = max > 0 ? el.scrollTop / max : 0;
       }
+      const started = performance.now();
       setMode(target);
+      // Record the conversion latency once the new mode has painted. Only the
+      // mode name and duration are sent, never any document content.
+      requestAnimationFrame(() =>
+        request("reportDiagnostic", {
+          category: "editor",
+          name: "editor.mode",
+          outcome: "ok",
+          code: target,
+          durationMs: Math.round(performance.now() - started),
+          notable: true,
+        }).catch(() => {}),
+      );
     } catch (e) {
       report(e);
     }
@@ -2051,6 +2065,7 @@ function App() {
                   让每一次打开，都更接近你喜欢的样子。
                 </p>
                 <CloudRecovery onStarted={() => setTasksOpen(true)} />
+                <Diagnostics />
                 <div className="setting-row">
                   <div>
                     <h3>外观</h3>

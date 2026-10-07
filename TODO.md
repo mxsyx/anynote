@@ -33,7 +33,7 @@
 - [x] 首方功能独立发布验证（§6）
 - [x] 公共包发布矩阵（§6）
 - [x] 启动一致性巡检（§7）
-- [ ] 可导出脱敏日志与指标（§7）
+- [x] 可导出脱敏日志与指标（§7）
 
 ## 1. 发布可靠性与跨设备验收
 
@@ -127,7 +127,7 @@
 
 - [x] **P0 — 损坏库恢复交互**：打开失败进入只读诊断/恢复向导，先保存原文件和日志，再提供快照、归档或远端恢复；缺失/损坏资源可定位并从备份修复。新增只读诊断（`diagnoseNotebook`）、证据保存（`preserveNotebookEvidence`）与桌面恢复向导；快照列取/恢复改为不依赖库打开，可对不可用库执行。真实整机/断电恢复仍见 §1/§2 独立验收项。
 - [x] **P1 — 启动一致性巡检**：新增只读巡检 `inspectIntegrity`（后台可取消任务 `integrity-inspection`）与报告读取 `getIntegrityReport`：对遗留临时文件（`temp/`、`*.tmp`、`export-*.sqlite`、`assets/**/*.bin.tmp`、清理隔离区及无活动租约的任务暂存目录）、孤儿资源（磁盘上未入库对象、未被任何版本/批注/PDF 文本引用的 `assets` 记录）与缺失引用（被引用但文件缺失、路径无效或大小不符，覆盖历史与回收站版本）做预算受控扫描（扫描与发现条目上限、`truncated` 标记），每 500 条让出事件循环并响应取消；复用备份层的资源闭包定义，活动任务租约（`job-leases`）标记为受保护、暂存目录仅在无租约时记为遗留，Notebook pin 记录为 `pinned`；结果写入设备侧 `_local/integrity-reports.json`（原子写、按 Notebook 保留 50 份），报告仅作提示、不触发任何删除；桌面在启动后自动巡检当前 Notebook，并在本地整理面板与任务中心展示结果与发现项。`tests/integrity-inspection.test.mjs` 覆盖健康库、临时/孤儿/缺失、活动租约保护与取消。
-- [ ] **P1 — 可导出脱敏日志与指标**：统一记录 SQLite 提交、队列、吞吐、备份/恢复校验、插件启动/崩溃和模式转换；提供诊断导出、敏感 URL/正文/密钥过滤及最小化开关，不把验收脚本 JSON 当作应用日志系统。
+- [x] **P1 — 可导出脱敏日志与指标**：统一记录 SQLite 提交、队列、吞吐、备份/恢复校验、插件启动/崩溃和模式转换；提供诊断导出、敏感 URL/正文/密钥过滤及最小化开关，不把验收脚本 JSON 当作应用日志系统。已新增设备侧 `_local/diagnostics.json`（原子写、事件 300 条与指标 200 项上限）作为应用日志系统：`Storage.tx` 记录提交耗时与回滚，`run`/`dispatch` 记录操作延迟、队列等待与资源读写吞吐，`settle` 记录任务结果及 `verificationReport`/`restoreResult` 校验；导出为 `anynote.diagnostics` v1（平台信息、聚合指标与脱敏事件）。新增 `reportDiagnostic`/`getDiagnostics`/`getDiagnosticsSettings`/`setDiagnosticsSettings`/`clearDiagnostics`：默认最小化仅记录耗时、大小与错误码，`full` 才记录经脱敏的自由文本，`off` 完全关闭；脱敏强制剔除 URL 凭据/查询/片段、密钥与长随机串并替换家目录。扩展宿主在启动/就绪/崩溃/停止时经 `onEvent` 上报插件事件，编辑器模式切换在渲染进程测量耗时后上报；设置页提供级别切换、指标/事件查看与 JSON 导出。`tests/diagnostics.test.mjs` 覆盖指标聚合、最小化/完整/关闭、脱敏、重启持久化与备份校验事件。真实设备长时负载验收仍待人工完成。
 - [ ] **P1 — 签名与更新**：接入 Windows 代码签名、macOS 签名/公证、安装包和更新签名验证、升级失败回退及 schema 兼容检查；当前 GitHub Release/校验和流程不等于签名更新。
 - [ ] **P1 — 真实安装与 CI/CD 运行**：在 Linux/macOS/Windows 执行安装、首次启动、卸载保留数据、升级与回退；核对各平台架构、内嵌 Node/SQLite、PDF/白板静态资源与 Worker。现有三平台 workflow 是配置，本地静态检查不能代替 GitHub 实际运行和真机发行验收。
 - [ ] **P1 — 人工无障碍与平台 UI**：读屏器、真实 IME、原生对话框、200% 缩放、减少动态、键盘及窄窗口人工验收；核对 axe 的 incomplete 项和实际对比度，覆盖新增任务/维护/扩展页面。已有零自动违规不等于完整 WCAG 认证。
