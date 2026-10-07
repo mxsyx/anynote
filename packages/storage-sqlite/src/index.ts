@@ -242,6 +242,9 @@ export class Storage {
         // editing; confirming the preview still commits in order.
         "previewImport",
         "getImportPreview",
+        // Media retry also starts off the queue: its downloads are async and
+        // the resulting rewrite commits back through the queue.
+        "retryImportMedia",
       ].includes(op)
     )
       return advancedOperations(this, op, input).then((r) => r.result);

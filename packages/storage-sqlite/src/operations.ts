@@ -14,6 +14,11 @@ import { videoCard } from "@anynote/protocol/video.js";
 import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import { importLimits } from "@anynote/protocol/import-limits.js";
+import {
+  assertLocalizableImage,
+  loadMedia,
+  type MediaFile,
+} from "@anynote/importer/media.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 import { listTaskHistory } from "./task-history.js";
@@ -21,6 +26,17 @@ import { persistDirectories } from "./workspace.js";
 
 const uuid = z.string().uuid(),
   digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+/** Authorized adjacent resource files shared by import and media retry. */
+const importFiles = z
+  .array(
+    z.object({
+      name: z.string().max(1000),
+      mime: z.string().max(120),
+      data: z.string().max(28_000_000),
+    }),
+  )
+  .max(200);
 
 /** Input shared by the direct import and the pre-submit preview. */
 const importInput = z
@@ -31,16 +47,7 @@ const importInput = z
     html: z.string().max(10_000_000).optional(),
     title: z.string().max(240).optional(),
     mode: z.enum(["article", "page"]).optional(),
-    files: z
-      .array(
-        z.object({
-          name: z.string().max(1000),
-          mime: z.string().max(120),
-          data: z.string().max(28_000_000),
-        }),
-      )
-      .max(200)
-      .optional(),
+    files: importFiles.optional(),
     /** Keep the source HTML as a resource beside the converted note. */
     keepOriginal: z.boolean().optional(),
   })
@@ -188,6 +195,184 @@ function startImportTask(
   );
   job.worker = worker;
   return { job, worker };
+}
+
+/** One media item recorded in an import report. */
+interface ImportMediaItem {
+  source: string;
+  status: string;
+  resourceId?: string;
+  error?: string;
+  /** First failure reason, retained even after a successful retry. */
+  originalError?: string;
+  /** Stable placeholder marker the importer wrote for a failed item. */
+  marker?: string;
+  /** Original alt text, reused when the retried image is referenced. */
+  name?: string;
+  retriedAt?: number;
+  retryCount?: number;
+  lastRetryAt?: number;
+}
+
+/** Persisted import report (see `prepareImport`'s report shape). */
+interface ImportReport {
+  media: ImportMediaItem[];
+  localized: number;
+  failed: number;
+  source?: string | null;
+  finalUrl?: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Recompute the localized/failed counters from the media list.
+ *
+ * @param report Import report to update in place.
+ */
+function recalcImportMedia(report: ImportReport) {
+  report.localized = report.media.filter(
+    (m) => m.status === "localized",
+  ).length;
+  report.failed = report.media.filter((m) => m.status === "failed").length;
+}
+
+/**
+ * Replace the whole line holding a marker with new Markdown.
+ *
+ * The importer writes one placeholder paragraph per failed image, so replacing
+ * the marker's line removes the placeholder without disturbing edits the user
+ * made elsewhere in the body.
+ *
+ * @param body Current note body.
+ * @param marker Stable placeholder marker.
+ * @param replacement Replacement Markdown line.
+ * @returns The updated body, or null when the marker is no longer present.
+ */
+function replaceMediaMarker(body: string, marker: string, replacement: string) {
+  const at = body.indexOf(`(${marker})`);
+  if (at < 0) return null;
+  const start = body.lastIndexOf("\n", at) + 1,
+    nl = body.indexOf("\n", at),
+    end = nl < 0 ? body.length : nl;
+  return body.slice(0, start) + replacement + body.slice(end);
+}
+
+/**
+ * Record a failed retry attempt while preserving the first failure reason.
+ *
+ * @param item Media item to update.
+ * @param message New failure reason.
+ */
+function failImportMedia(item: ImportMediaItem, message: string) {
+  item.originalError = item.originalError || item.error;
+  item.error = message;
+  item.retryCount = (item.retryCount || 0) + 1;
+  item.lastRetryAt = Date.now();
+}
+
+/**
+ * Mark an item localized after a successful retry.
+ *
+ * @param item Media item to update.
+ * @param resource Bound resource for the downloaded image.
+ */
+function succeedImportMedia(item: ImportMediaItem, resource: SqlRow) {
+  item.originalError = item.originalError || item.error;
+  delete item.error;
+  delete item.marker;
+  item.status = "localized";
+  item.resourceId = resource.id;
+  item.retriedAt = Date.now();
+}
+
+/**
+ * Re-download selected failed import media and publish one new note revision.
+ *
+ * Downloads run outside the serial queue; the resulting resources and reference
+ * rewrites are then committed through `commitImportMediaRetry`, which re-reads
+ * the latest body so edits made during the retry are preserved. Cancelling still
+ * commits whatever finished, turning a cancelled run into partial success.
+ *
+ * @param s Storage service.
+ * @param job Tracked retry task.
+ * @param target Notebook, note, base URL and authorized adjacent files.
+ * @param report Import report read when the retry started.
+ * @param items Failed media items selected for retry.
+ */
+async function runImportMediaRetry(
+  s: Storage,
+  job: Task,
+  target: {
+    notebookId: string;
+    id: string;
+    base: string | null;
+    files: MediaFile[];
+  },
+  report: ImportReport,
+  items: ImportMediaItem[],
+) {
+  const db = s.open(target.notebookId),
+    controller = job.controller!,
+    outcomes: { item: ImportMediaItem; resource?: SqlRow; error?: string }[] =
+      [];
+  let bytes = 0;
+  for (let i = 0; i < items.length && !controller.signal.aborted; i++) {
+    const item = items[i];
+    job.progress = `正在重试失败媒体 ${i + 1}/${items.length}`;
+    try {
+      const media = await loadMedia(item.source, {
+        files: target.files,
+        base: target.base,
+        signal: controller.signal,
+      });
+      assertLocalizableImage(media);
+      if (
+        media.data.length > importLimits.mediaBytes ||
+        (bytes += media.data.length) > importLimits.totalBytes
+      )
+        throw Error("媒体大小超过预算");
+      outcomes.push({
+        item,
+        resource: writeResource(
+          s,
+          db,
+          target.notebookId,
+          { data: media.data, mime: media.mime, name: item.name || "网页图片" },
+          importLimits.mediaBytes,
+        ),
+      });
+    } catch (e: any) {
+      if (controller.signal.aborted) break;
+      outcomes.push({ item, error: e.message });
+    }
+  }
+
+  let summary: {
+    applied: number;
+    failed: number;
+    skipped: number;
+    note: SqlRow;
+  };
+  try {
+    summary = await s.run("commitImportMediaRetry", {
+      notebookId: target.notebookId,
+      id: target.id,
+      report,
+      outcomes,
+    });
+  } catch (e: any) {
+    s.settle(job, "failed", { error: e.message });
+    return;
+  }
+  job.note = summary.note;
+  const done = `重试完成：成功 ${summary.applied} 个，失败 ${summary.failed} 个${
+    summary.skipped ? `，跳过 ${summary.skipped} 个（引用已修改）` : ""
+  }`;
+  if (controller.signal.aborted)
+    s.settle(job, "cancelled", { progress: "已取消 · " + done, report });
+  else if (summary.applied)
+    s.settle(job, "completed", { progress: done, report });
+  else s.settle(job, "failed", { error: done, report });
 }
 
 /** Common input locating a node within a Notebook. */
@@ -482,6 +667,8 @@ export async function advancedOperations(
     "previewImport",
     "getImportPreview",
     "commitImportPreview",
+    "retryImportMedia",
+    "commitImportMediaRetry",
     "listTasks",
     "cancelTask",
     "retryTask",
@@ -725,6 +912,86 @@ export async function advancedOperations(
     return { handled: true, result: committed.result };
   }
 
+  if (op === "retryImportMedia") {
+    const p = ref
+      .extend({
+        /** Failed item sources to retry; omit to retry every failed item. */
+        sources: z
+          .array(z.string().max(4000))
+          .max(importLimits.mediaCount)
+          .optional(),
+        /** Authorized adjacent files for an HTML-file import whose images failed. */
+        files: importFiles.optional(),
+      })
+      .strict()
+      .parse(raw);
+    const db = s.open(p.notebookId),
+      note = s.get(db, p.id);
+    if (note.note_type !== "markdown")
+      throw Error("仅 Markdown 笔记可重试导入媒体");
+    const report = JSON.parse(
+      db
+        .prepare("SELECT report_json FROM import_reports WHERE note_id=?")
+        .get(p.id)?.report_json || "null",
+    ) as ImportReport | null;
+    if (!report || !Array.isArray(report.media))
+      throw Error("此笔记没有可重试的导入报告");
+    const failed = report.media.filter((m) => m.status === "failed");
+    if (!failed.length) throw Error("没有未下载的媒体需要重试");
+    const targets = p.sources?.length
+      ? failed.filter((m) => p.sources!.includes(m.source))
+      : failed;
+    if (!targets.length) throw Error("所选媒体不在未下载列表中");
+    // A report written before placeholder markers existed cannot be rewritten
+    // reliably; ask the user to import again instead of guessing the reference.
+    if (targets.some((m) => !m.marker))
+      throw Error("导入报告缺少引用标记，无法自动重写，请重新导入");
+    // Repeated retries for the same note reuse the running task instead of
+    // starting a second download of the same sources.
+    const running = [...s.jobs.values()].find(
+      (j) =>
+        j.type === "import-media-retry" &&
+        j.noteId === p.id &&
+        ["running", "committing"].includes(j.status),
+    );
+    if (running)
+      return {
+        handled: true,
+        result: { id: running.id, status: running.status, reused: true },
+      };
+    const job: Task = {
+      id: randomUUID(),
+      notebookId: p.notebookId,
+      noteId: p.id,
+      type: "import-media-retry",
+      status: "running",
+      progress: `准备重试 ${targets.length} 个未下载媒体`,
+      createdAt: Date.now(),
+      controller: new AbortController(),
+      retry: {
+        op: "retryImportMedia",
+        payload: { notebookId: p.notebookId, id: p.id },
+      },
+    };
+    s.track(job);
+    void runImportMediaRetry(
+      s,
+      job,
+      {
+        notebookId: p.notebookId,
+        id: p.id,
+        base: report.finalUrl || report.source || null,
+        files: p.files || [],
+      },
+      report,
+      targets,
+    ).catch((e) => {
+      if (job.status !== "cancelled")
+        s.settle(job, "failed", { error: e.message });
+    });
+    return { handled: true, result: { id: job.id, status: job.status } };
+  }
+
   if (op === "commitImport") {
     const p = raw as Awaited<
         ReturnType<typeof import("@anynote/importer/html.js").prepareImport>
@@ -774,6 +1041,77 @@ export async function advancedOperations(
       return s.get(db, id);
     });
     return { handled: true, result };
+  }
+
+  if (op === "commitImportMediaRetry") {
+    const p = raw as {
+      notebookId: string;
+      id: string;
+      report: ImportReport;
+      outcomes: { item: ImportMediaItem; resource?: SqlRow; error?: string }[];
+    };
+    const db = s.open(p.notebookId),
+      // Re-read the note so edits made while the downloads ran are preserved;
+      // only the recorded placeholder lines are rewritten.
+      note = s.get(db, p.id);
+    if (note.note_type !== "markdown")
+      throw Error("仅 Markdown 笔记可重写媒体引用");
+    let body = note.body || "";
+    const applied: { item: ImportMediaItem; resource: SqlRow }[] = [];
+    let failed = 0,
+      skipped = 0;
+    for (const outcome of p.outcomes) {
+      const { item, resource } = outcome;
+      if (!resource) {
+        failImportMedia(item, outcome.error || "重试失败");
+        failed++;
+        continue;
+      }
+      const name = item.name || "网页图片",
+        next = replaceMediaMarker(
+          body,
+          item.marker!,
+          `![${name.replace(/[[\]\\]/g, "")}](anynote-resource:${resource.id})`,
+        );
+      if (next === null) {
+        // The placeholder was edited or removed while the download ran.
+        failImportMedia(item, "引用已修改，未重写");
+        skipped++;
+        continue;
+      }
+      body = next;
+      succeedImportMedia(item, resource);
+      applied.push({ item, resource });
+    }
+    recalcImportMedia(p.report);
+    const persistReport = () =>
+      db
+        .prepare("UPDATE import_reports SET report_json=? WHERE note_id=?")
+        .run(JSON.stringify(p.report), p.id);
+    const saved = applied.length
+      ? save(
+          s,
+          db,
+          { id: p.id, expectedRevision: note.revision },
+          body,
+          applied.map((a) => a.resource),
+          "import-media-retry",
+          persistReport,
+        )
+      : s.tx(db, p.id, "import-media-retry", () => {
+          persistReport();
+          return note;
+        });
+    return {
+      handled: true,
+      result: {
+        applied: applied.length,
+        failed,
+        skipped,
+        note: saved,
+        report: p.report,
+      },
+    };
   }
 
   if (op === "getExtensionSettings" || op === "setExtensionSetting") {

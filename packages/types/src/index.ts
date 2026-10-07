@@ -161,6 +161,7 @@ export type Operation =
   | "previewImport"
   | "getImportPreview"
   | "commitImportPreview"
+  | "retryImportMedia"
   | "listTasks"
   | "cancelTask"
   | "retryTask"

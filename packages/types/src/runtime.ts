@@ -55,6 +55,8 @@ export interface Task {
   /** Operation and payload needed to re-dispatch this task after a restart. */
   retry?: { op: string; payload: Record<string, unknown> };
   targetId?: string;
+  /** Note the task operates on (e.g. failed-media retry). */
+  noteId?: string;
   notebookResults?: LocalBackupNotebookResult[];
   verificationReport?: LocalVerificationReport;
   restoreResult?: LocalRestoreResult;

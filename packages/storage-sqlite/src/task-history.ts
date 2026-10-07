@@ -38,6 +38,7 @@ export interface TaskRecord {
   createdAt: number;
   updatedAt: number;
   targetId?: string;
+  noteId?: string;
   phase?: string;
   error?: string;
   errorCode?: string;
@@ -88,6 +89,8 @@ const payloads = {
   startLocalBackupGroup: z
     .object({ diskId: uuid, mode: z.enum(["backup", "restore"]).optional() })
     .strict(),
+  // Reuses the current import report, so only the note is needed to retry.
+  retryImportMedia: z.object({ notebookId: uuid, id: uuid }).strict(),
 };
 
 /** Retry descriptor accepted for re-dispatch; payloads stay small and secret-free. */
@@ -183,6 +186,7 @@ function view(job: Task): TaskRecord {
     createdAt: job.createdAt,
     updatedAt: Date.now(),
     targetId: job.targetId,
+    noteId: job.noteId,
     phase: job.phase,
     error: job.error?.slice(0, 4000),
     errorCode: job.errorCode,
@@ -246,9 +250,15 @@ export async function retryTask(s: Storage, raw: unknown) {
   if (!record.retry) throw Error("此任务不支持重试，请重新发起");
   const retry = retrySchema.parse(record.retry),
     payload = payloads[retry.op as keyof typeof payloads].parse(retry.payload);
-  const { backupOperation } = await import("@anynote/backup/service.js");
   // Dispatched directly instead of through `s.run`: the retry itself may be
   // served from inside the serial queue, where enqueuing again would wait on it.
+  if (retry.op === "retryImportMedia") {
+    const { advancedOperations } = await import("./operations.js");
+    const handled = await advancedOperations(s, retry.op, payload);
+    if (!handled.handled) throw Error("此任务不支持重试，请重新发起");
+    return handled.result;
+  }
+  const { backupOperation } = await import("@anynote/backup/service.js");
   const handled = await backupOperation(s, retry.op, payload);
   if (!handled) throw Error("此任务不支持重试，请重新发起");
   return handled.result;

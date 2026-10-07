@@ -52,6 +52,19 @@ async function fixture(t) {
     call: (op, p = {}) => s.run(op, { notebookId: book.id, ...p }),
   };
 }
+/** Poll a background task until it reaches a terminal status. */
+async function waitTask(call, id) {
+  for (let i = 0; i < 300; i++) {
+    const task = (await call("listTasks")).find((j) => j.id === id);
+    if (
+      !task ||
+      ["completed", "failed", "cancelled", "interrupted"].includes(task.status)
+    )
+      return task;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw Error("任务未在预期时间内结束");
+}
 test("schema v1 migration preserves content and captures a consistent original snapshot", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "anynote-v1-")),
     id = randomUUID(),
@@ -358,6 +371,84 @@ test("import preview shows the converted result and commits exactly what was pre
     }),
     /预览已失效/,
   );
+});
+test("failed import media can be retried, rewriting references into a new revision", async (t) => {
+  const { call } = await fixture(t);
+  const html = `<title>重试</title><article><p>正文</p><img src="pic.png" alt="配图"><img src="missing.png" alt="缺图"></article>`;
+  const job = await call("startImport", {
+    html,
+    mode: "page",
+    files: [{ name: "pic.png", mime: "image/png", data: png }],
+  });
+  const task = await waitTask(call, job.id);
+  assert.equal(task.status, "completed", task.error);
+  const noteId = task.note.id;
+
+  let report = await call("getImportReport", { id: noteId });
+  assert.equal(report.localized, 1);
+  assert.equal(report.failed, 1);
+  const failed = report.media.find((m) => m.status === "failed");
+  assert.equal(failed.source, "missing.png");
+  assert.ok(failed.marker, "失败媒体记录了可重写的占位符标记");
+
+  let note = await call("getNote", { id: noteId }),
+    revision = note.revision;
+  assert.ok(note.body.includes(`(${failed.marker})`));
+
+  // Retrying re-authorizes the adjacent file that was missing during import.
+  const retry = await call("retryImportMedia", {
+    id: noteId,
+    files: [{ name: "missing.png", mime: "image/png", data: png }],
+  });
+  const retryTask = await waitTask(call, retry.id);
+  assert.equal(retryTask.status, "completed", retryTask.error);
+
+  note = await call("getNote", { id: noteId });
+  assert.ok(note.revision > revision, "重试成功后生成新笔记版本");
+  assert.ok(!note.body.includes(`(${failed.marker})`));
+  assert.equal(resourceIds(note.body).length, 2);
+  report = await call("getImportReport", { id: noteId });
+  assert.equal(report.localized, 2);
+  assert.equal(report.failed, 0);
+  const done = report.media.find((m) => m.source === "missing.png");
+  assert.equal(done.status, "localized");
+  assert.ok(done.originalError, "保留原始失败信息");
+  // The retried image is a real resource bound to the new revision.
+  const asset = await call("getAsset", { id: done.resourceId, noteId });
+  assert.equal(asset.data, png);
+  // Nothing is left to retry, so a repeated retry is a no-op rejection.
+  await assert.rejects(call("retryImportMedia", { id: noteId }), /没有未下载/);
+});
+test("a media retry preserves user edits and skips edited references", async (t) => {
+  const { call } = await fixture(t);
+  const job = await call("startImport", {
+    html: `<title>修改</title><article><p>正文</p><img src="missing.png" alt="图"></article>`,
+    mode: "page",
+  });
+  const task = await waitTask(call, job.id);
+  const noteId = task.note.id;
+  const before = await call("getNote", { id: noteId });
+  // The user edits the note and removes the failed placeholder before retrying.
+  await call("saveNote", {
+    id: noteId,
+    expectedRevision: before.revision,
+    body: "手动整理后的正文",
+  });
+
+  const retry = await call("retryImportMedia", {
+    id: noteId,
+    files: [{ name: "missing.png", mime: "image/png", data: png }],
+  });
+  const retryTask = await waitTask(call, retry.id);
+  assert.equal(retryTask.status, "failed");
+
+  const after = await call("getNote", { id: noteId });
+  assert.equal(after.body, "手动整理后的正文");
+  const report = await call("getImportReport", { id: noteId });
+  assert.equal(report.failed, 1);
+  const failed = report.media.find((m) => m.status === "failed");
+  assert.match(failed.error, /引用已修改/);
+  assert.ok(failed.originalError);
 });
 test("annotations are bound to asset hash, survive export and join text search", async (t) => {
   const { s, call } = await fixture(t),

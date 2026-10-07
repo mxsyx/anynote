@@ -2144,6 +2144,21 @@ p {
 .import-report p {
   margin: 8px 0;
 }
+.import-report-failures {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.import-report-failures .check-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.6;
+}
+.import-report-failures .check-label input {
+  margin-top: 3px;
+  flex: none;
+}
 .import-preview {
   display: grid;
   gap: 10px;

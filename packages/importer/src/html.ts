@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import TurndownService from "turndown";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { importLimits } from "@anynote/protocol/import-limits.js";
+import { assertLocalizableImage, loadMedia } from "./media.js";
 import { safeDownload } from "./network.js";
 
 /** Input parameters for web page/HTML import. */
@@ -117,6 +118,10 @@ export async function prepareImport(
           status: string;
           resourceId?: string;
           error?: string;
+          /** Stable marker embedded in the placeholder so a retry can rewrite it. */
+          marker?: string;
+          /** Original alt text, reused when the retried image is referenced. */
+          name?: string;
         }[],
         localized: 0,
         failed: 0,
@@ -149,32 +154,12 @@ export async function prepareImport(
       const img = images[i],
         src = img.getAttribute("src") || "";
       try {
-        let media;
-        if (src.startsWith("data:")) {
-          const match = src.match(
-            /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/,
-          );
-          if (!match) throw Error("不支持的内嵌图片");
-          media = { mime: match[1], data: Buffer.from(match[2], "base64") };
-        } else if (!input.url) {
-          const decoded = decodeURIComponent(src).replace(/^\.\//, "");
-          if (
-            decoded.startsWith("/") ||
-            decoded.split("/").includes("..") ||
-            decoded.includes("\\") ||
-            /^\w+:/.test(decoded)
-          )
-            throw Error("本地媒体路径未授权");
-          const file = files.find((f) => f.name === decoded);
-          if (!file) throw Error("未选择相邻资源文件");
-          media = { data: Buffer.from(file.data, "base64"), mime: file.mime };
-        } else
-          media = await safeDownload(new URL(src, source).href, {
-            signal,
-            maxBytes: importLimits.mediaBytes,
-          });
-        if (!["image/png", "image/jpeg", "image/webp"].includes(media.mime))
-          throw Error("暂不支持此图片类型");
+        const media = await loadMedia(src, {
+          files,
+          base: input.url ? source : null,
+          signal,
+        });
+        assertLocalizableImage(media);
         if (
           media.data.length > importLimits.mediaBytes ||
           (bytes += media.data.length) > importLimits.totalBytes
@@ -206,9 +191,18 @@ export async function prepareImport(
         report.bytes += media.data.length;
       } catch (e: any) {
         report.failed++;
-        report.media.push({ source: src, status: "failed", error: e.message });
+        // Embed a stable, Turndown-safe marker in the placeholder so a later
+        // retry can find and replace exactly this line even after escaping.
+        const marker = `anynote-media-failed-${report.media.length}`;
+        report.media.push({
+          source: src,
+          status: "failed",
+          error: e.message,
+          marker,
+          name: img.alt || "网页图片",
+        });
         const placeholder = original.createElement("p");
-        placeholder.textContent = `[图片未下载：${img.alt || src} — ${e.message}]`;
+        placeholder.textContent = `(${marker}) [图片未下载：${img.alt || src} — ${e.message}]`;
         img.replaceWith(placeholder);
       }
     }
