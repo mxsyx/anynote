@@ -5,7 +5,18 @@ import { randomUUID } from "node:crypto";
 import TurndownService from "turndown";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { importLimits } from "@anynote/protocol/import-limits.js";
-import { assertLocalizableImage, loadMedia } from "./media.js";
+import { extensionBlock } from "@anynote/protocol/markdown.js";
+import {
+  collapsePictures,
+  discoverAttachments,
+  discoverBlockMedia,
+  resolveLazyImages,
+} from "./discovery.js";
+import {
+  assertLocalizableImage,
+  assertLocalizableMedia,
+  loadMedia,
+} from "./media.js";
 import { safeDownload } from "./network.js";
 
 /** Input parameters for web page/HTML import. */
@@ -19,13 +30,41 @@ export interface ImportInput {
   keepOriginal?: boolean;
 }
 
+/** Escape a name for use inside Markdown link/image text. */
+function escapeMediaName(name: string) {
+  return (name || "媒体").replace(/[[\]\\]/g, "");
+}
+
+/**
+ * Replace the whole line holding `(marker)` with new Markdown.
+ *
+ * Block media is reduced to a marker placeholder before extraction, so this
+ * restores the final reference (or a `(marker) …` failure line a retry can find
+ * later) exactly where the media used to be.
+ *
+ * @param body Converted Markdown body.
+ * @param marker Marker embedded in the placeholder.
+ * @param replacement Replacement Markdown line.
+ * @returns The updated body, or `null` when the marker is no longer present.
+ */
+function replaceMarker(body: string, marker: string, replacement: string) {
+  const at = body.indexOf(`(${marker})`);
+  if (at < 0) return null;
+  const start = body.lastIndexOf("\n", at) + 1,
+    nl = body.indexOf("\n", at),
+    end = nl < 0 ? body.length : nl;
+  return body.slice(0, start) + replacement + body.slice(end);
+}
+
 /**
  * Convert a web link or HTML into storable Markdown.
  *
- * It fetches (or receives) the HTML, attempts Readability extraction, sanitizes
- * with DOMPurify, localizes images (download / adjacent file / inline data URL),
- * and converts with Turndown, while producing an import report. Any image
- * localization failure degrades to placeholder text and is reported.
+ * It fetches (or receives) the HTML, discovers media (lazy images and
+ * `srcset`, provider video blocks, direct audio/video, attachments), attempts
+ * Readability extraction, sanitizes with DOMPurify, localizes media (download /
+ * adjacent file / inline data URL), and converts with Turndown while producing
+ * an import report. Any media localization failure degrades to placeholder text
+ * and is reported, and non-localizable media is recorded instead of removed.
  *
  * @param input Import input with URL, HTML, mode, and adjacent resource files.
  * @param signal Abort signal.
@@ -64,16 +103,23 @@ export async function prepareImport(
       .trim()
       .slice(0, 240);
 
-    // Backfill common lazy-load attributes into src to simplify later localization.
-    const lazy = [...original.querySelectorAll("img")];
-    for (const img of lazy) {
-      const src =
-        img.getAttribute("data-src") ||
-        img.getAttribute("data-original") ||
-        img.getAttribute("src") ||
-        img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s/)[0];
-      if (src) img.setAttribute("src", src);
-    }
+    // Resolve images before extraction: known lazy-load attributes, `srcset`
+    // sizing, and `<picture>/<source>` collapse so later stages see plain src.
+    resolveLazyImages(original);
+    collapsePictures(original);
+
+    // Capture block media (provider videos, audio/video files, non-localizable
+    // embeds) before the sanitizer removes those tags, replacing each with a
+    // marker placeholder that is rendered or reported after conversion.
+    const blockMedia = discoverBlockMedia(original, source).map(
+      (media, index) => {
+        const marker = `anynote-media-block-${index}`;
+        const placeholder = original.createElement("p");
+        placeholder.textContent = `(${marker})`;
+        media.element.replaceWith(placeholder);
+        return { marker, media, markdown: "" };
+      },
+    );
 
     const article =
       input.mode === "page"
@@ -116,6 +162,8 @@ export async function prepareImport(
         media: [] as {
           source: string;
           status: string;
+          /** Media kind: image/embed/video/audio/attachment/unsupported. */
+          kind?: string;
           resourceId?: string;
           error?: string;
           /** Stable marker embedded in the placeholder so a retry can rewrite it. */
@@ -186,7 +234,12 @@ export async function prepareImport(
           data: media.data.toString("base64"),
         });
         img.setAttribute("src", "anynote-resource:" + id);
-        report.media.push({ source: src, status: "localized", resourceId: id });
+        report.media.push({
+          source: src,
+          status: "localized",
+          kind: "image",
+          resourceId: id,
+        });
         report.localized++;
         report.bytes += media.data.length;
       } catch (e: any) {
@@ -197,6 +250,7 @@ export async function prepareImport(
         report.media.push({
           source: src,
           status: "failed",
+          kind: "image",
           error: e.message,
           marker,
           name: img.alt || "网页图片",
@@ -205,6 +259,136 @@ export async function prepareImport(
         placeholder.textContent = `(${marker}) [图片未下载：${img.alt || src} — ${e.message}]`;
         img.replaceWith(placeholder);
       }
+    }
+
+    // Attachments default to a kept external link; a user-supplied adjacent
+    // file is localized into a resource and the link is rewritten. Every
+    // attachment is recorded so nothing is silently dropped.
+    for (const attachment of discoverAttachments(container, source)) {
+      signal?.throwIfAborted();
+      progress(`正在处理附件 ${attachment.name}`);
+      try {
+        const media = await loadMedia(attachment.href, {
+          files,
+          base: null,
+          signal,
+        });
+        assertLocalizableMedia(media, "attachment");
+        if (
+          media.data.length > importLimits.mediaBytes ||
+          (bytes += media.data.length) > importLimits.totalBytes
+        )
+          throw Error("媒体大小超过预算");
+        const id = randomUUID();
+        resources.push({
+          id,
+          name: attachment.name || "附件",
+          mime: media.mime,
+          data: media.data.toString("base64"),
+        });
+        // An icon-only link would otherwise convert to an empty label.
+        if (!attachment.element.textContent?.trim())
+          attachment.element.textContent = attachment.name;
+        attachment.element.setAttribute("href", "anynote-resource:" + id);
+        report.media.push({
+          source: attachment.source,
+          status: "localized",
+          kind: "attachment",
+          resourceId: id,
+          name: attachment.name,
+        });
+        report.localized++;
+        report.bytes += media.data.length;
+      } catch (e: any) {
+        report.media.push({
+          source: attachment.source,
+          status: "linked",
+          kind: "attachment",
+          name: attachment.name,
+          error: e.message,
+        });
+      }
+    }
+
+    // Render the block media captured before cleaning: provider videos become
+    // safe `core.video` blocks, direct audio/video is localized, and anything
+    // else is reported with a placeholder instead of vanishing.
+    for (const entry of blockMedia) {
+      signal?.throwIfAborted();
+      const { media, marker } = entry;
+      if (media.kind === "embed" && media.video) {
+        entry.markdown = extensionBlock(
+          "core.video",
+          randomUUID(),
+          media.video,
+        );
+        report.media.push({
+          source: media.source,
+          status: "embedded",
+          kind: "video",
+          name: media.name,
+        });
+        continue;
+      }
+      if (media.kind === "video" || media.kind === "audio") {
+        progress(`正在本地化媒体 ${media.name}`);
+        try {
+          const resolved = await loadMedia(
+            input.url ? media.source : media.raw,
+            {
+              files,
+              base: input.url ? source : null,
+              signal,
+            },
+          );
+          assertLocalizableMedia(resolved, media.kind);
+          if (
+            resolved.data.length > importLimits.mediaBytes ||
+            (bytes += resolved.data.length) > importLimits.totalBytes
+          )
+            throw Error("媒体大小超过预算");
+          const id = randomUUID();
+          resources.push({
+            id,
+            name: media.name || "媒体",
+            mime: resolved.mime,
+            data: resolved.data.toString("base64"),
+          });
+          entry.markdown = `[${escapeMediaName(media.name)}](anynote-resource:${id})`;
+          report.media.push({
+            source: media.source,
+            status: "localized",
+            kind: media.kind,
+            resourceId: id,
+            name: media.name,
+          });
+          report.localized++;
+          report.bytes += resolved.data.length;
+        } catch (e: any) {
+          report.failed++;
+          report.media.push({
+            source: media.source,
+            status: "failed",
+            kind: media.kind,
+            error: e.message,
+            marker,
+            name: media.name,
+          });
+          entry.markdown = `(${marker}) [媒体未下载：${media.name} — ${e.message}]`;
+        }
+        continue;
+      }
+      report.media.push({
+        source: media.source,
+        status: "unsupported",
+        kind: "unsupported",
+        name: media.name,
+        error: media.reason,
+      });
+      const reason = media.reason || "无法本地化";
+      entry.markdown = /^https?:/i.test(media.source)
+        ? `[未本地化媒体：${escapeMediaName(media.name)}](${media.source})（${reason}）`
+        : `（未本地化媒体：${escapeMediaName(media.name)} — ${reason}）`;
     }
 
     const td = new TurndownService({
@@ -244,11 +428,13 @@ export async function prepareImport(
       },
     });
 
-    // Keep only http/https/mailto links; degrade the rest to plain text.
+    // Keep http/https/mailto links and already-localized resources; degrade the
+    // rest to plain text.
     td.addRule("safe-links", {
       filter: "a",
       replacement: (text, node) => {
         const href = node.getAttribute("href") || "";
+        if (href.startsWith("anynote-resource:")) return `[${text}](${href})`;
         try {
           const url = new URL(href, source);
           if (!["http:", "https:", "mailto:"].includes(url.protocol))
@@ -260,7 +446,10 @@ export async function prepareImport(
       },
     });
 
-    const body = td.turndown(container.innerHTML);
+    let body = td.turndown(container.innerHTML);
+    // Restore the captured block media at their placeholder positions.
+    for (const { marker, markdown } of blockMedia)
+      if (markdown) body = replaceMarker(body, marker, markdown) ?? body;
     return {
       title: article?.title?.slice(0, 240) || title,
       body,

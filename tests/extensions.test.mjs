@@ -16,6 +16,7 @@ import {
   legacySchema,
 } from "../.build/packages/storage-sqlite/index.js";
 import { prepareImport } from "../.build/packages/importer/html.js";
+import { loadMedia } from "../.build/packages/importer/media.js";
 import {
   isPublicAddress,
   resolvePublic,
@@ -268,6 +269,69 @@ test("HTML import can keep the source HTML as a pinned resource", async () => {
   const saved = result.resources.find((r) => r.id === original.resourceId);
   assert.equal(saved.mime, "text/html");
   assert.equal(Buffer.from(saved.data, "base64").toString(), html);
+});
+test("HTML import discovers srcset/picture/lazy images, provider videos and direct media", async () => {
+  const html = `<title>媒体</title><article>
+    <picture><source srcset="small.png 1x, large.png 2x" type="image/png"><img src="small.png" alt="图"></picture>
+    <img data-src="lazy.png" alt="懒图">
+    <video src="clip.mp4" title="短片"></video>
+    <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>
+    <iframe src="blob:https://example.com/x"></iframe>
+  </article>`;
+  const result = await prepareImport(
+    {
+      html,
+      mode: "page",
+      files: [
+        { name: "large.png", mime: "image/png", data: png },
+        { name: "lazy.png", mime: "image/png", data: png },
+        { name: "clip.mp4", mime: "video/mp4", data: png },
+      ],
+    },
+    new AbortController().signal,
+  );
+  // Two images (srcset winner + lazy attribute) and one direct video file.
+  assert.equal(result.report.localized, 3);
+  assert.equal(resourceIds(result.body).length, 3);
+  const kinds = result.report.media.map((m) => `${m.kind}:${m.status}`);
+  assert.ok(kinds.includes("video:localized"), kinds.join(","));
+  assert.ok(kinds.includes("video:embedded"), kinds.join(","));
+  assert.ok(kinds.includes("unsupported:unsupported"), kinds.join(","));
+  // The provider iframe becomes a safe video block rather than an arbitrary iframe.
+  assert.ok(result.body.includes('type="core.video"'));
+  assert.ok(result.body.includes('"provider":"youtube"'));
+  // The blob: iframe is reported, not silently dropped, and no blob URL leaks.
+  assert.ok(!result.body.includes("blob:"));
+  assert.ok(result.body.includes("未本地化媒体"));
+});
+test("HTML import localizes user-selected attachments and reports kept links", async () => {
+  const html = `<title>附件</title><article><p>下载</p><a href="report.pdf">报告</a><a href="https://example.com/other.pdf">外链</a></article>`;
+  const result = await prepareImport(
+    {
+      html,
+      mode: "page",
+      files: [{ name: "report.pdf", mime: "application/pdf", data: png }],
+    },
+    new AbortController().signal,
+  );
+  assert.equal(result.report.localized, 1);
+  assert.equal(resourceIds(result.body).length, 1);
+  const localized = result.report.media.find(
+    (m) => m.kind === "attachment" && m.status === "localized",
+  );
+  assert.ok(localized, "授权的相邻附件被本地化");
+  const kept = result.report.media.find(
+    (m) => m.kind === "attachment" && m.status === "linked",
+  );
+  assert.ok(kept, "未授权附件保留为外部链接并记录");
+  assert.ok(result.body.includes("https://example.com/other.pdf"));
+});
+test("adjacent media lookup accepts a resolved absolute URL basename and rejects escapes", async () => {
+  const media = await loadMedia("https://anynote.invalid/report.pdf", {
+    files: [{ name: "report.pdf", mime: "application/pdf", data: png }],
+  });
+  assert.equal(media.mime, "application/pdf");
+  await assert.rejects(loadMedia("../secret.png", { files: [] }), /相邻资源/);
 });
 test("network checks reject loopback, metadata, private, mapped IPv6 and reserved addresses", async () => {
   for (const ip of [

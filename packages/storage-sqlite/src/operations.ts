@@ -15,9 +15,10 @@ import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import { importLimits } from "@anynote/protocol/import-limits.js";
 import {
-  assertLocalizableImage,
+  assertLocalizableMedia,
   loadMedia,
   type MediaFile,
+  type MediaKind,
 } from "@anynote/importer/media.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
@@ -201,6 +202,8 @@ function startImportTask(
 interface ImportMediaItem {
   source: string;
   status: string;
+  /** Media kind: image/embed/video/audio/attachment/unsupported. */
+  kind?: string;
   resourceId?: string;
   error?: string;
   /** First failure reason, retained even after a successful retry. */
@@ -212,6 +215,23 @@ interface ImportMediaItem {
   retriedAt?: number;
   retryCount?: number;
   lastRetryAt?: number;
+}
+
+/**
+ * Markdown reference for a localized media resource.
+ *
+ * Images embed inline; other media (audio/video/attachment) use a link so the
+ * resource stays reachable without pretending to be an image.
+ *
+ * @param item Media item being localized.
+ * @param resourceId Bound resource ID.
+ * @returns The Markdown reference.
+ */
+function mediaReference(item: ImportMediaItem, resourceId: string) {
+  const name = (item.name || "网页图片").replace(/[[\]\\]/g, "");
+  return item.kind && item.kind !== "image"
+    ? `[${name}](anynote-resource:${resourceId})`
+    : `![${name}](anynote-resource:${resourceId})`;
 }
 
 /** Persisted import report (see `prepareImport`'s report shape). */
@@ -325,7 +345,7 @@ async function runImportMediaRetry(
         base: target.base,
         signal: controller.signal,
       });
-      assertLocalizableImage(media);
+      assertLocalizableMedia(media, (item.kind as MediaKind) || "image");
       if (
         media.data.length > importLimits.mediaBytes ||
         (bytes += media.data.length) > importLimits.totalBytes
@@ -1067,12 +1087,11 @@ export async function advancedOperations(
         failed++;
         continue;
       }
-      const name = item.name || "网页图片",
-        next = replaceMediaMarker(
-          body,
-          item.marker!,
-          `![${name.replace(/[[\]\\]/g, "")}](anynote-resource:${resource.id})`,
-        );
+      const next = replaceMediaMarker(
+        body,
+        item.marker!,
+        mediaReference(item, resource.id),
+      );
       if (next === null) {
         // The placeholder was edited or removed while the download ran.
         failImportMedia(item, "引用已修改，未重写");

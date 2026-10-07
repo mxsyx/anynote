@@ -6,6 +6,9 @@ import { Download, LoaderCircle, RefreshCw } from "lucide-react";
 interface Media {
   source: string;
   status: string;
+  /** Media kind: image/embed/video/audio/attachment/unsupported. */
+  kind?: string;
+  name?: string;
   error?: string;
   originalError?: string;
   resourceId?: string;
@@ -90,6 +93,9 @@ export default function ImportReport({
   if (!report) return null;
 
   const failed = report.media.filter((m) => m.status === "failed"),
+    skipped = report.media.filter(
+      (m) => m.status === "unsupported" || m.status === "linked",
+    ),
     retried = report.media.filter(
       (m) => m.status !== "failed" && m.originalError,
     );
@@ -150,8 +156,8 @@ export default function ImportReport({
   return (
     <details className="import-report">
       <summary>
-        导入报告 · 已本地化 {report.localized} 张图片 · 未下载 {report.failed}{" "}
-        张
+        导入报告 · 已本地化 {report.localized} 项媒体 · 未下载 {report.failed}{" "}
+        项
       </summary>
       <p>
         {new Date(report.createdAt).toLocaleString("zh-CN")} ·{" "}
@@ -179,7 +185,7 @@ export default function ImportReport({
       )}
       {failed.length > 0 && (
         <div className="import-report-failures">
-          <p>勾选需要重新下载的图片，成功后会自动重写引用并生成新版本。</p>
+          <p>勾选需要重新下载的媒体，成功后会自动重写引用并生成新版本。</p>
           {failed.map((m) => (
             <label key={m.source} className="check-label">
               <input
@@ -220,6 +226,18 @@ export default function ImportReport({
             重试全部
           </button>
         </div>
+      )}
+      {skipped.length > 0 && (
+        <details className="import-report-skipped">
+          <summary>未本地化媒体 {skipped.length} 项</summary>
+          {skipped.map((m, i) => (
+            <p key={`${m.source}-${i}`}>
+              {m.name || m.source || "媒体"}：
+              {m.status === "linked" ? "保留外部链接" : "无法本地化"}
+              {m.error ? `（${m.error}）` : ""}
+            </p>
+          ))}
+        </details>
       )}
       {retried.length > 0 && (
         <details>

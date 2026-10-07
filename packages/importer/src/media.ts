@@ -14,12 +14,40 @@ export interface MediaBytes {
   mime: string;
 }
 
-/** Raster MIME types the importer localizes. */
+/** Raster MIME types the importer localizes as inline images. */
 export const localizedImageMimes = [
   "image/png",
   "image/jpeg",
   "image/webp",
 ] as const;
+
+/**
+ * Media kinds the importer records. `embed` and `unsupported` are report-only
+ * states for provider video blocks and media that cannot be localized.
+ */
+export type MediaKind =
+  | "image"
+  | "embed"
+  | "video"
+  | "audio"
+  | "attachment"
+  | "unsupported";
+
+/** MIME types accepted for each localizable media kind. */
+export const localizableMimes: Partial<Record<MediaKind, readonly string[]>> = {
+  image: localizedImageMimes,
+  video: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"],
+  audio: [
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "audio/aac",
+    "audio/flac",
+  ],
+  attachment: ["application/pdf"],
+};
 
 /**
  * Resolve one image reference to bytes under the importer's media rules.
@@ -50,14 +78,26 @@ export async function loadMedia(
   }
   if (!base) {
     const decoded = decodeURIComponent(source).replace(/^\.\//, "");
-    if (
-      decoded.startsWith("/") ||
-      decoded.split("/").includes("..") ||
-      decoded.includes("\\") ||
-      /^\w+:/.test(decoded)
-    )
-      throw Error("本地媒体路径未授权");
-    const file = files.find((f) => f.name === decoded);
+    // A relative name is matched directly. When a base-less import has already
+    // been rewritten to an absolute URL (Readability resolves relative refs
+    // against the document URL), the URL's path basename is used instead. Only
+    // user-authorized files are ever read, so neither form can escape the set.
+    const names = [decoded];
+    if (/^[a-z][\w+.-]*:/i.test(decoded)) {
+      try {
+        const basename = new URL(decoded).pathname.split("/").pop();
+        if (basename) names.push(decodeURIComponent(basename));
+      } catch {}
+    }
+    const file = names
+      .filter(
+        (name) =>
+          !name.startsWith("/") &&
+          !name.includes("\\") &&
+          !name.split("/").includes(".."),
+      )
+      .map((name) => files.find((f) => f.name === name))
+      .find((found) => found);
     if (!file) throw Error("未选择相邻资源文件");
     return { data: Buffer.from(file.data, "base64"), mime: file.mime };
   }
@@ -76,4 +116,19 @@ export async function loadMedia(
 export function assertLocalizableImage(media: MediaBytes) {
   if (!(localizedImageMimes as readonly string[]).includes(media.mime))
     throw Error("暂不支持此图片类型");
+}
+
+/**
+ * Reject a resolved media item whose MIME type does not match its kind.
+ *
+ * @param media Resolved bytes and MIME type.
+ * @param kind Media kind being localized (defaults to an inline image).
+ */
+export function assertLocalizableMedia(
+  media: MediaBytes,
+  kind: MediaKind = "image",
+) {
+  const allowed = localizableMimes[kind] || localizedImageMimes;
+  if (!(allowed as readonly string[]).includes(media.mime))
+    throw Error("暂不支持此媒体类型");
 }
