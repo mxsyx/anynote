@@ -131,35 +131,3 @@ export function resourceIds(body: string) {
 export function extensionBlock(type: string, id: string, data: unknown) {
   return `:::anynote{type="${type}" version="1" id="${id}"}\n${JSON.stringify(data)}\n:::\n`;
 }
-
-/**
- * Parse YouTube video info from a URL.
- *
- * Only accepts https youtube.com / youtu.be links with a valid 11-character
- * video ID; returns `null` when unrecognized.
- *
- * @param raw Raw URL.
- * @returns Parsed video info, or `null`.
- */
-export function youtube(raw: string) {
-  try {
-    const u = new URL(raw);
-    let id;
-    if (
-      ["youtube.com", "www.youtube.com", "m.youtube.com"].includes(u.hostname)
-    ) {
-      id = u.pathname.startsWith("/shorts/")
-        ? u.pathname.split("/")[2]
-        : u.searchParams.get("v");
-    } else if (u.hostname === "youtu.be") id = u.pathname.slice(1);
-    if (u.protocol !== "https:" || !id || !/^[-\w]{11}$/.test(id)) return null;
-    return {
-      provider: "youtube",
-      videoId: id,
-      url: `https://www.youtube.com/watch?v=${id}`,
-      startSeconds: 0,
-    };
-  } catch {
-    return null;
-  }
-}

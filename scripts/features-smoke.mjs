@@ -49,6 +49,26 @@ try {
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await page.locator(".video-block").waitFor();
   assert.equal(await page.locator("iframe").count(), 0);
+  // A generic video URL is allowed as a plain link card without an embed action.
+  await page.getByRole("button", { name: "插入视频", exact: true }).click();
+  await page
+    .getByPlaceholder("输入一个名称…")
+    .fill("https://example.com/talks/local-first");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await page.locator(".video-block").nth(1).waitFor();
+  assert.equal(
+    await page
+      .locator(".video-block")
+      .nth(1)
+      .getByRole("button", { name: "嵌入播放", exact: true })
+      .count(),
+    0,
+  );
+  // Click-to-play mounts the isolated iframe; closing removes it again.
+  await page.getByRole("button", { name: "嵌入播放", exact: true }).click();
+  await page.locator(".video-block iframe").waitFor();
+  await page.getByRole("button", { name: "关闭播放", exact: true }).click();
+  assert.equal(await page.locator(".video-block iframe").count(), 0);
   await page.getByRole("button", { name: "插入白板", exact: true }).click();
   await page.locator(".excalidraw canvas").first().waitFor({ timeout: 45000 });
   // Draw through the canvas, then verify the persisted scene survives reopening.
@@ -104,7 +124,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "Features smoke passed: inline local image, opaque block, click-to-play video, Excalidraw save/reopen, sanitized HTML task and localized image.",
+    "Features smoke passed: inline local image, opaque block, generic/click-to-play video cards, Excalidraw save/reopen, sanitized HTML task and localized image.",
   );
 } catch (e) {
   await page.screenshot({

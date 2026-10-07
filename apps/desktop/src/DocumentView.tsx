@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { parseBlocks, youtube } from "@anynote/protocol/markdown.js";
+import { parseBlocks } from "@anynote/protocol/markdown.js";
+import {
+  videoCard,
+  videoEmbed,
+  videoProviderNames,
+} from "@anynote/protocol/video.js";
 import { installedExtensions } from "./extension-state";
 import { PluginBlock } from "./PluginBlock";
 import type { InstalledExtension } from "@anynote/plugin-sdk/declarative";
@@ -30,11 +35,14 @@ export default function DocumentView({
   note,
   onLink,
   onBoard,
+  onFetchMeta,
 }: {
   notebookId: string;
   note: NoteNode;
   onLink: (href: string) => void;
   onBoard: (block: BoardBlock) => void;
+  /** Fetch and cache a video card's title/thumbnail; omitted in read-only hosts. */
+  onFetchMeta?: (blockId: string, url: string) => void;
 }) {
   const [extensions, setExtensions] = useState<InstalledExtension[]>([]);
   useEffect(() => {
@@ -50,6 +58,7 @@ export default function DocumentView({
   }, [notebookId]);
   const [boardEnabled, setBoardEnabled] = useState(true),
     [videoEnabled, setVideoEnabled] = useState(true),
+    [remoteEmbed, setRemoteEmbed] = useState(true),
     [playing, setPlaying] = useState<string | null>(null);
   useEffect(() => {
     setPlaying(null);
@@ -65,6 +74,13 @@ export default function DocumentView({
     })
       .then(setVideoEnabled)
       .catch(() => setVideoEnabled(false));
+    request<boolean>("getExtensionSettings", {
+      notebookId,
+      extensionId: "anynote.video",
+      key: "remoteEmbed",
+    })
+      .then(setRemoteEmbed)
+      .catch(() => setRemoteEmbed(false));
   }, [notebookId, note.id]);
   let heading = 0;
   return (
@@ -186,27 +202,56 @@ export default function DocumentView({
                 </div>
               </div>
             );
+          const video = b.data?.url ? videoCard(String(b.data.url)) : null;
           if (
             b.attrs.type === "core.video" &&
             b.attrs.version === "1" &&
-            youtube(b.data?.url)
+            video
           ) {
-            const video = youtube(b.data.url)!;
+            // Embed URL is recomputed from the whitelisted provider, never read
+            // from the stored block.
+            const embed = videoEmbed(video),
+              label = videoProviderNames[video.provider],
+              title = typeof b.data?.title === "string" ? b.data.title : "",
+              thumb =
+                typeof b.data?.thumbnailResourceId === "string"
+                  ? b.data.thumbnailResourceId
+                  : "",
+              // Remote iframes require both the extension and the Notebook's
+              // remote-embed switch.
+              canPlay = Boolean(embed) && videoEnabled && remoteEmbed,
+              hint = !videoEnabled
+                ? "扩展已停用 · 保留本地缓存。"
+                : !remoteEmbed
+                  ? "此 Notebook 已关闭远程嵌入，仅显示本地缓存。"
+                  : "点击播放后才联网，视频未下载至本地。";
             return (
               <div className="extension-block video-block" key={b.attrs.id}>
-                {playing === b.attrs.id ? (
+                {playing === b.attrs.id && embed && canPlay ? (
                   <iframe
-                    title="YouTube 视频"
-                    src={`https://www.youtube-nocookie.com/embed/${video.videoId}`}
+                    title={label + " 视频"}
+                    src={embed}
                     sandbox="allow-scripts allow-same-origin allow-presentation"
                     allow="fullscreen"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="video-placeholder">
-                    <Play size={30} />
-                    <strong>YouTube 视频</strong>
-                    <small>点击播放后才联网，视频未下载至本地。</small>
+                    {thumb ? (
+                      <div className="video-thumb">
+                        <ResourceImage
+                          notebookId={notebookId}
+                          noteId={note.id}
+                          revisionId={note.head_revision_id}
+                          resourceId={thumb}
+                          alt={title || label}
+                        />
+                      </div>
+                    ) : (
+                      <Play size={30} />
+                    )}
+                    <strong>{title || label}</strong>
+                    <small>{hint}</small>
                   </div>
                 )}
                 <div className="extension-caption">
@@ -220,16 +265,30 @@ export default function DocumentView({
                     <ExternalLink size={13} />
                     打开原链接
                   </a>
-                  <button
-                    disabled={!videoEnabled}
-                    onClick={() => setPlaying(playing ? null : b.attrs.id)}
-                  >
-                    {playing
-                      ? "关闭播放"
-                      : videoEnabled
-                        ? "嵌入播放"
-                        : "扩展已停用"}
-                  </button>
+                  <span className="video-caption-actions">
+                    {onFetchMeta && (
+                      <button
+                        disabled={!videoEnabled || !remoteEmbed}
+                        onClick={() => onFetchMeta(b.attrs.id, video.url)}
+                      >
+                        {thumb ? "刷新标题与缩略图" : "获取标题与缩略图"}
+                      </button>
+                    )}
+                    {embed && (
+                      <button
+                        disabled={!canPlay}
+                        onClick={() => setPlaying(playing ? null : b.attrs.id)}
+                      >
+                        {playing
+                          ? "关闭播放"
+                          : !videoEnabled
+                            ? "扩展已停用"
+                            : !remoteEmbed
+                              ? "远程嵌入已关闭"
+                              : "嵌入播放"}
+                      </button>
+                    )}
+                  </span>
                 </div>
               </div>
             );

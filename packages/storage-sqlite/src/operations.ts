@@ -9,11 +9,8 @@ import {
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
-import {
-  extensionBlock,
-  parseBlocks,
-  youtube,
-} from "@anynote/protocol/markdown.js";
+import { extensionBlock, parseBlocks } from "@anynote/protocol/markdown.js";
+import { videoCard } from "@anynote/protocol/video.js";
 import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
@@ -63,6 +60,29 @@ export function matchesImageSignature(bytes: Buffer, mime: string) {
  */
 export function isImageMime(mime: string): mime is (typeof imageMimes)[number] {
   return (imageMimes as readonly string[]).includes(mime);
+}
+
+/**
+ * Read a boolean Notebook-level extension flag.
+ *
+ * First-party toggles live in `extension_data`; a missing row means enabled so
+ * existing Notebooks keep the default behavior.
+ *
+ * @param db Open database handle.
+ * @param extensionId Extension namespace.
+ * @param key Flag key (defaults to the on/off `enabled`).
+ * @returns The stored boolean, or `true` when unset.
+ */
+function extensionFlag(db: SqlDatabase, extensionId: string, key = "enabled") {
+  return (
+    JSON.parse(
+      db
+        .prepare(
+          "SELECT value_json FROM extension_data WHERE extension_id=? AND key=?",
+        )
+        .get(extensionId, key)?.value_json || "true",
+    ) === true
+  );
 }
 
 /**
@@ -293,6 +313,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
     "saveWhiteboard",
     "getWhiteboard",
     "insertVideo",
+    "fetchVideoMeta",
     "getExtensionSettings",
     "setExtensionSetting",
     "renameNotebook",
@@ -434,15 +455,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       .parse(raw);
     if (!p.url && !p.html) throw Error("请输入网页地址或 HTML");
     const importDb = s.open(p.notebookId);
-    if (
-      JSON.parse(
-        importDb
-          .prepare(
-            "SELECT value_json FROM extension_data WHERE extension_id='anynote.html-import' AND key='enabled'",
-          )
-          .get()?.value_json || "true",
-      ) === false
-    )
+    if (!extensionFlag(importDb, "anynote.html-import"))
       throw Error("网页导入扩展已停用");
     s.parent(importDb, p.parentId);
     const id = randomUUID(),
@@ -540,26 +553,23 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
             "anynote.video",
             "anynote.html-import",
           ]),
+          // `enabled` toggles the extension; `remoteEmbed` gates remote
+          // iframes/metadata for the video cards.
+          key: z.enum(["enabled", "remoteEmbed"]).optional(),
           enabled: z.boolean().optional(),
         })
         .strict()
         .parse(raw),
-      db = s.open(p.notebookId);
+      db = s.open(p.notebookId),
+      key = p.key || "enabled";
     if (op === "setExtensionSetting")
-      result = s.tx(db, p.extensionId, "extension", () => {
+      result = s.tx(db, p.extensionId + ":" + key, "extension", () => {
         db.prepare(
-          "INSERT INTO extension_data(extension_id,key,value_json) VALUES(?,'enabled',?) ON CONFLICT(extension_id,key) DO UPDATE SET value_json=excluded.value_json,revision=revision+1",
-        ).run(p.extensionId, JSON.stringify(p.enabled));
+          "INSERT INTO extension_data(extension_id,key,value_json) VALUES(?,?,?) ON CONFLICT(extension_id,key) DO UPDATE SET value_json=excluded.value_json,revision=revision+1",
+        ).run(p.extensionId, key, JSON.stringify(p.enabled));
         return p.enabled;
       });
-    else
-      result = JSON.parse(
-        db
-          .prepare(
-            "SELECT value_json FROM extension_data WHERE extension_id=? AND key='enabled'",
-          )
-          .get(p.extensionId)?.value_json || "true",
-      );
+    else result = extensionFlag(db, p.extensionId, key);
     return { handled: true, result };
   }
 
@@ -1038,16 +1048,7 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
       if (p[field] && (!oldBlock || oldData?.[field] !== p[field]))
         throw Error("白板资源不属于此块");
     }
-    if (
-      JSON.parse(
-        db
-          .prepare(
-            "SELECT value_json FROM extension_data WHERE extension_id='anynote.whiteboard' AND key='enabled'",
-          )
-          .get()?.value_json || "true",
-      ) === false
-    )
-      throw Error("白板扩展已停用");
+    if (!extensionFlag(db, "anynote.whiteboard")) throw Error("白板扩展已停用");
     for (const [id, f] of Object.entries(p.scene.files)) {
       const match = f.dataURL.match(
         /^data:(image\/(?:png|jpeg|webp));base64,([\s\S]+)$/,
@@ -1111,18 +1112,11 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         .strict()
         .parse(raw),
       db = s.open(p.notebookId),
-      video = youtube(p.url);
-    if (!video) throw Error("请输入有效的 HTTPS YouTube 链接");
-    if (
-      JSON.parse(
-        db
-          .prepare(
-            "SELECT value_json FROM extension_data WHERE extension_id='anynote.video' AND key='enabled'",
-          )
-          .get()?.value_json || "true",
-      ) === false
-    )
-      throw Error("视频扩展已停用");
+      // Normalize to a whitelisted provider or a generic link card; the raw URL
+      // is never stored as an arbitrary iframe.
+      video = videoCard(p.url);
+    if (!video) throw Error("请输入有效的 HTTPS 视频链接");
+    if (!extensionFlag(db, "anynote.video")) throw Error("视频扩展已停用");
     result = save(
       s,
       db,
@@ -1131,6 +1125,62 @@ export async function advancedOperations(s: Storage, op: string, raw: unknown) {
         "\n\n" +
         extensionBlock("core.video", randomUUID(), video),
     );
+  }
+
+  if (op === "fetchVideoMeta") {
+    const p = ref
+        .extend({
+          expectedRevision: z.number().int().positive(),
+          blockId: uuid,
+          url: z.string().max(4000),
+        })
+        .strict()
+        .parse(raw),
+      db = s.open(p.notebookId),
+      card = videoCard(p.url);
+    if (!card) throw Error("请输入有效的 HTTPS 视频链接");
+    if (!extensionFlag(db, "anynote.video")) throw Error("视频扩展已停用");
+    // Notebook-level remote embed switch: when off, nothing is fetched.
+    if (!extensionFlag(db, "anynote.video", "remoteEmbed"))
+      throw Error("此 Notebook 已关闭远程嵌入");
+    const n = s.get(db, p.id),
+      block = parseBlocks(n.body || "").find(
+        (
+          b,
+        ): b is Extract<
+          ReturnType<typeof parseBlocks>[number],
+          { kind: "extension" }
+        > => b.kind === "extension" && b.attrs.id === p.blockId,
+      );
+    if (
+      !block ||
+      block.attrs.type !== "core.video" ||
+      block.attrs.version !== "1"
+    )
+      throw Error("视频块不存在");
+    const stored = videoCard(String((block.data as SqlRow)?.url || ""));
+    if (!stored || stored.url !== card.url) throw Error("视频块地址不匹配");
+    const { fetchVideoMetadata } = await import("./video-meta.js"),
+      meta = await fetchVideoMetadata(card),
+      resources: SqlRow[] = [],
+      data: SqlRow = { ...(block.data as SqlRow) };
+    if (meta.title) data.title = meta.title;
+    if (meta.thumbnail) {
+      const r = writeResource(s, db, p.notebookId, {
+        data: meta.thumbnail.data,
+        mime: meta.thumbnail.mime,
+        name: "视频缩略图",
+      });
+      resources.push(r);
+      data.thumbnailResourceId = r.id;
+    }
+    data.fetchedAt = Date.now();
+    const source =
+        block.source.slice(0, block.source.indexOf("\n") + 1) +
+        JSON.stringify(data) +
+        "\n:::\n",
+      body = n.body.slice(0, block.start) + source + n.body.slice(block.end);
+    result = save(s, db, p, body, resources);
   }
 
   if (op === "exportMarkdown") {

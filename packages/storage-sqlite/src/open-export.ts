@@ -194,9 +194,13 @@ export function exportMarkdown(s: Storage, id: string) {
         if (
           b.attrs.type === "core.video" &&
           b.attrs.version === "1" &&
-          data?.url
+          typeof data?.url === "string"
         )
-          replacement = `[视频链接](${data!.url})\n`;
+          replacement = `[${
+            typeof data.title === "string" && data.title
+              ? data.title.replace(/[[\]\\]/g, "")
+              : "视频链接"
+          }](${data.url})\n`;
         if (b.attrs.type === "core.whiteboard" && b.attrs.version === "1")
           replacement =
             [

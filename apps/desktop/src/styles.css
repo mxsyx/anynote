@@ -996,6 +996,11 @@ p {
 .feature-card > div:nth-child(2) {
   flex: 1;
 }
+.feature-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .feature-card h3,
 .setting-row h3 {
   font-size: 13px;
@@ -1706,7 +1711,7 @@ p {
   gap: 6px;
 }
 .video-placeholder {
-  height: 190px;
+  min-height: 190px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1717,6 +1722,24 @@ p {
 .video-placeholder small {
   color: var(--secondary);
   font-size: 10px;
+}
+.video-thumb {
+  width: 100%;
+  height: 190px;
+  overflow: hidden;
+}
+.video-thumb .inline-resource {
+  width: 100%;
+  height: 190px;
+  max-height: none;
+  object-fit: cover;
+  margin: 0;
+  border-radius: 0;
+  display: block;
+}
+.video-caption-actions {
+  display: flex;
+  gap: 8px;
 }
 .video-block iframe {
   width: 100%;

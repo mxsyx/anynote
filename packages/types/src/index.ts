@@ -164,6 +164,7 @@ export type Operation =
   | "saveWhiteboard"
   | "getWhiteboard"
   | "insertVideo"
+  | "fetchVideoMeta"
   | "getExtensionSettings"
   | "setExtensionSetting"
   | "renameNotebook"

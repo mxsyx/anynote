@@ -25,8 +25,8 @@ const extensions = [
   },
   {
     id: "anynote.video",
-    name: "YouTube 视频",
-    description: "安全链接卡片，点击播放后才联网",
+    name: "视频链接卡片",
+    description: "通用视频 URL 卡片、标题/缩略图本地缓存，点击播放后才联网",
     icon: <Play />,
   },
   {
@@ -186,6 +186,7 @@ export default function ExtensionPage({
       }),
     );
   const [enabled, setEnabled] = useState<Record<string, boolean>>({}),
+    [remoteEmbeds, setRemoteEmbeds] = useState<Record<string, boolean>>({}),
     [error, setError] = useState("");
   useEffect(() => {
     Promise.all(
@@ -199,6 +200,15 @@ export default function ExtensionPage({
     )
       .then((rows) => setEnabled(Object.fromEntries(rows)))
       .catch((e) => setError(e.message));
+  }, [notebookId]);
+  useEffect(() => {
+    request<boolean>("getExtensionSettings", {
+      notebookId,
+      extensionId: "anynote.video",
+      key: "remoteEmbed",
+    })
+      .then((value) => setRemoteEmbeds({ "anynote.video": value }))
+      .catch(() => setRemoteEmbeds({}));
   }, [notebookId]);
   return (
     <div className="page">
@@ -217,29 +227,57 @@ export default function ExtensionPage({
             <small>
               权限：当前 Notebook 的笔记与资源读写
               {e.id === "anynote.html-import" ? "、受控网页下载" : ""}
+              {e.id === "anynote.video" ? "、受控视频元信息与缩略图下载" : ""}
             </small>
           </div>
-          <button
-            aria-label={e.name + "启用"}
-            role="switch"
-            aria-checked={enabled[e.id] !== false}
-            className="secondary"
-            onClick={async () => {
-              try {
-                const value = enabled[e.id] === false;
-                await request("setExtensionSetting", {
-                  notebookId,
-                  extensionId: e.id,
-                  enabled: value,
-                });
-                setEnabled((p) => ({ ...p, [e.id]: value }));
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            {enabled[e.id] === false ? "已停用" : "已启用"}
-          </button>
+          <div className="feature-actions">
+            <button
+              aria-label={e.name + "启用"}
+              role="switch"
+              aria-checked={enabled[e.id] !== false}
+              className="secondary"
+              onClick={async () => {
+                try {
+                  const value = enabled[e.id] === false;
+                  await request("setExtensionSetting", {
+                    notebookId,
+                    extensionId: e.id,
+                    enabled: value,
+                  });
+                  setEnabled((p) => ({ ...p, [e.id]: value }));
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              {enabled[e.id] === false ? "已停用" : "已启用"}
+            </button>
+            {e.id === "anynote.video" && (
+              <button
+                aria-label="远程嵌入"
+                role="switch"
+                aria-checked={remoteEmbeds[e.id] !== false}
+                className="secondary"
+                title="关闭后不再加载远程视频 iframe，也不获取标题或缩略图"
+                onClick={async () => {
+                  try {
+                    const value = remoteEmbeds[e.id] === false;
+                    await request("setExtensionSetting", {
+                      notebookId,
+                      extensionId: e.id,
+                      key: "remoteEmbed",
+                      enabled: value,
+                    });
+                    setRemoteEmbeds((p) => ({ ...p, [e.id]: value }));
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              >
+                {remoteEmbeds[e.id] === false ? "禁止远程嵌入" : "允许远程嵌入"}
+              </button>
+            )}
+          </div>
         </div>
       ))}
       <ExtensionUpdateSettings

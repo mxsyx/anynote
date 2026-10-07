@@ -2433,6 +2433,20 @@ function App() {
                         note={active}
                         onBoard={(b) => void task(async () => setBoard(b))}
                         onLink={followLink}
+                        onFetchMeta={(blockId, url) =>
+                          void task(async () => {
+                            acceptSaved(
+                              await request<NoteNode>("fetchVideoMeta", {
+                                notebookId: book!.id,
+                                id: current.current!.id,
+                                expectedRevision: current.current!.revision,
+                                blockId,
+                                url,
+                              }),
+                            );
+                            setToast("已获取标题与缩略图并保存至本地");
+                          })
+                        }
                       />
                     )
                   ) : asset ? (
@@ -2963,7 +2977,7 @@ function App() {
                   rename: "给它一个新的名字",
                   move: "把想法放在合适的位置",
                   tags: "让知识彼此连接",
-                  video: "插入 YouTube 视频",
+                  video: "插入视频链接",
                   renameNotebook: "重命名 Notebook",
                 }[modal.type]
               }
