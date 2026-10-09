@@ -213,6 +213,13 @@ export interface OAuthProviderDescriptor {
   redirect: "loopback";
   /** 回调路径（仅回环）；`/` 允许厂商注册的任意端口。 */
   redirectPath?: string;
+  /**
+   * 优先使用的回环回调端口；为空时使用随机端口。
+   *
+   * 仅在厂商要求预注册固定回调端口时使用；端口被占用会回落，全部占用时报
+   * 明确状态（设计 §6.1）。
+   */
+  redirectPorts?: readonly number[];
   /** 刷新 token 轮换时是否可能返回新的 refresh token。 */
   refreshTokenRotation: boolean;
   /** 账号标识取法提示，供核心在交换后读取。 */

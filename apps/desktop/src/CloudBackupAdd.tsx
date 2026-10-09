@@ -9,6 +9,8 @@ interface ProviderView {
   installed: boolean;
   scopes: readonly string[];
   capabilities: { appScopedStorage: boolean; conditionalHead: boolean };
+  /** 是否已解析到 OAuth 应用身份；false 时需自编译/环境变量提供 Client ID。 */
+  oauthConfigured?: boolean;
 }
 
 interface AccountView {
@@ -123,34 +125,47 @@ export default function CloudBackupAdd({
 
         {step === "provider" && (
           <>
-            {providers.map((provider) => (
-              <div className="snapshot-row" key={provider.id}>
-                <Cloud size={16} />
-                <span>
-                  {provider.title}
-                  {provider.beta ? " · Beta" : ""}
-                  <small>
-                    {provider.installed
-                      ? "官方扩展已随应用安装"
-                      : "官方扩展尚未安装"}
-                  </small>
-                </span>
-                <button
-                  className="secondary"
-                  disabled={busy || !provider.installed || provider.beta}
-                  onClick={() => {
-                    setSelected(provider);
-                    setStep("permissions");
-                  }}
-                >
-                  {provider.installed
-                    ? provider.beta
-                      ? "即将支持"
-                      : "连接"
-                    : "不可用"}
-                </button>
-              </div>
-            ))}
+            {providers.map((provider) => {
+              // 未显式报告配置状态的旧后端按已配置处理，避免误禁用连接。
+              const oauthReady = provider.oauthConfigured !== false;
+              return (
+                <div className="snapshot-row" key={provider.id}>
+                  <Cloud size={16} />
+                  <span>
+                    {provider.title}
+                    {provider.beta ? " · Beta" : ""}
+                    <small>
+                      {!provider.installed
+                        ? "官方扩展尚未安装"
+                        : oauthReady
+                          ? "官方扩展已随应用安装"
+                          : "未配置 OAuth 应用身份，请在自编译或环境变量中提供 Client ID"}
+                    </small>
+                  </span>
+                  <button
+                    className="secondary"
+                    disabled={
+                      busy ||
+                      !provider.installed ||
+                      provider.beta ||
+                      !oauthReady
+                    }
+                    onClick={() => {
+                      setSelected(provider);
+                      setStep("permissions");
+                    }}
+                  >
+                    {!provider.installed
+                      ? "不可用"
+                      : provider.beta
+                        ? "即将支持"
+                        : oauthReady
+                          ? "连接"
+                          : "未配置"}
+                  </button>
+                </div>
+              );
+            })}
             <p className="small-note">
               备份直接由桌面客户端调用厂商
               API，不需要部署服务器；官方版本已预置应用身份，普通用户登录即可。

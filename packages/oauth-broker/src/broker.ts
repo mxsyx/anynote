@@ -8,7 +8,13 @@ import type {
 } from "@anynote/types/cloud-backup.js";
 import { createPkce, randomState } from "./pkce.js";
 import { startLoopbackListener, type CallbackListener } from "./loopback.js";
-import { oauthDescriptors, resolveClientId } from "./providers.js";
+import {
+  type OAuthAppStage,
+  type OAuthClientSource,
+  resolveOAuthClient,
+} from "./apps.js";
+import { OAuthLaunchError } from "./errors.js";
+import { oauthDescriptors } from "./providers.js";
 import {
   CloudAuthError,
   TokenBroker,
@@ -22,6 +28,10 @@ export interface AuthorizationSession {
   sessionId: string;
   providerId: CloudProviderId;
   oauthClientId: string;
+  /** 应用身份来源，便于诊断自编译/环境变量注入是否生效。 */
+  clientIdSource: OAuthClientSource;
+  /** 当前应用阶段（开发/生产）。 */
+  stage: OAuthAppStage;
   redirectUri: string;
   createdAt: number;
 }
@@ -92,16 +102,16 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
 
   /** 解析厂商 Client ID，缺失时给出明确错误而不是占位值。 */
   const clientIdFor = (providerId: CloudProviderId, explicit?: string) => {
-    const clientId = resolveClientId(
+    const { clientId, source, stage } = resolveOAuthClient(
       providerId,
       explicit ?? options.clientIds?.[providerId],
       options.env,
     );
     if (!clientId)
       throw new Error(
-        `未配置 ${providerId} 的 OAuth 应用身份；官方版本会预置，自编译版本可在高级设置或环境变量中提供。`,
+        `未配置 ${providerId} 的 OAuth 应用身份（阶段：${stage}）；官方版本会预置，自编译版本可在高级设置或环境变量中提供。`,
       );
-    return clientId;
+    return { clientId, source, stage };
   };
 
   /** 关闭一个会话并释放回环端口。 */
@@ -134,16 +144,18 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     }> {
       const descriptor = oauthDescriptors[input.providerId];
       if (!descriptor) throw new Error(`未知的云盘厂商：${input.providerId}`);
-      const clientId = clientIdFor(input.providerId, input.oauthClientId),
+      const client = clientIdFor(input.providerId, input.oauthClientId),
         state = randomState(),
         pkce = createPkce(),
         listener = await startLoopbackListener({
           expectedState: state,
+          path: descriptor.redirectPath,
+          ports: descriptor.redirectPorts,
           timeoutMs: options.timeoutMs,
         }),
         sessionId = randomUUID(),
         url = new URL(descriptor.authorizationEndpoint);
-      url.searchParams.set("client_id", clientId);
+      url.searchParams.set("client_id", client.clientId);
       url.searchParams.set("redirect_uri", listener.redirectUri);
       url.searchParams.set("response_type", "code");
       url.searchParams.set("scope", descriptor.scopes.join(" "));
@@ -158,7 +170,9 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
         session: {
           sessionId,
           providerId: input.providerId,
-          oauthClientId: clientId,
+          oauthClientId: client.clientId,
+          clientIdSource: client.source,
+          stage: client.stage,
           redirectUri: listener.redirectUri,
           createdAt: now(),
         },
@@ -169,8 +183,12 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       try {
         await options.openExternal?.(url.toString());
       } catch (error) {
+        // 浏览器唤起失败属于明确状态：清理会话并给出可操作提示，不把原始系统错误抛给用户。
         discard(sessionId);
-        throw error;
+        throw new OAuthLaunchError(
+          "无法打开系统浏览器完成授权，请检查默认浏览器设置后重试。",
+          { cause: error },
+        );
       }
       return {
         sessionId,

@@ -11,8 +11,8 @@ export interface OfficialProvider {
 /** 首期官方 Provider 清单（设计 §1.1）。 */
 export const officialProviders: readonly OfficialProvider[] = Object.freeze([
   { id: "google-drive", title: "Google Drive", beta: false },
-  { id: "dropbox", title: "Dropbox", beta: true },
-  { id: "onedrive", title: "OneDrive", beta: true },
+  { id: "dropbox", title: "Dropbox", beta: false },
+  { id: "onedrive", title: "OneDrive", beta: false },
 ]);
 
 /**

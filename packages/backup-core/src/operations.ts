@@ -12,7 +12,7 @@ import type {
   CloudProviderId,
   TargetCapabilities,
 } from "@anynote/types/cloud-backup.js";
-import { oauthDescriptors } from "@anynote/oauth-broker";
+import { describeOAuthApps, oauthDescriptors } from "@anynote/oauth-broker";
 import { cloudBroker } from "./broker.js";
 import { canAutoRun } from "./failure.js";
 import { createBackupHostContext, createTempDir } from "./host.js";
@@ -185,6 +185,10 @@ export async function cloudBackupOperation(
     z.object({})
       .strict()
       .parse(raw ?? {});
+    // 应用身份只反映是否已解析到 Client ID，不回传其内容（设计 §6.3）。
+    const apps = new Map(
+      describeOAuthApps().map((app) => [app.providerId, app]),
+    );
     return {
       handled: true,
       result: listProviderViews().map((view) => {
@@ -196,6 +200,8 @@ export async function cloudBackupOperation(
           capabilities:
             registered?.provider.capabilities ?? unavailableCapabilities,
           scopes: registered?.provider.accountDescriptor.scopes ?? [],
+          // 未配置时向导提前提示需自编译/环境变量提供 Client ID，而非授权时才报错。
+          oauthConfigured: apps.get(view.id)?.configured ?? false,
         };
       }),
     };

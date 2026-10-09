@@ -1,5 +1,11 @@
-import { createServer } from "node:http";
+import { createServer, type RequestListener, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import {
+  OAuthError,
+  OAuthPortError,
+  OAuthStateError,
+  OAuthTimeoutError,
+} from "./errors.js";
 import { safeEqual } from "./pkce.js";
 
 /** 回调参数；成功时为 `code`+`state`，失败时为 `error` 等厂商字段。 */
@@ -25,6 +31,13 @@ export interface LoopbackOptions {
   expectedState: string;
   /** 回调路径；默认 `/` 以兼容厂商注册的任意端口回环 URI。 */
   path?: string;
+  /**
+   * 优先尝试的回环端口；为空时使用系统分配的随机端口。
+   *
+   * Google 桌面客户端可使用任意端口，Dropbox 等要求预注册回调 URI 的厂商可能
+   * 需要固定端口；任一端口被占用时按顺序回落，全部占用才报告端口状态。
+   */
+  ports?: readonly number[];
   /** 会话最长存活时间（毫秒）。 */
   timeoutMs?: number;
 }
@@ -35,13 +48,50 @@ const responsePage = `<!doctype html><html lang="zh"><head><meta charset="utf-8"
 <p>授权已完成，请返回 Anynote 继续配置。此页面可以关闭。</p></body></html>`;
 
 /**
+ * 依次尝试候选端口启动服务器。
+ *
+ * 只有全部候选都因 `EADDRINUSE` 失败时才报告端口被占用；其他错误（如权限）直接
+ * 上抛，不做无意义的回落。
+ *
+ * @param ports 候选端口；`0` 表示由系统分配。
+ * @param handler 请求处理函数。
+ * @returns 已开始监听的服务器。
+ */
+async function listenOn(
+  ports: readonly number[],
+  handler: RequestListener,
+): Promise<Server> {
+  let lastError: unknown;
+  for (const port of ports) {
+    const server = createServer(handler);
+    try {
+      await new Promise<void>((ready, failed) => {
+        server.once("error", failed);
+        server.listen(port, "127.0.0.1", () => ready());
+      });
+      return server;
+    } catch (error) {
+      // 失败后清理该候选，移除错误监听避免 close 时的未处理事件。
+      server.removeAllListeners("error");
+      server.close(() => {});
+      if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
+      lastError = error;
+    }
+  }
+  throw new OAuthPortError(
+    `OAuth 回调端口被占用（${ports.join("、")}），请关闭占用该端口的程序后重试。`,
+    { cause: lastError },
+  );
+}
+
+/**
  * 在回环地址上开启一次性回调监听。
  *
  * 只绑定 `127.0.0.1` 的临时端口、监听单个路径、会话短期存活；回调验证 state
  * 与预期路径后立即关闭，不监听全部网卡，也不在带 Node 权限的 WebView 中执行。
  * 自定义 scheme 同样会校验 state，避免回调被截获。
  *
- * @param options 期望 state、回调路径与超时。
+ * @param options 期望 state、回调路径、优先端口与超时。
  * @returns 回调监听器。
  */
 export async function startLoopbackListener(
@@ -49,7 +99,8 @@ export async function startLoopbackListener(
 ): Promise<CallbackListener> {
   const expectedPath = options.path ?? "/",
     timeoutMs = options.timeoutMs ?? 180_000,
-    expectedState = options.expectedState;
+    expectedState = options.expectedState,
+    candidates = options.ports?.length ? [...options.ports] : [0];
   let settled = false;
   // 超时句柄在监听建立后才赋值，用可变持有对象避免 `prefer-const` 与 TDZ 冲突。
   const timers: { timeout?: NodeJS.Timeout } = {};
@@ -59,6 +110,9 @@ export async function startLoopbackListener(
     resolve = res;
     reject = rej;
   });
+  // 会话可能在无人 `wait()` 时被结算（例如 `begin` 后立即 close/discard）；
+  // 提前挂一个空处理器，避免这些路径产生未处理的 rejection。
+  result.catch(() => {});
 
   /** 结束回调等待，确保只结算一次。 */
   const settle = (fn: () => void) => {
@@ -68,7 +122,7 @@ export async function startLoopbackListener(
     fn();
   };
 
-  const server = createServer((req, res) => {
+  const handler: RequestListener = (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname !== expectedPath) {
       res.writeHead(404).end();
@@ -84,33 +138,31 @@ export async function startLoopbackListener(
       .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
       .end(responsePage);
     if (!params.state || !safeEqual(expectedState, params.state)) {
-      settle(() => reject(Error("OAuth 回调 state 校验失败")));
+      settle(() => reject(new OAuthStateError("OAuth 回调 state 校验失败")));
       return;
     }
     settle(() => resolve(params));
-  });
+  };
 
-  await new Promise<void>((ready, failed) => {
-    server.once("error", failed);
-    server.listen(0, "127.0.0.1", () => ready());
-  });
+  const server = await listenOn(candidates, handler);
 
   const address = server.address() as AddressInfo,
     redirectUri = `http://127.0.0.1:${address.port}${expectedPath}`;
 
   timers.timeout = setTimeout(() => {
-    settle(() => reject(Error("OAuth 授权超时，请重新连接")));
+    settle(() => reject(new OAuthTimeoutError("OAuth 授权超时，请重新连接")));
   }, timeoutMs);
   timers.timeout.unref?.();
 
   server.once("close", () => {
-    settle(() => reject(Error("OAuth 授权会话已关闭")));
+    settle(() => reject(new OAuthError("OAuth 授权会话已关闭")));
   });
 
   return {
     redirectUri,
     wait: async (signal?: AbortSignal) => {
-      const onAbort = () => settle(() => reject(Error("OAuth 授权已取消")));
+      const onAbort = () =>
+        settle(() => reject(new OAuthError("OAuth 授权已取消")));
       signal?.addEventListener("abort", onAbort, { once: true });
       try {
         return await result;
@@ -120,7 +172,7 @@ export async function startLoopbackListener(
       }
     },
     close: () => {
-      settle(() => reject(Error("OAuth 授权会话已关闭")));
+      settle(() => reject(new OAuthError("OAuth 授权会话已关闭")));
       server.close();
     },
   };

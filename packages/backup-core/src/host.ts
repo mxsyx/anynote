@@ -198,6 +198,9 @@ function createHttpClient(args: AuthorizedClientArgs) {
         throw Object.assign(Error(`云盘返回 HTTP ${response.status}`), {
           status: response.status,
           retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
+          // 附带错误响应体，使厂商扩展能区分 path/not_found、conflict 等语义，
+          // 而不是把所有非 2xx 都当作同一种失败（设计 §11.3、§12.3）。
+          bytes,
         });
       return {
         status: response.status,

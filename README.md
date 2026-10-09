@@ -47,7 +47,7 @@ pnpm run dev
 - 快照保留数量/天数与本地孤立资源清理：先预览、再确认，保护历史及回收站引用，执行前复查候选文件。
 - 桌面完整 `.anynote` 流式 ZIP/ZIP64 导入/导出，支持磁盘预算、后台进度和取消；包含历史、回收站、批注、资源和扩展状态；开放 Markdown 文件夹 ZIP 导出，白板导出可携带图片的 Excalidraw 场景，批注为 JSON sidecar。
 - Cloudflare Worker + D1 + R2 自托管逻辑备份：实体对象去重、staging/committed、分支 CAS、幂等提交、完整 checkpoint 与实体 delta，恢复后创建新 Notebook。
-- 云盘备份（官方扩展）：Google Drive 已完成端到端备份与恢复闭环，Dropbox / OneDrive 为 Beta 占位。核心提供备份中心、账号授权、任务调度、一致性捕获、凭据保护与恢复验证；厂商 API 适配下沉到独立官方扩展。连接账号使用系统浏览器 Authorization Code + PKCE，凭据经系统安全存储保存；每设备独立备份槽，只保留当前完整副本。
+- 云盘备份（官方扩展）：Google Drive、Dropbox 与 OneDrive 均已完成备份与恢复闭环（Dropbox 使用 App Folder、分块 `content_hash`、`upload session` 与 rev 冲突处理；OneDrive 使用应用目录 `Files.ReadWrite.AppFolder`、`driveId`+`itemId` 定位与 `createUploadSession` 分片上传）。核心提供备份中心、账号授权、任务调度、一致性捕获、凭据保护与恢复验证；厂商 API 适配下沉到独立官方扩展。连接账号使用系统浏览器 Authorization Code + PKCE，凭据经系统安全存储保存；每设备独立备份槽，只保留当前完整副本。
 - Cloudflare 远端维护：按版本数及 UTC 日/周/月采样预览并确认清理，保护全部分支、上传中版本与恢复 pin；设备接管撤销旧 epoch，支持恢复副本接续远端分支。详见 [远端维护](./docs/REMOTE-MAINTENANCE.md)。
 - 统一任务中心，备份目标独立游标，失败重试与提交响应丢失后的游标确认；用户可为每个目标启用约每分钟检查变更的自动备份。
 - 首方扩展可按 Notebook 停用，停用保留内容；[SDK 0.1](./packages/plugin-sdk/README.md) 提供权限范围、命令生命周期、独立状态和版本条件幂等写入。
@@ -62,7 +62,7 @@ pnpm run dev
 
 侧栏「本地优先，安心记录」进入备份页面，添加 Cloudflare 目标：填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
 
-同一页面还可添加云盘目标：选择 Google Drive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；文件级增量上传后未变化的附件会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可在设置或环境变量中提供自己的 Client ID（`ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID`）。
+同一页面还可添加云盘目标：选择 Google Drive、Dropbox 或 OneDrive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；文件级增量上传后未变化的附件会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可通过 `ANYNOTE_OAUTH_APPS`（按 `ANYNOTE_OAUTH_STAGE` 区分开发/生产）或 `ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID` 提供自己的 Client ID。注册、注入与授权验收见 [官方 OAuth 应用注册](./docs/OAUTH-REGISTRATION.md)。
 
 Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。Wrangler 自动部署及真实 Cloudflare 验收已通过，结果见云验收报告。
 
@@ -135,7 +135,7 @@ pnpm run package
 
 各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 在干净离线项目中校验兼容窗口与旧消费者。
 
-仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册，`googleapis` 懒加载。
+仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册；`googleapis` 懒加载，Dropbox/OneDrive 直连厂商 HTTP 端点、不引入厂商 SDK。
 
 首方扩展的独立进程运行、Notebook 会话授权、命令惰性激活与故障回收见 [扩展宿主](./docs/EXTENSION-HOST.md)。使用 `pnpm run test:extension-host` 验证宿主及真实桌面流程。
 

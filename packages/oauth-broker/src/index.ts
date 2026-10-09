@@ -14,11 +14,33 @@ export type {
   LoopbackOptions,
 } from "./loopback.js";
 
+export { oauthDescriptors } from "./providers.js";
+
 export {
+  describeOAuthApps,
+  oauthAppStages,
+  oauthAppsEnv,
   oauthClientIdEnv,
-  oauthDescriptors,
+  oauthStageEnv,
+  readOAuthAppRegistry,
   resolveClientId,
-} from "./providers.js";
+  resolveOAuthClient,
+  resolveOAuthStage,
+} from "./apps.js";
+export type {
+  OAuthAppRegistry,
+  OAuthAppStage,
+  OAuthAppStatus,
+  OAuthClientSource,
+} from "./apps.js";
+
+export {
+  OAuthError,
+  OAuthLaunchError,
+  OAuthPortError,
+  OAuthStateError,
+  OAuthTimeoutError,
+} from "./errors.js";
 
 export {
   CloudAuthError,
