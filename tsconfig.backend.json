@@ -17,6 +17,7 @@
   },
   "include": [
     "packages/*/src/**/*.ts",
+    "extensions/*/src/**/*.ts",
     "apps/desktop/electron/**/*.ts",
     "apps/desktop/electron/**/*.cts",
     "apps/cloudflare-backup/src/**/*.ts"

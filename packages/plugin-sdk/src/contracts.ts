@@ -155,6 +155,43 @@ export interface ProviderRegistration {
   title: string;
 }
 
+/** 云盘扩展可申请的权限（设计 §15.3）。 */
+export type CloudBackupPermission =
+  | "backup:capture"
+  | "assets:read"
+  | "network:provider-approved"
+  | "tasks:register"
+  | `accounts:${string}`;
+
+/** 官方扩展在清单中声明的一个云盘 Provider（设计 §15.3）。 */
+export interface CloudBackupProviderContribution {
+  /** 厂商标识，与 `CloudProviderId` 一致，例如 `google-drive`。 */
+  id: string;
+  kind: "cloud-drive";
+  /** Provider 协议版本；与核心 `cloudBackupProtocolVersion` 对齐。 */
+  protocolVersion: number;
+  /** 逻辑布局格式版本。 */
+  formatVersion: number;
+  title: string;
+  beta?: boolean;
+}
+
+/**
+ * 云盘官方扩展的清单（Anynote 自定义声明格式，设计 §15.3）。
+ *
+ * 网络权限最终落到厂商 API/认证域名和上传/下载重定向规则，`provider-approved`
+ * 不等于允许任意 URL 携带 token。
+ */
+export interface CloudBackupExtensionManifest {
+  id: string;
+  name: string;
+  version: string;
+  engines: { anynote: string };
+  runtime: "trusted-first-party";
+  permissions: CloudBackupPermission[];
+  contributes: { backupProviders: CloudBackupProviderContribution[] };
+}
+
 /** Version and capability contract returned by `api.contract()`. */
 export interface ExtensionContract {
   sdk: string;

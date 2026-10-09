@@ -10,7 +10,12 @@ import {
 } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { PendingRequest, SecretRequest, StorageResponse } from "./ipc.js";
+import type {
+  OpenExternalRequest,
+  PendingRequest,
+  SecretRequest,
+  StorageResponse,
+} from "./ipc.js";
 
 // Main process: manages windows, system dialogs, the credential proxy, and the storage/extension processes, and validates and forwards renderer requests.
 const allowed = new Set(require("@anynote/protocol/operations.json"));
@@ -35,50 +40,90 @@ else {
       { serviceName: "Anynote Storage" },
     );
 
-    // Handle storage-process messages: system credential requests (via safeStorage) or ordinary responses.
-    store.on("message", (m: StorageResponse | SecretRequest) => {
-      if (m.type === "secret") {
-        try {
-          if (!/^[a-f0-9-]{36}$/.test(m.secretId)) throw Error("凭据身份无效");
-          if (
-            !safeStorage.isEncryptionAvailable() ||
-            (process.platform === "linux" &&
-              safeStorage.getSelectedStorageBackend() === "basic_text")
-          )
-            throw Error(
-              "系统安全存储不可用，请配置 keyring 后重试；不会以明文持久化凭据。",
-            );
-          const dir = path.join(app.getPath("userData"), "secrets");
-          fs.mkdirSync(dir, { recursive: true });
-          const file = path.join(dir, m.secretId + ".bin");
-          let result;
-          if (m.op === "set") {
-            const data = safeStorage.encryptString(JSON.stringify(m.value));
-            fs.writeFileSync(file + ".tmp", data, { mode: 0o600, flush: true });
-            fs.renameSync(file + ".tmp", file);
-            result = true;
-          } else
-            result = JSON.parse(
-              safeStorage.decryptString(fs.readFileSync(file)),
-            );
-          store.postMessage({ type: "secret-response", id: m.id, result });
-        } catch (e: any) {
-          store.postMessage({
-            type: "secret-response",
-            id: m.id,
-            error: e.message,
-          });
+    // Handle storage-process messages: system credential requests (via safeStorage), system-browser
+    // launches for OAuth, or ordinary responses.
+    store.on(
+      "message",
+      (m: StorageResponse | SecretRequest | OpenExternalRequest) => {
+        if (m.type === "open-external") {
+          // 只允许厂商授权页面所需的 HTTPS 地址，避免存储进程把任意 scheme 交给系统。
+          try {
+            const url = new URL(m.url);
+            if (url.protocol !== "https:" && url.protocol !== "http:")
+              throw Error("只允许打开 HTTP(S) 授权页面");
+            void shell
+              .openExternal(url.toString())
+              .then(() =>
+                store.postMessage({
+                  type: "open-external-response",
+                  id: m.id,
+                  result: true,
+                }),
+              )
+              .catch((e: any) =>
+                store.postMessage({
+                  type: "open-external-response",
+                  id: m.id,
+                  error: e.message,
+                }),
+              );
+          } catch (e: any) {
+            store.postMessage({
+              type: "open-external-response",
+              id: m.id,
+              error: e.message,
+            });
+          }
+          return;
         }
-        return;
-      }
 
-      const item = pending.get(m.id);
-      if (item) {
-        pending.delete(m.id);
-        clearTimeout(item.timer);
-        m.error ? item.reject(Error(m.error)) : item.resolve(m.result);
-      }
-    });
+        if (m.type === "secret") {
+          try {
+            if (!/^[a-f0-9-]{36}$/.test(m.secretId))
+              throw Error("凭据身份无效");
+            if (
+              !safeStorage.isEncryptionAvailable() ||
+              (process.platform === "linux" &&
+                safeStorage.getSelectedStorageBackend() === "basic_text")
+            )
+              throw Error(
+                "系统安全存储不可用，请配置 keyring 后重试；不会以明文持久化凭据。",
+              );
+            const dir = path.join(app.getPath("userData"), "secrets");
+            fs.mkdirSync(dir, { recursive: true });
+            const file = path.join(dir, m.secretId + ".bin");
+            let result;
+            if (m.op === "set") {
+              const data = safeStorage.encryptString(JSON.stringify(m.value));
+              fs.writeFileSync(file + ".tmp", data, {
+                mode: 0o600,
+                flush: true,
+              });
+              fs.renameSync(file + ".tmp", file);
+              result = true;
+            } else
+              result = JSON.parse(
+                safeStorage.decryptString(fs.readFileSync(file)),
+              );
+            store.postMessage({ type: "secret-response", id: m.id, result });
+          } catch (e: any) {
+            store.postMessage({
+              type: "secret-response",
+              id: m.id,
+              error: e.message,
+            });
+          }
+          return;
+        }
+
+        const item = pending.get(m.id);
+        if (item) {
+          pending.delete(m.id);
+          clearTimeout(item.timer);
+          m.error ? item.reject(Error(m.error)) : item.resolve(m.result);
+        }
+      },
+    );
 
     store.on("exit", () => {
       for (const p of pending.values()) {

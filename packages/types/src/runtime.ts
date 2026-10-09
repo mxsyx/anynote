@@ -110,6 +110,16 @@ export interface BackupTarget {
 /** Access credentials for a backup target. */
 export interface Credentials {
   token?: string;
+  /** OAuth refresh token; only ever held by the host vault, never the renderer. */
+  refreshToken?: string;
+  /** Access token expiry (epoch ms), used to refresh ahead of time. */
+  expiresAt?: number;
+  /** Granted scopes as returned by the vendor token endpoint. */
+  scope?: string;
+  /** Token type, normally `Bearer`. */
+  tokenType?: string;
+  /** Provider id owning these credentials, for diagnostics and revocation. */
+  providerId?: string;
 }
 
 /** System-encrypted credential access interface implemented by the host. */

@@ -69,6 +69,7 @@ import Backlinks from "./Backlinks";
 import LocalCleanup from "./LocalCleanup";
 import Diagnostics from "./Diagnostics";
 import BackupTargets from "./BackupTargets";
+import CloudBackup from "./CloudBackup";
 import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
 import RecoveryWizard from "./RecoveryWizard";
@@ -2040,6 +2041,15 @@ function App() {
                   onStarted={() => setTasksOpen(true)}
                 />
                 <BackupTargets
+                  notebookId={book!.id}
+                  onStarted={() => setTasksOpen(true)}
+                  onRestored={async (id) => {
+                    const list = await request<Notebook[]>("listNotebooks");
+                    setBooks(list);
+                    await switchBook(list.find((b) => b.id === id)!);
+                  }}
+                />
+                <CloudBackup
                   notebookId={book!.id}
                   onStarted={() => setTasksOpen(true)}
                   onRestored={async (id) => {

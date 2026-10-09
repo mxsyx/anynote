@@ -137,5 +137,22 @@
   "previewLocalBackup",
   "getLocalBackupInfo",
   "setLocalBackupScope",
-  "startLocalBackupGroup"
+  "startLocalBackupGroup",
+  "listCloudProviders",
+  "listCloudAccounts",
+  "beginCloudAuthorization",
+  "completeCloudAuthorization",
+  "cancelCloudAuthorization",
+  "disconnectCloudAccount",
+  "listCloudTargets",
+  "probeCloudTarget",
+  "configureCloudTarget",
+  "setCloudSchedule",
+  "removeCloudTarget",
+  "testCloudConnection",
+  "startCloudBackup",
+  "listCloudDevices",
+  "listCloudRestorePoints",
+  "restoreCloudTargetBackup",
+  "deleteCloudBackup"
 ]

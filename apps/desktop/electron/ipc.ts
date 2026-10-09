@@ -40,6 +40,27 @@ export interface EnvironmentReport {
   onBattery: boolean;
 }
 
+/**
+ * Request to open a URL in the system browser.
+ *
+ * OAuth 授权页必须由系统浏览器承载：厂商页面不进入带 preload 或 Node 权限的
+ * Electron WebView（设计 §6.1）。回环回调由存储进程自己监听，主进程只负责
+ * 唤起浏览器并返回结果。
+ */
+export interface OpenExternalRequest {
+  type: "open-external";
+  id: number;
+  url: string;
+}
+
+/** Result of an `open-external` request. */
+export interface OpenExternalResponse {
+  type: "open-external-response";
+  id: number;
+  result?: boolean;
+  error?: string;
+}
+
 /** One request awaiting a response (with timeout timer). */
 export interface PendingRequest {
   resolve: (value: unknown) => void;

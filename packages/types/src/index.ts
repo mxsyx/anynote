@@ -209,13 +209,31 @@ export type Operation =
   | "openNotebookDirectory"
   | "detachNotebookDirectory"
   | "searchWorkspace"
-  | "cancelSearch";
+  | "cancelSearch"
+  | "listCloudProviders"
+  | "listCloudAccounts"
+  | "beginCloudAuthorization"
+  | "completeCloudAuthorization"
+  | "cancelCloudAuthorization"
+  | "disconnectCloudAccount"
+  | "listCloudTargets"
+  | "probeCloudTarget"
+  | "configureCloudTarget"
+  | "setCloudSchedule"
+  | "removeCloudTarget"
+  | "testCloudConnection"
+  | "startCloudBackup"
+  | "listCloudDevices"
+  | "listCloudRestorePoints"
+  | "restoreCloudTargetBackup"
+  | "deleteCloudBackup";
 
 /** Typed IPC façade exposed to the renderer by preload. */
 export interface AnynoteBridge {
   request<T>(op: Operation, input?: Record<string, unknown>): Promise<T>;
 }
 
+export type * from "./cloud-backup.js";
 export type * from "./local-backup.js";
 export type * from "./recovery.js";
 export type * from "./integrity.js";

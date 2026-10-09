@@ -657,6 +657,39 @@ export async function advancedOperations(
     return backupOperation(s, op, raw);
   }
 
+  // 云盘备份（设计 §3.1）：与 Cloudflare/本地目标并列的第三个备份目标族。
+  if (
+    [
+      "listCloudProviders",
+      "listCloudAccounts",
+      "beginCloudAuthorization",
+      "completeCloudAuthorization",
+      "cancelCloudAuthorization",
+      "disconnectCloudAccount",
+      "listCloudTargets",
+      "probeCloudTarget",
+      "configureCloudTarget",
+      "setCloudSchedule",
+      "removeCloudTarget",
+      "testCloudConnection",
+      "startCloudBackup",
+      "listCloudDevices",
+      "listCloudRestorePoints",
+      "restoreCloudTargetBackup",
+      "deleteCloudBackup",
+    ].includes(op)
+  ) {
+    const { cloudBackupOperation } = await import(
+      "@anynote/backup-core/operations.js"
+    );
+    // 官方扩展随应用构建；首次处理云盘操作前惰性注册，幂等且不影响启动。
+    const { registerOfficialProviders } = await import(
+      "@anynote/backup-core/official.js"
+    );
+    await registerOfficialProviders();
+    return cloudBackupOperation(s, op, raw);
+  }
+
   if (["previewCleanup", "applyCleanup"].includes(op)) {
     const { cleanupOperation } = await import("./cleanup.js");
     return { handled: true, result: cleanupOperation(s, op, raw) };

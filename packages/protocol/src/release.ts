@@ -33,6 +33,8 @@ export type FormatId =
   | "notebook-archive"
   | "logical-protocol"
   | "local-backup"
+  | "cloud-backup-head"
+  | "cloud-backup-manifest"
   | "extension-package"
   | "extension-directory"
   | "extension-settings";
@@ -233,6 +235,18 @@ const formatList: readonly ReleaseFormat[] = [
     owner: "format",
   },
   {
+    id: "cloud-backup-head",
+    tag: "anynote.cloud-backup-head",
+    version: 1,
+    owner: "format",
+  },
+  {
+    id: "cloud-backup-manifest",
+    tag: "anynote.cloud-backup-manifest",
+    version: 1,
+    owner: "format",
+  },
+  {
     id: "extension-package",
     tag: "anynote.extension",
     version: 1,
@@ -320,6 +334,18 @@ const windowList: readonly CompatibilityWindow[] = [
     provider: "local-backup",
     accepts: "1",
     note: "本地磁盘备份清单 anynote.local-backup v1",
+  },
+  {
+    consumer: "desktop",
+    provider: "cloud-backup-head",
+    accepts: "1",
+    note: "云盘备份当前指针 anynote.cloud-backup-head v1",
+  },
+  {
+    consumer: "desktop",
+    provider: "cloud-backup-manifest",
+    accepts: "1",
+    note: "云盘备份完整清单 anynote.cloud-backup-manifest v1",
   },
 ];
 export const compatibilityWindows: readonly CompatibilityWindow[] =

@@ -1,5 +1,7 @@
 /** Portable contribution contracts; executable transforms run only in the isolated guest interpreter. */
 
+import type { CloudBackupProviderContribution } from "./contracts.js";
+
 /** One field in an extension settings form. */
 export type ExtensionSettingField = {
   key: string;
@@ -113,6 +115,11 @@ export interface DeclarativeManifest {
     editorNodes: DeclarativeNode[];
     settings?: ExtensionSettingsContribution;
     dataMigrations?: ExtensionDataMigration[];
+    /**
+     * 云盘 Provider 广告位：声明式扩展只能声明元数据，可执行的备份流程属于
+     * 受信首方扩展（`CloudBackupExtensionManifest`），核心据此在备份中心发现目标。
+     */
+    backupProviders?: CloudBackupProviderContribution[];
   };
 }
 

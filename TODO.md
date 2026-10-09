@@ -1,12 +1,14 @@
 # Anynote 剩余待办
 
-更新：2026-10-08。依据 [产品与技术设计](docs/Anynote-Design.md)、[本地磁盘备份设计](docs/Anynote-Local-Disk-Backup-Design.md)，结合当前源码、实施记录与验收报告整理。本文是全项目剩余工作入口；只列未完成事项，已完成项集中在文末「§10 已完成」。
+更新：2026-10-09。依据 [产品与技术设计](docs/Anynote-Design.md)、[本地磁盘备份设计](docs/Anynote-Local-Disk-Backup-Design.md)、[云盘备份设计](docs/Anynote-Cloud-Drive-Backup-Design.md)，结合当前源码、实施记录与验收报告整理。本文是全项目剩余工作入口；只列未完成事项，已完成项集中在文末「§11 已完成」。
 
 优先级：**P0** 为发布前可靠性/数据保护门槛，**P1** 为 v1 能力补齐与发行，**P2** 为性能和工程完善，**P3** 为设计明确的后续能力或可选优化。优先级是本清单的建议排期，不直接等同于设计文档的实施阶段。
 
 代码完成、自动化通过和真实平台/设备验收分别判断。Linux 同机不同目录、SIGKILL、模拟 I/O 错误、合成 PDF、派发组合事件均不能代替独立设备、断电、复杂文件或真实输入法验收。图索引存在旧路径及未跟踪的新源码，相关结论已回到当前文件和最新专项记录核对；旧 README/实施记录中的历史描述不作为功能缺失的唯一依据。
 
-本次重排：原「聚焦清单：不涉及跨平台/跨设备/真实环境验收的 P0/P1」已全部实现并移入 §10；剩余条目均需真实环境或跨平台验证，或属后续完善，其中需要 Windows/macOS 真机的条目集中在 §2，其余章节按优先级重排（跨平台适配代码前置为 P1）。
+本次重排：原「聚焦清单：不涉及跨平台/跨设备/真实环境验收的 P0/P1」已全部实现并移入 §11；剩余条目均需真实环境或跨平台验证，或属后续完善，其中需要 Windows/macOS 真机的条目集中在 §2，其余章节按优先级重排（跨平台适配代码前置为 P1）。
+
+2026-10-09：新增 §5 云盘备份，原 §5–§10 顺延为 §6–§11。云盘备份的核心框架（Provider 注册、备份中心、账号与 PKCE 授权、一致性捕获、不可变提交与条件发布、受管 GC、恢复落地）与 Google Drive 端到端闭环已实现，Dropbox/OneDrive 为 Beta 占位扩展，因此相关条目全部集中在 §5，其中真实 OAuth 授权与厂商实测为 P0。
 
 2026-10-08：开发环境切换到 macOS 后，补齐了备份层的 macOS 卷适配（`diskutil`/`df`/`mount` 解析、稳定 `VolumeUUID`、挂载状态、网络挂载与 FAT32 限制识别，含解析 fixture 与降级测试），并完成 §2.3 的 macOS/APFS 实盘验收；同时修复了 macOS 符号链接前缀（`/var`、`/tmp` → `/private/*`）导致 `safePath` 与 `assertLocalPath` 拒绝合法临时目录、进而使全部 macOS 用例与验收无法运行的阻塞问题。§3 的卷适配条目因此只剩 Windows 部分。
 
@@ -65,7 +67,29 @@
 - [ ] **P2 — 远端容量与真实负载**：测量大规模维护规划、20GiB/大量附件、长期版本积累、D1/R2 配额与成本；必要时拆分清单、分批验证或异步任务。现有重复块 112MiB 样本不代表随机数据吞吐或满预算通过。
 - [ ] **P3 — Cloudflare checkpoint 策略优化**：评估从每代完整实体映射改为周期 checkpoint+delta，以及可选 SQLite 恢复加速点；测量链长、上传量和恢复成本，完整定义依赖保护。当前每代自包含 checkpoint 可正确恢复，不属于可靠性缺陷。
 
-## 5. 编辑器、阅读器与知识组织
+## 5. 云盘备份（Google Drive / Dropbox / OneDrive）
+
+依据：[云盘备份设计](docs/Anynote-Cloud-Drive-Backup-Design.md)、[本地磁盘备份设计](docs/Anynote-Local-Disk-Backup-Design.md)。核心框架（`packages/backup-core`、`cloud-backup-common`、`oauth-broker`、`plugin-sdk` 契约）、桌面备份中心与 Google Drive 备份→恢复闭环已实现，`tests/cloud-backup.test.mjs` 覆盖 PKCE/state 校验、single-flight 刷新、无变化跳过、空间不足拒提交、清单完整性（含路径逃逸）、发布冲突与响应丢失确认、受管 GC 与占位 Provider 拒绝。以下为未完成事项；Dropbox 与 OneDrive 仅登记 Beta 占位扩展，不接真实 API、不承诺可用。
+
+- [ ] **P0 — 官方 OAuth 应用注册与真实授权**：为 Google Drive（并预留 Dropbox/OneDrive）注册开发与生产 OAuth 应用，配置授权页、隐私政策、回调与必要审核；在真实桌面环境验证系统浏览器唤起、回环回调、`state`/PKCE 校验、授权超时与端口占用状态。当前 Client ID 通过 `ANYNOTE_GOOGLE_CLIENT_ID` 等占位注入，无任何厂商实测数据。
+- [ ] **P0 — Google Drive 真实端到端验收**：以真实账号验证 `drive.file` 最小权限下的目录创建/发现/上传/下载/删除、resumable 上传（256KiB 分片、服务端确认偏移、会话失效重建）、上传后下载校验、配额与 403 reason 分类、`current` 读回确认。当前 `googleapis` 调用路径与上传下载协议未经过真实 API 验证。
+- [ ] **P0 — 第二设备只读恢复**：在干净设备（新授权环境、无原机 file ID 缓存）从云盘恢复当前副本，核对条目数、资源哈希、历史、回收站与搜索重建；同时验证 `drive.file` 下发现既有备份并下载的闭环能力。
+- [ ] **P1 — 条件发布能力实测**：实测各 Provider 与 endpoint 的版本 token/条件写行为；仅在实测通过后才把 `conditionalHead` 置为 true，否则继续使用单写设备槽 + 发布前后检查，并明确不宣称跨客户端原子互斥。
+- [ ] **P1 — 附件校验成本与模式**：Google 只提供 MD5，当前以「上传后下载校验」换取内容校验等级，会翻倍流量。评估高级设置 `verify.downloadAssets=false` 的 UI 表达与预算提示，确保其结果不被呈现为「全部已验证」。
+- [ ] **P1 — 恢复空间预估与预算**：恢复前预估数据库校验与资源落盘空间并接入现有磁盘预算提示；当前为下载后校验，不预留空间。
+- [ ] **P1 — 桌面正式打包与扩展分发**：确认 `electron-builder` 打包（`files` 白名单）包含 `extensions/*`，并实机验证离线可用与 `googleapis` 懒加载不影响启动；当前仅通过仓库内构建、类型检查与渲染层打包验证。
+- [ ] **P1 — 自编译自定义 Client ID 链路**：环境变量注入已实现（`resolveClientId` 读取 `ANYNOTE_GOOGLE_CLIENT_ID` 等，缺省时明确报错而非使用占位值），待补设置页/高级设置入口，以及「切换 OAuth 应用后需重新授权、既有备份目录不自动可见」的显式提示与迁移说明。
+- [ ] **P1 — Dropbox Provider**：按云盘备份设计 §11 接入 App Folder + PKCE + refresh token、Dropbox content hash、upload session 与 rev 冲突处理，并把 `conditionalHead` 标记为实测结论而非默认值。
+- [ ] **P1 — OneDrive Provider**：按云盘备份设计 §12 接入 `Files.ReadWrite.AppFolder`、`driveId`+`itemId` 定位、`createUploadSession`（320KiB 对齐）、`uploadUrl` 凭据保护与 eTag 冲突处理；实测选定最小权限下的创建/列表/下载/分段上传/删除。
+- [ ] **P2 — 上传会话跨进程续传**：当前崩溃或重启后重新捕获并开启新会话（正确但浪费上传量）。评估在源切点未变时保留数据库临时副本以恢复会话，并补齐「源切点变化不得拼接旧会话」的回归。
+- [ ] **P2 — 分页与索引成本**：`plan` 的 `exists` 逐个查询 file ID、`listCurrentBackups` 逐槽读取清单。评估分页索引、`appProperties` 批量查询与对象缓存的收益与实现成本。
+- [ ] **P2 — 账号与目标管理 UI 补齐**：多账号并存与切换、重新登录入口、打开云盘目录、失败原因的可操作提示；当前已有断开/删除与重新授权入口，但重新登录需重新添加目标。
+- [ ] **P2 — 等待网络状态探测**：`waiting-network` 已在 UI 定义但未实现探测；评估接入计量网络/离线检测并与设备级暂停策略统一。
+- [ ] **P2 — 真实容量与故障演练**：在真实账号验证空间不足、429/`Retry-After`、授权撤销、token 轮换、上传中断与清理失败重试，记录报告。真实远端故障的通用条目见 §1。
+- [ ] **P3 — 企业/学校租户策略**：验证 OneDrive 组织租户管理员策略下的授权与最小权限行为；失败时给出准确原因，不静默追加更高权限、不引导绕过组织策略。
+- [ ] **P3 — appDataFolder 隐藏模式与跨设备共享对象**：按云盘备份设计 §10.1、§14.3 先补生命周期协议再评估；不得直接复用单写设备槽的受管 GC。实时同步、E2EE 与商业托管仍见 §10 的后续范围条目。
+
+## 6. 编辑器、阅读器与知识组织
 
 依据：设计 §3、§7–8、§10、§18；[编辑器与扩展记录](docs/EDITOR-ECOSYSTEM.md)。
 
@@ -74,7 +98,7 @@
 - [ ] **P2 — 排序与查询契约决策**：当前稀疏整数 `sort_key` 与同级事务重排有效，设计建议为字符串分数排序及分页子项查询；评估大目录开销，选择实现迁移或更新设计，避免仅为形式一致而迁移。
 - [ ] **P3 — 崩溃草稿日志**：评估防抖窗口内的设备侧草稿恢复，覆盖 Renderer/存储进程崩溃、重启、冲突和导出；现有保存失败保留内存草稿不等于未提交输入可跨进程恢复。
 
-## 6. 网页导入与开放导出
+## 7. 网页导入与开放导出
 
 依据：设计 §9、§15；当前 `packages/importer/src/html.ts`、`packages/storage-sqlite/src/open-export.ts` 及 [流式归档](docs/STREAMING-ARCHIVE.md)。
 
@@ -84,7 +108,7 @@
 - [ ] **P2 — 大型开放 Markdown 导出**：将当前内存 ZIP/100MB 路径改为可取消的流式目录/ZIP 导出，验证深目录、长路径、大小写/名称冲突、内部链接、白板原场景/预览、PDF/图片原件和批注 sidecar；报告能力损失。
 - [ ] **P2 — 大文件入口一致性**：统一展示普通单文件导入 50MB、旧归档/本地快照/开放导出 100MB、跨库转移预算和新流式路径的差异；按产品需求逐项扩展并复测，不让用户把 20GiB 云/归档预算理解为所有入口均支持。
 
-## 7. 插件、SDK 与工程边界
+## 8. 插件、SDK 与工程边界
 
 依据：设计 §16、§19；[SDK](packages/plugin-sdk/README.md)、[首方宿主](docs/EXTENSION-HOST.md)、[开发工作流](docs/DEVELOPMENT-WORKFLOW.md)。受限 QuickJS、签名、HTTPS 分发、目录浏览、自动检查更新、状态/设置迁移及清理均已实现。
 
@@ -93,7 +117,7 @@
 - [ ] **P2 — 动态类型边界收紧**：把常用 SQL 投影、操作分派和 JSON 结果从 `SqlRow/any` 收紧为专用接口，保留运行时校验；逐项改造公开契约，不把 TypeScript 编译通过当作数据校验。
 - [ ] **P2 — 文档状态与 ADR**：补齐/落地设计 §25 的 ADR-001–010，记录 node:sqlite、每代 checkpoint、稀疏整数排序等实际选择；同步 README、IMPLEMENTATION、SDK 和迁移文档里已过时的“未实现”及旧路径说明，并约定专项 TODO 与本清单的同步维护。
 
-## 8. 性能与体验打磨
+## 9. 性能与体验打磨
 
 依据：[性能与界面验收](docs/PERFORMANCE-UI-ACCEPTANCE.md)、[开发工作流](docs/DEVELOPMENT-WORKFLOW.md)。
 
@@ -101,7 +125,7 @@
 - [ ] **P2 — 首屏与依赖体积**：分析 Excalidraw/mermaid 等大块依赖，优化拆包、加载时机和缓存，验证离线可用、首次编辑和打包后的资源路径。
 - [ ] **P2 — 视觉组件与设计交付**：完善共用 token/组件、字体/排版、焦点规范及核心页面加载/空/错误状态；在三档窗口、浅深主题、长中文标题、极深目录和多插件内容下持续截图评审，补齐尚无可用页面的设计样张。
 
-## 9. 后续范围与需明确的产品决策
+## 10. 后续范围与需明确的产品决策
 
 以下来自设计明确的 P5/后续或可选范围，保留在完整待办中，**不作为当前 v1 本地/备份闭环的默认阻塞项**。
 
@@ -119,17 +143,17 @@
 - [ ] **P3 — 独立 CLI 与仓库拆分**：按实际需要整理导入、导出、修复、部署 CLI，以及 SDK/插件/部署模板独立仓库；已有脚本/开发工具先复用。
 - [ ] **排期决策 — 确认首发边界**：确定操作系统/架构优先级、典型 Notebook/附件规模、富文本首发深度、PDF 批注需求、加密是否首发硬要求、自托管/商业托管及团队/发布日期，并据此调整本清单优先级。设计中的推荐依赖、UI 数值和可选方案不直接作为必须照搬的实现指令。
 
-## 10. 已完成
+## 11. 已完成
 
 以下为原「聚焦清单：不涉及跨平台/跨设备/真实环境验收的 P0/P1」及各自章节中已实现的条目，按原章节归并保留实现说明备查。代码完成与自动化通过不等于真实平台/设备验收（见 §1、§2）。
 
-### 10.1 远端备份、维护与统一任务（原 §3）
+### 11.1 远端备份、维护与统一任务（原 §3）
 
 - [x] **P1 — Cloudflare 旧维护锁处置**：新增只读诊断 `/retention/diagnostics` 与受限释放 `/retention/legacy-lock/release`（显式确认 + 旧请求停止声明 + 精确 CAS + 审计），并提供 `pnpm run cloud:legacy-lock` 管理员工具；仅清除被确切观测的无主执行锁并保留 Notebook 锁，释放后在维护界面重试由协调器续跑；不按时间抢占。新协调器中断恢复回归保留。
 - [x] **P1 — 持久化任务历史与中断恢复入口**：任务状态/错误/校验报告写入设备侧 `_local/task-history.json`（原子写、200 条上限、单条证据预算），任务创建与结束统一经 `track`/`settle` 记录，进程退出或重启时仍在进行中的任务标记 `interrupted`，`listTasks` 合并历史与当前会话任务；新增 `retryTask`（只重放记录了可复现入参的操作）与只读 `queryPendingGeneration`，任务中心提供重试与提交查询入口。
 - [x] **P1 — 统一重试和暂停策略**：新增 `packages/backup/src/policy.ts` 统一引擎：错误分类（transient / throttled / auth / permanent / aborted）、指数退避（`base → 2^n`，上限截断）与 equal-jitter 抖动、按服务 `Retry-After`（秒或 HTTP 日期）优先延后；永久鉴权与协议错误写入粘性 `pausedReason`（`auth`/`permanent`）停止自动调度，重试次数用尽记 `exhausted`，仅在成功或用户改配置/重新启用时清除。失败计数、`nextAttemptAt` 与暂停原因随远端目标（`backup-targets.json`）及本地目标持久化，调度器据此门控自动触发；电池/计量网络/大任务暂停为设备级可选策略（`_local/backup-policy.json`），由桌面 `powerMonitor` 与渲染进程 Network Information API 上报，手动“立即备份”始终可执行。新增 `getBackupPolicy`/`setBackupPolicy`/`reportBackupEnvironment` 操作并在策略界面展示暂停原因；Cloudflare 采用设计建议的约 60 秒间隔作为默认值（仍为周期触发，非编辑停止空闲去抖）。`tests/backup-policy.test.mjs` 覆盖分类、退避/Retry-After、暂停与鉴权停止。
 
-### 10.2 编辑器、阅读器与知识组织（原 §4）
+### 11.2 编辑器、阅读器与知识组织（原 §4）
 
 - [x] **P1 — 富文本稳定化与模式切换**：明确首发支持的 CommonMark/GFM/扩展语法边界，补齐嵌套列表、转义、脚注、引用链接、复杂表格等往返语料及局部回写；无法安全表示时保留原文并导向源码。验证切换选区/滚动锚点、撤销和 IME，不以任意 Markdown 完整往返作为已完成保证。已导出 `richSyntax` 语法边界与 `RichBlockReason` 降级原因，块内不可安全表示时保留原文并就地提示、导向源码；补齐嵌套列表/转义/脚注/引用式链接/对齐表格/代码元数据/混排图片的边界与局部回写语料；模式切换按相对比例恢复阅读位置，源码搜索替换、块内撤销/重做与组合输入保护沿用既有验收。
 - [x] **P1 — PDF 阅读补齐**：实现可收起页缩略图、适应页/宽及从选区创建关联 Markdown 笔记，保存返回页码/批注位置的链接；现有分页、缩放、文字选择、搜索、高亮、密码和阅读位置已实现。已确认缩略图面板按需解码、适应宽度/页面按容器尺寸计算并在缩放窗口时重算；新增 `createPdfNote` 在同一事务内写入高亮批注与关联笔记，正文含引用片段与 `anynote://…/#pdf-page-N`（或 `#pdf-annotation-<id>`）返回链接，阅读器按锚点回到对应页；阅读位置与旧行为保持。真实输入法/触控与独立设备验收仍待人工完成。
@@ -138,19 +162,19 @@
 - [x] **P1 — 图片安全与内存预算**：实现像素/解码预算、超大图缩略图与分辨率分级，以及 SVG 清洗/栅格预览路径；现有 PNG/JPEG/WebP 类型检查和整文件 base64 读取不等于这些能力已完成。已新增 `@anynote/protocol/image-safety`：从文件头解析像素尺寸（PNG/JPEG/WebP/SVG，不解码）、40MP/16384px 写入预算（`importFile` 与 `writeResource` 双入口拒绝）、按解码预算（24MP）与分辨率分级（640/1280/2560/4096）选择预览解码边，渲染层用带 resize 的 `createImageBitmap` 做有界解码/降采样；新增 `image/svg+xml` 导入与内联插入，SVG 预览先清洗（去脚本/事件处理器/外链/javascript:）再栅格化，原文件照常保存与下载。真实超大图/复杂 SVG 的设备级内存峰值验收仍待人工完成。
 - [x] **P1 — 视频卡片补齐**：支持安全通用视频 URL 卡片、可获取的标题/缩略图本地缓存及 Notebook 级远程嵌入开关；验证播放视图导航、域名和权限。当前 YouTube 点击才播放已实现，不扩展为 YouTube 视频下载。已新增 `@anynote/protocol/video` 统一 URL 规范化：YouTube/Vimeo/Bilibili 严格 ID 校验与固定嵌入模板，其他无凭据 HTTPS 地址降级为通用链接卡片；嵌入地址始终由 provider+ID 重算、不保存任意 iframe，域名/ID 不符即不可嵌入。新增 `fetchVideoMeta` 经 SSRF 防护下载 provider 元信息（YouTube/Vimeo oEmbed、Bilibili API、通用页 OpenGraph），标题与缩略图（签名校验后）写入本地资源缓存并在卡片展示、离线可用。`getExtensionSettings`/`setExtensionSetting` 新增 `key` 支持 Notebook 级 `remoteEmbed` 开关，关闭后既不加载远程 iframe 也不获取元信息。真实平台元信息与嵌入导航、独立设备验收仍待人工完成。
 
-### 10.3 网页导入与开放导出（原 §5）
+### 11.3 网页导入与开放导出（原 §5）
 
 - [x] **P1 — 导入预览与来源信息**：新增 `previewImport` / `getImportPreview` / `commitImportPreview`：预览以可取消后台任务在独立 Worker 中转换，提交前展示转换正文（超长截断）、目标目录路径、媒体本地化/总数、已用与上限预算、正文模式与降级提示；确认时直接提交预览结果，不再二次抓取或转换，预览随提交消费并设 TTL/数量上限。导入报告补充来源 URL、最终 URL、获取时间与媒体体积；新增可选原始 HTML 保存（`keepOriginal`），作为资源写入并显式 pin 到修订闭包，报告内可下载。导入对话框改为「预览 → 确认」两步，任务中心标注预览任务；`tests/extensions.test.mjs` 覆盖预览只读、目标路径、确认提交、原始 HTML 资源固定与重复提交拒绝。真实站点与设备交互验收仍待人工完成。
 - [x] **P1 — 失败媒体重试**：新增 `retryImportMedia` 操作与 `import-media-retry` 后台任务：读取持久化导入报告，按来源勾选失败媒体并选择重试，在有界预算内复用导入的 data:/相邻文件/受控下载规则重新获取；成功后在同一事务内绑定新资源、重写占位符引用并生成新笔记版本，报告保留原始失败原因（`originalError`）并记录重试次数/时间。提交时重读最新正文合并，用户期间的编辑被保留、无法定位的引用记为“引用已修改，未重写”而跳过；取消会结算已完成的部分结果为部分成功；同一笔记重复重试复用进行中任务，无剩余失败项时明确拒绝；失败占位符加入稳定标记 `anynote-media-*` 以精确重写，任务记录 `noteId` 并支持从任务中心重试。`tests/extensions.test.mjs` 覆盖成功重写引用、用户修改跳过与重复重试拒绝。真实站点网络重试、独立设备与交互验收仍待人工完成。
 - [x] **P1 — 媒体发现补齐**：新增 `@anynote/importer/discovery` 媒体发现模块并在清洗前运行：`img` 按已知懒加载属性（`data-src`/`data-original`/`data-lazy-src` 等）与 `srcset` 尺寸描述符（`w`/`x`，超宽回退到最宽候选）选择来源，`picture/source` 折叠为选中的 `img`。受支持的视频提供方 `iframe`/`video` 经 `videoCard` 生成安全 `core.video` 块（嵌入地址由提供方与 ID 重算，不保存任意 iframe）；可直接下载的音视频（扩展名或 `type` 判定）在配额内下载为资源并以链接引用；PDF/附件默认保留外部链接，用户提供授权相邻文件时本地化为资源并重写链接。清洗前统一记录不可本地化媒体（`blob:`、DRM/需登录、未知提供方、缺少地址、`object`/`embed`），以标记占位符替换，避免被直接移除而无报告。导入报告媒体项新增 `kind` 与 `embedded`/`unsupported`/`linked` 状态，桌面导入报告展示未本地化媒体；`retryImportMedia` 按媒体 `kind` 校验 MIME 并选择引用形式（图片内嵌、音视频/附件链接）。`tests/extensions.test.mjs` 覆盖 srcset/picture/懒加载、提供方视频块、直接音视频、不可本地化记录与附件本地化。真实站点、独立设备与交互验收仍待人工完成。
 
-### 10.4 插件、SDK 与工程边界（原 §6）
+### 11.4 插件、SDK 与工程边界（原 §6）
 
 - [x] **P1 — SDK 扩展点补齐**：按真实需求开放作用域 Notebook/Node、事件、任务、Secrets、importer/exporter、backup/search/AI Provider 注册及公共 UI 贡献；补齐分页、取消、错误码、版本契约和权限合约。当前有限 notes/search/assets/settings、命令及本地备份宿主适配器不等于完整 SDK 草案。已新增 `AnynoteAPI` 的 `notebooks`、`nodes`、`notes.history`、`secrets`、`events`、`tasks`、`ui`、`providers` 扩展点与 `contract()` 版本/能力契约；统一 `ExtensionError` 错误码、游标分页（`nodes.list`/`search.page` 返回 `{items,nextCursor}`）与 `CallOptions.signal` 取消。受信首方宿主新增 `notebooks:read`、`nodes:read|write`、`secrets:read|write`、`events:subscribe`、`tasks:register`、`ui:contribute`、`providers:register` 权限门面并绑定当前 Notebook；Secrets 按 Provider ID 存于 Notebook 命名空间，复用 `extensionSet/GetState` 并新增原子 `extensionDeleteState`；事件仅按命令/参数触发扩展自身的 `note.created`/`note.updated`/`node.moved`/`node.trashed` 变更；任务/UI/Provider 注册经宿主 `bindings` 提供、随会话停用由 disposer 回收，纯 Transport 客户端得到 `unsupported`。`extension-host` 进程宿主扩充权限与 API 分派；`tests/sdk-extension-points.test.mjs` 与 `tests/types/contracts.ts` 覆盖权限、作用域、分页、取消、错误码、事件与注册回收。第三方可安装扩展的通用 JS/React、Provider 执行及中央市场仍不在范围。
 - [x] **P1 — 首方功能独立发布验证**：白板、视频、导入及备份适配器逐步经公开 SDK 接入并独立打包，在干净外部项目安装运行；当前同仓库内建能力和阅读模板进程宿主不能替代所有首方插件的外部消费验证。已新增 `@anynote/first-party-adapters`：白板（`get`/`save`）、视频（`insert`/`fetchMeta`）、导入（`start`/`preview`/`getPreview`/`commit`/`retryMedia`/`report`）三项适配器只依赖公开 SDK，备份适配器复用 SDK 的 `createLocalBackupAPI`，统一由 `createFirstPartyAdapters(transport)` 绑定一个已授权 transport，并暴露版本与能力契约（`firstPartyAdapterVersion`/`firstPartyAdapterContractVersion`/`firstPartyAdapterCapabilities`）；适配器把可移植 `noteId` 映射为宿主 `id`，预览与确认共用同一份已转换结果，且不授予扩展新权限。`pnpm run build:first-party` 独立打包到 `artifacts/first-party-adapters`（依赖 `@anynote/plugin-sdk`）；`pnpm run test:first-party:package` 在该 tarball 与 SDK tarball 上写入只有两个离线依赖的干净项目，用 `tsc` 编译并实际运行，校验方法映射、备份不接受调用方路径、产物不含 Node/存储/宿主/脚本执行器，报告写入 `test-results/first-party-package.json`；`tests/first-party-adapters.test.mjs` 与 `tests/types/first-party-adapters.ts` 覆盖映射、冻结、契约与类型边界。真实首方插件经外部 SDK 运行完整功能（而非适配器契约）仍待后续接入。详见 [首方功能适配器](packages/first-party-adapters/README.md)。
-- [x] **P1 — 公共包发布矩阵**：定义 Desktop、Worker、SDK、开发工具、首方插件、格式/schema 的独立版本与兼容窗口；准备 ESM/类型 exports、许可证、变更日志、发布产物和旧消费者测试。已有 workspace 与离线 tarball 消费通过，npm 发布和完整矩阵尚未完成。已新增 `packages/protocol/src/release.ts` 作为发布矩阵单一来源（运行时中立、无外部依赖）：声明 `desktop`/`worker`/`sdk`/`devtools`/`first-party`/`format` 六个单元的独立版本、SDK（`apiContractVersion`）与首方适配器（`firstPartyAdapterContractVersion`）契约版本、七项格式版本（notebook schema v2、`anynote.notebook` v1、`anynote.logical` v1、`anynote.local-backup` v1、`anynote.extension`/`-directory`/`-settings` v1）与十项兼容窗口，并提供 `checkReleaseCompatibility`/`assertReleaseCompatibility`/`satisfiesRange`/`satisfiesFormatRange`/`releaseVersion`；越界按设计 §19.2 明确拒绝。新增 `pnpm run build:release`：复用既有便携构建入口把三份 tarball 汇集到 `artifacts/release/<unit>`，校正 `version`/`license`/`engines`、补齐 `files` 白名单、复制根 LICENSE 与 CHANGELOG、校验 `"type": "module"` 与每个 ESM/类型入口文件真实存在，并计算内容聚合 SHA-256，输出 `artifacts/release/release-matrix.json`（`anynote.release-manifest.v1`）。新增 `pnpm run test:release:matrix`：在只含官方 tarball 的干净离线项目中编译并运行 `tests/fixtures/legacy-consumer/consumer.ts`，断言旧消费者向前兼容、发布清单与磁盘产物哈希一致、兼容窗口越界明确拒绝，报告写入 `test-results/release-matrix.json`。新增 `tests/release-matrix.test.mjs` 校验矩阵与真实代码一致（单元版本对齐 package.json、契约版本对齐导出常量、格式版本对齐 schema/迁移 SQL、兼容窗口内部自洽）。新增根 `LICENSE`（许可证待选定占位）、`CHANGELOG.md` 与 [发布矩阵](docs/RELEASE-MATRIX.md) 文档，并在 CI 构建发布产物。npm 发布、公共 registry 的许可证选择与旧/新桌面与 Worker、旧插件/新桌面等真机跨版本矩阵仍待完成。
+- [x] **P1 — 公共包发布矩阵**：定义 Desktop、Worker、SDK、开发工具、首方插件、格式/schema 的独立版本与兼容窗口；准备 ESM/类型 exports、许可证、变更日志、发布产物和旧消费者测试。已有 workspace 与离线 tarball 消费通过，npm 发布和完整矩阵尚未完成。已新增 `packages/protocol/src/release.ts` 作为发布矩阵单一来源（运行时中立、无外部依赖）：声明 `desktop`/`worker`/`sdk`/`devtools`/`first-party`/`format` 六个单元的独立版本、SDK（`apiContractVersion`）与首方适配器（`firstPartyAdapterContractVersion`）契约版本、九项格式版本（notebook schema v2、`anynote.notebook` v1、`anynote.logical` v1、`anynote.local-backup` v1、`anynote.cloud-backup-head` v1、`anynote.cloud-backup-manifest` v1、`anynote.extension`/`-directory`/`-settings` v1）与十二项兼容窗口，并提供 `checkReleaseCompatibility`/`assertReleaseCompatibility`/`satisfiesRange`/`satisfiesFormatRange`/`releaseVersion`；越界按设计 §19.2 明确拒绝。新增 `pnpm run build:release`：复用既有便携构建入口把三份 tarball 汇集到 `artifacts/release/<unit>`，校正 `version`/`license`/`engines`、补齐 `files` 白名单、复制根 LICENSE 与 CHANGELOG、校验 `"type": "module"` 与每个 ESM/类型入口文件真实存在，并计算内容聚合 SHA-256，输出 `artifacts/release/release-matrix.json`（`anynote.release-manifest.v1`）。新增 `pnpm run test:release:matrix`：在只含官方 tarball 的干净离线项目中编译并运行 `tests/fixtures/legacy-consumer/consumer.ts`，断言旧消费者向前兼容、发布清单与磁盘产物哈希一致、兼容窗口越界明确拒绝，报告写入 `test-results/release-matrix.json`。新增 `tests/release-matrix.test.mjs` 校验矩阵与真实代码一致（单元版本对齐 package.json、契约版本对齐导出常量、格式版本对齐 schema/迁移 SQL、兼容窗口内部自洽）。新增根 `LICENSE`（许可证待选定占位）、`CHANGELOG.md` 与 [发布矩阵](docs/RELEASE-MATRIX.md) 文档，并在 CI 构建发布产物。工作区检查与后端构建已纳入 `extensions/*`：三个官方云盘扩展以私有工作区包随应用构建，不进入公共发布矩阵（见 §5）。npm 发布、公共 registry 的许可证选择与旧/新桌面与 Worker、旧插件/新桌面等真机跨版本矩阵仍待完成。
 
-### 10.5 损坏处理、可观测性与发行打磨（原 §7）
+### 11.5 损坏处理、可观测性与发行打磨（原 §7）
 
 - [x] **P0 — 损坏库恢复交互**：打开失败进入只读诊断/恢复向导，先保存原文件和日志，再提供快照、归档或远端恢复；缺失/损坏资源可定位并从备份修复。新增只读诊断（`diagnoseNotebook`）、证据保存（`preserveNotebookEvidence`）与桌面恢复向导；快照列取/恢复改为不依赖库打开，可对不可用库执行。真实整机/断电恢复仍见 §1/§2 独立验收项。
 - [x] **P1 — 启动一致性巡检**：新增只读巡检 `inspectIntegrity`（后台可取消任务 `integrity-inspection`）与报告读取 `getIntegrityReport`：对遗留临时文件（`temp/`、`*.tmp`、`export-*.sqlite`、`assets/**/*.bin.tmp`、清理隔离区及无活动租约的任务暂存目录）、孤儿资源（磁盘上未入库对象、未被任何版本/批注/PDF 文本引用的 `assets` 记录）与缺失引用（被引用但文件缺失、路径无效或大小不符，覆盖历史与回收站版本）做预算受控扫描（扫描与发现条目上限、`truncated` 标记），每 500 条让出事件循环并响应取消；复用备份层的资源闭包定义，活动任务租约（`job-leases`）标记为受保护、暂存目录仅在无租约时记为遗留，Notebook pin 记录为 `pinned`；结果写入设备侧 `_local/integrity-reports.json`（原子写、按 Notebook 保留 50 份），报告仅作提示、不触发任何删除；桌面在启动后自动巡检当前 Notebook，并在本地整理面板与任务中心展示结果与发现项。`tests/integrity-inspection.test.mjs` 覆盖健康库、临时/孤儿/缺失、活动租约保护与取消。

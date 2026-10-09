@@ -9,6 +9,8 @@ public/excalidraw/
 .anynote-dev/
 .cloudflare-acceptance/
 .codebase-memory/
+# IDE 管理的计划/记忆等本地数据，不属于仓库源码，不做重排
+.codebuddy/
 **/.wrangler/
 .husky/_/
 .env*

@@ -26,15 +26,17 @@
 
 ## 格式与 schema
 
-| 格式                  | 标识                                  | 版本 | 归属     |
-| --------------------- | ------------------------------------- | ---- | -------- |
-| `notebook-schema`     | `notebook.sqlite`（`schema_version`） | 2    | `format` |
-| `notebook-archive`    | `anynote.notebook`                    | 1    | `format` |
-| `logical-protocol`    | `anynote.logical`                     | 1    | `format` |
-| `local-backup`        | `anynote.local-backup`                | 1    | `format` |
-| `extension-package`   | `anynote.extension.v1`                | 1    | `format` |
-| `extension-directory` | `anynote.extension-directory.v1`      | 1    | `format` |
-| `extension-settings`  | `anynote.extension-settings.v1`       | 1    | `format` |
+| 格式                    | 标识                                  | 版本 | 归属     |
+| ----------------------- | ------------------------------------- | ---- | -------- |
+| `notebook-schema`       | `notebook.sqlite`（`schema_version`） | 2    | `format` |
+| `notebook-archive`      | `anynote.notebook`                    | 1    | `format` |
+| `logical-protocol`      | `anynote.logical`                     | 1    | `format` |
+| `local-backup`          | `anynote.local-backup`                | 1    | `format` |
+| `cloud-backup-head`     | `anynote.cloud-backup-head`           | 1    | `format` |
+| `cloud-backup-manifest` | `anynote.cloud-backup-manifest`       | 1    | `format` |
+| `extension-package`     | `anynote.extension.v1`                | 1    | `format` |
+| `extension-directory`   | `anynote.extension-directory.v1`      | 1    | `format` |
+| `extension-settings`    | `anynote.extension-settings.v1`       | 1    | `format` |
 
 格式版本按整数独立演进；新增表或字段必须同步更新矩阵与迁移契约。
 
@@ -43,18 +45,20 @@
 `compatibilityWindows` 声明“某消费者接受提供者处于哪个版本区间”，单元用 semver
 range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静默降级写入。
 
-| 消费者        | 提供者                | 接受范围 | 说明                                   |
-| ------------- | --------------------- | -------- | -------------------------------------- |
-| `desktop`     | `notebook-schema`     | `<=2`    | 可读写 schema 1（先迁移）与 2          |
-| `desktop`     | `notebook-archive`    | `1`      | 完整归档 `anynote.notebook` v1         |
-| `desktop`     | `logical-protocol`    | `1`      | 与 Worker 仅在同一逻辑协议版本内互操作 |
-| `worker`      | `logical-protocol`    | `1`      | Worker 只接受 `anynote.logical` v1     |
-| `desktop`     | `sdk`                 | `^0.1.0` | 桌面宿主实现 SDK 0.1 契约              |
-| `first-party` | `sdk`                 | `^0.1.0` | 首方适配器只使用 SDK 0.1 公开导出      |
-| `desktop`     | `extension-package`   | `1`      | 签名扩展包                             |
-| `desktop`     | `extension-directory` | `1`      | 扩展目录                               |
-| `desktop`     | `extension-settings`  | `1`      | 扩展设置                               |
-| `desktop`     | `local-backup`        | `1`      | 本地磁盘备份清单                       |
+| 消费者        | 提供者                  | 接受范围 | 说明                                   |
+| ------------- | ----------------------- | -------- | -------------------------------------- |
+| `desktop`     | `notebook-schema`       | `<=2`    | 可读写 schema 1（先迁移）与 2          |
+| `desktop`     | `notebook-archive`      | `1`      | 完整归档 `anynote.notebook` v1         |
+| `desktop`     | `logical-protocol`      | `1`      | 与 Worker 仅在同一逻辑协议版本内互操作 |
+| `worker`      | `logical-protocol`      | `1`      | Worker 只接受 `anynote.logical` v1     |
+| `desktop`     | `sdk`                   | `^0.1.0` | 桌面宿主实现 SDK 0.1 契约              |
+| `first-party` | `sdk`                   | `^0.1.0` | 首方适配器只使用 SDK 0.1 公开导出      |
+| `desktop`     | `extension-package`     | `1`      | 签名扩展包                             |
+| `desktop`     | `extension-directory`   | `1`      | 扩展目录                               |
+| `desktop`     | `extension-settings`    | `1`      | 扩展设置                               |
+| `desktop`     | `local-backup`          | `1`      | 本地磁盘备份清单                       |
+| `desktop`     | `cloud-backup-head`     | `1`      | 云盘备份当前指针                       |
+| `desktop`     | `cloud-backup-manifest` | `1`      | 云盘备份完整清单                       |
 
 `checkReleaseCompatibility(consumer, provider, version)` 返回 `{ compatible, window }`
 或 `{ compatible: false, reason }`；`assertReleaseCompatibility` 在越界时抛错。

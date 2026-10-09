@@ -1,0 +1,44 @@
+{
+  "name": "@anynote/backup-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*.js": {
+      "types": "./src/*.ts",
+      "import": "./dist/*.js"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-workspace.mjs packages/backup-core",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anynote/backup-dropbox": "workspace:*",
+    "@anynote/backup-google-drive": "workspace:*",
+    "@anynote/backup-onedrive": "workspace:*",
+    "@anynote/cloud-backup-common": "workspace:*",
+    "@anynote/oauth-broker": "workspace:*",
+    "@anynote/storage-sqlite": "workspace:*",
+    "@anynote/types": "workspace:*",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -7,9 +7,12 @@ const root = resolve(".");
 const config = YAML.parse(readFileSync("pnpm-workspace.yaml", "utf8"));
 if (config.nodeLinker !== "isolated" || config.hoist !== false)
   throw Error("必须使用 isolated 且关闭 hoist");
+const workspaceDirs = ["apps", "extensions", "packages"].filter((dir) =>
+  existsSync(dir),
+);
 const owners = [
   ".",
-  ...["apps", "packages"].flatMap((dir) =>
+  ...workspaceDirs.flatMap((dir) =>
     readdirSync(dir)
       .map((n) => `${dir}/${n}`)
       .filter((o) => existsSync(join(o, "package.json"))),
@@ -64,7 +67,10 @@ for (const owner of owners) {
         ]
       : files(owner);
   for (const file of sources) {
-    if (owner.startsWith("packages/") && !file.startsWith(`${owner}/src/`))
+    if (
+      (owner.startsWith("packages/") || owner.startsWith("extensions/")) &&
+      !file.startsWith(`${owner}/src/`)
+    )
       errors.push(`${file}: 包源码必须位于 src/`);
     const ast = ts.createSourceFile(
       file,

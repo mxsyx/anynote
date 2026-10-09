@@ -17,6 +17,10 @@ const owners = [
   "apps/desktop",
   "apps/cloudflare-backup",
   ...readdirSync(join(root, "packages")).map((n) => `packages/${n}`),
+  // Official cloud-drive extensions are workspace packages under extensions/.
+  ...(existsSync(join(root, "extensions"))
+    ? readdirSync(join(root, "extensions")).map((n) => `extensions/${n}`)
+    : []),
 ].filter((o) => existsSync(join(root, o, "package.json")));
 if (process.argv.includes("--clean")) {
   rmSync(output, { recursive: true, force: true });
@@ -37,7 +41,8 @@ if (process.argv.includes("--clean")) {
     // Shared package mirrors resolve to the same module instances as workspace exports.
     const destination = join(root, owner, "dist");
     mkdirSync(destination, { recursive: true });
-    const shared = owner.startsWith("packages/");
+    const shared =
+      owner.startsWith("packages/") || owner.startsWith("extensions/");
     // The repository compiler emits packages/<name>/src. Package exports and
     // legacy .build mirrors expose dist/<entry> without an extra src segment.
     const emitted = shared ? join(compiled, "src") : compiled;
