@@ -9,7 +9,7 @@ interface ProviderView {
   installed: boolean;
   scopes: readonly string[];
   capabilities: { appScopedStorage: boolean; conditionalHead: boolean };
-  /** 是否已解析到 OAuth 应用身份；false 时需自编译/环境变量提供 Client ID。 */
+  /** Whether an OAuth app identity has been resolved; when false, a self-build or env var must supply the Client ID. */
   oauthConfigured?: boolean;
 }
 
@@ -18,7 +18,7 @@ interface AccountView {
   ref: { accountId: string; displayName?: string };
 }
 
-/** 厂商 scope 到可读说明的映射；未识别的权限如实显示原始值。 */
+/** Mapping from vendor scopes to readable descriptions; unrecognized scopes show their raw value. */
 const scopeLabels: Record<string, string> = {
   openid: "确认你的账号身份",
   email: "读取账号邮箱，用于显示备份归属",
@@ -36,10 +36,10 @@ const scopeLabels: Record<string, string> = {
 type Step = "provider" | "permissions" | "authorizing" | "configure";
 
 /**
- * 添加云盘目标向导。
+ * Add cloud target wizard.
  *
- * 分四步：选择厂商 → 展示将申请的权限与数据范围 → 系统浏览器授权 →
- * 确认账号与设备标签并创建目标。普通用户无需填写开发者凭据。
+ * Four steps: choose provider → show scopes and data range to request → system browser authorization →
+ * confirm account and device label and create the target. Regular users need not enter developer credentials.
  */
 export default function CloudBackupAdd({
   notebookId,
@@ -90,7 +90,7 @@ export default function CloudBackupAdd({
       }>("beginCloudAuthorization", { providerId: selected.id });
       setSessionId(begun.sessionId);
       setStep("authorizing");
-      // 桌面由主进程唤起系统浏览器；浏览器预览在此打开新标签页。
+      // On desktop the main process launches the system browser; in a browser preview this opens a new tab.
       if (!begun.opened)
         window.open(begun.authorizationUrl, "_blank", "noopener,noreferrer");
       const created = await request<AccountView>("completeCloudAuthorization", {
@@ -126,7 +126,7 @@ export default function CloudBackupAdd({
         {step === "provider" && (
           <>
             {providers.map((provider) => {
-              // 未显式报告配置状态的旧后端按已配置处理，避免误禁用连接。
+              // Legacy backends that do not explicitly report config status are treated as configured, to avoid wrongly disabling connections.
               const oauthReady = provider.oauthConfigured !== false;
               return (
                 <div className="snapshot-row" key={provider.id}>

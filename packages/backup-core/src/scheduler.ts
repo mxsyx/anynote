@@ -3,21 +3,21 @@ import { canAutoRun } from "./failure.js";
 import { readAccounts, readTargets } from "./state.js";
 
 export interface CloudSchedulerOptions {
-  /** 轮询间隔；与远端目标调度保持同一量级。 */
+  /** Poll interval; kept on the same order as remote-target scheduling. */
   intervalMs?: number;
   now?: () => number;
 }
 
 /**
- * 启动云盘自动备份调度（设计 §8.3）。
+ * Start cloud automatic backup scheduling (design §8.3).
  *
- * 与 Cloudflare/本地目标共用同一套策略语义：粘性暂停与退避期间不触发，达到
- * 配置的最小间隔才执行；手动「立即备份」不受此门控限制。合并连续编辑依赖
- * 最小间隔而不是编辑停止空闲去抖。
+ * Shares the same policy semantics as Cloudflare/local targets: no trigger during a sticky pause or backoff, and it runs only when
+ * the configured minimum interval is reached; manual "backup now" is not gated by this. Merging consecutive edits relies on
+ * the minimum interval rather than an edit-idle debounce.
  *
  * @param s Storage。
- * @param options 轮询间隔与时钟。
- * @returns 调度句柄。
+ * @param options Poll interval and clock.
+ * @returns The scheduling handle.
  */
 export function startCloudBackupScheduler(
   s: Storage,
@@ -39,7 +39,7 @@ export function startCloudBackupScheduler(
           targetId: target.id,
         });
       } catch {
-        // 单个目标失败不影响其他目标；失败状态由任务自身记录。
+        // One target failing does not affect others; the failure state is recorded by the task itself.
       }
     }
   };

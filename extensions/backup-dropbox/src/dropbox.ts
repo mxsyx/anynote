@@ -6,57 +6,57 @@ import type {
 } from "@anynote/types/cloud-backup.js";
 
 /**
- * Dropbox 官方客户端封装（设计 §11）。
+ * Official Dropbox client wrapper (design §11).
  *
- * 与 Google Drive 不同，Dropbox 具有真实路径语义：App Folder 内的对象用
- * 应用根下路径定位，因此这里不引入厂商 SDK，只用核心受限 HTTP 门面直连 RPC
- * 与内容端点，避免为一次备份拉起重型依赖。
+ * Unlike Google Drive, Dropbox has real path semantics: objects inside the App Folder are located
+ * by their path under the app root, so no vendor SDK is pulled in; the core restricted HTTP facade connects directly to the RPC
+ * and content endpoints, avoiding a heavy dependency for a single backup.
  *
- * 关键厂商规则：
- * - 路径大小写无关，规范身份是 `path_lower`，显示名只作可读性（设计 §11.2）；
- * - `content_hash` 是 Dropbox 自己的分块哈希，不等同于整文件 SHA-256（设计 §11.2）；
- * - 大文件使用 upload session，会话失效后必须用同一份本地来源重建（设计 §11.3）；
- * - 版本 token 是 `rev`，用于冲突判断，不能当作内容哈希（设计 §11.2）。
+ * Key vendor rules:
+ * - Paths are case-insensitive; the canonical identity is `path_lower`, with the display name only for readability (design §11.2);
+ * - `content_hash` is Dropbox's own chunked hash, not equivalent to a whole-file SHA-256 (design §11.2);
+ * - Large files use an upload session, which after invalidation must be rebuilt from the same local source (design §11.3);
+ * - The version token is `rev`, used for conflict detection, not as a content hash (design §11.2).
  */
 
-/** Dropbox RPC 端点：元数据、目录与账号操作。 */
+/** Dropbox RPC endpoint: metadata, directory, and account operations. */
 const rpcBase = "https://api.dropboxapi.com/2";
 
-/** Dropbox 内容端点：上传与下载，参数经 `Dropbox-API-Arg` 头传递。 */
+/** Dropbox content endpoint: upload and download, with parameters passed via the `Dropbox-API-Arg` header. */
 const contentBase = "https://content.dropboxapi.com/2";
 
-/** 受管对象 locator 类型；`ref` 是大小写无关的规范路径。 */
+/** Managed-object locator kind; `ref` is the case-insensitive canonical path. */
 export const dropboxLocatorKind = "dropbox.path";
 
-/** Dropbox 内容哈希分块大小：固定 4MiB（设计 §11.2）[D2]。 */
+/** Dropbox content-hash chunk size: a fixed 4MiB (design §11.2) [D2]. */
 export const contentHashBlockBytes = 4 * 1024 * 1024;
 
 /**
- * 启用 upload session 的体积阈值（设计 §11.3）。
+ * Size threshold for enabling an upload session (design §11.3).
  *
- * Dropbox 单次 `files/upload` 上限为 150MB；这里取远低于上限的值，让较大的
- * 数据库/附件走可重启的分片路径，同时避免小对象产生多次会话往返。
+ * Dropbox's single `files/upload` cap is 150MB; a value well below the cap is used so larger
+ * databases/assets take the restartable chunked path, while small objects avoid multiple session round-trips.
  */
 export const sessionThresholdBytes = 8 * 1024 * 1024;
 
-/** upload session 分片大小；Dropbox 单片上限 150MB，这里取 8MiB。 */
+/** Upload session chunk size; Dropbox's per-chunk cap is 150MB, here 8MiB. */
 const sessionChunkBytes = 8 * 1024 * 1024;
 
-/** 单次 RPC 响应读取预算。 */
+/** Response read budget for a single RPC. */
 const rpcMaxBytes = 8 * 1024 * 1024;
 
-/** 写入模式；`update` 携带预期 rev，用于条件冲突判断（设计 §11.3）。 */
+/** Write mode; `update` carries the expected rev for conditional conflict detection (design §11.3). */
 export interface DropboxWriteMode {
   tag: "add" | "overwrite" | "update";
-  /** `update` 必需；与远端当前 rev 不符时 Dropbox 返回冲突。 */
+  /** Required for `update`; Dropbox returns a conflict when it does not match the remote current rev. */
   rev?: string;
 }
 
-/** Dropbox 文件的精简投影；身份以路径 + rev 为准。 */
+/** Slim projection of a Dropbox file; identity is based on path + rev. */
 export interface DropboxEntry {
   id: string;
   name: string;
-  /** 大小写无关的规范路径；用作稳定 locator 引用。 */
+  /** Case-insensitive canonical path; used as the stable locator reference. */
   pathLower: string;
   pathDisplay: string;
   rev?: string;
@@ -66,7 +66,7 @@ export interface DropboxEntry {
 }
 
 export interface DropboxUploadInput {
-  /** 应用根下的目标路径。 */
+  /** Target path under the app root. */
   path: string;
   mode: DropboxWriteMode;
   source: ScopedReadSource;
@@ -80,14 +80,14 @@ export interface DropboxClient {
     account?: string;
     accountType?: string;
   }>;
-  /** 读取元数据；路径不存在返回 null。 */
+  /** Read metadata; returns null when the path does not exist. */
   getMetadata(path: string): Promise<DropboxEntry | null>;
-  /** 列出目录内容；目录不存在返回空数组。 */
+  /** List directory contents; returns an empty array when the directory does not exist. */
   listFolder(
     path: string,
     options?: { recursive?: boolean },
   ): Promise<DropboxEntry[]>;
-  /** 幂等创建目录（含多级父目录）。 */
+  /** Idempotently create a directory (including multi-level parents). */
   ensureFolder(path: string): Promise<void>;
   upload(input: DropboxUploadInput): Promise<DropboxEntry>;
   uploadJson(input: {
@@ -101,18 +101,18 @@ export interface DropboxClient {
     dest: string,
     options?: { maxBytes?: number },
   ): Promise<{ filePath: string; bytes: number; sha256?: string }>;
-  /** 删除文件或目录；路径已不存在时视为成功。 */
+  /** Delete a file or directory; a non-existent path counts as success. */
   remove(path: string): Promise<void>;
   locate(entry: DropboxEntry): CloudObjectLocator;
 }
 
-/** Dropbox 错误响应体片段；用于区分未找到、冲突等语义。 */
+/** Dropbox error response body fragment; used to distinguish not-found, conflict, and other semantics. */
 interface DropboxErrorBody {
   error_summary?: string;
   error?: { ".tag"?: string };
 }
 
-/** Dropbox 原始条目字段（snake_case）。 */
+/** Raw Dropbox entry fields (snake_case). */
 interface DropboxRawEntry {
   ".tag"?: string;
   id?: string;
@@ -125,14 +125,14 @@ interface DropboxRawEntry {
 }
 
 /**
- * 从受限 HTTP 错误中提取 Dropbox 错误摘要。
+ * Extract the Dropbox error summary from a restricted HTTP error.
  *
- * 核心的受限 HTTP 客户端会在错误上附带响应体（`bytes`）。Dropbox 用
- * `error_summary` 区分 `path/not_found`、`path/conflict/...` 等，不能只看
- * HTTP 状态码。
+ * The core restricted HTTP client attaches the response body (`bytes`) to the error. Dropbox uses
+ * `error_summary` to distinguish `path/not_found`, `path/conflict/...`, etc.; the HTTP status code
+ * alone is not enough.
  *
- * @param error 核心抛出的厂商错误。
- * @returns 错误摘要或 `.tag`；无法解析时返回 undefined。
+ * @param error The vendor error thrown by the core.
+ * @returns The error summary or `.tag`; undefined when unparsable.
  */
 export function dropboxErrorCode(error: unknown): string | undefined {
   const bytes = (error as { bytes?: Uint8Array }).bytes;
@@ -147,25 +147,25 @@ export function dropboxErrorCode(error: unknown): string | undefined {
   }
 }
 
-/** 是否为「路径不存在」错误。 */
+/** Whether it is a "path not found" error. */
 export const isDropboxNotFound = (code?: string): boolean =>
   !!code && (code.startsWith("path/not_found") || code === "not_found");
 
-/** 是否为写入冲突（路径已存在或 rev 不匹配）。 */
+/** Whether it is a write conflict (path already exists or rev mismatch). */
 export const isDropboxConflict = (code?: string): boolean =>
   !!code && (code.includes("conflict") || code === "conflict");
 
 /**
- * 计算 Dropbox 内容哈希（设计 §11.2）[D2]。
+ * Compute the Dropbox content hash (design §11.2) [D2].
  *
- * 算法：按 4MiB 分块，对每块取 SHA-256，把各块的二进制摘要拼接后再取一次
- * SHA-256；不足一块的文件即内容 SHA-256。这里在本地来源上流式计算，上传后
- * 与远端返回的 `content_hash` 比对（设计 §13.1）。
+ * Algorithm: chunk by 4MiB, SHA-256 each chunk, concatenate the binary digests and SHA-256 the
+ * result; for files smaller than one chunk the content hash is just the file's SHA-256. Computed streaming over the local source, then
+ * compared with the remote `content_hash` after upload (design §13.1).
  *
- * @param source 只读字节来源。
- * @param size 对象大小。
- * @param signal 取消信号。
- * @returns 十六进制内容哈希。
+ * @param source Read-only byte source.
+ * @param size Object size.
+ * @param signal Cancellation signal.
+ * @returns Hex content hash.
  */
 export async function dropboxContentHash(
   source: ScopedReadSource,
@@ -183,7 +183,7 @@ export async function dropboxContentHash(
   return overall.digest("hex");
 }
 
-/** 把写入模式转成 Dropbox 的 `mode` 参数。 */
+/** Convert the write mode into Dropbox's `mode` parameter. */
 function modeArg(mode: DropboxWriteMode): Record<string, unknown> {
   if (mode.tag === "update") {
     if (!mode.rev) throw Error("Dropbox 条件写缺少预期 rev");
@@ -192,13 +192,13 @@ function modeArg(mode: DropboxWriteMode): Record<string, unknown> {
   return { ".tag": mode.tag };
 }
 
-/** 路径的父目录；顶层对象返回空串。 */
+/** Parent directory of the path; returns an empty string for a top-level object. */
 function parentDir(path: string): string {
   const index = path.lastIndexOf("/");
   return index <= 0 ? "" : path.slice(0, index);
 }
 
-/** 读取一个精确长度的分片；长度不符视为源被截断。 */
+/** Read an exactly-sized chunk; a length mismatch is treated as a truncated source. */
 async function readChunk(
   source: ScopedReadSource,
   offset: number,
@@ -210,12 +210,12 @@ async function readChunk(
   return chunk;
 }
 
-/** 把单个分片包装成上传用的字节流。 */
+/** Wrap a single chunk as a byte stream for upload. */
 async function* oneChunk(chunk: Uint8Array): AsyncIterable<Uint8Array> {
   if (chunk.length) yield chunk;
 }
 
-/** 把本地字节包装成只读来源，供统一上传路径复用。 */
+/** Wrap local bytes as a read-only source, reused by the unified upload path. */
 function bytesSource(bytes: Uint8Array): ScopedReadSource {
   return {
     size: bytes.length,
@@ -226,7 +226,7 @@ function bytesSource(bytes: Uint8Array): ScopedReadSource {
   };
 }
 
-/** 映射 Dropbox 原始条目。 */
+/** Map a raw Dropbox entry. */
 function mapEntry(raw: DropboxRawEntry | null | undefined): DropboxEntry {
   if (!raw) throw Error("Dropbox 返回了空的对象元数据");
   const pathLower = raw.path_lower ?? raw.path_display ?? "";
@@ -243,19 +243,19 @@ function mapEntry(raw: DropboxRawEntry | null | undefined): DropboxEntry {
 }
 
 /**
- * 创建 Dropbox 客户端。
+ * Create the Dropbox client.
  *
- * 所有请求都走核心受限网络门面：非 `raw` 请求自动注入 Bearer 并在 401 时
- * 刷新一次；扩展拿不到 refresh token（设计 §6.2、§15.2）。
+ * All requests go through the core restricted network facade: non-`raw` requests auto-inject Bearer and, on 401,
+ * refresh once; extensions never get the refresh token (design §6.2, §15.2).
  *
- * @param ctx 核心运行期上下文。
- * @returns Dropbox 客户端。
+ * @param ctx Core runtime context.
+ * @returns The Dropbox client.
  */
 export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
-  /** 已确认存在的目录；避免每次上传都重复创建/查询父目录。 */
+  /** Directories confirmed to exist; avoids re-creating/querying parent directories on every upload. */
   const ensured = new Set<string>();
 
-  /** 发起一次 RPC 调用并解析 JSON。 */
+  /** Make an RPC call and parse JSON. */
   const rpc = async <T>(route: string, body: unknown): Promise<T> => {
     const response = await ctx.accounts.request(`${rpcBase}/${route}`, {
       method: "POST",
@@ -266,7 +266,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
     return JSON.parse(Buffer.from(response.bytes).toString("utf8")) as T;
   };
 
-  /** 发起一次内容端点调用（上传/会话），解析 JSON 或返回 null。 */
+  /** Make a content-endpoint call (upload/session), parsing JSON or returning null. */
   const contentUpload = async <T>(
     route: string,
     arg: unknown,
@@ -276,7 +276,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
       method: "POST",
       headers: {
         "Content-Type": "application/octet-stream",
-        // 参数走头部而非 URL，避免路径与 rev 进入日志。
+        // Parameters go in the header rather than the URL, keeping paths and revs out of logs.
         "Dropbox-API-Arg": JSON.stringify(arg),
       },
       source,
@@ -316,7 +316,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
         for (const entry of page.entries)
           if (entry[".tag"] !== "deleted") entries.push(mapEntry(entry));
         if (!page.has_more) break;
-        // 分页中断会抛错；调用方绝不能把不完整结果当成「全部对象」。
+        // A paging interruption throws; the caller must never treat an incomplete result as "all objects".
         page = await rpc("files/list_folder/continue", {
           cursor: page.cursor,
         });
@@ -338,7 +338,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
     if (existing)
       throw Error(`Dropbox 路径已存在但不是目录，已停止写入：${path}`);
     try {
-      // create_folder_v2 会按需创建缺失的父目录。
+      // create_folder_v2 creates missing parent directories on demand.
       await rpc("files/create_folder_v2", { path, autorename: false });
     } catch (error) {
       if (!isDropboxConflict(dropboxErrorCode(error))) throw error;
@@ -353,7 +353,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
     if (dir) await ensureFolder(dir);
   };
 
-  /** 用同一份本地来源重开一个 upload session 并完成上传。 */
+  /** Reopen an upload session from the same local source and finish the upload. */
   const uploadSession = async (
     input: DropboxUploadInput,
   ): Promise<DropboxEntry> => {
@@ -385,8 +385,8 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
             );
             return mapEntry(finished);
           }
-          // append_v2 不返回服务端确认偏移，因此本地按实际发送量推进；
-          // 一旦与服务端游标不一致，Dropbox 会报错，我们据此外层重开会话。
+          // append_v2 does not return a server-confirmed offset, so locally advance by the amount actually sent;
+          // once it diverges from the server cursor, Dropbox errors, and this outer layer reopens the session accordingly.
           await contentUpload(
             "files/upload_session/append_v2",
             {
@@ -398,8 +398,8 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
           offset += length;
         }
       } catch (error) {
-        // 会话失效或中断：用同一份本地来源重建会话，绝不拼接另一份捕获
-        // （设计 §8.3、§11.3）。
+        // Session invalidated or interrupted: rebuild the session from the same local source, never splicing in another capture's
+        // database (design §8.3, §11.3).
         if (attempt === 2) throw error;
         ctx.tasks.log("warn", "Dropbox 上传会话中断，正在用同一来源重建会话");
       }
@@ -409,7 +409,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
 
   const upload = async (input: DropboxUploadInput): Promise<DropboxEntry> => {
     await ensureParent(input.path);
-    // 在上传前于本地来源上计算 Dropbox 内容哈希，上传后与远端比对。
+    // Compute the Dropbox content hash on the local source before upload, and compare with the remote afterward.
     const expected = await dropboxContentHash(
         input.source,
         input.size,
@@ -425,7 +425,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
                 autorename: false,
                 mute: true,
               };
-              // `add` 采用禁止覆盖语义：已存在即冲突，绝不自动改名。
+              // `add` uses no-overwrite semantics: existing means conflict, never auto-renaming.
               if (input.mode.tag === "add") commit.strict_conflict = true;
               return mapEntry(
                 await contentUpload<DropboxRawEntry>(
@@ -435,7 +435,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
                 ),
               );
             })();
-    // 远端 content_hash 由 Dropbox 按同一算法计算，是真实内容校验证据（设计 §13.1）。
+    // The remote content_hash is computed by Dropbox with the same algorithm, real content-verification evidence (design §13.1).
     if (entry.contentHash && entry.contentHash !== expected)
       throw Object.assign(
         Error("Dropbox 内容校验失败：远端 content_hash 与本地计算结果不一致"),
@@ -506,7 +506,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
       try {
         await rpc("files/delete_v2", { path });
       } catch (error) {
-        // 已不存在的对象视为删除成功，保证清理幂等。
+        // A non-existent object counts as a successful delete, keeping cleanup idempotent.
         if (!isDropboxNotFound(dropboxErrorCode(error))) throw error;
       }
     },
@@ -514,7 +514,7 @@ export function createDropboxClient(ctx: BackupHostContext): DropboxClient {
     locate(entry) {
       return {
         kind: dropboxLocatorKind,
-        // 规范路径是小写形式；布局用 UUID/哈希命名，不存在大小写歧义。
+        // Canonical paths are lowercase; the layout uses UUIDs/hashes, so there is no case ambiguity.
         ref: entry.pathLower,
         versionToken: entry.rev,
       };

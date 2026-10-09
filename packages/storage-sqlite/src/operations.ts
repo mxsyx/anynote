@@ -80,7 +80,7 @@ const previewLimit = 8;
  *
  * @param db Open database handle.
  * @param parentId Parent folder ID (or null for the Notebook root).
- * @returns A `父 / 子` path, or a root label when the parent is null.
+ * @returns A `parent / child` path, or a root label when the parent is null.
  */
 function folderPath(db: SqlDatabase, parentId: string | null | undefined) {
   const parts: string[] = [],
@@ -657,7 +657,7 @@ export async function advancedOperations(
     return backupOperation(s, op, raw);
   }
 
-  // 云盘备份（设计 §3.1）：与 Cloudflare/本地目标并列的第三个备份目标族。
+  // Cloud backup (design §3.1): a third backup target family alongside Cloudflare and local targets.
   if (
     [
       "listCloudProviders",
@@ -682,7 +682,7 @@ export async function advancedOperations(
     const { cloudBackupOperation } = await import(
       "@anynote/backup-core/operations.js"
     );
-    // 官方扩展随应用构建；首次处理云盘操作前惰性注册，幂等且不影响启动。
+    // Official extensions ship with the app build; registered lazily before the first cloud operation, idempotent and without affecting startup.
     const { registerOfficialProviders } = await import(
       "@anynote/backup-core/official.js"
     );

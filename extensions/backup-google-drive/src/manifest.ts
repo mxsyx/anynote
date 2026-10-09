@@ -4,10 +4,10 @@ import {
 } from "@anynote/plugin-sdk";
 
 /**
- * Google Drive 官方扩展清单（设计 §15.3）。
+ * Google Drive official extension manifest (design §15.3).
  *
- * `network:provider-approved` 只覆盖 Google 认证与 Drive API/上传下载域名，
- * 不表示允许任意 URL 携带 token；权限与账号数据按 Provider 隔离。
+ * `network:provider-approved` covers only the Google auth and Drive API/upload-download domains,
+ * and does not mean any URL may carry the token; permissions and account data are isolated per Provider.
  */
 export const googleDriveManifest: CloudBackupExtensionManifest = {
   id: "anynote.backup-google-drive",

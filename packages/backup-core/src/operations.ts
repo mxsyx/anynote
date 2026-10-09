@@ -36,7 +36,7 @@ import {
 } from "./state.js";
 import { startCloudBackup, startCloudRestore } from "./tasks.js";
 
-/** 云盘备份核心操作；与 `Operation` union / `operations.json` 一一对应。 */
+/** Cloud backup core operations; one-to-one with the `Operation` union / `operations.json`. */
 export const cloudBackupOperations = [
   "listCloudProviders",
   "listCloudAccounts",
@@ -60,7 +60,7 @@ export const cloudBackupOperations = [
 const uuid = z.string().uuid(),
   providerIdSchema = z.enum(["google-drive", "dropbox", "onedrive"]);
 
-/** 未安装扩展时的能力占位：不承诺任何厂商行为。 */
+/** Capability placeholder when an extension is not installed: promises no vendor behavior. */
 const unavailableCapabilities: CloudBackupCapabilities = Object.freeze({
   resumableUpload: false,
   conditionalHead: false,
@@ -69,18 +69,18 @@ const unavailableCapabilities: CloudBackupCapabilities = Object.freeze({
   quotaAvailable: false,
 });
 
-/** 自动备份最小间隔（设计 §8.3）。 */
+/** Minimum interval for automatic backup (design §8.3). */
 const minimumIntervalMinutes = 10;
 
 /**
- * 在一次探测/列目录调用中构造并回收 Provider 上下文。
+ * Build and dispose of a Provider context within a single probe/list call.
  *
  * @param s Storage。
- * @param account 账号。
- * @param providerId 厂商标识。
- * @param options Notebook、取消信号与进度。
- * @param fn 使用上下文的回调。
- * @returns 回调结果。
+ * @param account The account.
+ * @param providerId Vendor id.
+ * @param options Notebook, cancellation signal, and progress.
+ * @param fn Callback that uses the context.
+ * @returns The callback result.
  */
 async function withContext<T>(
   s: Storage,
@@ -114,7 +114,7 @@ async function withContext<T>(
   }
 }
 
-/** 计算目标卡片展示状态，逐条如实呈现而不合成全局绿灯。 */
+/** Compute the target card display state, presenting each item truthfully without synthesizing a global green light. */
 function targetState(
   s: Storage,
   target: CloudBackupTarget,
@@ -135,7 +135,7 @@ function targetState(
   return target.lastSuccess ? "completed" : "idle";
 }
 
-/** 组装目标卡片视图。 */
+/** Assemble the target card view. */
 function targetView(
   s: Storage,
   target: CloudBackupTarget,
@@ -162,16 +162,16 @@ function targetView(
 }
 
 /**
- * 云盘备份核心操作分发入口（设计 §3.1）。
+ * Cloud backup core operation dispatch entry point (design §3.1).
  *
- * 与现有 `backupOperation` 一样返回 `{handled, result}`，由
- * `packages/storage-sqlite/src/operations.ts` 统一接入 `Storage.run`。
- * 核心不出现任何厂商分支：具体云盘行为全部委托给已注册的官方扩展。
+ * Like the existing `backupOperation`, returns `{handled, result}`, wired into `Storage.run` by
+ * `packages/storage-sqlite/src/operations.ts`.
+ * The core has no vendor branches: all concrete cloud behavior is delegated to the registered official extensions.
  *
  * @param s Storage。
- * @param op 操作名。
- * @param raw 原始载荷。
- * @returns 是否处理以及处理结果。
+ * @param op Operation name.
+ * @param raw Raw payload.
+ * @returns Whether it was handled and the result.
  */
 export async function cloudBackupOperation(
   s: Storage,
@@ -185,7 +185,7 @@ export async function cloudBackupOperation(
     z.object({})
       .strict()
       .parse(raw ?? {});
-    // 应用身份只反映是否已解析到 Client ID，不回传其内容（设计 §6.3）。
+    // App identity reflects only whether a Client ID was resolved, never its content (design §6.3).
     const apps = new Map(
       describeOAuthApps().map((app) => [app.providerId, app]),
     );
@@ -200,7 +200,7 @@ export async function cloudBackupOperation(
           capabilities:
             registered?.provider.capabilities ?? unavailableCapabilities,
           scopes: registered?.provider.accountDescriptor.scopes ?? [],
-          // 未配置时向导提前提示需自编译/环境变量提供 Client ID，而非授权时才报错。
+          // When unconfigured, the wizard warns in advance that a self-build/env var must supply the Client ID, rather than erroring only at authorization.
           oauthConfigured: apps.get(view.id)?.configured ?? false,
         };
       }),
@@ -249,7 +249,7 @@ export async function cloudBackupOperation(
     const p = z.object({ accountRefId: uuid }).strict().parse(raw),
       account = findAccount(s, p.accountRefId);
     if (account) {
-      // 断开只停止任务并清除本机 token，不删除远端副本（设计 §5.4）。
+      // Disconnect only stops tasks and clears local tokens; it does not delete remote copies (design §5.4).
       await cloudBroker(s).tokens.revoke(
         p.accountRefId,
         oauthDescriptors[account.ref.providerId],
@@ -321,7 +321,7 @@ export async function cloudBackupOperation(
         notebookId: p.notebookId,
         providerId: p.providerId,
         accountRefId: p.accountRefId,
-        // 设备槽存本机、新安装/新机器生成新槽（设计 §9.1）。
+        // Device slots are stored locally; a fresh install/new machine generates a new slot (design §9.1).
         deviceSlotId: previous?.deviceSlotId ?? randomUUID(),
         deviceLabel: p.deviceLabel ?? previous?.deviceLabel,
         credentialsMode: s.vault ? "system-encrypted" : "session-only",
@@ -377,7 +377,7 @@ export async function cloudBackupOperation(
         p.intervalMinutes ?? current.intervalMinutes ?? minimumIntervalMinutes,
         minimumIntervalMinutes,
       ),
-      // 用户显式启用即视为对失败状态的修复。
+      // An explicit user enable is treated as a repair of the failure state.
       ...(p.enabled
         ? { failureCount: 0, nextAttemptAt: null, pausedReason: null }
         : {}),
@@ -398,7 +398,7 @@ export async function cloudBackupOperation(
       s,
       readTargets(s).filter((item) => item.id !== target.id),
     );
-    // 取消勾选 Notebook 不自动删除云端副本（设计 §9.3）。
+    // Unchecking a Notebook does not auto-delete the cloud copy (design §9.3).
     return { handled: true, result: true };
   }
 
@@ -519,7 +519,7 @@ export async function cloudBackupOperation(
       { notebookId: p.notebookId, deviceLabel: target.deviceLabel },
       (ctx) => provider.deleteSlot!({ deviceSlotId: p.deviceSlotId }, ctx),
     );
-    // 删除当前槽后本机指针也需要重置，避免下次误判「无变化」。
+    // After deleting the current slot the local pointer must also be reset, to avoid a false "unchanged" next time.
     if (p.deviceSlotId === target.deviceSlotId)
       patchTarget(s, target.id, {
         lastHead: null,
@@ -536,7 +536,7 @@ export async function cloudBackupOperation(
   return { handled: false };
 }
 
-/** 列出全部已注册 Provider（供调度与诊断读取）。 */
+/** List all registered Providers (read by scheduling and diagnostics). */
 export const registeredProviders = () =>
   listCloudProviders().map((entry) => ({
     id: entry.provider.id,

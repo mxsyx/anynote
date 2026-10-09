@@ -8,7 +8,7 @@ import {
 } from "./errors.js";
 import { safeEqual } from "./pkce.js";
 
-/** 回调参数；成功时为 `code`+`state`，失败时为 `error` 等厂商字段。 */
+/** Callback params; on success `code`+`state`, on failure vendor fields like `error`. */
 export interface CallbackParams {
   code?: string;
   state?: string;
@@ -16,46 +16,46 @@ export interface CallbackParams {
   errorDescription?: string;
 }
 
-/** 一个短期存活的回环回调监听器（设计 §6.1）。 */
+/** A short-lived loopback callback listener (design §6.1). */
 export interface CallbackListener {
-  /** 仅绑定回环地址的完整回调 URI。 */
+  /** Full callback URI bound to the loopback address only. */
   redirectUri: string;
-  /** 等待一次回调；超时、路径不符或 state 校验失败会 reject。 */
+  /** Wait for one callback; rejects on timeout, path mismatch, or state check failure. */
   wait(signal?: AbortSignal): Promise<CallbackParams>;
-  /** 关闭监听并释放端口。 */
+  /** Close the listener and release the port. */
   close(): void;
 }
 
 export interface LoopbackOptions {
-  /** 期望的 OAuth state，必须与回调逐字节一致。 */
+  /** Expected OAuth state, which must match the callback byte for byte. */
   expectedState: string;
-  /** 回调路径；默认 `/` 以兼容厂商注册的任意端口回环 URI。 */
+  /** Callback path; defaults to `/` to support vendor-registered loopback URIs on any port. */
   path?: string;
   /**
-   * 优先尝试的回环端口；为空时使用系统分配的随机端口。
+   * Preferred loopback ports to try; a random system-assigned port is used when empty.
    *
-   * Google 桌面客户端可使用任意端口，Dropbox 等要求预注册回调 URI 的厂商可能
-   * 需要固定端口；任一端口被占用时按顺序回落，全部占用才报告端口状态。
+   * The Google desktop client may use any port, while vendors such as Dropbox that require
+   * a pre-registered callback URI may need fixed ports; when a port is busy it falls back in order, reporting port status only when all are busy.
    */
   ports?: readonly number[];
-  /** 会话最长存活时间（毫秒）。 */
+  /** Maximum session lifetime (milliseconds). */
   timeoutMs?: number;
 }
 
-/** 授权完成后返回给系统浏览器的极简页面。 */
+/** Minimal page returned to the system browser after authorization completes. */
 const responsePage = `<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <title>Anynote 授权完成</title></head><body style="font-family:system-ui;padding:2rem">
 <p>授权已完成，请返回 Anynote 继续配置。此页面可以关闭。</p></body></html>`;
 
 /**
- * 依次尝试候选端口启动服务器。
+ * Start the server by trying candidate ports in order.
  *
- * 只有全部候选都因 `EADDRINUSE` 失败时才报告端口被占用；其他错误（如权限）直接
- * 上抛，不做无意义的回落。
+ * Port-busy is reported only when all candidates fail with `EADDRINUSE`; other errors (such as permission) are
+ * rethrown directly, with no pointless fallback.
  *
- * @param ports 候选端口；`0` 表示由系统分配。
- * @param handler 请求处理函数。
- * @returns 已开始监听的服务器。
+ * @param ports Candidate ports; `0` means system-assigned.
+ * @param handler Request handler.
+ * @returns The server that has started listening.
  */
 async function listenOn(
   ports: readonly number[],
@@ -71,7 +71,7 @@ async function listenOn(
       });
       return server;
     } catch (error) {
-      // 失败后清理该候选，移除错误监听避免 close 时的未处理事件。
+      // After a failure clean up this candidate, removing the error listener to avoid an unhandled event on close.
       server.removeAllListeners("error");
       server.close(() => {});
       if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
@@ -85,14 +85,14 @@ async function listenOn(
 }
 
 /**
- * 在回环地址上开启一次性回调监听。
+ * Open a one-shot callback listener on the loopback address.
  *
- * 只绑定 `127.0.0.1` 的临时端口、监听单个路径、会话短期存活；回调验证 state
- * 与预期路径后立即关闭，不监听全部网卡，也不在带 Node 权限的 WebView 中执行。
- * 自定义 scheme 同样会校验 state，避免回调被截获。
+ * Binds only `127.0.0.1` on an ephemeral port, listens on a single path, and lives briefly; the callback verifies state
+ * and the expected path then closes immediately, neither listening on all interfaces nor running in a Node-privileged WebView.
+ * Custom schemes also verify state, preventing callback interception.
  *
- * @param options 期望 state、回调路径、优先端口与超时。
- * @returns 回调监听器。
+ * @param options Expected state, callback path, preferred ports, and timeout.
+ * @returns The callback listener.
  */
 export async function startLoopbackListener(
   options: LoopbackOptions,
@@ -102,7 +102,7 @@ export async function startLoopbackListener(
     expectedState = options.expectedState,
     candidates = options.ports?.length ? [...options.ports] : [0];
   let settled = false;
-  // 超时句柄在监听建立后才赋值，用可变持有对象避免 `prefer-const` 与 TDZ 冲突。
+  // The timeout handle is assigned only after listening starts; a mutable holder avoids a `prefer-const` vs TDZ conflict.
   const timers: { timeout?: NodeJS.Timeout } = {};
   let resolve!: (value: CallbackParams) => void,
     reject!: (error: Error) => void;
@@ -110,11 +110,11 @@ export async function startLoopbackListener(
     resolve = res;
     reject = rej;
   });
-  // 会话可能在无人 `wait()` 时被结算（例如 `begin` 后立即 close/discard）；
-  // 提前挂一个空处理器，避免这些路径产生未处理的 rejection。
+  // The session may settle with no one calling `wait()` (e.g. close/discard right after `begin`);
+  // attach an empty handler in advance to avoid unhandled rejections on these paths.
   result.catch(() => {});
 
-  /** 结束回调等待，确保只结算一次。 */
+  /** End the callback wait, ensuring it settles only once. */
   const settle = (fn: () => void) => {
     if (settled) return;
     settled = true;

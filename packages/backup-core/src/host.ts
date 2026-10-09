@@ -21,13 +21,13 @@ import {
 } from "./capture.js";
 import { deleteProviderState, providerState } from "./state.js";
 
-/** 系统浏览器唤起的进程级钩子；只有主进程能真正执行。 */
+/** Process-level hook for launching the system browser; only the main process can actually do it. */
 let openExternalHook: ((url: string) => Promise<void>) | undefined;
 
 /**
- * 注入「用系统浏览器打开授权页」的实现（由存储进程转发到主进程）。
+ * Inject the "open the authorization page in the system browser" implementation (forwarded from the storage process to the main process).
  *
- * @param hook 打开外部链接的函数。
+ * @param hook Function that opens an external link.
  */
 export function setCloudOpenExternal(
   hook: ((url: string) => Promise<void>) | undefined,
@@ -36,12 +36,12 @@ export function setCloudOpenExternal(
 }
 
 /**
- * 读取当前注入的浏览器唤起实现。
+ * Read the currently injected browser launcher.
  *
- * 未注入时返回 undefined，由调用方决定回退策略（如由渲染进程打开授权 URL）；
- * 这样浏览器预览与自动化测试可以复用同一条 PKCE 流程。
+ * Returns undefined when not injected; the caller decides the fallback (e.g. the renderer opening the authorization URL),
+ * so browser preview and automated tests can reuse the same PKCE flow.
  *
- * @returns 唤起函数或 undefined。
+ * @returns The launch function or undefined.
  */
 export function optionalCloudOpenExternal():
   | ((url: string) => Promise<void>)
@@ -49,26 +49,26 @@ export function optionalCloudOpenExternal():
   return openExternalHook;
 }
 
-/** 脱敏日志环形缓冲；只保留最近条目，供诊断读取。 */
+/** Redacted log ring buffer; keeps only recent entries for diagnostics. */
 const logRing: { at: number; level: string; message: string }[] = [];
 
 /**
- * 读取扩展脱敏日志。
+ * Read the extension redacted log.
  *
- * @returns 最近的日志条目副本。
+ * @returns A copy of the recent log entries.
  */
 export const listProviderLogs = () => logRing.map((entry) => ({ ...entry }));
 
-/** 受限 HTTP 客户端的构造参数。 */
+/** Construction arguments for the restricted HTTP client. */
 interface AuthorizedClientArgs {
   accessToken(): Promise<string>;
-  /** 令牌失效时刷新；返回新的 access token。 */
+  /** Refresh when the token expires; returns a new access token. */
   refresh?(): Promise<string>;
 }
 
 const defaultMaxBytes = 8 * 1024 * 1024;
 
-/** 单次 fetch 的中间结果。 */
+/** Intermediate result of a single fetch. */
 interface RawResponse {
   status: number;
   headers: Headers;
@@ -76,15 +76,15 @@ interface RawResponse {
 }
 
 /**
- * 构造受限 HTTP 客户端。
+ * Build the restricted HTTP client.
  *
- * 规则（设计 §6.2、§16）：
- * - 非 `raw` 请求注入 Bearer；`raw` 用于自带凭据的上传会话 URL；
- * - 手动处理重定向，跨源时丢弃 Authorization，不向第三方转发 Bearer；
- * - 401 时刷新一次 access token 并重试，避免把过期当成永久失败。
+ * Rules (design §6.2, §16):
+ * - Inject Bearer for non-`raw` requests; `raw` is for upload session URLs that carry their own credentials;
+ * - Handle redirects manually, dropping Authorization on cross-origin, never forwarding Bearer to a third party;
+ * - On 401, refresh the access token once and retry, avoiding treating expiry as permanent failure.
  *
- * @param args access token 提供者与刷新函数。
- * @returns 受限请求、流式上传与流式下载能力。
+ * @param args Access token provider and refresh function.
+ * @returns Restricted request, streaming upload, and streaming download capabilities.
  */
 function createHttpClient(args: AuthorizedClientArgs) {
   const send = async (
@@ -113,7 +113,7 @@ function createHttpClient(args: AuthorizedClientArgs) {
     for (let hop = 0; hop <= 5; hop += 1) {
       signal?.throwIfAborted();
       const sendHeaders: Record<string, string> = { ...headers };
-      // 跨源重定向后不再携带 Bearer，避免把凭据交给第三方主机。
+      // Do not carry Bearer after a cross-origin redirect, avoiding handing credentials to a third-party host.
       if (!raw && token && new URL(currentUrl).origin === baseOrigin)
         sendHeaders.Authorization = `Bearer ${token}`;
       const response = await fetch(currentUrl, {
@@ -137,7 +137,7 @@ function createHttpClient(args: AuthorizedClientArgs) {
       if (location && response.status >= 300 && response.status < 400) {
         await response.body?.cancel();
         currentUrl = new URL(location, currentUrl).toString();
-        // 303 与大多数 301/302 的 POST 都转为 GET；这里对非 307/308 统一降级。
+        // 303 and most 301/302 POSTs become GET; here everything other than 307/308 is downgraded uniformly.
         if (response.status !== 307 && response.status !== 308)
           if (currentMethod !== "GET" && currentMethod !== "HEAD") {
             currentMethod = "GET";
@@ -198,8 +198,8 @@ function createHttpClient(args: AuthorizedClientArgs) {
         throw Object.assign(Error(`云盘返回 HTTP ${response.status}`), {
           status: response.status,
           retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
-          // 附带错误响应体，使厂商扩展能区分 path/not_found、conflict 等语义，
-          // 而不是把所有非 2xx 都当作同一种失败（设计 §11.3、§12.3）。
+          // Include the error response body so vendor extensions can distinguish semantics like path/not_found and conflict,
+          // instead of treating every non-2xx as the same failure (design §11.3, §12.3).
           bytes,
         });
       return {
@@ -223,7 +223,7 @@ function createHttpClient(args: AuthorizedClientArgs) {
         true,
       );
       const bytes = await buffer(response, init.maxBytes ?? defaultMaxBytes);
-      // 308 表示分片续传中，交给调用方按服务端确认偏移继续，不算错误。
+      // 308 means a resumable chunk upload is in progress; the caller continues from the server-confirmed offset, not an error.
       if (response.status >= 400)
         throw Object.assign(Error(`云盘上传返回 HTTP ${response.status}`), {
           status: response.status,
@@ -289,10 +289,10 @@ function createHttpClient(args: AuthorizedClientArgs) {
 }
 
 /**
- * 解析 `Retry-After` 头。
+ * Parse the `Retry-After` header.
  *
- * @param value 头值。
- * @returns 建议等待的毫秒数。
+ * @param value Header value.
+ * @returns Suggested wait in milliseconds.
  */
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -302,7 +302,7 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
 }
 
-/** 核心私有临时目录；扩展只拿到其中的文件路径，拿不到 root。 */
+/** Core-private temp directory; extensions only get file paths within it, never the root. */
 export function createTempDir(s: Storage, prefix: string): string {
   const dir = join(s.root, "_local", "cloud-backup-tmp");
   mkdirSync(dir, { recursive: true });
@@ -315,31 +315,31 @@ export interface HostContextArgs {
   s: Storage;
   broker: OAuthBroker;
   account: CloudBackupAccount;
-  /** 已授权 Notebook；仅探测能力时可以为空。 */
+  /** Authorized Notebook; may be empty when only probing capabilities. */
   notebookId?: string;
   providerId: string;
   signal: AbortSignal;
   deviceLabel?: string;
   concurrency?: number;
   onProgress?: (bytes: number, message?: string) => void;
-  /** 核心管理的临时目录，用于流式下载大对象。 */
+  /** Core-managed temp directory used to stream large-object downloads. */
   tempDir: string;
 }
 
 /**
- * 为一次 Provider 调用构造运行期上下文（设计 §15.2）。
+ * Build a runtime context for a single Provider call (design §15.2).
  *
- * 上下文只暴露捕获、资源、账号、网络、任务、本机状态与校验门面；SDK 不公开
- * 任意数据库连接、绝对磁盘路径或全局 token。
+ * The context exposes only the capture, asset, account, network, task, local-state, and verification facades; the SDK never exposes
+ * arbitrary database connections, absolute disk paths, or global tokens.
  *
- * @param args Storage、broker、账号与任务参数。
- * @returns Provider 运行期上下文。
+ * @param args Storage, broker, account, and task arguments.
+ * @returns The Provider runtime context.
  */
 export function createBackupHostContext(
   args: HostContextArgs,
 ): BackupHostContext {
   const { s, broker, account, providerId } = args,
-    // 按 provider + Notebook 隔离扩展状态，避免多库共用一份键空间。
+    // Isolate extension state by provider + Notebook, avoiding a shared key space across notebooks.
     stateScope = `${providerId}:${args.notebookId ?? "-"}`,
     ref: CloudAccountRef = account.ref,
     tokenProvider = broker.tokenProvider(
@@ -383,7 +383,7 @@ export function createBackupHostContext(
       progress: (bytes, message) => args.onProgress?.(bytes, message),
       log: (level, message) => {
         logRing.push({ at: Date.now(), level, message });
-        // 只保留最近 200 条，避免长时任务无限增长。
+        // Keep only the latest 200 entries, preventing unbounded growth over long tasks.
         if (logRing.length > 200) logRing.splice(0, logRing.length - 200);
       },
       concurrency: () => args.concurrency ?? 2,
@@ -404,7 +404,7 @@ export function createBackupHostContext(
   };
 }
 
-/** 便于测试断言：把 `ScopedReadSource` 全量读成字节。 */
+/** For test assertions: read a `ScopedReadSource` fully into bytes. */
 export async function readAll(
   source: ScopedReadSource,
   signal?: AbortSignal,

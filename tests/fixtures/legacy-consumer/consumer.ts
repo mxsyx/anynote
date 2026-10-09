@@ -1,13 +1,13 @@
 /**
  * Frozen consumer of the Anynote 0.1 public surface.
  *
- * 设计 §19.2 要求旧插件/旧消费者在新宿主上继续可用，除非明确拒绝。此文件是
- * `legacyConsumers` 清单固定的“旧消费者”：它只使用 0.1.0 已发布的公开导出，
- * 后续版本必须继续通过 `pnpm run test:release:matrix` 的类型检查与运行校验。
- * 如需改变调用面，必须同时在发布矩阵中提升契约版本并更新本 fixture。
+ * Design §19.2 requires old plugins/consumers to keep working on the new host unless explicitly rejected. This file is
+ * the "legacy consumer" fixed by the `legacyConsumers` list: it uses only the public exports released in 0.1.0,
+ * and later versions must keep passing the type check and runtime validation of `pnpm run test:release:matrix`.
+ * If the call surface changes, the contract version must be bumped in the release matrix and this fixture updated.
  *
- * 该文件在仓库内不编译（`tsconfig*.json` 未包含 `tests/fixtures`）；它由冒烟
- * 脚本复制到只含官方 tarball 的干净项目中，用 `tsc` 编译后实际运行。
+ * This file is not compiled in the repo (`tsconfig*.json` does not include `tests/fixtures`); a smoke
+ * script copies it into a clean project containing only official tarballs, compiles it with `tsc`, and actually runs it.
  */
 import {
   apiContractVersion,
@@ -28,7 +28,7 @@ import {
   type FirstPartyWhiteboardScene,
 } from "@anynote/first-party-adapters";
 
-/** 记录 transport 收到的宿主操作，用于验证命令映射。 */
+/** Record host operations the transport received, to verify command mapping. */
 const calls: { method: string; input: Record<string, unknown> }[] = [];
 
 const note: NoteSnapshot = {
@@ -41,7 +41,7 @@ const note: NoteSnapshot = {
   note_type: "markdown",
 };
 
-/** 单一已授权 transport，同时承载 SDK 与首方适配器调用。 */
+/** A single authorized transport carrying both SDK and first-party adapter calls. */
 const transport = async (method: string, input: Record<string, unknown>) => {
   calls.push({ method, input });
   if (method === "getWhiteboard")
@@ -66,11 +66,11 @@ const transport = async (method: string, input: Record<string, unknown>) => {
       },
     ];
   if (method === "notes.get") return note;
-  // 其余任务类写入操作统一返回任务句柄。
+  // Other task-like write operations uniformly return a task handle.
   return { id: "job" };
 };
 
-/** 旧插件通过公开 SDK 调用宿主。 */
+/** A legacy plugin calls the host through the public SDK. */
 const api = createAPI(transport);
 const contract = api.contract();
 const fetched = (await api.notes.get("note")) as NoteSnapshot;
@@ -78,7 +78,7 @@ const page = await api.nodes.list({ limit: 10 });
 await api.settings.set("enabled", true);
 await api.secrets.set({ provider: "anynote.demo", key: "token" }, "secret");
 
-/** 首方适配器只依赖公开 SDK，旧消费者可继续使用。 */
+/** The first-party adapter depends only on the public SDK, so legacy consumers can keep using it. */
 const adapters: FirstPartyAdapters = createFirstPartyAdapters(transport);
 await adapters.whiteboard.get({ notebookId: "nb", noteId: "note" });
 await adapters.video.insert({
@@ -89,7 +89,7 @@ await adapters.video.insert({
 });
 await adapters.importer.commit({ notebookId: "nb", previewId: "preview" });
 
-/** 本地备份适配器不接受调用方路径。 */
+/** The local backup adapter does not accept caller-supplied paths. */
 const backup: LocalBackupAPI = createLocalBackupAPI(transport);
 const handle = await backup.verify({ notebookId: "nb", targetId: "target" });
 const task: LocalBackupTask | null = await backup.getTask(handle.id);

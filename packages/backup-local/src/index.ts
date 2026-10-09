@@ -183,7 +183,7 @@ export async function initializeTarget(
     const marker = rootSchema.parse(await readJSON(path, "backup-root.json"));
     return { id: marker.targetId, path };
   }
-  await mkdir(path); // 独占：绝不复用已存在的无关目录。
+  await mkdir(path); // Exclusive: never reuse a pre-existing unrelated directory.
   const id = randomUUID();
   await atomicJSON(path, "backup-root.json", {
     format: "anynote.local-backup-root",

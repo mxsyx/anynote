@@ -101,7 +101,7 @@ export class CloudflareClient {
         ).error;
       } catch {}
       // Honor a server-provided Retry-After so throttling is deferred per the
-      // design's "限流按服务返回的重试信息延后".
+      // Design: "throttling is deferred based on the retry info returned by the service".
       throw Object.assign(Error(message || "备份服务返回 HTTP " + r.status), {
         status: r.status,
         retryAfterMs: parseRetryAfter(

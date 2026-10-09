@@ -5,24 +5,24 @@ import type {
   CloudObjectLocator,
 } from "@anynote/types/cloud-backup.js";
 
-/** 一个由本应用登记的受管对象。 */
+/** A managed object registered by this app. */
 export interface ManagedObject {
   locator: CloudObjectLocator;
   kind: "database" | "asset" | "manifest" | "pending";
   sha256?: string;
-  /** 登记时间；用于提交宽限期判断。 */
+  /** Registration time; used for the commit grace-period check. */
   registeredAt?: number;
 }
 
 export interface CleanupInput {
-  /** 当前指针；为空表示无法确定受管范围，禁止清理。 */
+  /** Current pointer; empty means the managed scope cannot be determined, so cleanup is forbidden. */
   currentHead: CloudBackupHead | null;
   currentManifest: CloudBackupManifest | null;
-  /** 本机登记的全部受管对象。 */
+  /** All managed objects registered locally. */
   managed: readonly ManagedObject[];
-  /** 进行中任务与恢复 pin 保护的对象。 */
+  /** Objects protected by in-progress tasks and restore pins. */
   protectedLocators?: readonly CloudObjectLocator[];
-  /** 提交宽限期（毫秒）；默认 24 小时。 */
+  /** Commit grace period (milliseconds); defaults to 24 hours. */
   graceMs?: number;
   now?: number;
 }
@@ -31,13 +31,13 @@ const locatorKey = (locator: CloudObjectLocator) =>
   `${locator.kind}\u0000${locator.ref}`;
 
 /**
- * 生成受管垃圾回收计划（设计 §9.3、§14.3）。
+ * Build a managed garbage collection plan (design §9.3, §14.3).
  *
- * 只清理当前槽内、由本应用登记的对象；`current` 未确认、分页/读取失败或计划
- * 不完整时一律不清理。进行中任务、恢复下载与仍在提交宽限期的对象继续保留。
+ * Only cleans objects registered by this app within the current slot; if `current` is unconfirmed, paging/reading fails,
+ * or the plan is incomplete, nothing is cleaned. In-progress tasks, restore downloads, and objects still in the commit grace period are kept.
  *
- * @param input 受管对象与保护集合。
- * @returns 待清理对象计划。
+ * @param input Managed objects and the protected set.
+ * @returns The plan of objects to clean up.
  */
 export function planCleanup(input: CleanupInput): CleanupPlan {
   if (!input.currentHead) throw Error("当前指针未确认，禁止清理受管对象");
@@ -57,7 +57,7 @@ export function planCleanup(input: CleanupInput): CleanupPlan {
   for (const object of input.managed) {
     if (object.kind === "pending") continue;
     if (keep.has(locatorKey(object.locator))) continue;
-    // 仍在提交宽限期的对象继续保留，避免误删在途恢复所需的副本。
+    // Objects still within the commit grace period are kept, avoiding deletion of copies needed by an in-flight restore.
     if (object.registeredAt != null && now - object.registeredAt < graceMs)
       continue;
     objects.push(object.locator);
@@ -66,10 +66,10 @@ export function planCleanup(input: CleanupInput): CleanupPlan {
 }
 
 /**
- * 判断清理计划是否安全可执行。
+ * Determine whether a cleanup plan is safe to execute.
  *
- * @param plan 清理计划。
- * @returns 是否存在可清理对象。
+ * @param plan The cleanup plan.
+ * @returns Whether there are objects to clean up.
  */
 export const isCleanupEmpty = (plan: CleanupPlan): boolean =>
   plan.objects.length === 0;

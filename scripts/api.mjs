@@ -24,8 +24,8 @@ import {
 } from "@anynote/extension-host/rpc.js";
 const storage = new Storage(process.env.ANYNOTE_DATA_DIR || ".anynote-dev");
 const scheduler = startBackupScheduler(storage);
-// 浏览器预览没有主进程可唤起系统浏览器，因此不注入 openExternal：授权 URL
-// 由渲染进程自行打开，PKCE 与回环回调仍由本进程完成。
+// The browser preview has no main process to launch the system browser, so openExternal is not injected: the authorization URL
+// is opened by the renderer itself, while PKCE and the loopback callback are still done by this process.
 await registerOfficialProviders();
 const cloudScheduler = startCloudBackupScheduler(storage);
 const extensionHost = createProcessExtensionHost({

@@ -23,64 +23,64 @@ import {
   toCredentials,
 } from "./tokens.js";
 
-/** 一个进行中的授权会话。 */
+/** An in-progress authorization session. */
 export interface AuthorizationSession {
   sessionId: string;
   providerId: CloudProviderId;
   oauthClientId: string;
-  /** 应用身份来源，便于诊断自编译/环境变量注入是否生效。 */
+  /** App identity source, to diagnose whether self-build/env injection took effect. */
   clientIdSource: OAuthClientSource;
-  /** 当前应用阶段（开发/生产）。 */
+  /** Current app stage (development/production). */
   stage: OAuthAppStage;
   redirectUri: string;
   createdAt: number;
 }
 
 export interface OAuthBrokerOptions {
-  /** 系统安全存储；桌面为 safeStorage，浏览器预览为内存。 */
+  /** System secure storage; safeStorage on desktop, in-memory in browser preview. */
   vault: Vault;
   /**
-   * 用系统浏览器打开授权页；只能由主进程执行。
+   * Open the authorization page in the system browser; only the main process can do this.
    *
-   * 缺省时 `begin` 只返回授权 URL，由调用方（渲染进程）自行打开，便于浏览器
-   * 预览与自动化测试复用同一条 PKCE 流程。
+   * When absent, `begin` only returns the authorization URL for the caller (renderer) to open, so browser
+   * preview and automated tests reuse the same PKCE flow.
    */
   openExternal?(url: string): Promise<void>;
   fetchImpl?: typeof fetch;
   now?: () => number;
-  /** 自编译/高级设置注入的 Client ID；缺省回落到环境变量。 */
+  /** Client ID injected by self-build/advanced settings; falls back to the env var when absent. */
   clientIds?: Partial<Record<CloudProviderId, string>>;
   env?: NodeJS.ProcessEnv;
-  /** 授权会话超时（毫秒）。 */
+  /** Authorization session timeout (milliseconds). */
   timeoutMs?: number;
 }
 
 /**
- * 厂商专属的授权请求附加参数。
+ * Vendor-specific extra parameters for the authorization request.
  *
- * @param providerId 厂商标识。
- * @returns 需要附加到授权 URL 的查询参数。
+ * @param providerId Vendor id.
+ * @returns Query parameters to append to the authorization URL.
  */
 function providerAuthParams(
   providerId: CloudProviderId,
 ): Record<string, string> {
   if (providerId === "google-drive")
-    // 桌面后台备份需要 refresh token（设计 §6.1）。
+    // Desktop background backup needs a refresh token (design §6.1).
     return { access_type: "offline", prompt: "consent" };
   if (providerId === "dropbox")
-    // Dropbox 使用 PKCE + refresh token 的后台访问模式（设计 §11.1）。
+    // Dropbox uses the PKCE + refresh token background access mode (design §11.1).
     return { token_access_type: "offline" };
   if (providerId === "onedrive") return { response_mode: "query" };
   return {};
 }
 
 /**
- * 创建统一 OAuth 执行框架（设计 §6.1、§6.2）。
+ * Create the unified OAuth execution framework (design §6.1, §6.2).
  *
- * 负责系统浏览器唤起、回环回调监听、state/PKCE 校验、授权码交换、凭据落
- * 安全存储与 single-flight 刷新；不感知任何云盘业务语义。
+ * Handles system browser launch, loopback callback listening, state/PKCE verification, authorization code exchange, credential
+ * secure storage, and single-flight refresh; unaware of any cloud business semantics.
  *
- * @param options 保管库、浏览器唤起、时钟与 Client ID 来源。
+ * @param options Vault, browser launcher, clock, and Client ID source.
  * @returns OAuth broker。
  */
 export function createOAuthBroker(options: OAuthBrokerOptions) {
@@ -100,7 +100,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       }
     >();
 
-  /** 解析厂商 Client ID，缺失时给出明确错误而不是占位值。 */
+  /** Resolve the vendor Client ID, giving an explicit error rather than a placeholder when missing. */
   const clientIdFor = (providerId: CloudProviderId, explicit?: string) => {
     const { clientId, source, stage } = resolveOAuthClient(
       providerId,
@@ -114,7 +114,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     return { clientId, source, stage };
   };
 
-  /** 关闭一个会话并释放回环端口。 */
+  /** Close a session and release the loopback port. */
   const discard = (sessionId: string) => {
     const entry = sessions.get(sessionId);
     if (!entry) return false;
@@ -128,10 +128,10 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     tokens,
 
     /**
-     * 开始一次授权：生成 PKCE/state、开启回环监听并用系统浏览器打开授权页。
+     * Begin an authorization: generate PKCE/state, open the loopback listener, and open the authorization page in the system browser.
      *
-     * @param input 厂商标识与可选的自定义 Client ID。
-     * @returns 会话标识与授权 URL。
+     * @param input Vendor id and an optional custom Client ID.
+     * @returns The session id and authorization URL.
      */
     async begin(input: {
       providerId: CloudProviderId;
@@ -139,7 +139,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     }): Promise<{
       sessionId: string;
       authorizationUrl: string;
-      /** 是否已由宿主（主进程）打开系统浏览器；否则由调用方自行打开。 */
+      /** Whether the host (main process) opened the system browser; otherwise the caller opens it. */
       opened: boolean;
     }> {
       const descriptor = oauthDescriptors[input.providerId];
@@ -183,7 +183,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       try {
         await options.openExternal?.(url.toString());
       } catch (error) {
-        // 浏览器唤起失败属于明确状态：清理会话并给出可操作提示，不把原始系统错误抛给用户。
+        // Browser launch failure is an explicit state: clean up the session and give an actionable prompt, not a raw system error.
         discard(sessionId);
         throw new OAuthLaunchError(
           "无法打开系统浏览器完成授权，请检查默认浏览器设置后重试。",
@@ -198,11 +198,11 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     },
 
     /**
-     * 等待回调、校验 state、交换授权码并落安全存储。
+     * Wait for the callback, verify state, exchange the authorization code, and store credentials securely.
      *
-     * @param input 会话标识。
-     * @param signal 取消信号。
-     * @returns 本机账号引用 ID 与账号引用。
+     * @param input Session id.
+     * @param signal Cancellation signal.
+     * @returns The local account reference id and account reference.
      */
     async complete(
       input: { sessionId: string },
@@ -251,10 +251,10 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     },
 
     /**
-     * 取消一次进行中的授权。
+     * Cancel an in-progress authorization.
      *
-     * @param input 会话标识。
-     * @returns 是否取消了会话。
+     * @param input Session id.
+     * @returns Whether the session was cancelled.
      */
     async cancel(input: { sessionId: string }): Promise<boolean> {
       const entry = sessions.get(input.sessionId);
@@ -264,7 +264,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       return true;
     },
 
-    /** 为指定账号创建短时 access token 提供者（受信首方扩展使用）。 */
+    /** Create a short-lived access token provider for the given account (used by trusted first-party extensions). */
     tokenProvider(
       accountRefId: string,
       providerId: CloudProviderId,
@@ -289,7 +289,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       };
     },
 
-    /** 关闭全部进行中的授权会话。 */
+    /** Close all in-progress authorization sessions. */
     dispose() {
       for (const entry of sessions.values()) entry.listener.close();
       sessions.clear();

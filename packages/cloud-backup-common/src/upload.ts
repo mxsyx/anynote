@@ -1,16 +1,16 @@
 /**
- * 有界并发与厂商限流适配（设计 §17）。
+ * Bounded concurrency and vendor rate-limit adaptation (design §17).
  *
- * 默认上传并发 2、按账号共享预算；不一次对几万个附件同时发请求。所有等待都
- * 响应取消信号，避免取消后仍在后台打请求。
+ * Default upload concurrency is 2 with a per-account shared budget; it does not fire requests for tens of thousands of assets at once. All waits
+ * respond to the cancellation signal, avoiding requests continuing in the background after cancellation.
  */
 
 /**
- * 解析 `Retry-After` 头（秒数或 HTTP 日期）。
+ * Parse the `Retry-After` header (seconds or an HTTP date).
  *
- * @param value 头值。
- * @param now 当前时间。
- * @returns 建议等待的毫秒数；无法解析时返回 undefined。
+ * @param value Header value.
+ * @param now Current time.
+ * @returns Suggested wait in milliseconds; undefined when unparsable.
  */
 export function parseRetryAfterMs(
   value: string | null | undefined,
@@ -24,17 +24,17 @@ export function parseRetryAfterMs(
   return Math.max(0, date - now);
 }
 
-/** 可重试的厂商错误；调用方据 `retryAfterMs` 延后重试。 */
+/** A retryable vendor error; the caller defers the retry based on `retryAfterMs`. */
 export interface RetryableError extends Error {
   retryAfterMs?: number;
   status?: number;
 }
 
 /**
- * 在取消信号上等待指定毫秒。
+ * Wait for the given milliseconds on a cancellation signal.
  *
- * @param ms 等待时长。
- * @param signal 取消信号。
+ * @param ms Wait duration.
+ * @param signal Cancellation signal.
  */
 export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();
@@ -54,11 +54,11 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
- * 按指数退避重试一个操作；厂商给出 `Retry-After` 时优先延后。
+ * Retry an operation with exponential backoff; when the vendor gives `Retry-After`, defer accordingly first.
  *
- * @param fn 待执行操作。
- * @param options 重试次数、取消信号与进度回调。
- * @returns 操作结果。
+ * @param fn The operation to run.
+ * @param options Retry count, cancellation signal, and progress callback.
+ * @returns The operation result.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -90,12 +90,12 @@ export async function withRetry<T>(
 }
 
 /**
- * 以有界并发执行一组任务，保持结果顺序。
+ * Run a set of tasks with bounded concurrency, preserving result order.
  *
- * @param tasks 任务列表。
- * @param concurrency 并发上限。
- * @param signal 取消信号。
- * @returns 按输入顺序排列的结果。
+ * @param tasks Task list.
+ * @param concurrency Concurrency limit.
+ * @param signal Cancellation signal.
+ * @returns Results ordered by input.
  */
 export async function runWithConcurrency<T>(
   tasks: (() => Promise<T>)[],

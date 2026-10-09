@@ -44,19 +44,19 @@ import {
   type GraphItem,
 } from "./graph.js";
 
-/** Provider 协议版本；必须与核心 `cloudBackupProtocolVersion` 一致。 */
+/** Provider protocol version; must match the core `cloudBackupProtocolVersion`. */
 export const oneDriveProtocolVersion = 1;
 
 const now = () => new Date().toISOString();
 
 /**
- * OneDrive 能力声明（设计 §12）。
+ * OneDrive capability declaration (design §12).
  *
- * - 大文件走 `createUploadSession`，因此支持分片续传；
- * - `conditionalHead` 保持 `false`：`If-Match`/409 冲突行为须在选定 endpoint 上实测
- *   通过后才可置为 `true`（设计 §9.2、§12.3、TODO §5 P1）；
- * - 个人账号只提供 quickXorHash/sha1Hash，不提供与应用一致的 SHA-256，因此不声明
- *   厂商 checksum，校验降级为上传后下载校验（设计 §13.1）。
+ * - Large files use `createUploadSession`, so resumable chunked upload is supported;
+ * - `conditionalHead` stays `false`: the `If-Match`/409 conflict behavior must be measured on the chosen endpoint
+ *   before it can be set to `true` (design §9.2, §12.3, TODO §5 P1);
+ * - Personal accounts provide only quickXorHash/sha1Hash, not an application-consistent SHA-256, so no
+ *   vendor checksum is declared; verification degrades to upload-then-download (design §13.1).
  */
 export const oneDriveCapabilities: CloudBackupCapabilities = Object.freeze({
   resumableUpload: true,
@@ -66,10 +66,10 @@ export const oneDriveCapabilities: CloudBackupCapabilities = Object.freeze({
   quotaAvailable: true,
 });
 
-/** 根目录显示名（设计 §10.1、§7.2）。 */
+/** Root directory display name (design §10.1, §7.2). */
 const rootFolderName = "AnynoteBackup";
 
-/** 受管目录引用的状态键。 */
+/** State key for managed directory references. */
 const stateKeys = {
   drive: "drive.id",
   root: "root.item",
@@ -90,7 +90,7 @@ interface ResolvedFolders {
   deviceSlotId: string;
 }
 
-/** 查找或创建受管目录；并发创建冲突时重新读取既有目录。 */
+/** Find or create the managed directory; on a concurrent-create conflict, re-read the existing directory. */
 async function findOrCreateFolder(
   client: GraphClient,
   driveId: string,
@@ -106,7 +106,7 @@ async function findOrCreateFolder(
   try {
     return await client.createFolder(driveId, parentId, name);
   } catch (error) {
-    // 并发创建同名目录：重新读取以复用已有身份，避免重复目录。
+    // Concurrent creation of a same-name directory: re-read to reuse the existing identity, avoiding duplicate directories.
     if (errorStatus(error) === 409) {
       const raced = await client.findChild(driveId, parentId, name);
       if (raced && isFolder(raced)) return raced;
@@ -115,7 +115,7 @@ async function findOrCreateFolder(
   }
 }
 
-/** 读取并校验设备槽的当前指针；不存在返回 null。 */
+/** Read and validate the device slot's current pointer; returns null when absent. */
 async function readHead(
   client: GraphClient,
   driveId: string,
@@ -130,7 +130,7 @@ async function readHead(
   return parseHead(JSON.parse(Buffer.from(bytes).toString("utf8")));
 }
 
-/** 读取并严格校验清单。 */
+/** Read and strictly validate the manifest. */
 async function readManifest(
   client: GraphClient,
   manifestRef: string,
@@ -140,15 +140,15 @@ async function readManifest(
 }
 
 /**
- * 解析并锁定受管目录层级（设计 §7.2、§10.2）。
+ * Resolve and lock the managed directory hierarchy (design §7.2, §10.2).
  *
- * 目录身份以 driveId + itemId 为准，显示名只作可读性；出现多个候选时检查索引并
- * 停写，不按名称取第一项。
+ * Directory identity is based on driveId + itemId, with the display name only for readability; when multiple candidates appear
+ * it checks the index and stops writing, not taking the first by name.
  *
- * @param client Graph 客户端。
- * @param ctx 运行期上下文。
- * @param input Notebook 与设备槽身份。
- * @returns 已解析的目录引用。
+ * @param client Graph client.
+ * @param ctx Runtime context.
+ * @param input Notebook and device-slot identity.
+ * @returns The resolved directory reference.
  */
 async function resolveFolders(
   client: GraphClient,
@@ -184,7 +184,7 @@ async function resolveFolders(
       conflictBehavior: "fail",
     });
   else {
-    // 目录身份标记必须是本应用写入的格式，避免在陌生目录里写入受管对象。
+    // The directory identity marker must be in the format written by this app, avoiding writes into a foreign directory.
     const bytes = await client.downloadBytes(
       itemRef(driveId, marker.id),
       64 * 1024,
@@ -223,7 +223,7 @@ async function resolveFolders(
   };
 }
 
-/** 读取当前任务已解析的受管目录。 */
+/** Read the managed directory resolved for the current task. */
 async function requireFolders(
   ctx: BackupHostContext,
 ): Promise<ResolvedFolders> {
@@ -248,7 +248,7 @@ async function requireFolders(
   return { driveId, rootId, notebookId, deviceId, assetsId, deviceSlotId };
 }
 
-/** 记录一个受管对象，供受管 GC 使用（设计 §14.3）。 */
+/** Record a managed object for managed GC (design §14.3). */
 async function trackManaged(
   ctx: BackupHostContext,
   ref: CloudBackupObjectRef,
@@ -273,7 +273,7 @@ async function trackManaged(
   await ctx.state.set(stateKeys.managed, managed);
 }
 
-/** 建立对象引用；校验等级在 `verify` 阶段补齐。 */
+/** Build the object reference; the verification level is filled in during `verify`. */
 function objectRef(
   sha256: string,
   size: number,
@@ -283,7 +283,7 @@ function objectRef(
   return { sha256, size, locator, mimeType, verification: "accepted-size" };
 }
 
-/** 复用已有远端对象；缺失时明确失败，由下次完整备份修复。 */
+/** Reuse an existing remote object; on absence it fails explicitly, to be fixed by the next full backup. */
 async function reuseObject(
   client: GraphClient,
   driveId: string,
@@ -303,12 +303,12 @@ async function reuseObject(
 }
 
 /**
- * 校验单个对象：Graph 不提供可信 SHA-256，统一走上传后下载校验（设计 §13.1）。
+ * Verify a single object: Graph provides no trustworthy SHA-256, so it uniformly uses upload-then-download verification (design §13.1).
  *
- * @param ref 对象引用。
- * @param ctx 运行期上下文。
- * @param label 出错标签。
- * @returns 带校验等级的对象引用。
+ * @param ref Object reference.
+ * @param ctx Runtime context.
+ * @param label Error label.
+ * @returns The object reference with a verification level.
  */
 async function verifyObject(
   ref: CloudBackupObjectRef,
@@ -331,11 +331,11 @@ async function verifyObject(
 }
 
 /**
- * OneDrive 官方 Provider（设计 §12）。
+ * OneDrive official Provider (design §12).
  *
- * 使用 Microsoft Graph delegated 授权与 `Files.ReadWrite.AppFolder`，以
- * `driveId + itemId` 定位对象、`approot` 作为应用目录根；大文件使用
- * `createUploadSession` 并以 320KiB 对齐分片，服务端确认偏移后继续。
+ * Uses Microsoft Graph delegated authorization and `Files.ReadWrite.AppFolder`, locating objects
+ * by `driveId + itemId`, with `approot` as the app directory root; large files use
+ * `createUploadSession` with 320KiB-aligned chunks, continuing from the server-confirmed offset.
  */
 export const oneDriveProvider: CloudBackupProvider = {
   id: "onedrive",
@@ -409,7 +409,7 @@ export const oneDriveProvider: CloudBackupProvider = {
         size: asset.size,
       })),
       previous,
-      // 远端对象被删除/移动时重新检查并修复，不只凭本机旧游标（设计 §8.1）。
+      // When a remote object is deleted/moved, re-check and repair, not relying solely on a stale local cursor (design §8.1).
       exists: async (locator) => {
         const { driveId, itemId } = parseItemRef(locator.ref);
         try {
@@ -532,10 +532,10 @@ export const oneDriveProvider: CloudBackupProvider = {
   ): Promise<CloudBackupManifest> {
     const client = createGraphClient(ctx),
       folders = await requireFolders(ctx),
-      // 数据库必须达到内容验证等级（设计 §13.1）。
+      // The database must reach a content-verification level (design §13.1).
       database = await verifyObject(input.database, client, ctx, "数据库");
     assertContentVerification(database, "数据库");
-    // 附件默认同样下载校验；高级设置可关闭，但结果不得混入「全部已验证」。
+    // Assets likewise download-verify by default; advanced settings can disable it, but the result must not be mixed into "all verified".
     const verifyAssets =
       (await ctx.state.get<boolean>("verify.downloadAssets")) ?? true;
     const assets: (CloudBackupObjectRef & { path: string })[] = [];
@@ -564,7 +564,7 @@ export const oneDriveProvider: CloudBackupProvider = {
         mimeType: "application/json",
         bytes,
       }),
-      // 上传后读回，确保清单内容与本地完全一致（设计 §8.2 第 7 步）。
+      // Read back after upload, ensuring the manifest content exactly matches the local one (design §8.2 step 7).
       readBack = await client.downloadBytes(
         itemRef(folders.driveId, file.id),
         8 * 1024 * 1024,
@@ -600,7 +600,7 @@ export const oneDriveProvider: CloudBackupProvider = {
       bytes = Buffer.from(JSON.stringify(head));
     return publishHead({
       head,
-      // `conditionalHead` 尚未实测通过：退化为单写设备槽 + 发布前后检查（设计 §9.2）。
+      // `conditionalHead` is not yet verified: degrade to a single-writer device slot + pre/post-publish checks (design §9.2).
       conditional: false,
       write: async () => {
         const existing = await client.findChild(
@@ -616,7 +616,7 @@ export const oneDriveProvider: CloudBackupProvider = {
             mimeType: "application/json",
             bytes,
             itemId: existing?.id,
-            // eTag 冲突处理：并发写入者已更新 current 时返回 409/412，拒绝覆盖。
+            // eTag conflict handling: when a concurrent writer has updated current, return 409/412 and refuse to overwrite.
             ifMatch: existing?.eTag,
             conflictBehavior: "fail",
           });
@@ -688,7 +688,7 @@ export const oneDriveProvider: CloudBackupProvider = {
     if (!driveId) throw Error("未找到该设备的云盘备份槽");
     const client = createGraphClient(ctx);
     let deviceId = slots[input.deviceSlotId];
-    // 第二设备只读恢复：本地槽表没有远端槽时，按名称在 Notebook 目录内定位。
+    // Second-device read-only restore: when the local slot table lacks a remote slot, locate it by name within the Notebook directory.
     if (!deviceId && notebookId) {
       const folder = await client
         .findChild(driveId, notebookId, input.deviceSlotId)
@@ -706,7 +706,7 @@ export const oneDriveProvider: CloudBackupProvider = {
       ),
       assets: RestoreBundle["assets"] = [];
     for (const asset of manifest.assets) {
-      // 清单是不可信输入：相对路径经核心校验后才允许落盘（设计 §16）。
+      // The manifest is untrusted input: relative paths are written to disk only after core validation (design §16).
       if (safeRelativePath(asset.path) !== asset.path)
         throw Error(`云端清单包含不安全的资源路径：${asset.path}`);
       const downloaded = await client.downloadToDest(
@@ -788,7 +788,7 @@ export const oneDriveProvider: CloudBackupProvider = {
   },
 };
 
-/** 备份根目录身份标记内容。 */
+/** Backup root identity marker content. */
 function rootMarker(): CloudBackupRootMarker {
   return {
     format: "anynote.cloud-backup-root",

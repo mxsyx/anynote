@@ -13,7 +13,7 @@ import {
   startLoopbackListener,
 } from "../.build/packages/oauth-broker/index.js";
 
-/** 进程内保管库；只用于测试，真实凭据进入系统安全存储。 */
+/** In-process vault; test-only, real credentials go into system secure storage. */
 function memoryVault(store = new Map()) {
   return {
     store,
@@ -26,7 +26,7 @@ function memoryVault(store = new Map()) {
   };
 }
 
-/** 构造一个 base64url 编码的 JWT payload；签名由厂商 TLS 保证，测试无需校验。 */
+/** Build a base64url-encoded JWT payload; the signature is guaranteed by vendor TLS, so tests need not verify it. */
 const idToken = (claims) =>
   `x.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.y`;
 
@@ -50,7 +50,7 @@ test("应用身份按开发/生产阶段解析，缺失时明确为空", () => {
     }),
     { clientId: "prod-id", source: "registered", stage: "production" },
   );
-  // 显式值与环境变量优先于官方注册表。
+  // Explicit values and env vars take precedence over the official registry.
   assert.equal(resolveClientId("google-drive", "explicit", env), "explicit");
   assert.equal(
     resolveClientId("dropbox", undefined, {
@@ -59,9 +59,9 @@ test("应用身份按开发/生产阶段解析，缺失时明确为空", () => {
     }),
     "env-key",
   );
-  // 缺失时返回 undefined，而不是占位字符串。
+  // Returns undefined when missing, rather than a placeholder string.
   assert.equal(resolveClientId("onedrive", undefined, {}), undefined);
-  // 非法阶段回退生产；损坏的注册表被忽略而不是抛错。
+  // An invalid stage falls back to production; a corrupt registry is ignored rather than throwing.
   assert.equal(
     resolveOAuthStage({ ANYNOTE_OAUTH_STAGE: "staging" }),
     "production",
@@ -124,7 +124,7 @@ test("授权经回环回调交换 token 并写入保管库", async () => {
       authorization = new URL(url);
       const redirect = authorization.searchParams.get("redirect_uri");
       const state = authorization.searchParams.get("state");
-      // 模拟厂商页面把浏览器重定向回回环回调地址。
+      // Simulate the vendor page redirecting the browser back to the loopback callback address.
       setTimeout(() => {
         void fetch(
           `${redirect}?code=code-1&state=${encodeURIComponent(state)}`,
@@ -148,7 +148,7 @@ test("授权经回环回调交换 token 并写入保管库", async () => {
   assert.equal(ref.accountId, "user-1");
   assert.equal(ref.oauthClientId, "client-1");
   assert.equal(ref.providerId, "google-drive");
-  // PKCE：token 端点收到的 verifier 必须能还原授权请求里的 challenge。
+  // PKCE: the verifier received by the token endpoint must reconstruct the challenge in the authorization request.
   assert.equal(
     createHash("sha256")
       .update(tokenRequest.get("code_verifier"))
@@ -213,7 +213,7 @@ test("回环端口被占用时报明确状态，并可回落到随机端口", as
     (error) => error instanceof OAuthPortError,
   );
 
-  // 第二个候选为 0（随机端口）时应成功监听，而不是直接失败。
+  // When the second candidate is 0 (random port) it should listen successfully, not fail outright.
   const listener = await startLoopbackListener({
     expectedState: "s",
     ports: [busyPort, 0],
@@ -241,7 +241,7 @@ test("系统浏览器唤起失败给出明确状态并清理会话", async () =>
     (error) =>
       error instanceof OAuthLaunchError && error.cause instanceof Error,
   );
-  // 会话已在唤起失败时丢弃：complete 找不到会话，端口也已释放。
+  // The session was already discarded on launch failure: complete finds no session and the port is released.
   broker.dispose();
   assert.ok(port);
 });

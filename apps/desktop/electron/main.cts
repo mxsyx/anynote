@@ -46,7 +46,7 @@ else {
       "message",
       (m: StorageResponse | SecretRequest | OpenExternalRequest) => {
         if (m.type === "open-external") {
-          // 只允许厂商授权页面所需的 HTTPS 地址，避免存储进程把任意 scheme 交给系统。
+          // Only allow the HTTPS addresses required by vendor authorization pages, so the storage process does not hand arbitrary schemes to the system.
           try {
             const url = new URL(m.url);
             if (url.protocol !== "https:" && url.protocol !== "http:")

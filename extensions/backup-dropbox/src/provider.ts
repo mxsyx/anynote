@@ -48,48 +48,48 @@ import {
   type DropboxEntry,
 } from "./dropbox.js";
 
-/** Provider 协议版本；必须与核心 `cloudBackupProtocolVersion` 一致。 */
+/** Provider protocol version; must match the core `cloudBackupProtocolVersion`. */
 export const dropboxProtocolVersion = 1;
 
 const now = () => new Date().toISOString();
 
 /**
- * `current` 条件写能力的实测结论（设计 §9.2、§11.3、TODO §5 P1）。
+ * Measured conclusion on `current` conditional-write capability (design §9.2, §11.3, TODO §5 P1).
  *
- * Dropbox 提供基于 rev 的 `WriteMode.update`，`publish` 也在读取当前 rev 后按
- * `update` 写入并识别冲突。但设计明确要求「只有经过实测的 endpoint 行为才可声明
- * 条件写」，当前没有真实账号上的 rev 冲突实测证据，因此这里显式记录为 `false`
- * 而不是一个默认值：不宣称跨客户端原子互斥，仍按单写设备槽 + 发布前后检查兜底。
+ * Dropbox offers rev-based `WriteMode.update`, and `publish` also reads the current rev then writes via
+ * `update` and detects conflicts. But the design explicitly requires that "only measured endpoint behavior may declare
+ * conditional write"; there is currently no measured rev-conflict evidence on a real account, so this is explicitly recorded as `false`
+ * rather than a default value: it does not claim cross-client atomic exclusion and still relies on a single-writer device slot + pre/post-publish checks.
  *
- * 当真实账号实测确认「rev 不符即拒绝写入且不产生 rename 副本」后，把此处置为
- * true 即可让核心按预期版本 token 参与发布（无需改动 `publish` 逻辑）。
+ * Once real-account testing confirms "a rev mismatch rejects the write without producing a renamed copy", setting this to
+ * true lets the core participate in publish with an expected version token (no change to `publish` logic needed).
  */
 const conditionalHeadMeasured = false;
 
-/** Dropbox 具备真实路径语义、App Folder 范围与内容分块哈希（设计 §11）。 */
+/** Dropbox has real path semantics, App Folder scope, and content chunked hashing (design §11). */
 export const dropboxCapabilities: CloudBackupCapabilities = Object.freeze({
   resumableUpload: true,
   conditionalHead: conditionalHeadMeasured,
-  // 远端上传后返回的 content_hash 由 Dropbox 按同一算法计算（设计 §11.2、§13.1）。
+  // The content_hash returned after remote upload is computed by Dropbox with the same algorithm (design §11.2, §13.1).
   providerChecksum: ["dropbox-content-hash"],
   appScopedStorage: true,
   quotaAvailable: true,
 });
 
-/** 备份根目录（App Folder 内，设计 §7.2）。 */
+/** Backup root directory (inside the App Folder, design §7.2). */
 const rootDir = `/${cloudBackupLayout.root}`;
 
-/** Notebook 目录集合。 */
+/** Notebook directory set. */
 const notebooksDirPath = `${rootDir}/notebooks`;
 
-/** 根目录身份标记路径。 */
+/** Root identity marker path. */
 const rootMarkerPath = `${rootDir}/${cloudBackupLayout.rootMarker}`;
 
-/** 按设计 §7.2 的逻辑布局拼接设备槽目录。 */
+/** Assemble the device-slot directory per the logical layout of design §7.2. */
 const dropboxDevicePath = (notebookId: string, deviceSlotId: string): string =>
   `${rootDir}/${logicalDeviceDir(notebookId, deviceSlotId)}`;
 
-/** 受管引用的状态键；核心已按 provider + Notebook 隔离命名空间。 */
+/** State key for managed references; the core already isolates the namespace by provider + Notebook. */
 const stateKeys = {
   root: "root.path",
   notebook: "notebook.path",
@@ -99,7 +99,7 @@ const stateKeys = {
   managed: "managed.objects",
 } as const;
 
-/** 读取并校验设备槽的当前指针；不存在返回 null。 */
+/** Read and validate the device slot's current pointer; returns null when absent. */
 async function readHead(
   client: DropboxClient,
   devicePath: string,
@@ -112,7 +112,7 @@ async function readHead(
   return parseHead(JSON.parse(Buffer.from(bytes).toString("utf8")));
 }
 
-/** 读取并严格校验清单。 */
+/** Read and strictly validate the manifest. */
 async function readManifest(
   client: DropboxClient,
   manifestRef: string,
@@ -122,10 +122,10 @@ async function readManifest(
 }
 
 /**
- * 读取当前指针与上次成功清单；用于复用对象时比对远端 content_hash（设计 §8.1）。
+ * Read the current pointer and last successful manifest; used to compare the remote content_hash when reusing objects (design §8.1).
  *
- * 元数据/清单读取失败不代表用户删除了全部笔记，因此这里只在无法读取时返回
- * null，复用判定仍以内容寻址路径与远端 checksum 为准。
+ * A metadata/manifest read failure does not mean the user deleted all notes, so this returns
+ * null only when it cannot be read; reuse decisions still rely on the content-addressed path and remote checksum.
  */
 async function readPrevious(
   client: DropboxClient,
@@ -136,14 +136,14 @@ async function readPrevious(
   return readManifest(client, head.manifestRef).catch(() => null);
 }
 
-/** 读取当前分片已解析的设备槽目录。 */
+/** Read the device-slot directory resolved for the current chunk. */
 async function requireDevicePath(ctx: BackupHostContext): Promise<string> {
   const devicePath = await ctx.state.get<string>(stateKeys.device);
   if (!devicePath) throw Error("云盘目标目录尚未创建，请重新配置该目标");
   return devicePath;
 }
 
-/** 记录一个受管对象，供受管 GC 使用（设计 §14.3）。 */
+/** Record a managed object for managed GC (design §14.3). */
 async function trackManaged(
   ctx: BackupHostContext,
   ref: CloudBackupObjectRef,
@@ -168,7 +168,7 @@ async function trackManaged(
   await ctx.state.set(stateKeys.managed, managed);
 }
 
-/** 由远端条目构造对象引用；有 content_hash 时即达到厂商内容校验等级。 */
+/** Build an object reference from a remote entry; when content_hash exists it reaches vendor content-verification level. */
 function objectFromEntry(
   sha256: string,
   size: number,
@@ -189,16 +189,16 @@ function objectFromEntry(
   };
 }
 
-/** 是否为写入冲突（含未解析出错误体但状态为 409 的情况）。 */
+/** Whether it is a write conflict (including a 409 status with no parseable error body). */
 const isConflict = (error: unknown): boolean =>
   isDropboxConflict(dropboxErrorCode(error)) ||
   (error as { status?: number }).status === 409;
 
 /**
- * 上传一个不可变对象（设计 §7.3）。
+ * Upload an immutable object (design §7.3).
  *
- * 内容寻址路径已存在时读取远端元数据确认，而不是覆盖或改名；这也保证同一
- * 备份任务重试时不会因 `add` 的禁止覆盖语义而失败。
+ * When the content-addressed path already exists, read the remote metadata to confirm rather than overwrite or rename; this also
+ * ensures a backup task retry does not fail due to `add`'s no-overwrite semantics.
  */
 async function uploadImmutable(
   client: DropboxClient,
@@ -222,10 +222,10 @@ async function uploadImmutable(
 }
 
 /**
- * 复用已有不可变对象；缺失或内容不符时明确失败，由下次完整备份修复。
+ * Reuse an existing immutable object; on absence or content mismatch it fails explicitly, to be fixed by the next full backup.
  *
- * 复用依赖内容寻址路径 + 远端 `content_hash`：既有清单记录了同一 sha256 的
- * Dropbox checksum 时先比对，避免把被替换的远端对象当成原副本。
+ * Reuse relies on the content-addressed path + remote `content_hash`: when the existing manifest records the Dropbox
+ * checksum for the same sha256, compare first, avoiding treating a replaced remote object as the original copy.
  */
 async function reuseObject(
   client: DropboxClient,
@@ -257,7 +257,7 @@ async function reuseObject(
 }
 
 /**
- * 校验单个对象：已有厂商 checksum 时直接采信，否则下载后校验（设计 §13.1）。
+ * Verify a single object: accept an existing vendor checksum directly, otherwise download-then-verify (design §13.1).
  */
 async function verifyObject(
   client: DropboxClient,
@@ -283,13 +283,13 @@ async function verifyObject(
 }
 
 /**
- * Dropbox 官方 Provider（设计 §11）。
+ * Dropbox official Provider (design §11).
  *
- * 使用 App Folder 与 PKCE + refresh token 的后台访问模式，在应用根内按
- * `AnynoteBackup/notebooks/<id>/devices/<slot>` 的真实目录布局组织对象：
- * 不可变对象以内容哈希命名并先上传，完整清单上传读回后再发布 `current` 指针。
- * 大对象走 upload session 并以「同一来源重建会话」应对中断；`current` 的 rev
- * 冲突处理通过预期 rev 的条件写路径实现，是否启用由实测结论决定。
+ * Uses the App Folder and the PKCE + refresh token background access mode, organizing objects under the app root as
+ * `AnynoteBackup/notebooks/<id>/devices/<slot>`:
+ * immutable objects are named by content hash and uploaded first; the full manifest is uploaded and read back, then the `current` pointer is published.
+ * Large objects use an upload session and recover from interruption by "rebuilding the session from the same source"; `current`'s rev
+ * conflict handling uses a conditional write on the expected rev, enabled or not based on measured conclusions.
  */
 export const dropboxProvider: CloudBackupProvider = {
   id: "dropbox",
@@ -308,7 +308,7 @@ export const dropboxProvider: CloudBackupProvider = {
     ],
     pkce: true,
     redirect: "loopback",
-    // Dropbox 刷新不返回新的 refresh token；核心刷新时保留原值（设计 §6.2）。
+    // Dropbox refresh does not return a new refresh token; the core keeps the original on refresh (design §6.2).
     refreshTokenRotation: false,
     accountIdClaim: "response:account_id",
   },
@@ -329,7 +329,7 @@ export const dropboxProvider: CloudBackupProvider = {
   ): Promise<BackupTargetHandle> {
     const client = createDropboxClient(ctx);
     await client.ensureFolder(rootDir);
-    // 目录身份标记必须是本应用写入的格式，避免在陌生目录里写入受管对象。
+    // The directory identity marker must be in the format written by this app, avoiding writes into a foreign directory.
     const marker = await client.getMetadata(rootMarkerPath);
     if (marker) {
       const bytes = await client.downloadBytes(marker.pathLower, 64 * 1024);
@@ -389,7 +389,7 @@ export const dropboxProvider: CloudBackupProvider = {
         size: asset.size,
       })),
       previous,
-      // 远端对象被移动/删除时重新检查并修复，不只凭本机旧游标（设计 §8.1）。
+      // When a remote object is moved/deleted, re-check and repair, not relying solely on a stale local cursor (design §8.1).
       exists: async (locator) => !!(await client.getMetadata(locator.ref)),
       availableBytes:
         about.quotaBytes != null
@@ -498,10 +498,10 @@ export const dropboxProvider: CloudBackupProvider = {
   ): Promise<CloudBackupManifest> {
     const client = createDropboxClient(ctx),
       devicePath = await requireDevicePath(ctx),
-      // 数据库必须达到内容验证等级（设计 §13.1）。
+      // The database must reach a content-verification level (design §13.1).
       database = await verifyObject(client, input.database, "数据库");
     assertContentVerification(database, "数据库");
-    // 附件默认同样需要内容校验；Dropbox 一般已由 content_hash 满足，不会重复下载。
+    // Assets likewise need content verification by default; Dropbox usually satisfies it via content_hash, so no re-download.
     const verifyAssets =
       (await ctx.state.get<boolean>("verify.downloadAssets")) ?? true;
     const assets: (CloudBackupObjectRef & { path: string })[] = [];
@@ -523,14 +523,14 @@ export const dropboxProvider: CloudBackupProvider = {
         assets,
       },
       bytes = Buffer.from(JSON.stringify(manifest)),
-      // 清单按 commitId 命名且每次运行唯一；用 overwrite 使同一任务重试幂等，
-      // 不会因 add 的禁止覆盖语义失败（设计 §7.3）。
+      // The manifest is named by commitId and unique per run; overwrite makes a retry of the same task idempotent,
+      // not failing due to add's no-overwrite semantics (design §7.3).
       file = await client.uploadJson({
         path: `${devicePath}/${manifestObjectPath(input.commitId)}`,
         mode: { tag: "overwrite" },
         bytes,
       }),
-      // 上传后读回，确保清单内容与本地完全一致（设计 §8.2 第 7 步）。
+      // Read back after upload, ensuring the manifest content exactly matches the local one (design §8.2 step 7).
       readBack = await client.downloadBytes(file.pathLower, 8 * 1024 * 1024);
     if (Buffer.compare(Buffer.from(readBack), bytes) !== 0)
       throw Error("Dropbox 清单读回校验失败");
@@ -566,12 +566,12 @@ export const dropboxProvider: CloudBackupProvider = {
       };
     return publishHead({
       head,
-      // conditionalHead 尚未实测通过：退化为单写设备槽 + 发布前后检查（设计 §9.2）。
+      // conditionalHead has not been verified: degrade to a single-writer device slot + pre/post-publish checks (design §9.2).
       conditional: false,
       write: async (nextHead, expected) => {
         const existing = await client.getMetadata(currentPath),
-          // 首次创建使用禁止覆盖语义；已有对象按刚读到的 rev（或核心给出的预期
-          // rev）条件更新，rev 不符即冲突，绝不自动改名生成副本（设计 §11.3）。
+          // First creation uses no-overwrite semantics; an existing object is conditionally updated on the just-read rev (or the expected
+          // rev from the core); a rev mismatch is a conflict, never auto-renaming to create a copy (design §11.3).
           mode = existing
             ? ({ tag: "update", rev: expected ?? existing.rev } as const)
             : ({ tag: "add" } as const);
@@ -583,7 +583,7 @@ export const dropboxProvider: CloudBackupProvider = {
           });
           return { versionToken: entry.rev };
         } catch (error) {
-          // rev 不符或并发创建：拒绝发布并保留原 head。
+          // Rev mismatch or concurrent creation: reject the publish and keep the original head.
           if (isConflict(error)) return { conflict: true };
           throw error;
         }
@@ -645,7 +645,7 @@ export const dropboxProvider: CloudBackupProvider = {
     if (!notebookId)
       throw Error("恢复需要已授权的 Notebook 上下文，请重新选择目标");
     const client = createDropboxClient(ctx),
-      // 路径布局由 Notebook 与设备槽决定，第二设备无需原机游标即可定位（设计 §9.1）。
+      // The path layout is determined by Notebook and device slot, so a second device can locate it without the original device's cursor (design §9.1).
       devicePath = dropboxDevicePath(notebookId, input.deviceSlotId),
       head = await readHead(client, devicePath),
       manifestRef = input.manifestRef ?? head?.manifestRef;
@@ -657,7 +657,7 @@ export const dropboxProvider: CloudBackupProvider = {
       ),
       assets: RestoreBundle["assets"] = [];
     for (const asset of manifest.assets) {
-      // 清单是不可信输入：相对路径经核心校验后才允许落盘（设计 §16）。
+      // The manifest is untrusted input: relative paths are written to disk only after core validation (design §16).
       if (safeRelativePath(asset.path) !== asset.path)
         throw Error(`云端清单包含不安全的资源路径：${asset.path}`);
       const downloaded = await client.downloadToDest(
@@ -711,7 +711,7 @@ export const dropboxProvider: CloudBackupProvider = {
     let deleted = 0,
       failed = 0;
     try {
-      // Dropbox 删除目录会递归删除其中的受管对象；计数仅用于回执。
+      // Deleting a Dropbox directory recursively deletes the managed objects within; the count is only for the receipt.
       await client.remove(devicePath);
       deleted = entries.filter((entry) => !entry.isFolder).length;
     } catch {
@@ -725,7 +725,7 @@ export const dropboxProvider: CloudBackupProvider = {
   },
 };
 
-/** 备份根目录身份标记内容。 */
+/** Backup root identity marker content. */
 function rootMarker(): CloudBackupRootMarker {
   return {
     format: "anynote.cloud-backup-root",

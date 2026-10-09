@@ -7,7 +7,7 @@ import {
   type CloudObjectLocator,
 } from "@anynote/types/cloud-backup.js";
 
-/** 64 位小写十六进制 SHA-256。 */
+/** 64-character lowercase hex SHA-256. */
 export const sha256Schema = z
   .string()
   .regex(/^[a-f0-9]{64}$/, "必须是 64 位小写十六进制 SHA-256");
@@ -38,7 +38,7 @@ const objectRefSchema = z
   .strict();
 
 /**
- * 备份根目录身份标记 schema；用于确认目录由本应用创建。
+ * Backup root identity marker schema; confirms the directory was created by this app.
  */
 export const rootMarkerSchema = z
   .object({
@@ -49,7 +49,7 @@ export const rootMarkerSchema = z
   })
   .strict();
 
-/** 当前指针 schema；`manifestRef` 是 Provider 不透明引用。 */
+/** Current pointer schema; `manifestRef` is a Provider-opaque reference. */
 export const headSchema = z
   .object({
     format: z.literal("anynote.cloud-backup-head"),
@@ -64,10 +64,10 @@ export const headSchema = z
   .strict();
 
 /**
- * 完整清单 schema。
+ * Full manifest schema.
  *
- * 清单来自远端、属于不可信输入：这里对路径、哈希、大小、数量与 UUID 全部
- * 校验，任何一条不合法都拒绝，绝不执行其中内容（设计 §16）。
+ * The manifest comes from the remote and is untrusted input: paths, hashes, sizes, counts, and UUIDs are all
+ * validated here, any invalid entry is rejected, and its content is never executed (design §16).
  */
 export const manifestSchema = z
   .object({
@@ -93,9 +93,9 @@ export const manifestSchema = z
   .strict();
 
 /**
- * 相对路径校验：拒绝绝对路径、`..` 逃逸、反斜杠、NUL 与控制字符。
+ * Relative path validation: rejects absolute paths, `..` escapes, backslashes, NUL, and control characters.
  *
- * @returns 用于清单中资源路径的 zod schema。
+ * @returns The zod schema for asset paths in the manifest.
  */
 export function safeRelativePathSchema() {
   return z
@@ -108,10 +108,10 @@ export function safeRelativePathSchema() {
 }
 
 /**
- * 校验并归一化清单中的相对路径。
+ * Validate and normalize a relative path from the manifest.
  *
- * @param value 待校验路径。
- * @returns 归一化路径；非法时返回 undefined。
+ * @param value The path to validate.
+ * @returns The normalized path, or undefined when invalid.
  */
 export function safeRelativePath(value: string): string | undefined {
   if (!value || value.length > 1024) return undefined;
@@ -125,44 +125,44 @@ export function safeRelativePath(value: string): string | undefined {
   return segments.join("/");
 }
 
-/** 解析并严格校验当前指针。 */
+/** Parse and strictly validate the current pointer. */
 export const parseHead = (value: unknown): CloudBackupHead =>
   headSchema.parse(value) as CloudBackupHead;
 
-/** 解析并严格校验完整清单。 */
+/** Parse and strictly validate the full manifest. */
 export const parseManifest = (value: unknown): CloudBackupManifest =>
   manifestSchema.parse(value) as CloudBackupManifest;
 
-/** 解析并校验备份根目录身份标记。 */
+/** Parse and validate the backup root identity marker. */
 export const parseRootMarker = (value: unknown): CloudBackupRootMarker =>
   rootMarkerSchema.parse(value) as CloudBackupRootMarker;
 
-/** Notebook 与设备槽目录的逻辑路径。 */
+/** Logical path of the Notebook and device-slot directory. */
 export const deviceDir = (notebookId: string, deviceSlotId: string): string =>
   `notebooks/${notebookId}/devices/${deviceSlotId}`;
 
-/** 数据库不可变对象路径（内容寻址，允许同哈希复用）。 */
+/** Database immutable object path (content-addressed, reuse by hash allowed). */
 export const databaseObjectPath = (sha256: string): string =>
   `${cloudBackupLayout.databasesDir}/${sha256}.sqlite`;
 
-/** 附件不可变对象路径；两级前缀避免单目录过多条目。 */
+/** Asset immutable object path; a two-level prefix avoids too many entries in one directory. */
 export const assetObjectPath = (sha256: string): string =>
   `${cloudBackupLayout.assetsDir}/${cloudBackupLayout.assetsPrefix}/${sha256.slice(0, 2)}/${sha256}.bin`;
 
-/** 清单对象路径。 */
+/** Manifest object path. */
 export const manifestObjectPath = (commitId: string): string =>
   `${cloudBackupLayout.manifestsDir}/${commitId}.json`;
 
-/** 待提交任务登记路径。 */
+/** Path for registering commit-pending tasks. */
 export const pendingObjectPath = (taskId: string): string =>
   `${cloudBackupLayout.pendingDir}/${taskId}.json`;
 
 /**
- * 判断两个 locator 是否指向同一对象。
+ * Determine whether two locators point to the same object.
  *
- * @param a 参考 locator。
- * @param b 候选 locator。
- * @returns 是否可视为同一对象。
+ * @param a Reference locator.
+ * @param b Candidate locator.
+ * @returns Whether they can be considered the same object.
  */
 export const sameLocator = (
   a: CloudObjectLocator | undefined,

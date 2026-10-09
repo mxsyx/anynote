@@ -31,7 +31,7 @@ import {
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
-/** 构造一份最小可用的清单。 */
+/** Build a minimal usable manifest. */
 function manifestFor({
   notebookId = randomUUID(),
   deviceSlotId = randomUUID(),
@@ -85,10 +85,10 @@ test("PKCE 使用 S256 且 state 常量时间比较", () => {
 test("回环回调监听校验 state 与路径，并在授权后关闭", async () => {
   const listener = await startLoopbackListener({ expectedState: "s-1" });
   assert.match(listener.redirectUri, /^http:\/\/127\.0\.0\.1:\d+\/$/);
-  // 路径不符：不应结算会话。
+  // Path mismatch: the session must not be settled.
   const wrongPath = await fetch(new URL("other", listener.redirectUri));
   assert.equal(wrongPath.status, 404);
-  // state 不符：明确拒绝，而不是静默接受错误回调。
+  // state mismatch: explicitly reject rather than silently accepting a wrong callback.
   const waiting = listener.wait();
   const rejected = assert.rejects(waiting, /state 校验失败/);
   await fetch(listener.redirectUri + "?code=c&state=wrong");
@@ -128,7 +128,7 @@ test("refresh token 轮换缺失时保留原值，invalid_grant 转为需要重�
       new Response(JSON.stringify(refreshResponse), { status: 200 }),
   });
   const credentials = toCredentials(response, { refreshToken: "old-refresh" });
-  // 响应未包含 refresh token 时必须保留原值，否则后台备份会失去授权。
+  // When the response has no refresh token the original must be kept, otherwise background backup loses authorization.
   assert.equal(credentials.refreshToken, "old-refresh");
   assert.equal(credentials.token, "new-token");
 
@@ -253,7 +253,7 @@ test("差异计划：无变化跳过上传，新增附件只上传新对象", as
     [["asset", assetB]],
   );
 
-  // 远端对象已被删除时重新上传，而不是只凭本机旧游标。
+  // Re-upload when the remote object has been deleted, rather than relying solely on a stale local cursor.
   const repaired = await buildUploadPlan({
     commitId: randomUUID(),
     databaseSha256: previous.database.sha256,
@@ -323,7 +323,7 @@ test("清单完整性校验拒绝身份、哈希、数量与路径不符", () =>
       }),
     /资源/,
   );
-  // 路径逃逸必须在 schema 层被拒绝。
+  // Path escapes must be rejected at the schema layer.
   assert.throws(() =>
     assertManifestIntegrity(
       {
@@ -345,7 +345,7 @@ test("校验等级规则：数据库必须有内容校验，provider-checksum �
     resolveVerificationLevel({ providerChecksum: ["md5"] }, "md5-value"),
     "provider-checksum",
   );
-  // 厂商不提供内容 checksum 时只能退化为上传后下载校验。
+  // When the vendor provides no content checksum, it degrades to a post-upload download verification.
   assert.equal(
     resolveVerificationLevel({ providerChecksum: [] }, undefined),
     "accepted-size",
@@ -376,7 +376,7 @@ test("发布：响应丢失时读回确认，冲突与未确认都不更新成�
     manifestSha256: sha("manifest"),
     completedAt: new Date().toISOString(),
   };
-  // 响应丢失但远端其实已提交：读回确认后视为成功，不重复盲写。
+  // Response lost but the remote was actually committed: read-back confirmation counts as success, with no blind retry.
   const lost = await publishHead({
     head,
     conditional: true,
@@ -440,7 +440,7 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
     currentManifest: manifest,
     managed: [
       { locator, kind: "asset", registeredAt: now - 1000 },
-      // 当前清单引用的对象必须保留。
+      // Objects referenced by the current manifest must be kept.
       { locator: manifest.database.locator, kind: "database", registeredAt: 0 },
     ],
     graceMs: 60_000,
@@ -456,7 +456,7 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
     now,
   });
   assert.deepEqual(aged.objects, [locator]);
-  // 进行中任务/恢复 pin 保护的对象不进入清理计划。
+  // Objects protected by in-progress tasks/restore pins are excluded from the cleanup plan.
   const pinned = planCleanup({
     currentHead: head,
     currentManifest: manifest,
@@ -564,7 +564,7 @@ test("文件级流程：无变化跳过、发布失败不更新成功指针", as
   assert.equal(skipped.unchanged, true);
   assert.equal(skipped.uploadedBytes, 0);
 
-  /** 构造一个只在 publish 阶段失败的 Provider。 */
+  /** Build a Provider that only fails during the publish phase. */
   const failingProvider = {
     id: "test",
     protocolVersion: 1,

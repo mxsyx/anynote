@@ -1,8 +1,8 @@
 /**
- * OneDrive 官方备份扩展。
+ * OneDrive official backup extension.
  *
- * 独立构建、独立版本；使用 Microsoft Graph delegated 授权与
- * `Files.ReadWrite.AppFolder`，不引入官方 Graph SDK，避免未启用时增加启动依赖。
+ * Built and versioned independently; uses Microsoft Graph delegated authorization and
+ * `Files.ReadWrite.AppFolder`, pulling in no official Graph SDK so a disabled extension adds no startup dependency.
  */
 
 export { oneDriveManifest } from "./manifest.js";
@@ -35,7 +35,7 @@ export type {
 import { oneDriveManifest } from "./manifest.js";
 import { oneDriveProvider } from "./provider.js";
 
-/** 官方扩展的注册载荷：核心据此注册 Provider 与展示元数据。 */
+/** Registration payload of an official extension: the core uses it to register the Provider and display metadata. */
 export const cloudBackupExtension = {
   manifest: oneDriveManifest,
   provider: oneDriveProvider,

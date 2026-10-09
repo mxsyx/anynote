@@ -6,7 +6,7 @@ import type {
 } from "@anynote/types/cloud-backup.js";
 import { parseManifest, safeRelativePath } from "./layout.js";
 
-/** 校验等级的强弱排序；数值越大证据越强（设计 §13.1）。 */
+/** Strength ordering of verification levels; a higher value means stronger evidence (design §13.1). */
 const levelRank: Record<CloudVerificationLevel, number> = {
   "accepted-size": 0,
   "provider-checksum": 1,
@@ -14,11 +14,11 @@ const levelRank: Record<CloudVerificationLevel, number> = {
 };
 
 /**
- * 比较两个校验等级。
+ * Compare two verification levels.
  *
- * @param level 待比较等级。
- * @param minimum 门槛等级。
- * @returns 是否达到门槛。
+ * @param level The level to compare.
+ * @param minimum The threshold level.
+ * @returns Whether the threshold is met.
  */
 export const meetsVerification = (
   level: CloudVerificationLevel,
@@ -26,14 +26,14 @@ export const meetsVerification = (
 ): boolean => levelRank[level] >= levelRank[minimum];
 
 /**
- * 依据厂商能力选择可达的校验等级。
+ * Choose a reachable verification level based on vendor capabilities.
  *
- * 客户端自写的 metadata SHA-256 不属于厂商计算的 checksum，因此只有厂商确实
- * 提供内容 checksum 时才给出 `provider-checksum`，否则退化为下载后校验。
+ * A client-written metadata SHA-256 is not a vendor-computed checksum, so `provider-checksum` is returned only
+ * when the vendor actually provides a content checksum; otherwise it degrades to download-then-verify.
  *
- * @param capabilities 目标能力。
- * @param providerChecksum 远端返回的厂商 checksum。
- * @returns 本次对象可达到的等级。
+ * @param capabilities Target capabilities.
+ * @param providerChecksum The vendor checksum returned by the remote.
+ * @returns The level reachable for this object.
  */
 export function resolveVerificationLevel(
   capabilities: CloudBackupCapabilities,
@@ -45,13 +45,13 @@ export function resolveVerificationLevel(
 }
 
 /**
- * 断言对象达到内容验证等级。
+ * Assert that an object reaches a content-verification level.
  *
- * 数据库与 manifest 必须达到 `provider-checksum` 或 `download-sha256`；
- * 只有「上传完成 + 对象存在 + size 一致」不足以进入可恢复状态。
+ * The database and manifest must reach `provider-checksum` or `download-sha256`;
+ * "upload complete + object exists + size matches" alone is not enough to enter a recoverable state.
  *
- * @param objectRef 对象引用。
- * @param label 出错时的可读标签。
+ * @param objectRef Object reference.
+ * @param label Readable label used on error.
  */
 export function assertContentVerification(
   objectRef: CloudBackupObjectRef,
@@ -66,14 +66,14 @@ export function assertContentVerification(
 }
 
 /**
- * 校验远端清单与本地捕获保持一致。
+ * Verify that the remote manifest is consistent with the local capture.
  *
- * 清单是不可信输入：解析时已做严格 schema 校验证；这里再核对身份、
- * 数据库哈希、资源集合与路径，防止「上传完成」被误当作「备份完整」。
+ * The manifest is untrusted input: a strict schema check was already done on parse; here identity,
+ * database hash, asset set, and paths are re-checked, preventing "upload complete" from being mistaken for "backup complete".
  *
- * @param raw 远端清单原始值。
- * @param expected 本地捕获的期望值。
- * @returns 通过校验的清单。
+ * @param raw The raw remote manifest value.
+ * @param expected The expected value from the local capture.
+ * @returns The validated manifest.
  */
 export function assertManifestIntegrity(
   raw: unknown,

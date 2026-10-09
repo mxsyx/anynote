@@ -60,9 +60,9 @@ export const sdkVersion = "0.1.0";
 export const apiContractVersion = 1;
 
 /**
- * 云盘备份 Provider 协议版本（设计 §15.1）。
+ * Cloud backup Provider protocol version (design §15.1).
  *
- * 核心与官方扩展必须在此版本内互操作；扩展清单里的 `protocolVersion` 必须与之相等。
+ * The core and official extensions must interoperate within this version; the `protocolVersion` in an extension manifest must equal it.
  */
 export const cloudBackupProtocolVersion = 1;
 

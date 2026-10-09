@@ -43,9 +43,9 @@ export interface EnvironmentReport {
 /**
  * Request to open a URL in the system browser.
  *
- * OAuth 授权页必须由系统浏览器承载：厂商页面不进入带 preload 或 Node 权限的
- * Electron WebView（设计 §6.1）。回环回调由存储进程自己监听，主进程只负责
- * 唤起浏览器并返回结果。
+ * The OAuth authorization page must be hosted by the system browser: vendor pages never enter an
+ * Electron WebView with preload or Node privileges (design §6.1). The loopback callback is handled by the storage process itself; the main process only
+ * launches the browser and returns the result.
  */
 export interface OpenExternalRequest {
   type: "open-external";

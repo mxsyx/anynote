@@ -11,7 +11,7 @@ import type {
 import { assertPlanBudget, buildUploadPlan } from "./plan.js";
 import { assertManifestIntegrity } from "./verify.js";
 
-/** 一次文件级备份的最终结果。 */
+/** The final result of one file-level backup. */
 export interface CloudBackupFlowResult {
   commitId: string;
   unchanged: boolean;
@@ -28,13 +28,13 @@ export interface FileLevelBackupArgs {
   target: BackupTargetHandle;
   capture: CloudCaptureHandle;
   deviceSlotId: string;
-  /** 上次成功提交的清单；决定附件是否可复用。 */
+  /** Manifest of the last successful commit; decides whether assets can be reused. */
   previous?: CloudBackupManifest | null;
-  /** 上次成功发布的 head；决定无变化检查与条件写预期版本。 */
+  /** The last successfully published head; decides the no-change check and the expected version for conditional writes. */
   previousHead?: CloudBackupHead | null;
-  /** 上次读到的 head 版本 token（条件发布用）。 */
+  /** Version token of the last observed head (for conditional publish). */
   expectedVersionToken?: string;
-  /** 发布成功后的受管 GC；失败只标记待清理，不回滚备份。 */
+  /** Managed GC after a successful publish; on failure it only marks for cleanup and never rolls back the backup. */
   cleanup?: (
     head: CloudBackupHead,
     manifest: CloudBackupManifest,
@@ -42,13 +42,13 @@ export interface FileLevelBackupArgs {
 }
 
 /**
- * 执行「捕获 → 计划 → 上传 → 校验 → 发布 → 清理」文件级流程（设计 §8.2）。
+ * Run the "capture → plan → upload → verify → publish → cleanup" file-level flow (design §8.2).
  *
- * 本函数是首方共享流程：它只编排 Provider 暴露的协议步骤，并在每个门槛处
- * 强制核心的数据保护约束——不变量未满足就不进入可恢复状态。
+ * This is the first-party shared flow: it only orchestrates the protocol steps exposed by the Provider and, at each gate,
+ * enforces the core's data-protection constraints — no enterable recoverable state unless the invariants hold.
  *
- * @param args Provider、上下文、捕获结果与上次状态。
- * @returns 备份结果。
+ * @param args Provider, context, capture result, and previous state.
+ * @returns The backup result.
  */
 export async function runFileLevelBackup(
   args: FileLevelBackupArgs,
@@ -67,13 +67,13 @@ export async function runFileLevelBackup(
   );
   signal.throwIfAborted();
   assertPlanBudget(plan);
-  // 捕获句柄由核心附加到计划上，扩展不需要持有临时路径。
+  // The capture handle is attached to the plan by the core; the extension need not hold temporary paths.
   plan.capture = capture;
 
   if (plan.unchanged) {
     if (!args.previousHead)
       throw Error("计划判定无变化但缺少上次成功指针，拒绝跳过备份");
-    // 无变化时仍确认当前指针与重要对象状态；指针异常则转为完整上传。
+    // Even when unchanged, confirm the current pointer and key object state; if the pointer is abnormal, fall back to a full upload.
     const reconciled = await provider.reconcile(
       { expectedCommitId: args.previousHead.commitId },
       ctx,

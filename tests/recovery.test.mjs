@@ -22,7 +22,7 @@ import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { createServer } from "node:http";
 import { recoveryScenario } from "../scripts/cloud/recovery-scenario.mjs";
 test("startup recovery retains live and legacy jobs and reclaims only released tracked jobs", (t) => {
-  // macOS 的 tmpdir 位于符号链接 /var 之下，而存储层要求 Notebook 根目录是规范路径。
+  // macOS tmpdir lives under the symlink /var, while the storage layer requires the Notebook root to be a canonical path.
   const root = realpathSync(mkdtempSync(join(tmpdir(), "anynote-job-lease-")));
   t.onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   const live = temporaryJob(root, "backup-jobs"),

@@ -1,13 +1,13 @@
 import { hasCloudProvider, registerCloudProvider } from "./registry.js";
 
 /**
- * 注册随应用构建的三个官方云盘扩展（设计 §4）。
+ * Register the three official cloud extensions that ship with the app (design §4).
  *
- * 官方扩展与核心同进程、以工作区包形式随应用构建，与现有 `backup-local` 被
- * `local.ts` 消费的模式一致；扩展只能通过 `BackupHostContext` 访问数据，因此
- * 换取了与凭据保管库、调度器和一致性捕获的天然集成。
+ * Official extensions are in-process with the core and ship with the app as workspace packages, consistent with how `backup-local` is
+ * consumed by `local.ts`; an extension can only access data via `BackupHostContext`, thus
+ * gaining natural integration with the credential vault, scheduler, and consistent capture.
  *
- * 幂等：重复调用不会重复注册，未启用的扩展也不影响主应用启动。
+ * Idempotent: repeated calls do not re-register, and disabled extensions do not affect app startup.
  */
 export async function registerOfficialProviders(): Promise<void> {
   if (
@@ -16,7 +16,7 @@ export async function registerOfficialProviders(): Promise<void> {
     hasCloudProvider("onedrive")
   )
     return;
-  // googleapis 只在 Google 扩展内部动态加载，未启用时不影响编辑器启动。
+  // googleapis is loaded dynamically only inside the Google extension; when disabled it does not affect editor startup.
   const [google, dropbox, onedrive] = await Promise.all([
     import("@anynote/backup-google-drive"),
     import("@anynote/backup-dropbox"),

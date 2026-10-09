@@ -41,22 +41,22 @@ import {
   type DriveClient,
 } from "./drive.js";
 
-/** Provider 协议版本；必须与核心 `cloudBackupProtocolVersion` 一致。 */
+/** Provider protocol version; must match the core `cloudBackupProtocolVersion`. */
 export const googleDriveProtocolVersion = 1;
 
 const now = () => new Date().toISOString();
 
-/** Drive 没有多文件事务，也没有可依赖的条件写（设计 §9.2）。 */
+/** Drive has no multi-file transaction and no dependable conditional write (design §9.2). */
 export const googleDriveCapabilities: CloudBackupCapabilities = Object.freeze({
   resumableUpload: true,
   conditionalHead: false,
-  // Drive 只提供 MD5 校验，与应用 SHA-256 不同算法，不能声明 provider-checksum。
+  // Drive only provides MD5, a different algorithm from the application SHA-256, so provider-checksum cannot be declared.
   providerChecksum: [],
   appScopedStorage: false,
   quotaAvailable: true,
 });
 
-/** Drive 侧的逻辑角色标记，用于在无路径语义的 API 上识别对象。 */
+/** Logical role marker on the Drive side, to identify objects on an API with no path semantics. */
 const roles = {
   root: "root",
   rootMarker: "root-marker",
@@ -69,10 +69,10 @@ const roles = {
   current: "current",
 } as const;
 
-/** 根目录显示名（设计 §10.1）。 */
+/** Root directory display name (design §10.1). */
 const rootFolderName = "AnynoteBackup";
 
-/** 受管目录引用的状态键。 */
+/** State key for managed directory references. */
 const stateKeys = {
   root: "root.ref",
   notebook: "notebook.ref",
@@ -83,7 +83,7 @@ const stateKeys = {
   managed: "managed.objects",
 } as const;
 
-/** 读取并校验设备槽的当前指针；不存在返回 null。 */
+/** Read and validate the device slot's current pointer; returns null when absent. */
 async function readHead(
   client: DriveClient,
   deviceFolderId: string,
@@ -97,7 +97,7 @@ async function readHead(
   return parseHead(JSON.parse(Buffer.from(bytes).toString("utf8")));
 }
 
-/** 读取并严格校验清单。 */
+/** Read and strictly validate the manifest. */
 async function readManifest(
   client: DriveClient,
   manifestFileId: string,
@@ -115,15 +115,15 @@ interface ResolvedFolders {
 }
 
 /**
- * 解析并锁定受管目录层级（设计 §7.2、§10.2）。
+ * Resolve and lock the managed directory hierarchy (design §7.2, §10.2).
  *
- * 目录身份以 file ID + 受控 `appProperties` 为准，显示名只作可读性；出现多个
- * 候选时检查索引并停写，不按名称取第一项。
+ * Directory identity is based on file ID + controlled `appProperties`, with the display name only for readability; when multiple
+ * candidates appear, check the index and stop writing, not taking the first by name.
  *
- * @param client Drive 客户端。
- * @param ctx 运行期上下文。
- * @param input Notebook 与设备槽身份。
- * @returns 已解析的目录引用。
+ * @param client Drive client.
+ * @param ctx Runtime context.
+ * @param input Notebook and device-slot identity.
+ * @returns The resolved directory reference.
  */
 async function resolveFolders(
   client: DriveClient,
@@ -153,7 +153,7 @@ async function resolveFolders(
       bytes: Buffer.from(JSON.stringify(rootMarker())),
     });
   else if (markers.length === 1) {
-    // 目录身份标记必须是本应用写入的格式，避免在陌生目录里写入受管对象。
+    // The directory identity marker must be in the format written by this app, avoiding writes into a foreign directory.
     const bytes = await client.downloadBytes(markers[0].id, 64 * 1024);
     parseRootMarker(JSON.parse(Buffer.from(bytes).toString("utf8")));
   }
@@ -192,7 +192,7 @@ async function resolveFolders(
   };
 }
 
-/** 读取当前任务已解析的受管目录。 */
+/** Read the managed directory resolved for the current task. */
 async function requireFolders(
   ctx: BackupHostContext,
 ): Promise<ResolvedFolders> {
@@ -226,7 +226,7 @@ async function requireFolders(
   };
 }
 
-/** 记录一个受管对象，供受管 GC 使用（设计 §14.3）。 */
+/** Record a managed object for managed GC (design §14.3). */
 async function trackManaged(
   ctx: BackupHostContext,
   ref: CloudBackupObjectRef,
@@ -251,7 +251,7 @@ async function trackManaged(
   await ctx.state.set(stateKeys.managed, managed);
 }
 
-/** 建立对象引用；校验等级在 `verify` 阶段补齐。 */
+/** Build the object reference; the verification level is filled in during `verify`. */
 function objectRef(
   sha256: string,
   size: number,
@@ -261,7 +261,7 @@ function objectRef(
   return { sha256, size, locator, mimeType, verification: "accepted-size" };
 }
 
-/** 复用已有远端对象；缺失时明确失败，由下次完整备份修复。 */
+/** Reuse an existing remote object; on absence it fails explicitly, to be fixed by the next full backup. */
 async function reuseObject(
   client: DriveClient,
   parentId: string,
@@ -280,12 +280,12 @@ async function reuseObject(
 }
 
 /**
- * 校验单个对象：优先厂商 checksum，缺失则上传后下载校验（设计 §13.1）。
+ * Verify a single object: prefer the vendor checksum, otherwise upload-then-download verification (design §13.1).
  *
- * @param ref 对象引用。
- * @param ctx 运行期上下文。
- * @param label 出错标签。
- * @returns 带校验等级的对象引用。
+ * @param ref Object reference.
+ * @param ctx Runtime context.
+ * @param label Error label.
+ * @returns The object reference with a verification level.
  */
 async function verifyObject(
   ref: CloudBackupObjectRef,
@@ -307,11 +307,11 @@ async function verifyObject(
 }
 
 /**
- * Google Drive 官方 Provider（设计 §10）。
+ * Google Drive official Provider (design §10).
  *
- * 使用 `drive.file` 权限与 My Drive 下可识别的应用目录，以 file ID 与受控
- * `appProperties` 作为身份与检索索引，不把显示路径当作身份；大文件使用
- * resumable upload 并以服务端确认的偏移推进。
+ * Uses the `drive.file` scope and an identifiable app directory under My Drive, with file ID and controlled
+ * `appProperties` as identity and search index, not treating the display path as identity; large files use
+ * resumable upload, advancing by the server-confirmed offset.
  */
 export const googleDriveProvider: CloudBackupProvider = {
   id: "google-drive",
@@ -384,7 +384,7 @@ export const googleDriveProvider: CloudBackupProvider = {
         size: asset.size,
       })),
       previous,
-      // 远端对象被删除/移入回收站时重新检查并修复，不只凭本机旧游标（设计 §8.1）。
+      // When a remote object is deleted/trashed, re-check and repair, not relying solely on a stale local cursor (design §8.1).
       exists: async (locator) => {
         const file = await client.get(locator.ref).catch(() => undefined);
         return !!file && !file.trashed;
@@ -502,10 +502,10 @@ export const googleDriveProvider: CloudBackupProvider = {
   ): Promise<CloudBackupManifest> {
     const client = await createDriveClient(ctx),
       folders = await requireFolders(ctx),
-      // 数据库必须达到内容验证等级（设计 §13.1）。
+      // The database must reach a content-verification level (design §13.1).
       database = await verifyObject(input.database, ctx, "数据库");
     assertContentVerification(database, "数据库");
-    // 附件默认同样下载校验；高级设置可关闭，但结果不得混入「全部已验证」。
+    // Assets likewise download-verify by default; advanced settings can disable it, but the result must not be mixed into "all verified".
     const verifyAssets =
       (await ctx.state.get<boolean>("verify.downloadAssets")) ?? true;
     const assets: (CloudBackupObjectRef & { path: string })[] = [];
@@ -533,7 +533,7 @@ export const googleDriveProvider: CloudBackupProvider = {
         appProperties: propsFor(roles.manifest, input.commitId),
         bytes,
       }),
-      // 上传后读回，确保清单内容与本地完全一致（设计 §8.2 第 7 步）。
+      // Read back after upload, ensuring the manifest content exactly matches the local one (design §8.2 step 7).
       readBack = await client.downloadBytes(file.id, 8 * 1024 * 1024);
     if (Buffer.compare(Buffer.from(readBack), bytes) !== 0)
       throw Error("Google Drive 清单读回校验失败");
@@ -569,7 +569,7 @@ export const googleDriveProvider: CloudBackupProvider = {
       bytes = Buffer.from(JSON.stringify(head));
     return publishHead({
       head,
-      // Drive 无实测条件写能力：退化为单写设备槽 + 发布前后检查（设计 §9.2）。
+      // Drive has no verified conditional-write capability: degrade to a single-writer device slot + pre/post-publish checks (design §9.2).
       conditional: false,
       write: async () => {
         const [existing] = await client.listChildren(folders.deviceFolderId, {
@@ -652,7 +652,7 @@ export const googleDriveProvider: CloudBackupProvider = {
       ),
       assets: RestoreBundle["assets"] = [];
     for (const asset of manifest.assets) {
-      // 清单是不可信输入：相对路径经核心校验后才允许落盘（设计 §16）。
+      // The manifest is untrusted input: relative paths are written to disk only after core validation (design §16).
       if (safeRelativePath(asset.path) !== asset.path)
         throw Error(`云端清单包含不安全的资源路径：${asset.path}`);
       const downloaded = await client.downloadToDest(
@@ -733,7 +733,7 @@ export const googleDriveProvider: CloudBackupProvider = {
   },
 };
 
-/** 备份根目录身份标记内容。 */
+/** Backup root identity marker content. */
 function rootMarker(): CloudBackupRootMarker {
   return {
     format: "anynote.cloud-backup-root",

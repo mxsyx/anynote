@@ -47,8 +47,8 @@ function formatBytes(bytes?: number) {
 /**
  * Restore wizard: account → device slot → current copy → download and verify.
  *
- * 恢复默认创建新 Notebook，不覆盖本地正在工作的库；下载完成后由核心改写副本身份
- * 并重建搜索，哈希不符时不会注册正常 Notebook。
+ * Restore creates a new Notebook by default without overwriting the local working DB; after download the core rewrites the copy's identity
+ * and rebuilds search; on hash mismatch it will not register a normal Notebook.
  */
 export default function CloudRestoreWizard({
   notebookId,
@@ -77,7 +77,7 @@ export default function CloudRestoreWizard({
       .catch((e) => setError((e as Error).message));
   }, [notebookId, target.target.id]);
 
-  // 恢复是后台任务：轮询任务中心，完成后自动切换到新 Notebook。
+  // Restore is a background task: poll the task center and switch to the new Notebook when done.
   useEffect(() => {
     if (!taskId) return;
     const timer = setInterval(() => {

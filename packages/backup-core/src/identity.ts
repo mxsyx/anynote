@@ -1,14 +1,14 @@
 import type { CloudProviderId } from "@anynote/types/cloud-backup.js";
 import { listCloudProviders } from "./registry.js";
 
-/** 官方三家云盘的展示元数据；未安装的扩展也可在「添加目标」中被发现。 */
+/** Display metadata for the three official clouds; extensions not yet installed can still be discovered in "Add target". */
 export interface OfficialProvider {
   id: CloudProviderId;
   title: string;
   beta: boolean;
 }
 
-/** 首期官方 Provider 清单（设计 §1.1）。 */
+/** Initial official Provider list (design §1.1). */
 export const officialProviders: readonly OfficialProvider[] = Object.freeze([
   { id: "google-drive", title: "Google Drive", beta: false },
   { id: "dropbox", title: "Dropbox", beta: false },
@@ -16,12 +16,12 @@ export const officialProviders: readonly OfficialProvider[] = Object.freeze([
 ]);
 
 /**
- * 合并官方清单与已注册 Provider，得到备份中心可展示的 Provider 视图。
+ * Merge the official list with registered Providers to get the Provider view shown in the backup center.
  *
- * `installed` 表示该扩展在当前构建中可用；未安装时备份中心只提供安装引导，
- * 不会自动索取权限（设计 §4）。
+ * `installed` means the extension is available in the current build; when not installed the backup center only offers install guidance,
+ * never requesting permissions automatically (design §4).
  *
- * @returns Provider 视图列表。
+ * @returns The list of Provider views.
  */
 export function listProviderViews(): (OfficialProvider & {
   installed: boolean;
@@ -36,10 +36,10 @@ export function listProviderViews(): (OfficialProvider & {
 }
 
 /**
- * 读取官方展示元数据。
+ * Read the official display metadata.
  *
- * @param id 厂商标识。
- * @returns 展示元数据；未知厂商返回 undefined。
+ * @param id Vendor id.
+ * @returns Display metadata; returns undefined for an unknown vendor.
  */
 export const officialProvider = (
   id: CloudProviderId,

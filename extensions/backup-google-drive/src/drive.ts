@@ -6,20 +6,20 @@ import type {
   ScopedReadSource,
 } from "@anynote/types/cloud-backup.js";
 
-/** Google 文件夹 MIME 类型。 */
+/** Google folder MIME type. */
 export const folderMime = "application/vnd.google-apps.folder";
 
-/** Drive API 端点；用于直接内容传输。 */
+/** Drive API endpoint; used for direct content transfer. */
 const driveApi = "https://www.googleapis.com/drive/v3";
 
-/** resumable 上传的非末尾分片必须是 256KiB 的倍数（设计 §10.3）。 */
+/** Non-final chunks of a resumable upload must be a multiple of 256KiB (design §10.3). */
 const chunkBytes = 256 * 1024 * 4;
 
-/** 需要读回的字段；`appProperties` 只作检索索引而非校验凭证。 */
+/** Fields to read back; `appProperties` is only a search index, not a verification proof. */
 const fields =
   "id,name,mimeType,size,appProperties,trashed,modifiedTime,md5Checksum,version";
 
-/** Drive 文件的精简投影。 */
+/** Slim projection of a Drive file. */
 export interface DriveFile {
   id: string;
   name?: string;
@@ -31,7 +31,7 @@ export interface DriveFile {
   md5Checksum?: string;
 }
 
-/** 单个文件的稳定身份描述。 */
+/** Stable identity description of a single file. */
 export interface DriveUploadInput {
   parentId: string;
   name: string;
@@ -42,10 +42,10 @@ export interface DriveUploadInput {
 }
 
 /**
- * 官方 Drive 客户端封装。
+ * Official Drive client wrapper.
  *
- * 元数据（列出/创建/删除/读回）走官方 `googleapis`；内容上传与下载通过核心
- * 受限 HTTP 通道流式进行，以便显式控制 resumable 分片与服务端确认偏移。
+ * Metadata (list/create/delete/read-back) goes through the official `googleapis`; content upload and download run streaming
+ * over the core restricted HTTP channel, to explicitly control resumable chunks and the server-confirmed offset.
  */
 export interface DriveClient {
   about(): Promise<{
@@ -87,7 +87,7 @@ export interface DriveClient {
   locate(file: DriveFile): CloudObjectLocator;
 }
 
-/** 构造 appProperties 检索索引；owner 为空时不写入该键。 */
+/** Build the appProperties search index; the owner key is omitted when empty. */
 export function propsFor(role: string, owner?: string): Record<string, string> {
   const props: Record<string, string> = {
     anynote: "object",
@@ -97,7 +97,7 @@ export function propsFor(role: string, owner?: string): Record<string, string> {
   return props;
 }
 
-/** appProperties 查询片段。 */
+/** appProperties query fragment. */
 function propsQuery(role: string, owner?: string): string {
   const parts = [`appProperties has {key='anynote.role' and value='${role}'}`];
   if (owner)
@@ -106,20 +106,20 @@ function propsQuery(role: string, owner?: string): string {
 }
 
 /**
- * 创建 Drive 客户端。
+ * Create the Drive client.
  *
- * `googleapis` 体积较大，因此使用动态 `import()` 懒加载：未启用云盘备份时
- * 不影响编辑器启动（设计 §4）。
+ * `googleapis` is large, so it is lazily loaded via dynamic `import()`: when cloud backup is disabled it
+ * does not affect editor startup (design §4).
  *
- * @param ctx 核心运行期上下文。
- * @returns Drive 客户端。
+ * @param ctx Core runtime context.
+ * @returns The Drive client.
  */
 export async function createDriveClient(
   ctx: BackupHostContext,
 ): Promise<DriveClient> {
   const { google } = await import("googleapis"),
     provider = ctx.accounts.tokenProvider(),
-    // 受信首方扩展被允许持有短时 access token；刷新由核心 single-flight 负责。
+    // Trusted first-party extensions may hold a short-lived access token; refresh is handled by core single-flight.
     auth = {
       async getAccessToken() {
         const token = await provider.getAccessToken();
@@ -164,7 +164,7 @@ export async function createDriveClient(
       });
       for (const file of response.data.files ?? []) results.push(map(file));
       pageToken = response.data.nextPageToken ?? undefined;
-      // 分页中断时调用方会收到异常；绝不把不完整结果当作「全部对象」。
+      // On a paging interruption the caller gets an exception; never treat an incomplete result as "all objects".
     } while (pageToken);
     return results;
   };
@@ -211,12 +211,12 @@ export async function createDriveClient(
     async findOrCreateFolder(parentId, role, name, owner) {
       const candidates = await listPage(parentId, role, owner);
       if (candidates.length > 1)
-        // 同名/多候选时检查身份与索引，无法确定则停写（设计 §9.2）。
+        // On same-name/multiple candidates, check identity and index; stop writing when it cannot be determined (design §9.2).
         throw Error(
           `云端发现多个 ${role} 目录候选，无法确定身份，已停止写入以避免破坏既有备份`,
         );
       if (candidates.length === 1) return candidates[0];
-      // 首次创建使用唯一角色标记；同名文件可能对应不同 ID，因此按标记检索。
+      // First creation uses a unique role marker; same-name files may map to different IDs, so search by marker.
       const created = await drive.files.create({
         requestBody: {
           name,
@@ -258,7 +258,7 @@ export async function createDriveClient(
         appProperties: input.appProperties,
       };
 
-      /** 开启一个 resumable 会话并上传完全部分片。 */
+      /** Open a resumable session and upload all chunks. */
       const upload = async () => {
         const start = await ctx.accounts.request(
           `${driveApi}/files?uploadType=resumable&fields=${encodeURIComponent(fields)}`,
@@ -282,7 +282,7 @@ export async function createDriveClient(
           if (!chunk.length) throw Error("本地对象在传输期间被截断");
           const response = await ctx.accounts.upload(session, {
             method: "PUT",
-            // 上传会话 URL 自带凭据，不附加 Bearer（设计 §16）。
+            // The upload session URL carries its own credentials, so no Bearer is attached (design §16).
             raw: true,
             headers: {
               "Content-Type": input.mimeType,
@@ -295,7 +295,7 @@ export async function createDriveClient(
           if (response.status === 200 || response.status === 201)
             return response;
           if (response.status === 308) {
-            // 偏移以服务端确认值为准，不按本地上次发送量推进（设计 §10.3）。
+            // The offset follows the server-confirmed value, not the locally last-sent amount (design §10.3).
             const range = response.headers.range,
               confirmed = range ? Number(range.split("-").at(-1)) : NaN;
             if (!Number.isFinite(confirmed))
@@ -311,7 +311,7 @@ export async function createDriveClient(
         throw Error("Google Drive 上传未返回完成响应");
       };
 
-      // 会话失效（404/410）时用同一份本地来源重建会话，绝不拼接不同捕获的数据库。
+      // On session invalidation (404/410), rebuild the session from the same local source, never splicing in a different capture's database.
       let response: Awaited<ReturnType<typeof ctx.accounts.upload>>;
       try {
         response = await upload();

@@ -1,32 +1,32 @@
 /**
- * OAuth 授权流程的显式错误分类（设计 §6.1）。
+ * Explicit error classification for the OAuth authorization flow (design §6.1).
  *
- * 设计要求「浏览器拒绝、用户取消、授权超时与端口占用均有明确状态」；这里用一族
- * 可 `instanceof` 判定的错误类型承载这些状态，让上层（IPC / 设置页 / 任务中心）
- * 能给出可操作提示，而不是把原始系统错误直接抛给用户。
+ * Design requires explicit states for "browser refusal, user cancellation, authorization timeout, and port in use"; a family of
+ * `instanceof`-checkable error types carries these states, so upper layers (IPC / settings page / task center)
+ * can give actionable prompts rather than throwing raw system errors at the user.
  */
 
-/** OAuth 授权过程中的可识别错误基类。 */
+/** Base class for recognizable errors during OAuth authorization. */
 export class OAuthError extends Error {
   /**
-   * @param message 可读信息。
-   * @param options 原始错误等附加信息。
+   * @param message Readable message.
+   * @param options Extra info such as the original error.
    */
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    // 子类无需重复设置 name，instanceof 判定不受影响但日志更清晰。
+    // Subclasses need not set name again; instanceof is unaffected but logs are clearer.
     this.name = new.target.name;
   }
 }
 
-/** 回环回调端口无法监听（通常已被其他程序占用）。 */
+/** The loopback callback port cannot be listened on (usually taken by another program). */
 export class OAuthPortError extends OAuthError {}
 
-/** 无法用系统浏览器打开授权页。 */
+/** Failed to open the authorization page in the system browser. */
 export class OAuthLaunchError extends OAuthError {}
 
-/** 授权会话在收到回调前超时。 */
+/** The authorization session timed out before receiving a callback. */
 export class OAuthTimeoutError extends OAuthError {}
 
-/** 回调 `state` 与预期不一致，可能被截获或伪造。 */
+/** The callback `state` does not match the expected value; it may have been intercepted or forged. */
 export class OAuthStateError extends OAuthError {}

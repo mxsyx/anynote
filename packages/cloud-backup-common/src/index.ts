@@ -1,9 +1,9 @@
 /**
- * 首方共享的云盘备份文件级流程（设计 §3.2、§15）。
+ * The first-party shared file-level cloud backup flow (design §3.2, §15).
  *
- * 该包实现「逻辑目录 + 差异计划 + 校验 + 条件发布 + 受管 GC」的可复用部分，
- * 由官方扩展通过依赖组合复用；它不是强制所有第三方插件使用的业务实现，也不
- * 允许绕过核心公共接口访问 SQLite 或任意磁盘路径。
+ * This package implements the reusable parts of "logical layout + diff plan + verification + conditional publish + managed GC",
+ * reused by official extensions via dependency composition; it is not a business implementation forced on all third-party plugins, nor does it
+ * allow bypassing the core public interface to access SQLite or arbitrary disk paths.
  */
 
 export {

@@ -12,7 +12,7 @@ import {
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** 把字节数组包装为核心约定的只读来源。 */
+/** Wrap a byte array as the read-only source expected by the core. */
 function bufferSource(bytes) {
   return {
     size: bytes.length,
@@ -26,8 +26,8 @@ function bufferSource(bytes) {
 }
 
 /**
- * 内存版 Graph：只实现 Provider 实际使用的 endpoint，用于验证目录解析、分段上传、
- * eTag 冲突处理与下载恢复，不替代真实 API 验收。
+ * In-memory Graph: implements only the endpoints the Provider actually uses, to verify directory resolution, chunked upload,
+ * eTag conflict handling, and download recovery; it does not replace real-API acceptance.
  */
 function createFakeGraph() {
   const driveId = "drive-1",
@@ -80,7 +80,7 @@ function createFakeGraph() {
     driveId,
     appRootId,
     items,
-    /** 强制下一次内容写返回冲突，用于验证 eTag/同名冲突处理。 */
+    /** Force the next content write to return a conflict, to verify eTag/same-name conflict handling. */
     failNextWrite: null,
 
     resolveContentRange(headers) {
@@ -188,7 +188,7 @@ function createFakeGraph() {
 
       fail(404);
 
-      /** 路径创建/覆盖：遵守 conflictBehavior 语义。 */
+      /** Path create/overwrite: follows conflictBehavior semantics. */
       function createOrReplace(parentId, name, body, url) {
         const behavior =
             url.searchParams.get("@microsoft.graph.conflictBehavior") ??
@@ -202,7 +202,7 @@ function createFakeGraph() {
         return item;
       }
 
-      /** 按 itemId 更新：校验 If-Match 版本以避免覆盖并发写入。 */
+      /** Update by itemId: validates the If-Match version to avoid overwriting concurrent writes. */
       function updateById(id, body, headers) {
         const item = items.get(id);
         if (!item) fail(404);
@@ -221,7 +221,7 @@ function createFakeGraph() {
         init.headers ?? {},
       );
       const chunks = [];
-      // init.source 是 AsyncIterable<Uint8Array>。
+      // init.source is AsyncIterable<Uint8Array>.
       return (async () => {
         for await (const chunk of init.source) chunks.push(chunk);
         const appended = Buffer.concat(chunks);
@@ -273,12 +273,12 @@ function ok(value, status = 200) {
   };
 }
 
-/** 原始字节响应（内容下载）。 */
+/** Raw byte response (content download). */
 function raw(bytes, status = 200) {
   return { status, headers: {}, bytes: Buffer.from(bytes) };
 }
 
-/** 构造一个只实现所需门面的运行期上下文。 */
+/** Build a runtime context that implements only the required facades. */
 function createContext(fake) {
   const store = new Map();
   return {
@@ -329,7 +329,7 @@ test("OneDrive Provider 声明应用目录最小权限与能力", () => {
   assert.equal(oneDriveProvider.id, "onedrive");
   assert.equal(oneDriveProvider.capabilities.appScopedStorage, true);
   assert.equal(oneDriveProvider.capabilities.resumableUpload, true);
-  // 条件写尚未实测：不得声明 CAS 能力（设计 §9.2、§12.3）。
+  // Conditional writes are not yet verified: CAS capability must not be declared (design §9.2, §12.3).
   assert.equal(oneDriveProvider.capabilities.conditionalHead, false);
   assert.deepEqual(oneDriveProvider.capabilities.providerChecksum, []);
   assert.ok(
@@ -358,7 +358,7 @@ test("对象引用与 320KiB 分片对齐", () => {
       [chunkAlignment * 2, size],
     ],
   );
-  // 非末尾分片必须按 320KiB 对齐；末片可以不对齐。
+  // Non-final chunks must be aligned to 320KiB; the final chunk may be unaligned.
   assert.equal(ranges[0].length % chunkAlignment, 0);
   assert.throws(() => uploadChunkRanges(10, 1234), /320KiB/);
 });
@@ -376,7 +376,7 @@ test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢
   assert.match(handle.deviceSlotRef, /^drive-1::/);
 
   const dbBytes = Buffer.from("sqlite-database-payload"),
-    // 大于简单上传阈值，强制走 createUploadSession。
+    // Larger than the simple upload threshold, forcing createUploadSession.
     assetBytes = Buffer.alloc(4 * 1024 * 1024 + 1, 0x5a),
     assetSha = sha256(assetBytes),
     capture = {
@@ -409,7 +409,7 @@ test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢
   assert.equal(manifest.database.verification, "download-sha256");
   assert.equal(manifest.assets.length, 1);
 
-  // 并发写入者已发布 current：同名/版本冲突必须拒绝，而不是覆盖。
+  // A concurrent writer already published current: a same-name/version conflict must be rejected, not overwritten.
   fake.failNextWrite = 409;
   await assert.rejects(
     oneDriveProvider.publish({ prepared, observedHead: null }, ctx),
@@ -460,7 +460,7 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
   await oneDriveProvider.verify(prepared, writerCtx);
   await oneDriveProvider.publish({ prepared, observedHead: null }, writerCtx);
 
-  // 新设备：本地槽表为空，只能按 Notebook 目录下的名称发现远端槽。
+  // New device: the local slot table is empty, so remote slots can only be discovered by name under the Notebook directory.
   const readerCtx = createContext(fake);
   await oneDriveProvider.ensureTarget(
     { notebookId, notebookName: "Test", deviceSlotId: randomUUID() },

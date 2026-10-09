@@ -7,12 +7,12 @@ import { parseBlocks } from "./markdown.js";
 const parser = unified().use(remarkParse).use(remarkGfm);
 
 /**
- * 首发富文本的语法边界：标准部分限定为 CommonMark 加选定的 GFM 子集，
- * 扩展部分继续以带版本的指令块与资源引用协议表示。
+ * Syntax boundary of first-party rich text: the standard part is limited to CommonMark plus a selected GFM subset,
+ * while the extension part continues to be represented by versioned directive blocks and the resource reference protocol.
  *
- * 数组内为富文本模式可安全编辑的 mdast 节点类型。GFM 任务列表复用
- * `list`/`listItem`（以 `checked` 区分），因此不单独列出。落在此边界之外的结构
- * 一律保留原文并导向源码编辑。
+ * The array lists mdast node types that rich text mode can safely edit. GFM task lists reuse
+ * `list`/`listItem` (distinguished by `checked`), so they are not listed separately. Any structure outside this boundary
+ * is preserved verbatim and routed to source editing.
  */
 export const richSyntax = {
   commonmark: [
@@ -33,7 +33,7 @@ export const richSyntax = {
   gfm: ["delete", "table", "tableRow", "tableCell"],
 } as const;
 
-/** 富文本无法安全表示的块的原因，用于提示并导向源码编辑。 */
+/** Reason a block cannot be safely represented in rich text, used to prompt and route to source editing. */
 export type RichBlockReason =
   | "extension"
   | "oversize"
@@ -51,9 +51,9 @@ const supported = new Set<string>([
   ...richSyntax.gfm,
 ]);
 
-// CommonMark 反斜杠转义：反斜杠后跟 ASCII 标点表示字面字符。转义文本在重新
-// 序列化时可能丢失反斜杠而改变语义（例如 \* 变成强调），因此包含转义的块只
-// 允许源码编辑。反斜杠位于代码块/行内代码中不属于转义，故仅检查 text 节点。
+// CommonMark backslash escape: a backslash followed by ASCII punctuation denotes a literal character. Re-serializing
+// escaped text may drop the backslash and change semantics (e.g. \* becoming emphasis), so blocks containing escapes
+// only allow source editing. A backslash inside a code block or inline code is not an escape, so only text nodes are checked.
 const escaped = /\\[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 
 /**

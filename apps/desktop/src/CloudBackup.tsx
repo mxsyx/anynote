@@ -57,7 +57,7 @@ function stateLabel(state: string): string {
   );
 }
 
-/** 已用/总量的人类可读体积。 */
+/** Human-readable size of used/total. */
 function formatBytes(bytes?: number | null) {
   if (bytes == null) return "未知";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -73,7 +73,7 @@ function formatBytes(bytes?: number | null) {
 /**
  * Cloud-drive backup centre.
  *
- * Lists one low-noise card per target, shows each目标 status honestly (never one
+ * Lists one low-noise card per target, shows each target status honestly (never one
  * green dot hiding a partial failure), and offers the primary actions plus an
  * explicit disconnect/delete path that never deletes remote data implicitly.
  */

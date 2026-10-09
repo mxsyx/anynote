@@ -23,7 +23,7 @@ afterAll(() => rmSync(tempRoot, { recursive: true, force: true }));
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** 独立实现 Dropbox 内容哈希，用于校验分块逻辑（设计 §11.2）[D2]。 */
+/** An independent implementation of the Dropbox content hash, to verify the chunking logic (design §11.2) [D2]. */
 function referenceDropboxHash(bytes) {
   const overall = createHash("sha256");
   for (let offset = 0; offset < bytes.length; offset += 4 * 1024 * 1024) {
@@ -36,7 +36,7 @@ function referenceDropboxHash(bytes) {
   return overall.digest("hex");
 }
 
-/** 把字节包装成 Provider 需要的只读来源。 */
+/** Wrap bytes as the read-only source the Provider needs. */
 function sourceOf(bytes) {
   const buffer = Buffer.from(bytes);
   return {
@@ -48,7 +48,7 @@ function sourceOf(bytes) {
   };
 }
 
-/** 最小捕获结果句柄。 */
+/** Minimal capture result handle. */
 function captureOf({ notebookId, database, assets = [] }) {
   return {
     notebookId,
@@ -72,10 +72,10 @@ function captureOf({ notebookId, database, assets = [] }) {
 }
 
 /**
- * 内存版 Dropbox 服务桩：实现 Dropbox Provider 用到的端点语义。
+ * In-memory Dropbox service stub: implements the endpoint semantics the Dropbox Provider uses.
  *
- * 覆盖真实 API 的关键行为：路径大小写无关、content_hash 分块算法、upload
- * session 的按 offset 拼接、`add` 禁止覆盖与 `update` 的 rev 条件写冲突。
+ * Covers key real-API behaviors: case-insensitive paths, the content_hash chunking algorithm, and upload
+ * session offset assembly, `add` no-overwrite, and the `update` rev conditional-write conflict.
  */
 function createDropboxStub(options = {}) {
   const nodes = new Map(),
@@ -301,7 +301,7 @@ function createDropboxStub(options = {}) {
   return { handleRpc, handleUpload, handleDownload, stats, nodes };
 }
 
-/** 构造核心运行期上下文的测试替身；只实现 Provider 用到的门面。 */
+/** Build a test double of the core runtime context; implements only the facades the Provider uses. */
 function createContext(server, notebookId, deviceLabel = "测试设备") {
   const state = new Map();
   const accounts = {
@@ -361,13 +361,13 @@ function createContext(server, notebookId, deviceLabel = "测试设备") {
 }
 
 test("Dropbox 内容哈希按 4MiB 分块，且不等于整文件 SHA-256", async () => {
-  // 空文件没有分块，等于空字符串的 SHA-256（Dropbox 官方说明）。
+  // An empty file has no blocks, equal to the SHA-256 of an empty string (per Dropbox docs).
   const empty = Buffer.alloc(0);
   assert.equal(
     await dropboxContentHash(sourceOf(empty), 0),
     createHash("sha256").digest("hex"),
   );
-  // ≤4MiB 是单块：先对块取 SHA-256，再对摘要取 SHA-256（双次哈希）。
+  // ≤4MiB is a single block: hash the block, then hash the digest (double hashing).
   const small = Buffer.from("anynote");
   assert.equal(
     await dropboxContentHash(sourceOf(small), small.length),
@@ -378,20 +378,20 @@ test("Dropbox 内容哈希按 4MiB 分块，且不等于整文件 SHA-256", asyn
     await dropboxContentHash(sourceOf(multi), multi.length),
     referenceDropboxHash(multi),
   );
-  // content_hash 不是整文件 SHA-256，避免把 rev/hash 混用（设计 §11.2）。
+  // content_hash is not a whole-file SHA-256, avoiding mixing up rev/hash (design §11.2).
   assert.notEqual(referenceDropboxHash(multi), sha256(multi));
   assert.notEqual(referenceDropboxHash(small), sha256(small));
 });
 
 test("capabilities 把条件写标记为实测结论而非默认值", () => {
-  // rev 冲突在 publish 中按刚读到的 rev 条件更新处理，但尚未实测，故不声明条件写。
+  // Rev conflicts are handled in publish via conditional update on the just-read rev, but this is unverified, so conditional write is not declared.
   assert.equal(dropboxCapabilities.conditionalHead, false);
   assert.deepEqual(dropboxCapabilities.providerChecksum, [
     "dropbox-content-hash",
   ]);
   assert.equal(dropboxCapabilities.appScopedStorage, true);
   assert.equal(dropboxCapabilities.resumableUpload, true);
-  // 已接入真实 API，与 Google Drive / OneDrive 一致不再标记 Beta（真实账号验收另见 TODO）。
+  // Real API is wired in, so it is no longer marked Beta, consistent with Google Drive / OneDrive (real-account acceptance tracked in TODO).
   assert.equal(cloudBackupExtension.beta, false);
   assert.notEqual(
     cloudBackupExtension.manifest.contributes.backupProviders[0].beta,
@@ -414,7 +414,7 @@ test("App Folder 根目录身份标记校验并拒绝陌生目录", async () => 
   const marker = await client.getMetadata("/AnynoteBackup/root.json");
   assert.ok(marker, "应写入根目录身份标记");
 
-  // 陌生目录（非本应用写入的标记）必须拒绝写入受管对象。
+  // A foreign directory (a marker not written by this app) must refuse writes of managed objects.
   const foreign = createDropboxStub();
   const foreignCtx = createContext(foreign, notebookId);
   foreign.nodes.set("/anynotebackup/root.json", {
@@ -474,7 +474,7 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
   assert.equal(first.manifest.assets[0].sha256, sha256(assetA));
   assert.equal(first.head.deviceSlotId, deviceSlotId);
 
-  // 无变化：只确认指针与对象状态，不再上传数据库/附件。
+  // Unchanged: only confirm the pointer and object state, without re-uploading the database/assets.
   const second = await runFileLevelBackup({
     provider: dropboxProvider,
     ctx,
@@ -487,7 +487,7 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
   assert.equal(second.unchanged, true);
   assert.equal(second.uploadedBytes, 0);
 
-  // 新增附件：复用数据库与旧附件，只上传新对象。
+  // New asset: reuse the database and old assets, uploading only the new object.
   const assetB = Buffer.from("asset-b-content"),
     captureB = captureOf({
       notebookId,
@@ -507,7 +507,7 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
   assert.equal(third.uploadedBytes, assetB.length);
   assert.equal(third.manifest.assets.length, 2);
 
-  // 恢复：列出设备槽并从当前副本读回数据库与附件。
+  // Restore: list device slots and read the database and assets back from the current copy.
   const page = await dropboxProvider.listCurrentBackups(ctx);
   assert.deepEqual(
     page.slots.map((slot) => slot.deviceSlotId),
@@ -576,7 +576,7 @@ test("rev 冲突处理：add 禁止覆盖，update 需匹配 rev 且不产生副
     bytes: Buffer.from("second"),
   });
   assert.notEqual(updated.rev, first.rev);
-  // 冲突不生成 rename 副本：目录内仍只有一个文件。
+  // A conflict does not produce a renamed copy: still only one file in the directory.
   const files = (
     await client.listFolder("/AnynoteBackup", { recursive: true })
   ).filter((entry) => !entry.isFolder);
@@ -608,7 +608,7 @@ test("路径不存在与时序保护：缺失元数据返回 null，清理与删
     client = createDropboxClient(ctx);
   assert.equal(await client.getMetadata("/AnynoteBackup/missing.json"), null);
   assert.deepEqual(await client.listFolder("/AnynoteBackup/missing"), []);
-  // 删除不存在的对象视为幂等成功。
+  // Deleting a non-existent object is treated as an idempotent success.
   await client.remove("/AnynoteBackup/missing.json");
 
   const target = await dropboxProvider.ensureTarget(
@@ -627,7 +627,7 @@ test("路径不存在与时序保护：缺失元数据返回 null，清理与删
     capture,
     deviceSlotId,
   });
-  // 受管清理只删除计划内对象，current 指针引用的数据库/附件必须保留。
+  // Managed cleanup deletes only planned objects; the database/assets referenced by the current pointer must be kept.
   const cleanup = await dropboxProvider.cleanup({ objects: [] }, ctx);
   assert.deepEqual(cleanup, { deleted: 0, failed: 0 });
   const remaining = await client.listFolder(target.deviceSlotRef, {

@@ -1,8 +1,8 @@
 /**
- * Google Drive 官方备份扩展。
+ * Google Drive official backup extension.
  *
- * 独立构建、独立版本；`googleapis` 通过动态 `import()` 懒加载，未启用云盘备份
- * 时不影响编辑器启动（设计 §4）。
+ * Built and versioned independently; `googleapis` is lazily loaded via dynamic `import()`, so disabling cloud backup
+ * does not affect editor startup (design §4).
  */
 
 export { googleDriveManifest } from "./manifest.js";
@@ -19,7 +19,7 @@ export type { DriveClient, DriveFile, DriveUploadInput } from "./drive.js";
 import { googleDriveManifest } from "./manifest.js";
 import { googleDriveProvider } from "./provider.js";
 
-/** 官方扩展的注册载荷：核心据此注册 Provider 与展示元数据。 */
+/** Registration payload of an official extension: the core uses it to register the Provider and display metadata. */
 export const cloudBackupExtension = {
   manifest: googleDriveManifest,
   provider: googleDriveProvider,

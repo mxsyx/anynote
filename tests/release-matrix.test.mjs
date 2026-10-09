@@ -35,7 +35,7 @@ import { signedPackageSchema } from "../.build/packages/extension-tools/signatur
 import { settingsEnvelopeSchema } from "../.build/packages/extension-tools/settings.js";
 import { extensionDirectorySchema } from "../.build/packages/protocol/extension-directory.js";
 
-/** 读取 workspace 内各 package.json 的 name -> 路径映射。 */
+/** Read the name -> path mapping of each package.json in the workspace. */
 function workspaceManifests() {
   const map = new Map([["anynote", "package.json"]]);
   for (const dir of ["apps", "packages"])
@@ -54,14 +54,14 @@ const versionOf = (name) => {
   return JSON.parse(readFileSync(path, "utf8")).version;
 };
 
-/** 取 zod object 的 shape，兼容 `.refine()` 包裹出的 ZodEffects。 */
+/** Get the shape of a zod object, tolerating ZodEffects wrapped by `.refine()`. */
 const shapeOf = (schema) => schema.shape ?? shapeOf(schema._def.schema);
 
-/** zod literal 的字面量值；用于把矩阵与真实 schema 对齐。 */
+/** Literal value of a zod literal; used to align the matrix with the real schema. */
 const literalValue = (schema, key) => shapeOf(schema)[key]._def.value;
 
 test("发布单元版本与各自 package.json 一致", () => {
-  // 桌面版本以根 package.json 为准，且必须与 @anynote/desktop 保持同步。
+  // The desktop version follows the root package.json and must stay in sync with @anynote/desktop.
   const desktop = getReleaseUnit("desktop");
   assert.equal(desktop.version, versionOf("anynote"));
   assert.equal(desktop.version, versionOf("@anynote/desktop"));
@@ -92,7 +92,7 @@ test("发布契约版本与代码导出的常量一致", () => {
     getReleaseUnit("first-party").contract,
     firstPartyAdapterContractVersion,
   );
-  // 只有可发布、且具备公开调用面的单元才声明契约版本。
+  // Only publishable units that expose a public surface declare a contract version.
   for (const unit of releaseUnits)
     if (unit.contract !== undefined) assert.equal(unit.publishable, true);
 });
@@ -131,7 +131,7 @@ test("发布格式版本与真实 schema / 表结构一致", () => {
     literalValue(cloudManifestSchema, "formatVersion"),
     format("cloud-backup-manifest").version,
   );
-  // 扩展格式以 `anynote.<name>.v<version>` 形式内嵌版本。
+  // Extension formats embed the version in the form `anynote.<name>.v<version>`.
   const extensionTag = (id) => `${format(id).tag}.v${format(id).version}`;
   assert.equal(
     literalValue(signedPackageSchema, "format"),
@@ -145,7 +145,7 @@ test("发布格式版本与真实 schema / 表结构一致", () => {
     literalValue(extensionDirectorySchema, "format"),
     extensionTag("extension-directory"),
   );
-  // Notebook schema 版本写在迁移 SQL 中。
+  // The Notebook schema version is written in the migration SQL.
   const schemaSource = readFileSync(
     "packages/storage-sqlite/src/schema.ts",
     "utf8",
@@ -156,7 +156,7 @@ test("发布格式版本与真实 schema / 表结构一致", () => {
       `UPDATE notebook_meta SET schema_version=${format("notebook-schema").version}`,
     ),
   );
-  // 逻辑备份协议在运行时按字面量校验，没有独立 schema。
+  // The logical backup protocol is validated by literals at runtime and has no standalone schema.
   const logical = readFileSync("packages/backup/src/logical.ts", "utf8");
   assert.ok(logical.includes(`format: "${format("logical-protocol").tag}"`));
   assert.ok(
@@ -181,7 +181,7 @@ test("兼容窗口内部自洽且可解析", () => {
     assert.ok(!seen.has(key), `重复兼容窗口 ${key}`);
     seen.add(key);
   }
-  // 每个格式都由某个单元拥有。
+  // Each format is owned by some unit.
   for (const format of releaseFormats)
     assert.ok(unitIds.has(format.owner), `格式 ${format.id} 的 owner 无效`);
 });
@@ -209,7 +209,7 @@ test("兼容判定在窗口内接受、越界明确拒绝", () => {
     checkReleaseCompatibility("desktop", "sdk", "0.2.0").compatible,
     false,
   );
-  // 未声明的组合不能默认放行。
+  // Undeclared combinations must not be allowed by default.
   const unknown = checkReleaseCompatibility("worker", "extension-package", 1);
   assert.equal(unknown.compatible, false);
   assert.ok(unknown.reason.includes("未声明"));
@@ -274,7 +274,7 @@ test("旧消费者 fixture 存在且契约与矩阵一致", () => {
         `${unitId} 旧消费者契约与发布矩阵不一致`,
       );
     }
-    // fixture 只能依赖可发布单元。
+    // Fixtures may only depend on publishable units.
     for (const unitId of legacy.units)
       assert.equal(getReleaseUnit(unitId).publishable, true);
   }

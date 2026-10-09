@@ -2,23 +2,23 @@
  * Anynote release matrix: the single source of truth for independently versioned
  * release units and the formats they exchange.
  *
- * 设计 §19.2 要求 Desktop、Worker、SDK、首方插件各自独立发布，并明确跨版本
- * 兼容窗口。此模块把这些事实收敛为一份可执行契约：它只描述版本与兼容关系，
- * 不做任何 I/O，也不依赖 Node、Electron、存储或 UI，因此桌面主进程、Worker
- * 与发布工具可以读取同一份定义。
+ * Design §19.2 requires Desktop, Worker, SDK, and first-party plugins to release independently, with explicit cross-version
+ * compatibility windows. This module converges those facts into an executable contract: it only describes versions and compatibility,
+ * performs no I/O, and depends on no Node, Electron, storage, or UI, so the desktop main process, Worker,
+ * and release tooling can read the same definition.
  *
- * 维护约定：
- * - `releaseUnits[].version` 必须等于对应 package.json 的 `version`。
- * - `releaseUnits[].contract` 必须等于代码中导出的契约常量（如
+ * Maintenance conventions:
+ * - `releaseUnits[].version` must equal the `version` in the corresponding package.json.
+ * - `releaseUnits[].contract` must equal the contract constant exported from the code (e.g.
  *   `apiContractVersion`）。
- * - `releaseFormats[].version` 必须等于各格式 zod schema / 表结构写入的版本。
- * - 兼容窗口一旦声明即视为对旧消费者的承诺，`legacyConsumers` 固定住需要
- *   持续通过的旧调用面 fixture。
+ * - `releaseFormats[].version` must equal the version written by each format's zod schema / table schema.
+ * - Once declared, a compatibility window is a promise to legacy consumers; `legacyConsumers` pins the old call-surface
+ *   fixtures that must keep passing.
  *
- * `tests/release-matrix.test.mjs` 会把上述约定与真实代码逐项比对。
+ * `tests/release-matrix.test.mjs` compares the above conventions item by item against the real code.
  */
 
-/** 独立版本、独立发布的组成部分。 */
+/** A component that is independently versioned and released. */
 export type ReleaseUnitId =
   | "desktop"
   | "worker"
@@ -27,7 +27,7 @@ export type ReleaseUnitId =
   | "first-party"
   | "format";
 
-/** 跨单元协商版本的接口（文件格式、协议或数据库 schema）。 */
+/** An interface negotiated across units (file format, protocol, or database schema). */
 export type FormatId =
   | "notebook-schema"
   | "notebook-archive"
@@ -39,91 +39,91 @@ export type FormatId =
   | "extension-directory"
   | "extension-settings";
 
-/** 单元的交付渠道。 */
+/** Delivery channel of a unit. */
 export type ReleaseChannel =
   | "npm"
   | "github-release"
   | "cloudflare-deploy"
   | "internal";
 
-/** 单元对外暴露的一个 ESM/类型入口。 */
+/** An ESM/type entry point a unit exposes. */
 export interface ReleaseEntrypoint {
-  /** 相对包根的子路径导出，如 `.` 或 `./packages/extension-tools/cli.js`。 */
+  /** Subpath export relative to the package root, e.g. `.` or `./packages/extension-tools/cli.js`. */
   readonly subpath: string;
-  /** 类型声明文件；纯 CLI 入口可缺省。 */
+  /** Type declaration file; may be omitted for a pure CLI entry. */
   readonly types?: string;
-  /** ESM 运行时入口。 */
+  /** ESM runtime entry. */
   readonly import: string;
 }
 
 export interface ReleaseUnit {
   readonly id: ReleaseUnitId;
-  /** npm 包名；桌面应用保留其应用标识。 */
+  /** npm package name; the desktop app keeps its application identifier. */
   readonly package: string;
-  /** 单元独立版本，等于其 package.json 的 version。 */
+  /** Independent version of the unit, equal to its package.json version. */
   readonly version: string;
-  /** 公开调用面的独立契约版本；无调用面的单元省略。 */
+  /** Independent contract version of the public surface; omitted for units with no surface. */
   readonly contract?: number;
-  /** 向消费者公布的运行时要求（真实 engine，不含自定义字段）。 */
+  /** Runtime requirements published to consumers (the real engine, without custom fields). */
   readonly engines: Readonly<Record<string, string>>;
-  /** SPDX 标识；尚未选定许可证时使用 `SEE LICENSE IN LICENSE`。 */
+  /** SPDX identifier; uses `SEE LICENSE IN LICENSE` until a license is chosen. */
   readonly license: string;
   readonly channel: ReleaseChannel;
-  /** 是否产出可安装的 npm tarball。 */
+  /** Whether an installable npm tarball is produced. */
   readonly publishable: boolean;
-  /** 打包进产物的 ESM/类型入口。 */
+  /** ESM/type entries packaged into the artifact. */
   readonly entrypoints: readonly ReleaseEntrypoint[];
-  /** CLI 单元声明的可执行文件映射。 */
+  /** Executable mapping declared by a CLI unit. */
   readonly bin?: Readonly<Record<string, string>>;
-  /** 发布清单与文档中的一句话描述。 */
+  /** One-line description in the release manifest and docs. */
   readonly description: string;
 }
 
 export interface ReleaseFormat {
   readonly id: FormatId;
-  /** 文件/表标识；无字符串标识时使用空串。 */
+  /** File/table identifier; an empty string when there is no string identifier. */
   readonly tag: string;
-  /** 当前代码写入的整数格式版本。 */
+  /** Integer format version currently written by the code. */
   readonly version: number;
-  /** 定义并演进该格式的单元。 */
+  /** The unit that defines and evolves this format. */
   readonly owner: ReleaseUnitId;
 }
 
 export interface CompatibilityWindow {
-  /** 消费该接口的单元。 */
+  /** The unit that consumes the interface. */
   readonly consumer: ReleaseUnitId;
-  /** 提供该接口的单元或格式。 */
+  /** The unit or format that provides the interface. */
   readonly provider: ReleaseUnitId | FormatId;
-  /** 单元使用 semver range，格式使用整数 range（如 `<=2`）。 */
+  /** Units use a semver range, formats an integer range (e.g. `<=2`). */
   readonly accepts: string;
   readonly note: string;
 }
 
-/** 固定旧公开调用面的消费者 fixture，用于持续验证向前兼容。 */
+/** Consumer fixtures that pin old public surfaces, continuously verifying forward compatibility. */
 export interface LegacyConsumer {
-  /** fixture 固定的单元公开调用面。 */
+  /** The unit public surface the fixture pins. */
   readonly units: readonly ReleaseUnitId[];
-  /** fixture 编写时的契约版本，按单元 id 索引。 */
+  /** Contract version at fixture authoring time, indexed by unit id. */
   readonly contracts: Readonly<Record<string, number>>;
-  /** 仓库相对目录。 */
+  /** Repo-relative directory. */
   readonly fixture: string;
 }
 
-/** 矩阵数据自身的版本标识。 */
+/** Version identifier of the matrix data itself. */
 export const releaseMatrixFormat = "anynote.release-matrix.v1";
 
 /**
- * 发布清单（构建产物）的版本标识。
- * `scripts/build-release-matrix.mjs` 生成，`scripts/release-matrix-smoke.mjs` 消费。
+ * Version identifier of the release manifest (a build artifact).
+ * Generated by `scripts/build-release-matrix.mjs`, consumed by `scripts/release-matrix-smoke.mjs`.
  */
 export const releaseManifestFormat = "anynote.release-manifest.v1";
 
-/** 各单元统一使用的 SPDX 许可证标识；许可证文本见仓库根 LICENSE。 */
+/** SPDX license identifier used uniformly by all units; see the repo-root LICENSE for the text. */
 export const releaseLicense = "MIT";
 
 /**
- * 各组成单元的独立版本与发布渠道。桌面版本以根 package.json 为准（`release.yml`
- * 也据此校验标签），其余单元以各自 package.json 为准。
+ * Independent versions and delivery channels of the component units. The desktop version follows the root package.json (`release.yml`
+ * also validates the tag against it), and the other units follow their own package.json.
  */
 const unitList: readonly ReleaseUnit[] = [
   {
@@ -208,7 +208,7 @@ const unitList: readonly ReleaseUnit[] = [
 ];
 export const releaseUnits: readonly ReleaseUnit[] = Object.freeze(unitList);
 
-/** 需要跨单元协商的格式版本。 */
+/** Format versions that must be negotiated across units. */
 const formatList: readonly ReleaseFormat[] = [
   {
     id: "notebook-schema",
@@ -269,10 +269,10 @@ export const releaseFormats: readonly ReleaseFormat[] =
   Object.freeze(formatList);
 
 /**
- * 兼容窗口。`accepts` 表达“消费者接受提供者处于哪个版本区间”：
- * - 单元使用 semver range（支持 `*`、精确版本、`^`、`~`、`>=`/`<=`/`>`/`<`）。
- * - 格式使用整数 range（精确版本或 `<=`/`>=`/`<`/`>`）。
- * 设计 §19.2 要求无法兼容时明确拒绝，而不是静默降级写入。
+ * Compatibility window. `accepts` expresses "which provider version range a consumer accepts":
+ * - Units use a semver range (`*`, exact, `^`, `~`, `>=`/`<=`/`>`/`<` are supported).
+ * - Formats use an integer range (exact or `<=`/`>=`/`<`/`>`).
+ * Design §19.2 requires an explicit rejection when incompatible, not a silent downgraded write.
  */
 const windowList: readonly CompatibilityWindow[] = [
   {
@@ -352,8 +352,8 @@ export const compatibilityWindows: readonly CompatibilityWindow[] =
   Object.freeze(windowList);
 
 /**
- * 旧消费者 fixture 清单。首个版本尚无历史发布，这里的 fixture 即 0.1 消费者；
- * 后续版本必须继续通过，除非在矩阵中显式提升兼容窗口并更新 fixture。
+ * Legacy-consumer fixture list. The first version has no prior release, so this fixture is the 0.1 consumer;
+ * later versions must keep passing unless the compatibility window is explicitly raised in the matrix and the fixture updated.
  */
 const legacyList: readonly LegacyConsumer[] = [
   {
@@ -372,7 +372,7 @@ const formatById = new Map<FormatId, ReleaseFormat>(
   releaseFormats.map((format) => [format.id, format]),
 );
 
-/** 是否为格式标识（而非单元标识）。 */
+/** Whether it is a format id (rather than a unit id). */
 export function isFormatId(value: string): value is FormatId {
   return formatById.has(value as FormatId);
 }
@@ -450,7 +450,7 @@ function satisfiesComparator(target: Semver, comparator: string): boolean {
   }
 }
 
-/** 判断版本是否落在 semver range 内（支持子集：`*`、精确、`^`、`~`、比较符）。 */
+/** Determine whether a version falls within a semver range (subset supported: `*`, exact, `^`, `~`, comparators). */
 export function satisfiesRange(version: string, range: string): boolean {
   const target = parseSemver(version);
   if (!target) return false;
@@ -462,7 +462,7 @@ export function satisfiesRange(version: string, range: string): boolean {
     .every((comparator) => satisfiesComparator(target, comparator));
 }
 
-/** 判断整数格式版本是否落在格式 range 内。 */
+/** Determine whether an integer format version falls within a format range. */
 export function satisfiesFormatRange(version: number, range: string): boolean {
   const match = /^(<=|>=|<|>|=)?\s*(\d+)$/.exec(range.trim());
   if (!Number.isInteger(version) || !match) return false;
@@ -486,8 +486,8 @@ export type CompatibilityVerdict =
   | { readonly compatible: false; readonly reason: string };
 
 /**
- * 校验“消费者 + 提供者 + 提供者版本”是否落在声明的兼容窗口内。
- * 消费者未声明该提供者时返回不兼容，遵循“无法兼容就明确拒绝”。
+ * Validate whether "consumer + provider + provider version" falls within the declared compatibility window.
+ * Returns incompatible when the consumer does not declare the provider, following "reject explicitly when incompatible".
  */
 export function checkReleaseCompatibility(
   consumer: ReleaseUnitId,
@@ -515,7 +515,7 @@ export function checkReleaseCompatibility(
       };
 }
 
-/** `checkReleaseCompatibility` 的断言版本，越界即抛错。 */
+/** Asserting version of `checkReleaseCompatibility`; throws when out of range. */
 export function assertReleaseCompatibility(
   consumer: ReleaseUnitId,
   provider: ReleaseUnitId | FormatId,
@@ -525,7 +525,7 @@ export function assertReleaseCompatibility(
   if (!verdict.compatible) throw Error(verdict.reason);
 }
 
-/** 返回单元或格式的当前版本字符串，便于日志与校验。 */
+/** Return the current version string of a unit or format, for logging and validation. */
 export function releaseVersion(id: ReleaseUnitId | FormatId): string {
   return isFormatId(id)
     ? String(getReleaseFormat(id).version)

@@ -27,7 +27,7 @@ let openExternalCounter = 0;
  * Ask the main process to open the system browser (the OAuth authorization page).
  *
  * The loopback callback listener stays in this process, so the renderer never
- * needs Node or preload access to complete an authorization (设计 §6.1).
+ * needs Node or preload access to complete an authorization (design §6.1).
  *
  * @param url Authorization URL to open.
  * @returns Whether the browser was launched.
@@ -44,7 +44,7 @@ const openExternalRequest = (url: string) =>
   });
 
 setCloudOpenExternal((url) => openExternalRequest(url).then(() => undefined));
-// Register the官方 cloud-drive extensions so the scheduler can see them; the
+// Register the official cloud-drive extensions so the scheduler can see them; the
 // operation path registers lazily and idempotently as well.
 void registerOfficialProviders();
 

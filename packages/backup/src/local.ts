@@ -300,7 +300,7 @@ export async function localBackupOperation(
       });
     });
     write(s, [...all.filter((t) => t.diskId !== p.diskId), ...next]);
-    return { handled: true, result: next }; // 被排除的副本仍保留在磁盘上。
+    return { handled: true, result: next }; // Excluded replicas are still kept on disk.
   }
 
   if (op === "startLocalBackupGroup") {
@@ -595,7 +595,7 @@ export async function localBackupOperation(
       s,
       readLocalTargets(s).filter((a) => a.id !== t.id),
     );
-    return { handled: true, result: true }; // 取消选择不会动当前磁盘副本。
+    return { handled: true, result: true }; // Deselecting leaves the current on-disk replica untouched.
   }
 
   const active = [...s.jobs.values()].find(
@@ -719,7 +719,7 @@ export async function localBackupOperation(
             job,
             signal,
           );
-          workspace = { ...workspace, dir: "" }; // 已以新 Notebook 身份发布进仓库。
+          workspace = { ...workspace, dir: "" }; // Already published to the repo under a new Notebook identity.
           job.restoredId = result.id;
           job.restoreResult = {
             restoredId: result.id,

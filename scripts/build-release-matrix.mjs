@@ -23,7 +23,7 @@ import {
 const root = resolve(".");
 const out = join(root, "artifacts/release");
 
-/** 可发布单元的便携构建入口；复用既有脚本，不重复实现打包逻辑。 */
+/** Portable build entry point for publishable units; reuses existing scripts, not reimplementing packaging. */
 const builders = {
   sdk: { script: "scripts/build-sdk.mjs", source: "artifacts/plugin-sdk" },
   devtools: {
@@ -36,7 +36,7 @@ const builders = {
   },
 };
 
-/** 递归收集目录内所有文件，返回相对路径排序后的 (path, sha256) 列表。 */
+/** Recursively collect all files in a directory, returning a (path, sha256) list sorted by relative path. */
 function digest(dir, base = dir) {
   return readdirSync(dir, { withFileTypes: true })
     .flatMap((entry) => {
@@ -56,7 +56,7 @@ function aggregate(files) {
     .digest("hex");
 }
 
-/** ESM/类型 exports 必须真实存在，否则消费方会静默拿到缺失入口。 */
+/** ESM/type exports must really exist, otherwise consumers silently get missing entry points. */
 function assertEntries(unit, dir, manifest) {
   if (manifest.type !== "module")
     throw Error(`${unit.package} 必须声明 "type": "module"`);
@@ -117,14 +117,14 @@ for (const unit of releaseUnits) {
   manifest.version = unit.version;
   manifest.license = unit.license;
   manifest.engines = { ...manifest.engines, ...unit.engines };
-  // npm 的 files 白名单不会自动收录 CHANGELOG.md。
+  // npm's files whitelist does not automatically include CHANGELOG.md.
   if (Array.isArray(manifest.files))
     for (const name of ["LICENSE", "CHANGELOG.md"])
       if (!manifest.files.includes(name)) manifest.files.push(name);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   writeFileSync(join(dir, "LICENSE"), license);
   writeFileSync(join(dir, "CHANGELOG.md"), changelog);
-  // 重新读取落盘清单，确保校验的是真实产物而非内存对象。
+  // Re-read the persisted manifest from disk, ensuring the real artifacts are verified rather than in-memory objects.
   assertEntries(unit, dir, JSON.parse(readFileSync(manifestPath, "utf8")));
   const files = digest(dir);
   record.artifact = relative(root, dir).replaceAll("\\", "/");

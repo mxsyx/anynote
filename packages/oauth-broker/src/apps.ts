@@ -1,34 +1,34 @@
 import type { CloudProviderId } from "@anynote/types/cloud-backup.js";
 
 /**
- * 官方 OAuth 应用注册（设计 §6.3、§6.4）。
+ * Official OAuth app registration (design §6.3, §6.4).
  *
- * 官方版本随发行预置已注册的应用身份；开发/测试与生产的注册相互独立，因此
- * 每个厂商按「阶段」持有各自的 Client ID。Client ID / App Key 是公开应用标识，
- * 这里只承载标识，不含任何密钥——桌面二进制与公开源码无法保密 Client Secret。
+ * Official builds ship with pre-registered app identities; dev/test and production registrations are independent, so
+ * each vendor holds its own Client ID per "stage". Client ID / App Key is a public app identifier,
+ * so only the identifier lives here, with no secret — desktop binaries and public source cannot keep a Client Secret.
  *
- * 官方构建可在打包时注入 `ANYNOTE_OAUTH_APPS`（JSON）；自编译或开发者也可用
- * 环境变量或调用方显式传入覆盖。三者都缺失时返回 `undefined`，由调用方给出
- * 「未配置应用身份」的明确错误，而不是静默使用占位字符串发起授权。
+ * Official builds may inject `ANYNOTE_OAUTH_APPS` (JSON) at packaging time; self-builds or developers may also
+ * override via env vars or an explicit caller argument. When all three are missing it returns `undefined`, and the caller produces
+ * an explicit "app identity not configured" error rather than silently starting authorization with a placeholder string.
  */
 
-/** OAuth 应用的发布阶段；开发与生产注册不混用（设计 §6.4）。 */
+/** OAuth app release stage; dev and production registrations are not mixed (design §6.4). */
 export type OAuthAppStage = "development" | "production";
 
-/** 允许的阶段取值，供校验与诊断使用。 */
+/** Allowed stage values, for validation and diagnostics. */
 export const oauthAppStages: readonly OAuthAppStage[] = Object.freeze([
   "development",
   "production",
 ]);
 
-/** Client ID 的解析来源；用于如实展示配置状态。 */
+/** Resolution source of the Client ID; used to truthfully show config status. */
 export type OAuthClientSource =
   | "explicit"
   | "environment"
   | "registered"
   | "none";
 
-/** 环境变量名到厂商的映射；自编译版本可注入自己的 Client ID。 */
+/** Mapping from env var names to vendors; self-builds can inject their own Client IDs. */
 export const oauthClientIdEnv: Readonly<Record<CloudProviderId, string>> =
   Object.freeze({
     "google-drive": "ANYNOTE_GOOGLE_CLIENT_ID",
@@ -36,18 +36,18 @@ export const oauthClientIdEnv: Readonly<Record<CloudProviderId, string>> =
     onedrive: "ANYNOTE_ONEDRIVE_CLIENT_ID",
   });
 
-/** 阶段选择器环境变量；官方构建按发布渠道注入，缺省视为生产。 */
+/** Stage-selector env var; official builds inject it per release channel, defaulting to production. */
 export const oauthStageEnv = "ANYNOTE_OAUTH_STAGE";
 
-/** 官方应用注册表环境变量；值为 JSON，形如 `{"google-drive":{"production":"…"}}`。 */
+/** Official app registry env var; value is JSON like `{"google-drive":{"production":"…"}}`. */
 export const oauthAppsEnv = "ANYNOTE_OAUTH_APPS";
 
-/** 按厂商与阶段组织的官方应用注册表。 */
+/** Official app registry organized by vendor and stage. */
 export type OAuthAppRegistry = Partial<
   Record<CloudProviderId, Partial<Record<OAuthAppStage, string>>>
 >;
 
-/** 官方支持的厂商标识；与类型定义保持一致，作为遍历顺序的单一来源。 */
+/** Officially supported vendor ids; consistent with the type definitions, serving as the single source of iteration order. */
 const providerIds: readonly CloudProviderId[] = Object.freeze([
   "google-drive",
   "dropbox",
@@ -55,13 +55,13 @@ const providerIds: readonly CloudProviderId[] = Object.freeze([
 ]);
 
 /**
- * 解析当前生效的应用阶段。
+ * Resolve the currently effective app stage.
  *
- * 未设置或取值非法时回退到 `production`：官方默认按生产注册发布，开发构建
- * 应显式注入 `ANYNOTE_OAUTH_STAGE=development`，避免误用开发凭据作为长期基线。
+ * Falls back to `production` when unset or invalid: official builds publish against production by default, and dev builds
+ * should explicitly inject `ANYNOTE_OAUTH_STAGE=development` to avoid using dev credentials as a long-term baseline.
  *
- * @param env 环境变量来源。
- * @returns 当前阶段。
+ * @param env Environment source.
+ * @returns The current stage.
  */
 export function resolveOAuthStage(
   env: NodeJS.ProcessEnv = process.env,
@@ -73,10 +73,10 @@ export function resolveOAuthStage(
 }
 
 /**
- * 读取并校验官方应用注册表；结构非法时返回空表而不是抛错。
+ * Read and validate the official app registry; returns an empty table rather than throwing when malformed.
  *
- * @param env 环境变量来源。
- * @returns 归一化后的注册表。
+ * @param env Environment source.
+ * @returns The normalized registry.
  */
 export function readOAuthAppRegistry(
   env: NodeJS.ProcessEnv = process.env,
@@ -106,16 +106,16 @@ export function readOAuthAppRegistry(
 }
 
 /**
- * 解析厂商的 OAuth Client ID 及其来源。
+ * Resolve a vendor's OAuth Client ID and its source.
  *
- * 优先级（设计 §6.3）：调用方显式值 → 厂商环境变量 → 当前阶段的官方注册表。
- * 逐一回落而不是拼接，保证「一个厂商一个身份」，并如实报告来源供诊断与设置页
- * 判断是否需要引导用户配置。
+ * Priority (design §6.3): explicit caller value → vendor env var → official registry for the current stage.
+ * Falls back one by one rather than concatenating, ensuring "one identity per vendor", and truthfully reports the source for diagnostics and the settings page
+ * to decide whether to guide the user to configure it.
  *
- * @param providerId 厂商标识。
- * @param explicit 调用方显式提供的 Client ID（高级设置 / 自编译）。
- * @param env 环境变量来源。
- * @returns Client ID、来源与当前阶段。
+ * @param providerId Vendor id.
+ * @param explicit Client ID explicitly provided by the caller (advanced settings / self-build).
+ * @param env Environment source.
+ * @returns The Client ID, its source, and the current stage.
  */
 export function resolveOAuthClient(
   providerId: CloudProviderId,
@@ -133,12 +133,12 @@ export function resolveOAuthClient(
 }
 
 /**
- * 解析厂商的 OAuth Client ID；缺失时返回 `undefined`。
+ * Resolve a vendor's OAuth Client ID; returns `undefined` when missing.
  *
- * @param providerId 厂商标识。
- * @param explicit 调用方显式提供的 Client ID。
- * @param env 环境变量来源。
- * @returns Client ID 或 undefined。
+ * @param providerId Vendor id.
+ * @param explicit Client ID explicitly provided by the caller.
+ * @param env Environment source.
+ * @returns The Client ID or undefined.
  */
 export function resolveClientId(
   providerId: CloudProviderId,
@@ -148,22 +148,22 @@ export function resolveClientId(
   return resolveOAuthClient(providerId, explicit, env).clientId;
 }
 
-/** 单个厂商的应用身份配置状态（不含 Client ID 本身，便于展示与诊断）。 */
+/** App identity config status for a single vendor (excluding the Client ID itself, for display and diagnostics). */
 export interface OAuthAppStatus {
   providerId: CloudProviderId;
   stage: OAuthAppStage;
-  /** 是否已解析到可用的 Client ID。 */
+  /** Whether a usable Client ID has been resolved. */
   configured: boolean;
   source: OAuthClientSource;
 }
 
 /**
- * 汇总各厂商当前的应用身份配置状态。
+ * Summarize the current app identity config status for each vendor.
  *
- * 只暴露是否配置与来源，不回传 Client ID 本身，避免其进入日志或诊断导出。
+ * Exposes only whether it is configured and the source, never the Client ID itself, keeping it out of logs and diagnostic exports.
  *
- * @param env 环境变量来源。
- * @returns 各厂商状态列表。
+ * @param env Environment source.
+ * @returns The list of per-vendor statuses.
  */
 export function describeOAuthApps(
   env: NodeJS.ProcessEnv = process.env,

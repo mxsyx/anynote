@@ -4,42 +4,42 @@ import type {
   CommittedBackup,
 } from "@anynote/types/cloud-backup.js";
 
-/** 条件写结果。 */
+/** Conditional write result. */
 export interface HeadWriteResult {
-  /** 条件写被拒绝（存在并发写入者）。 */
+  /** Conditional write was rejected (a concurrent writer exists). */
   conflict?: boolean;
-  /** 写入后的版本 token，供下次条件写使用。 */
+  /** Version token after the write, for the next conditional write. */
   versionToken?: string;
 }
 
 export interface PublishHeadOptions {
   head: CloudBackupHead;
-  /** 是否具备经实测的条件写能力（设计 §9.2）。 */
+  /** Whether verified conditional-write capability exists (design §9.2). */
   conditional: boolean;
-  /** 期望的 head 版本 token；不具备条件写时为 undefined。 */
+  /** Expected head version token; undefined when conditional writes are unsupported. */
   expectedVersionToken?: string;
-  /** 写入 head；请求响应丢失时实现会抛出网络错误。 */
+  /** Write the head; the implementation throws a network error when the response is lost. */
   write(
     head: CloudBackupHead,
     expectedVersionToken?: string,
   ): Promise<HeadWriteResult>;
-  /** 读回 head；不存在时返回 null。 */
+  /** Read back the head; returns null when absent. */
   read(): Promise<CloudBackupHead | null>;
-  /** 发布读回确认等级。 */
+  /** Publish read-back confirmation level. */
   verification: CloudVerificationLevel;
 }
 
 /**
- * 发布当前指针并读回确认（设计 §8.2、§14.2）。
+ * Publish the current pointer and read it back for confirmation (design §8.2, §14.2).
  *
- * 关键约束：
- * - 只有不可变对象就绪后才调用；
- * - 条件写被拒绝表示存在并发写入者，立即停写并保留原 head；
- * - 写请求响应丢失时通过读回 head 判断本次 commit 是否已生效，而不是盲目重写；
- * - 读回的 head 不是本次 commit 时视为未确认，调用方不得清理旧对象。
+ * Key constraints:
+ * - Called only after the immutable objects are ready;
+ * - A rejected conditional write means a concurrent writer exists: stop writing immediately and keep the original head;
+ * - When the write response is lost, read back the head to determine whether this commit took effect, rather than blindly rewriting;
+ * - When the read-back head is not this commit, treat it as unconfirmed and do not clean up old objects.
  *
- * @param options 发布参数。
- * @returns 已提交备份。
+ * @param options Publish arguments.
+ * @returns The committed backup.
  */
 export async function publishHead(
   options: PublishHeadOptions,
@@ -51,7 +51,7 @@ export async function publishHead(
       options.conditional ? options.expectedVersionToken : undefined,
     );
   } catch (error) {
-    // 响应丢失：读回判断本次 commit 是否已经生效，而不是重新盲写。
+    // Response lost: read back to determine whether this commit took effect, rather than blindly rewriting.
     const observed = await options.read();
     if (observed?.commitId === options.head.commitId)
       return {
@@ -80,11 +80,11 @@ export async function publishHead(
 }
 
 /**
- * 提交结果不确定时只读确认。
+ * Read-only confirmation when the commit result is uncertain.
  *
- * @param head 待确认的 head。
- * @param read 读回函数。
- * @returns 已确认的 head，或 null 表示未提交。
+ * @param head The head to confirm.
+ * @param read Read-back function.
+ * @returns The confirmed head, or null if not committed.
  */
 export async function confirmCommittedHead(
   head: CloudBackupHead,

@@ -6,7 +6,7 @@ import type {
 } from "@anynote/types/cloud-backup.js";
 import { sameLocator } from "./layout.js";
 
-/** 参与计划的附件描述。 */
+/** Description of an asset participating in the plan. */
 export interface PlanAsset {
   path: string;
   sha256: string;
@@ -18,27 +18,27 @@ export interface PlanInput {
   databaseSha256: string;
   databaseSize: number;
   assets: readonly PlanAsset[];
-  /** 上次成功提交的清单；为空表示需要完整上传。 */
+  /** Manifest of the last successful commit; empty means a full upload is needed. */
   previous: CloudBackupManifest | null;
   /**
-   * 可选的远端存在性探测；提供时会剔除「复用但已不存在」的对象，
-   * 避免只凭本机旧游标永久认定远端完整（设计 §8.1）。
+   * Optional remote existence probe; when provided it drops "reused but no longer present" objects,
+   * avoiding permanently treating the remote as complete based only on a stale local cursor (design §8.1).
    */
   exists?: (locator: CloudObjectLocator) => Promise<boolean>;
-  /** 账号可用空间；由 `probe` 提供。 */
+  /** Account available space; supplied by `probe`. */
   availableBytes?: number | null;
 }
 
 /**
- * 生成文件级增量上传计划（设计 §8.1、§17）。
+ * Build a file-level incremental upload plan (design §8.1, §17).
  *
- * 判定规则：
- * - SQLite 以捕获后的 SHA-256 比对，有变化则整体上传，无块级差量。
- * - 不可变附件按内容哈希复用；`exists` 提供时再确认远端仍在。
- * - manifest 永远重新生成（含 commitId/时间），因此不参与复用。
+ * Decision rules:
+ * - SQLite is compared by the post-capture SHA-256; if changed it is uploaded whole, with no block-level diff.
+ * - Immutable assets are reused by content hash; when `exists` is provided, the remote is confirmed to still exist.
+ * - The manifest is always regenerated (including commitId/time), so it is never reused.
  *
- * @param input 捕获结果与上次清单。
- * @returns 差异计划与空间预算。
+ * @param input The capture result and the previous manifest.
+ * @returns The diff plan and space budget.
  */
 export async function buildUploadPlan(
   input: PlanInput,
@@ -50,7 +50,7 @@ export async function buildUploadPlan(
 
   const items: CloudUploadItem[] = [];
 
-  /** 对可复用 locator 做一次存在性确认。 */
+  /** Perform one existence check for a reusable locator. */
   const reusable = async (locator: CloudObjectLocator) =>
     input.exists ? await input.exists(locator) : true;
 
@@ -77,7 +77,7 @@ export async function buildUploadPlan(
 
   const uploadBytes = items.reduce((total, item) => total + item.size, 0),
     unchanged = databaseReused && items.length === 0,
-    // 空间预算包含旧当前数据库（提交成功前不删除旧副本）与本次新增对象。
+    // The space budget includes the old current database (the old copy is not deleted before a successful commit) and the newly added objects.
     requiredBytes = uploadBytes + (previous?.database.size ?? 0);
 
   return {
@@ -91,10 +91,10 @@ export async function buildUploadPlan(
 }
 
 /**
- * 校验空间预算；不足时抛出可操作的错误而不是清理旧副本强行提交（设计 §14.2）。
+ * Validate the space budget; on shortage throw an actionable error rather than clearing the old copy to force a commit (design §14.2).
  *
- * @param plan 上传计划。
- * @returns 是否通过预算检查。
+ * @param plan The upload plan.
+ * @returns Whether the budget check passed.
  */
 export function assertPlanBudget(plan: CloudBackupPlan): boolean {
   if (plan.availableBytes != null && plan.requiredBytes > plan.availableBytes)
@@ -108,12 +108,12 @@ export function assertPlanBudget(plan: CloudBackupPlan): boolean {
 }
 
 /**
- * 判断计划中的某对象是否可复用已有 locator。
+ * Determine whether an object in the plan can reuse an existing locator.
  *
- * @param plan 上传计划。
- * @param sha256 内容哈希。
- * @param kind 对象类别。
- * @returns 可复用的 locator 或 undefined。
+ * @param plan The upload plan.
+ * @param sha256 Content hash.
+ * @param kind Object kind.
+ * @returns The reusable locator, or undefined.
  */
 export function reusedLocator(
   previous: CloudBackupManifest | null,

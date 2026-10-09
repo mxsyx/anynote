@@ -10,19 +10,19 @@ export interface PlaceholderProviderOptions {
   id: CloudBackupProvider["id"];
   capabilities: CloudBackupCapabilities;
   accountDescriptor: OAuthProviderDescriptor;
-  /** 面向用户的说明：该扩展尚未开放真实备份能力。 */
+  /** User-facing note: this extension has not yet enabled real backup capability. */
   reason: string;
 }
 
 /**
- * 构造一个占位 Provider。
+ * Build a placeholder Provider.
  *
- * 用于已登记但尚未接入真实 API 的官方扩展：它保留完整的协议接口与能力声明，
- * 使备份中心能如实显示「Beta / 未开放」，同时明确拒绝而不是静默产生不完整
- * 备份（设计 §18.3 的 Beta 标记要求）。
+ * For official extensions that are registered but not yet wired to a real API: it keeps the full protocol interface and capability declaration,
+ * so the backup center can truthfully show "Beta / not available" while explicitly rejecting rather than silently producing an incomplete
+ * backup (the Beta-marking requirement of design §18.3).
  *
- * @param options 标识、能力与说明。
- * @returns 占位 Provider。
+ * @param options Identity, capabilities, and note.
+ * @returns The placeholder Provider.
  */
 export function createPlaceholderProvider(
   options: PlaceholderProviderOptions,
@@ -36,7 +36,7 @@ export function createPlaceholderProvider(
     capabilities: options.capabilities,
     accountDescriptor: options.accountDescriptor,
     async probe(): Promise<TargetCapabilities> {
-      // 能力探测是只读的：允许 UI 在未开放时仍显示账号与配额状态。
+      // Capability probing is read-only: it lets the UI show account and quota status even when not yet available.
       return {
         ...options.capabilities,
         quotaBytes: null,

@@ -26,7 +26,7 @@ import { clearCloudFailureState, nextFailureState } from "./failure.js";
 import { getCloudProvider } from "./registry.js";
 import { patchTarget } from "./state.js";
 
-/** 单线程顺序哈希一个文件；用于恢复后的整文件校验。 */
+/** Single-threaded sequential hash of a file; used for whole-file verification after restore. */
 async function hashFile(
   file: string,
 ): Promise<{ sha256: string; size: number }> {
@@ -47,7 +47,7 @@ async function hashFile(
   return { sha256: hash.digest("hex"), size: offset };
 }
 
-/** 判断目标是否已有进行中的任务，避免重复触发。 */
+/** Determine whether a target already has an in-progress task, to avoid duplicate triggers. */
 function activeJob(s: Storage, targetId: string): Task | undefined {
   return [...s.jobs.values()].find(
     (job) =>
@@ -57,15 +57,15 @@ function activeJob(s: Storage, targetId: string): Task | undefined {
 }
 
 /**
- * 启动一次云盘备份任务（设计 §8.2）。
+ * Start a cloud backup task (design §8.2).
  *
- * 任务持有一致性捕获、调用 Provider 的文件级流程，并在协议门槛通过后写入成功
- * 游标；失败只更新失败状态，绝不修改本地知识数据。
+ * The task holds a consistent capture, calls the Provider's file-level flow, and writes a success
+ * cursor after the protocol gates pass; failure only updates the failure state and never modifies local knowledge data.
  *
  * @param s Storage。
- * @param target 目标配置。
- * @param account 已连接账号。
- * @returns 任务标识。
+ * @param target Target config.
+ * @param account Connected account.
+ * @returns Task id.
  */
 export function startCloudBackup(
   s: Storage,
@@ -160,7 +160,7 @@ export function startCloudBackup(
           });
           if (isCleanupEmpty(plan)) return undefined;
           const cleaned = await provider.cleanup(plan, ctx);
-          // 全部删除成功才从登记表移除；存在失败项时保留登记，下次幂等重试。
+          // Remove from the registry only when all deletions succeed; keep the entry on any failure for an idempotent retry next time.
           if (!cleaned.failed) {
             const removed = new Set(
               plan.objects.map(
@@ -230,17 +230,17 @@ export function startCloudBackup(
 }
 
 /**
- * 启动一次云盘恢复任务（设计 §5.3、§13.1）。
+ * Start a cloud restore task (design §5.3, §13.1).
  *
- * 先把清单与对象下载到核心私有临时目录并逐项校验应用 SHA-256，再通过归档
- * 校验线程改写身份、重建搜索并注册为新的 Notebook；哈希不符时不会注册正常
+ * First download the manifest and objects to the core-private temp directory, verifying each with the application SHA-256, then via the archive
+ * verification thread rewrite the identity, rebuild search, and register as a new Notebook; on hash mismatch it will not register a normal
  * Notebook。
  *
  * @param s Storage。
- * @param target 目标配置。
- * @param account 已连接账号。
- * @param selection 设备槽与可选清单引用。
- * @returns 任务标识。
+ * @param target Target config.
+ * @param account Connected account.
+ * @param selection Device slot and optional manifest reference.
+ * @returns Task id.
  */
 export function startCloudRestore(
   s: Storage,
@@ -385,6 +385,6 @@ export function startCloudRestore(
   return { id };
 }
 
-/** 便于测试与调度复用：读取最近一次成功指针的提交身份。 */
+/** Shared by tests and scheduling: read the commit identity of the most recent successful pointer. */
 export const headCommitId = (head: CloudBackupHead | null | undefined) =>
   head?.commitId ?? null;

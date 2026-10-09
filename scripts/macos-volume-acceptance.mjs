@@ -26,8 +26,8 @@ import {
 } from "../.build/packages/backup-local/filesystem.js";
 import { syncDirectory } from "../.build/packages/backup-local/files.js";
 
-// macOS/APFS 实盘验收（TODO §2.3）。用 hdiutil 创建并挂载真实 APFS/exFAT/FAT32 卷，
-// 不需要 root 且可完整清理；外接物理盘拔盘、真实断电、独立设备与真实网络盘挂载不在本脚本范围内。
+// macOS/APFS real-disk acceptance (TODO §2.3). Uses hdiutil to create and mount real APFS/exFAT/FAT32 volumes,
+// requiring no root and fully cleanable; physical drive removal, real power loss, separate devices, and real network mounts are out of scope.
 const args = process.argv.slice(2);
 function option(name) {
   const i = args.indexOf(name);
@@ -53,7 +53,7 @@ const sh = (command, commandArgs) => {
       env: { ...process.env, LC_ALL: "C" },
     });
   } catch (error) {
-    // 不带 `-quiet`：失败原因必须保留在错误里，否则只能看到退出码。
+    // No `-quiet`: the failure reason must be kept in the error, otherwise only the exit code is visible.
     const detail = [error.stdout, error.stderr].filter(Boolean).join("").trim();
     throw Error(
       `${command} ${commandArgs.join(" ")} 失败${detail ? "：" + detail : ""}`,
@@ -63,7 +63,7 @@ const sh = (command, commandArgs) => {
 
 async function check(name, fn) {
   const detail = await fn();
-  // 环境限制（例如本机不允许创建某类镜像）必须如实记录，不能当作通过。
+  // Environment limits (e.g. this host cannot create a certain image type) must be recorded truthfully, not counted as passing.
   if (detail?.skip) {
     skipped.push({ name, reason: detail.skip });
     console.log(`SKIP ${name}: ${detail.skip}`);
@@ -159,7 +159,7 @@ async function main() {
   };
   const engine = new LocalBackupService();
 
-  // 1. 卷身份：APFS 卷应报告稳定 VolumeUUID、挂载点与磁盘名称。
+  // 1. Volume identity: an APFS volume should report a stable VolumeUUID, mount point, and disk name.
   const apfsImage = join(base, "apfs.dmg");
   const apfsMount = join(base, "apfs-mnt");
   await check("apfs-volume-identity", async () => {
@@ -178,32 +178,32 @@ async function main() {
     assert.equal(info.maximumFileBytes, undefined);
     assert.ok(info.diskName.length > 0);
     assert.ok(info.mountPoint.startsWith("/"));
-    // 与系统自己的 diskutil 报告逐字一致，证明不是自我推断。
+    // Word-for-word consistent with the system's own diskutil report, proving it is not self-inferred.
     const plist = sh("diskutil", ["info", "-plist", apfsMount]);
     assert.equal(
       info.volumeUuid.toUpperCase(),
       plistString(plist, "VolumeUUID")?.toUpperCase(),
     );
     assert.equal(info.diskName, plistString(plist, "VolumeName"));
-    // 同一卷重复探测给出同一身份。
+    // Probing the same volume repeatedly yields the same identity.
     assert.equal(
       (await inspectFilesystem(apfsMount)).volumeUuid,
       info.volumeUuid,
     );
-    // 源（内建 APFS 数据卷）与目标（镜像卷）的卷身份必须可区分。
+    // The volume identities of the source (built-in APFS data volume) and target (image volume) must be distinguishable.
     const source = await inspectFilesystem(storage.directory(book.id));
     assert.equal(source.filesystem, "apfs");
     assert.notEqual(source.volumeUuid, info.volumeUuid);
   });
 
-  // 2. 能力探测：替换、读回与目录 fsync 在真实 APFS 上可用；无 FAT32 限制的计划被接受。
+  // 2. Capability probe: replace, read-back, and directory fsync are available on real APFS; a plan without the FAT32 limit is accepted.
   await check("apfs-replacement-fsync-and-space-limits", async () => {
     await probeReplacement(apfsMount, async () => {});
     await syncDirectory(apfsMount);
     requireLocalFilesystem(volumes.apfs, 8 * 1024 ** 3);
   });
 
-  // 3. 复制、覆盖替换、完整校验与完整恢复都在真实 APFS 镜像卷上执行。
+  // 3. Copy, overwrite-replace, full verification, and full restore all run on a real APFS image volume.
   const target = await initializeTarget(apfsMount, [storage.root]);
   let manifest;
   await check("apfs-backup-replace-verify-restore", async () => {
@@ -212,7 +212,7 @@ async function main() {
     });
     assert.ok(copied.copiedFiles >= 2, "首次备份应复制数据库与引导文件");
     await engine.verify(target, book.id);
-    // 覆盖替换：内容变化后再次备份，数据库必须被同盘替换并在校验中读到新内容。
+    // Overwrite replace: back up again after a content change; the database must be replaced on the same disk and the new content read during verification.
     const second = await storage.run("createNode", {
       notebookId: book.id,
       title: "第二版",
@@ -229,7 +229,7 @@ async function main() {
       ),
       manifest.database.sha256,
     );
-    // 完整恢复：复制回本机并逐字节核对数据库、正文与资源闭包。
+    // Full restore: copy back to this machine and verify the database, body, and asset closure byte for byte.
     const restored = join(base, "restored");
     mkdirSync(restored);
     const restoredManifest = await engine.restore(target, book.id, restored);
@@ -257,7 +257,7 @@ async function main() {
     }
   });
 
-  // 4. 挂载/重挂载与离线识别：卸载后必须停止发布，重挂载后身份与清单继续有效。
+  // 4. Mount/remount and offline detection: publishing must stop after unmount, and identity and manifest remain valid after remount.
   await check("apfs-remount-and-offline-detection", async () => {
     detachImage(apfsMount);
     await assert.rejects(
@@ -279,7 +279,7 @@ async function main() {
       ),
       manifest.database.sha256,
     );
-    // 另一块卷占用同一挂载点时必须拒绝，绝不清理或覆盖未知内容。
+    // When another volume occupies the same mount point it must be rejected, never cleaning up or overwriting unknown content.
     const other = join(base, "other.dmg");
     createImage(other, ["APFS"], "ANYNOTE_OTHER");
     detachImage(apfsMount);
@@ -299,7 +299,7 @@ async function main() {
     );
   });
 
-  // 5. 真实 FAT32 卷：必须报告 4GiB-1 单文件限制并按计划拒绝超限。
+  // 5. Real FAT32 volume: must report the 4GiB-1 single-file limit and reject over-limit plans.
   await check("fat32-single-file-limit", async () => {
     const image = join(base, "fat32.dmg");
     const mountPoint = join(base, "fat32-mnt");
@@ -322,14 +322,14 @@ async function main() {
     detachImage(mountPoint);
   });
 
-  // 6. 真实 exFAT 卷：不应误报 FAT32 限制，且卷身份仍然稳定。
+  // 6. Real exFAT volume: must not falsely report the FAT32 limit, and volume identity remains stable.
   await check("exfat-has-no-fat32-limit", async () => {
     const image = join(base, "exfat.dmg");
     const mountPoint = join(base, "exfat-mnt");
     try {
       createImage(image, ["ExFAT", "exFAT", "exfat"], "ANYNOTE_EXFAT");
     } catch (error) {
-      // 部分主机/目录不允许创建 exFAT 镜像；如实跳过，不拿解析层结论冒充实盘结果。
+      // Some hosts/directories disallow creating exFAT images; skip truthfully, never passing parse-layer conclusions off as real-disk results.
       if (!/不被允许|not permitted/i.test(error.message)) throw error;
       return { skip: `本机无法创建 exFAT 镜像：${error.message}` };
     }

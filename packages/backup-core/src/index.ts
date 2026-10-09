@@ -1,9 +1,9 @@
 /**
- * 云盘备份核心服务（设计 §3.1）。
+ * Cloud backup core service (design §3.1).
  *
- * 核心提供不可绕过的数据保护规则：Provider 注册与启停、备份中心状态、账号与
- * 凭据引用、OAuth 执行框架接入、一致性捕获、资源访问、任务调度、本机状态与
- * 恢复落地。核心不写任何厂商业务分支，具体云盘行为由官方扩展实现。
+ * The core provides non-bypassable data-protection rules: Provider registration and enable/disable, backup center state, account and
+ * credential references, OAuth framework integration, consistent capture, asset access, task scheduling, local state, and
+ * restore landing. The core has no vendor-specific business branches; concrete cloud behavior is implemented by official extensions.
  */
 
 export { cloudBroker, disposeCloudBroker } from "./broker.js";

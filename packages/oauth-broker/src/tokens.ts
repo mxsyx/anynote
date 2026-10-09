@@ -1,7 +1,7 @@
 import type { Credentials, Vault } from "@anynote/types/runtime.js";
 import type { OAuthProviderDescriptor } from "@anynote/types/cloud-backup.js";
 
-/** 厂商 token 端点的原始响应字段。 */
+/** Raw response fields of the vendor token endpoint. */
 export interface TokenResponse {
   access_token?: string;
   refresh_token?: string;
@@ -14,18 +14,18 @@ export interface TokenResponse {
   error_description?: string;
 }
 
-/** 提前刷新的安全余量；避免请求恰好撞上过期。 */
+/** Safety margin for early refresh; avoids a request landing exactly on expiry. */
 const refreshSkewMs = 60_000;
 
-/** 不可恢复的鉴权错误，转为「需要重新登录」而不是无限重试。 */
+/** An unrecoverable auth error, turned into "re-login required" instead of infinite retries. */
 export class CloudAuthError extends Error {
   readonly reauthRequired: boolean;
 
   /**
-   * 构造云盘鉴权错误。
+   * Construct a cloud auth error.
    *
-   * @param message 可读信息。
-   * @param reauthRequired 是否需要用户重新登录。
+   * @param message Readable message.
+   * @param reauthRequired Whether the user must log in again.
    */
   constructor(message: string, reauthRequired = false) {
     super(message);
@@ -35,12 +35,12 @@ export class CloudAuthError extends Error {
 }
 
 /**
- * 解析并校验 token 端点响应。
+ * Parse and validate the token endpoint response.
  *
- * @param response 原始响应 JSON。
- * @param previous 上一次凭据；轮换时可回填 refresh token。
- * @param now 当前时间（毫秒）。
- * @returns 归一化后的凭据。
+ * @param response Raw response JSON.
+ * @param previous Previous credentials; may backfill the refresh token on rotation.
+ * @param now Current time (milliseconds).
+ * @returns Normalized credentials.
  */
 export function toCredentials(
   response: TokenResponse,
@@ -54,7 +54,7 @@ export function toCredentials(
     );
   return {
     token: response.access_token,
-    // 响应未包含 refresh token 时保留原值（设计 §6.2），不能因轮换丢失后台访问能力。
+    // When the response has no refresh token keep the original (design §6.2); rotation must not lose background access.
     refreshToken: response.refresh_token ?? previous.refreshToken,
     expiresAt: response.expires_in
       ? now + response.expires_in * 1000
@@ -66,14 +66,14 @@ export function toCredentials(
 }
 
 /**
- * 从 token 响应中读取云盘账号标识。
+ * Read the cloud account identifier from the token response.
  *
- * `id_token` 只做 base64url 解码取 claim：TLS + 厂商 token 端点已经保证来源，
- * 这里不重复做签名校验，但也不会据此授予任何本地权限。
+ * `id_token` is only base64url-decoded to read the claim: TLS plus the vendor token endpoint already guarantee the source,
+ * so no signature verification is repeated here, and no local permission is granted based on it.
  *
- * @param response token 响应。
- * @param descriptor 厂商认证描述。
- * @returns 账号标识；无法确定时返回 undefined。
+ * @param response Token response.
+ * @param descriptor Vendor auth descriptor.
+ * @returns The account identifier, or undefined when it cannot be determined.
  */
 export function accountIdFrom(
   response: TokenResponse,
@@ -89,10 +89,10 @@ export function accountIdFrom(
 }
 
 /**
- * 不解码即丢弃 payload 的 JWT 解析；仅用于读取标识。
+ * JWT parsing that discards the payload without decoding it; used only to read the identifier.
  *
  * @param token JWT。
- * @returns payload 对象或 undefined。
+ * @returns The payload object or undefined.
  */
 function decodeJwtPayload(token?: string): Record<string, unknown> | undefined {
   if (!token) return undefined;
@@ -108,10 +108,10 @@ function decodeJwtPayload(token?: string): Record<string, unknown> | undefined {
 }
 
 /**
- * 用授权码交换 token（Authorization Code + PKCE）。
+ * Exchange the authorization code for tokens (Authorization Code + PKCE).
  *
- * @param args 端点、客户端与应用信息。
- * @returns token 响应。
+ * @param args Endpoints, client, and app info.
+ * @returns The token response.
  */
 export async function exchangeAuthorizationCode(args: {
   descriptor: OAuthProviderDescriptor;
@@ -131,10 +131,10 @@ export async function exchangeAuthorizationCode(args: {
 }
 
 /**
- * 用 refresh token 刷新访问权限。
+ * Refresh access using the refresh token.
  *
- * @param args 端点、客户端与 refresh token。
- * @returns token 响应。
+ * @param args Endpoints, client, and refresh token.
+ * @returns The token response.
  */
 export async function refreshAccessToken(args: {
   descriptor: OAuthProviderDescriptor;
@@ -151,12 +151,12 @@ export async function refreshAccessToken(args: {
 }
 
 /**
- * 以表单形式调用 token 端点并解析 JSON。
+ * Call the token endpoint as a form post and parse JSON.
  *
- * @param endpoint token 端点。
- * @param fetchImpl fetch 实现。
- * @param params 表单参数。
- * @returns 解析后的 token 响应。
+ * @param endpoint Token endpoint.
+ * @param fetchImpl fetch implementation.
+ * @param params Form parameters.
+ * @returns The parsed token response.
  */
 async function postToken(
   endpoint: string,
@@ -183,7 +183,7 @@ async function postToken(
     const code = parsed.error ?? String(response.status);
     throw new CloudAuthError(
       parsed.error_description || `云盘鉴权失败（${code}）`,
-      // invalid_grant / 已撤销 属于不可恢复错误，需要重新登录。
+      // invalid_grant / revoked are unrecoverable errors requiring re-login.
       code === "invalid_grant" ||
         code === "invalid_client" ||
         response.status === 401,
@@ -193,10 +193,10 @@ async function postToken(
 }
 
 /**
- * 账号凭据 broker：负责落安全存储、single-flight 刷新与撤销。
+ * Account credential broker: handles secure storage, single-flight refresh, and revocation.
  *
- * 所有凭据以 `accountRefId`（UUID）为键写入 `Vault`，因此只会进入系统安全
- * 存储；refresh token 不返回 Renderer，也不写入 Notebook。
+ * All credentials are written to `Vault` keyed by `accountRefId` (UUID), so they only enter system secure
+ * storage; the refresh token is never returned to the Renderer nor written into a Notebook.
  */
 export class TokenBroker {
   #vault: Vault;
@@ -205,7 +205,7 @@ export class TokenBroker {
   #inflight = new Map<string, Promise<Credentials>>();
 
   /**
-   * @param options 保管库、fetch 实现与时钟。
+   * @param options Vault, fetch implementation, and clock.
    */
   constructor(options: {
     vault: Vault;
@@ -217,7 +217,7 @@ export class TokenBroker {
     this.#now = options.now ?? Date.now;
   }
 
-  /** 读取账号凭据；不存在时抛出需要重新登录的错误。 */
+  /** Read account credentials; throws a re-login-required error when absent. */
   async load(accountRefId: string): Promise<Credentials> {
     const credentials = await this.#vault.get(accountRefId);
     if (!credentials?.token && !credentials?.refreshToken)
@@ -225,26 +225,26 @@ export class TokenBroker {
     return credentials;
   }
 
-  /** 原子保存账号凭据。 */
+  /** Atomically save account credentials. */
   async save(accountRefId: string, credentials: Credentials): Promise<void> {
     await this.#vault.set(accountRefId, credentials);
   }
 
-  /** 删除账号凭据；断开连接时调用。 */
+  /** Delete account credentials; called on disconnect. */
   async forget(accountRefId: string): Promise<void> {
     await this.#vault.set(accountRefId, { token: undefined });
   }
 
   /**
-   * 取得仍有效的 access token；必要时按账号 single-flight 刷新。
+   * Get a still-valid access token, single-flight refreshing per account when needed.
    *
-   * 并发调用只会触发一次刷新；`invalid_grant` 等不可恢复错误会转换为需要
-   * 重新登录，不做无限重试（设计 §6.2）。
+   * Concurrent calls trigger only one refresh; unrecoverable errors such as `invalid_grant` are converted into
+   * re-login-required, with no infinite retries (design §6.2).
    *
-   * @param accountRefId 账号凭据键。
-   * @param descriptor 厂商认证描述。
+   * @param accountRefId Account credential key.
+   * @param descriptor Vendor auth descriptor.
    * @param clientId OAuth Client ID。
-   * @returns 有效 access token。
+   * @returns A valid access token.
    */
   async accessToken(
     accountRefId: string,
@@ -279,14 +279,14 @@ export class TokenBroker {
   }
 
   /**
-   * 调用厂商撤销端点（若适用）并清除本机凭据。
+   * Call the vendor revocation endpoint (if applicable) and clear local credentials.
    *
-   * 撤销厂商端点可能影响同一应用在其他设备上的授权，因此这是「断开连接」中
-   * 的可选步骤，而不是删除云端备份（设计 §5.4）。
+   * Revoking the vendor endpoint may affect the same app's authorization on other devices, so this is an optional
+   * step within "disconnect", not a deletion of cloud backups (design §5.4).
    *
-   * @param accountRefId 账号凭据键。
-   * @param descriptor 厂商认证描述。
-   * @returns 是否成功调用撤销端点。
+   * @param accountRefId Account credential key.
+   * @param descriptor Vendor auth descriptor.
+   * @returns Whether the revocation endpoint was called successfully.
    */
   async revoke(
     accountRefId: string,
@@ -307,7 +307,7 @@ export class TokenBroker {
           signal: AbortSignal.timeout(15_000),
         });
       } catch {
-        // 撤销失败不影响本机断开；UI 会给出账号安全页入口。
+        // A revocation failure does not block local disconnect; the UI provides a link to the account security page.
         await this.forget(accountRefId);
         return false;
       }
@@ -316,9 +316,9 @@ export class TokenBroker {
     return true;
   }
 
-  /** 判断凭据是否已过期（含提前刷新余量）。 */
+  /** Determine whether credentials are expired (including the early-refresh margin). */
   #expired(credentials: Credentials): boolean {
-    // 缺少过期时间时视为长期有效；`0` 是真实的「很久以前过期」，必须刷新。
+    // Missing expiry is treated as long-lived; `0` is a genuine "expired long ago" and must be refreshed.
     if (credentials.expiresAt == null) return false;
     return credentials.expiresAt - refreshSkewMs <= this.#now();
   }

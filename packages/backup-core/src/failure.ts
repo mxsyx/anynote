@@ -1,12 +1,12 @@
 /**
- * 云盘备份的错误分类与退避（设计 §14.2、§9）。
+ * Error classification and backoff for cloud backup (design §14.2, §9).
  *
- * 与现有 `packages/backup/src/policy.ts` 语义保持一致：瞬时/限流错误按指数退避
- * 重试，鉴权与协议错误写入粘性暂停并停止自动调度，只有用户改配置或重新启用
- * 才清除。
+ * Consistent with the existing `packages/backup/src/policy.ts` semantics: transient/rate-limit errors retry with exponential backoff,
+ * while auth and protocol errors set a sticky pause and stop automatic scheduling; only a user config change or re-enable
+ * clears it.
  */
 
-/** 错误类别。 */
+/** Error category. */
 export type CloudErrorClass =
   | "transient"
   | "throttled"
@@ -14,7 +14,7 @@ export type CloudErrorClass =
   | "quota"
   | "permanent";
 
-/** 分类结果与建议的退避状态。 */
+/** Classification result and the suggested backoff state. */
 export interface CloudFailureState {
   failureCount: number;
   nextAttemptAt: number | null;
@@ -22,7 +22,7 @@ export interface CloudFailureState {
   errorClass: CloudErrorClass;
 }
 
-/** 把任意错误归类；未知错误按瞬时处理，允许重试。 */
+/** Classify an arbitrary error; unknown errors are treated as transient and allowed to retry. */
 export function classifyCloudError(error: unknown): CloudErrorClass {
   const status = (error as { status?: number } | null)?.status,
     code = (error as { code?: string } | null)?.code,
@@ -51,12 +51,12 @@ export function classifyCloudError(error: unknown): CloudErrorClass {
 }
 
 /**
- * 计算一次失败后的退避与暂停状态。
+ * Compute the backoff and pause state after a failure.
  *
- * @param previous 上一次的失败状态。
- * @param error 本次错误。
- * @param options 当前时间与退避上限。
- * @returns 更新后的失败状态。
+ * @param previous The previous failure state.
+ * @param error The current error.
+ * @param options Current time and backoff cap.
+ * @returns The updated failure state.
  */
 export function nextFailureState(
   previous: { failureCount?: number } | undefined,
@@ -109,7 +109,7 @@ export function nextFailureState(
   };
 }
 
-/** 清除失败状态；成功或用户改配置后调用。 */
+/** Clear the failure state; called after success or a user config change. */
 export function clearCloudFailureState() {
   return {
     failureCount: 0,
@@ -119,11 +119,11 @@ export function clearCloudFailureState() {
 }
 
 /**
- * 判断目标当前是否允许自动触发。
+ * Determine whether a target currently allows automatic triggering.
  *
- * @param target 目标配置。
- * @param now 当前时间。
- * @returns 是否允许自动调度。
+ * @param target Target config.
+ * @param now Current time.
+ * @returns Whether automatic scheduling is allowed.
  */
 export function canAutoRun(
   target: { pausedReason?: string | null; nextAttemptAt?: number | null },

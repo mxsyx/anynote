@@ -4,10 +4,10 @@ import {
 } from "@anynote/plugin-sdk";
 
 /**
- * OneDrive 官方扩展清单（设计 §12、§15.3）。
+ * OneDrive official extension manifest (design §12, §15.3).
  *
- * `network:provider-approved` 只覆盖 Microsoft 身份平台与 Graph API 域名，
- * 不表示允许任意 URL 携带 token；权限与账号数据按 Provider 隔离。
+ * `network:provider-approved` covers only the Microsoft identity platform and Graph API domains,
+ * and does not mean any URL may carry the token; permissions and account data are isolated per Provider.
  */
 export const oneDriveManifest: CloudBackupExtensionManifest = {
   id: "anynote.backup-onedrive",

@@ -81,7 +81,7 @@ try {
   assert.deepEqual(manifest.formats, releaseFormats);
   assert.deepEqual(manifest.compatibilityWindows, compatibilityWindows);
   assert.deepEqual(manifest.legacyConsumers, legacyConsumers);
-  // 发布清单必须如实反映磁盘产物，避免清单与 tarball 漂移。
+  // The publish manifest must truthfully reflect on-disk artifacts, avoiding drift between manifest and tarball.
   for (const unit of manifest.units.filter((item) => item.publishable)) {
     const dir = join(root, unit.artifact);
     assert.ok(existsSync(dir), `${unit.package} 缺少产物目录`);
@@ -94,7 +94,7 @@ try {
   }
   report.checks.push({ name: "release-manifest", status: "passed" });
 
-  // 兼容窗口逻辑：窗口内接受，越界明确拒绝。
+  // Compatibility-window logic: accept within the window, explicitly reject outside it.
   assert.equal(
     checkReleaseCompatibility("desktop", "notebook-schema", 2).compatible,
     true,
@@ -127,7 +127,7 @@ try {
   assert.equal(satisfiesRange("0.2.0", "^0.1.0"), false);
   report.checks.push({ name: "compatibility-windows", status: "passed" });
 
-  // 旧消费者 fixture 声明的契约必须与矩阵一致。
+  // The contract declared by the legacy-consumer fixture must match the matrix.
   for (const legacy of legacyConsumers) {
     assert.ok(
       existsSync(join(root, legacy.fixture, "consumer.ts")),
@@ -144,7 +144,7 @@ try {
   }
   report.checks.push({ name: "legacy-contracts", status: "passed" });
 
-  // 干净外部项目：只安装官方 tarball，编译并运行固定的旧消费者。
+  // Clean external project: install only official tarballs, then compile and run the fixed legacy consumer.
   const sdk = pack(join(out, "sdk")),
     adapters = pack(join(out, "first-party"));
   const consumer = join(tmp, "consumer");

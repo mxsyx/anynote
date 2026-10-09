@@ -116,8 +116,8 @@ export interface DeclarativeManifest {
     settings?: ExtensionSettingsContribution;
     dataMigrations?: ExtensionDataMigration[];
     /**
-     * 云盘 Provider 广告位：声明式扩展只能声明元数据，可执行的备份流程属于
-     * 受信首方扩展（`CloudBackupExtensionManifest`），核心据此在备份中心发现目标。
+     * Cloud Provider ad slot: declarative extensions can only declare metadata; the executable backup flow belongs to
+     * trusted first-party extensions (`CloudBackupExtensionManifest`), which the core uses to discover targets in the backup center.
      */
     backupProviders?: CloudBackupProviderContribution[];
   };

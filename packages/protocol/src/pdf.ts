@@ -77,7 +77,7 @@ export function pdfIndexCoverage(input: {
  * Page markers are metadata, so they are excluded from the character count that
  * decides whether a document actually had extractable text.
  *
- * @param body Extraction body with `[第 N 页]` markers.
+ * @param body Extraction body with the page markers produced by `pdfPageMarker`.
  * @returns Page count and non-marker character count.
  */
 export function pdfBodyStats(body: string) {

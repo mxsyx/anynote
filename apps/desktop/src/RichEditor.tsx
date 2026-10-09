@@ -23,7 +23,7 @@ import {
 import DocumentView, { type BoardBlock } from "./DocumentView";
 import type { NoteNode } from "@anynote/types";
 
-/** 富文本无法安全表示的块原因，用于就地提示并导向源码编辑。 */
+/** Reason a block cannot be safely represented in rich text, used for inline hinting and routing to source editing. */
 const degradeReason: Record<RichBlockReason, string> = {
   extension: "扩展指令块，请使用源码编辑",
   oversize: "文档或块过大，请使用源码编辑",
@@ -501,7 +501,7 @@ export default function RichEditor({
           if (shown) return null;
           return activeEditor();
         }
-        // 图片与已授权的声明式节点即使不可富文本编辑，也有专用编辑器。
+        // Images and authorized declarative nodes have dedicated editors even when not rich-text editable.
         const special = Boolean(
             imageBlock(block.source) || nodeFor(block.source),
           ),

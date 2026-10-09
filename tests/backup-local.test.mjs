@@ -950,7 +950,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
     inspectVolume,
   } = await import("../.build/packages/backup-local/volume.js");
 
-  // 真实录制的内建 APFS 卷输出。
+  // Real recorded output of a built-in APFS volume.
   const apfs = parseDiskutilPlist(
     volumeFixture("diskutil-apfs-internal.plist"),
   );
@@ -972,7 +972,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
 
   const fat = parseDiskutilPlist(volumeFixture("diskutil-msdos-fat32.plist"));
   assert.equal(fat.filesystem, "msdos");
-  // 自闭合的空值（部分 diskutil 输出会带 `<array/>`、`<string/>`、`<dict/>`）不能打断解析。
+  // Self-closing empty values (some diskutil output includes `<array/>`, `<string/>`, `<dict/>`) must not break parsing.
   const selfClosed = parseDiskutilPlist(
     volumeFixture("diskutil-self-closed-values.plist"),
   );
@@ -988,7 +988,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
   assert.equal(fat32MaximumFileBytes("exfat"), undefined);
   assert.equal(fat32MaximumFileBytes("apfs"), undefined);
 
-  // 网络/自动挂载、转义空格与最长挂载点优先。
+  // Network/automount, escaped spaces, and longest-mount-point precedence.
   const volumes = volumeFixture("mount-darwin-volumes.txt");
   assert.deepEqual(parseMountTable(volumes, "/Volumes/Share/notes"), {
     filesystem: "smbfs",
@@ -1043,7 +1043,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
   assert.equal(merged.volumeIdentity, "volume-uuid");
   assert.equal(merged.remote, false);
 
-  // firmlink 路径下 mount 表只给出 `/`，diskutil 的挂载点与身份必须优先。
+  // Under a firmlink path the mount table only gives `/`, so diskutil's mount point and identity must take precedence.
   const firmlink = {
     run: async (command) => {
       if (command === "mount")
@@ -1059,7 +1059,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
   assert.equal(data.remote, false);
   assert.equal(data.volumeUuid, "24370498-0AB3-44A3-A29C-44BFA0B2C2C3");
 
-  // 网络卷 diskutil 不可用：只依赖 mount 表并保留远程标记。
+  // diskutil is unavailable for network volumes: rely only on the mount table and keep the remote flag.
   const network = {
     run: async (command) => {
       if (command === "df")
@@ -1073,7 +1073,7 @@ test("macOS volume probing parses diskutil/mount output, normalizes FAT limits a
   assert.equal(share.remote, true);
   assert.equal(share.volumeIdentity, undefined);
 
-  // 损坏的 plist、缺失的工具与不支持的平台都降级为空结果，绝不抛错。
+  // A corrupt plist, a missing tool, and an unsupported platform all degrade to an empty result, never throwing.
   const broken = {
     run: async (command) =>
       command === "diskutil"

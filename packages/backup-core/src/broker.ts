@@ -6,7 +6,7 @@ import { optionalCloudOpenExternal } from "./host.js";
 let current: OAuthBroker | undefined;
 let currentRoot: string | undefined;
 
-/** 内存保管库：浏览器预览没有系统安全存储，只能在进程内保留凭据。 */
+/** In-memory vault: the browser preview has no system secure storage, so credentials can only be kept in-process. */
 function memoryVault(s: Storage): Vault {
   s.secretMemory ??= new Map();
   return {
@@ -23,10 +23,10 @@ function memoryVault(s: Storage): Vault {
 }
 
 /**
- * 取得当前 Storage 对应的 OAuth broker。
+ * Get the OAuth broker for the current Storage.
  *
- * 每个 Storage root 一个实例，避免跨数据目录串用令牌；桌面使用
- * `safeStorage` 支撑的 `Storage.vault`，浏览器预览退化为内存保管库。
+ * One instance per Storage root, avoiding token reuse across data directories; on desktop it uses the
+ * `safeStorage`-backed `Storage.vault`, degrading to an in-memory vault in the browser preview.
  *
  * @param s Storage。
  * @returns OAuth broker。
@@ -37,7 +37,7 @@ export function cloudBroker(s: Storage): OAuthBroker {
     current = createOAuthBroker({
       vault: s.vault ?? memoryVault(s),
       openExternal: optionalCloudOpenExternal(),
-      // 桌面 IPC 请求上限为 120s；授权会话必须在此之前结束并给出明确状态。
+      // The desktop IPC request cap is 120s; the authorization session must finish before then and give an explicit state.
       timeoutMs: 110_000,
     });
     currentRoot = s.root;
@@ -45,7 +45,7 @@ export function cloudBroker(s: Storage): OAuthBroker {
   return current;
 }
 
-/** 释放 broker；进程退出或测试清理时调用。 */
+/** Dispose of the broker; called on process exit or test cleanup. */
 export function disposeCloudBroker(): void {
   current?.dispose();
   current = undefined;

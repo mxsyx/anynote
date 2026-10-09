@@ -31,15 +31,15 @@ export type FilesystemInfo = LocalBackupFilesystem;
  */
 export async function inspectFilesystem(path: string): Promise<FilesystemInfo> {
   const [space, device] = await Promise.all([statfs(path), stat(path)]);
-  // 按真实路径查询挂载信息：macOS 的 /var、/tmp 等系统前缀本身是符号链接，
-  // 用未解析的路径会匹配到 `/` 而误判文件系统与网络挂载。
+  // Query mount info by real path: system prefixes such as macOS /var and /tmp are
+  // themselves symlinks, so an unresolved path would match `/` and misjudge the filesystem and network mounts.
   const resolved = await realpath(path).catch(() => path);
   const attributes: VolumeAttributes = await inspectVolume(resolved, {
     statfsMagic: space.type,
   }).catch((): VolumeAttributes => ({}));
   const filesystem = attributes.filesystem || "unknown",
     mountPoint = attributes.mountPoint,
-    // Linux 的 statfs magic 在 mount 名称受限时仍然可靠；macOS 按归一化名称判定。
+    // Linux's statfs magic stays reliable even when mount names are restricted; macOS decides by normalized name.
     maximumFileBytes =
       fat32MaximumFileBytes(filesystem) ??
       (process.platform === "linux" && space.type === 0x4d44

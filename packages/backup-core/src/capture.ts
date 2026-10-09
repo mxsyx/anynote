@@ -11,7 +11,7 @@ import type {
   ScopedReadStreamAPI,
 } from "@anynote/types/cloud-backup.js";
 
-/** `createBackupSnapshot` 返回值的结构子集；核心不需要依赖备份包实现。 */
+/** Structural subset of `createBackupSnapshot`'s return value; the core need not depend on the backup package implementation. */
 interface SnapshotShape {
   dir: string;
   manifest: {
@@ -30,15 +30,15 @@ interface SnapshotShape {
   files: Map<string, string>;
 }
 
-/** 顺序流的读取块大小；与协议分块预算无关，只影响内存占用。 */
+/** Read chunk size for the sequential stream; unrelated to the protocol chunk budget, affecting only memory use. */
 const streamChunkBytes = 1024 * 1024;
 
 /**
- * 构造一个按 offset 读取的只读字节来源。
+ * Build a read-only byte source that reads by offset.
  *
- * @param file 源文件绝对路径（仅核心持有，不交给扩展）。
- * @param size 文件大小。
- * @returns 只读来源。
+ * @param file Absolute path of the source file (held only by the core, never given to extensions).
+ * @param size File size.
+ * @returns The read-only source.
  */
 export function fileSource(file: string, size: number): ScopedReadSource {
   return {
@@ -87,7 +87,7 @@ export function fileSource(file: string, size: number): ScopedReadSource {
 }
 
 /**
- * 释放一次捕获占用的 Notebook pin。
+ * Release the Notebook pin held by a capture.
  *
  * @param s Storage。
  * @param notebookId Notebook ID。
@@ -100,14 +100,14 @@ function releasePin(s: Storage, notebookId: string) {
 }
 
 /**
- * 创建一致性捕获 API（设计 §7.1、§3.1）。
+ * Create the consistent capture API (design §7.1, §3.1).
  *
- * 用 SQLite Online Backup 生成临时完整数据库，从该副本读取版本与资源闭包，
- * 并在捕获期间 pin 源 Notebook，防止资源清理或工作区移出破坏切点。网络传输
- * 全部在副本上进行，用户可以继续编辑；`release` 后临时副本与 pin 一并释放。
+ * Use SQLite Online Backup to produce a temporary full database, read the version and asset closure from that copy,
+ * and pin the source Notebook during capture, preventing asset cleanup or workspace moves from breaking the cut point. Network transfer
+ * happens entirely on the copy, so the user can keep editing; after `release` the temporary copy and the pin are both released.
  *
  * @param s Storage。
- * @returns Notebook 捕获门面。
+ * @returns The Notebook capture facade.
  */
 export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
   return {
@@ -173,10 +173,10 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
 }
 
 /**
- * 计算文件 SHA-256；用于捕获后的数据库哈希。
+ * Compute the file SHA-256; used for the database hash after capture.
  *
- * @param file 文件绝对路径。
- * @returns 十六进制 SHA-256。
+ * @param file Absolute file path.
+ * @returns Hex SHA-256.
  */
 async function hashFileSequential(file: string): Promise<string> {
   const hash = createHash("sha256"),
@@ -197,14 +197,14 @@ async function hashFileSequential(file: string): Promise<string> {
 }
 
 /**
- * 创建资源访问门面。
+ * Create the asset access facade.
  *
- * 只允许按内容哈希读取已授权 Notebook 内的不可变资源；不接受任意路径，
- * 也不暴露数据库连接或绝对磁盘路径（设计 §15.2）。
+ * Only allows reading immutable assets within an authorized Notebook by content hash; it accepts no arbitrary paths,
+ * nor does it expose database connections or absolute disk paths (design §15.2).
  *
  * @param s Storage。
- * @param notebookId 已授权 Notebook。
- * @returns 只读资源流门面。
+ * @param notebookId Authorized Notebook.
+ * @returns The read-only asset stream facade.
  */
 export function createResourcesAPI(
   s: Storage,
@@ -223,7 +223,7 @@ export function createResourcesAPI(
   };
 }
 
-/** 创建统一哈希/校验门面（设计 §13.1）。 */
+/** Create the unified hash/verification facade (design §13.1). */
 export function createVerifierAPI(): BackupVerificationAPI {
   return {
     sha256: (bytes: Uint8Array) =>

@@ -45,9 +45,9 @@ export async function safePath(root: string, name = "") {
     throw Error("备份路径无效");
   const path = resolve(root, name),
     parts = relative(root, path).split(sep).filter(Boolean);
-  // 只校验 root 自身及其下级组件。root 由原生目录授权选择并会被 realpath 规范化，
-  // 而 macOS 的系统前缀（/var → /private/var、/tmp → /private/tmp）本身是符号链接，
-  // 校验它们会让合法的临时目录与用户目录无法用作备份目标。
+  // Only validate root itself and its descendant components. root is chosen via the native
+  // directory grant and is normalized by realpath, while macOS system prefixes
+  // (/var → /private/var, /tmp → /private/tmp) are themselves symlinks; validating them would prevent legitimate temp and home directories from being used as backup targets.
   let current = root;
   for (let i = -1; i < parts.length; i++) {
     if (i >= 0) current = join(current, parts[i]);

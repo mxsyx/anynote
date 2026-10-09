@@ -1,71 +1,71 @@
 /**
- * 云盘备份的公共协议类型（设计 §7、§15）。
+ * Public protocol types for cloud backup (design §7, §15).
  *
- * 本文件是「核心 ⇄ 官方扩展」的唯一类型边界：核心只实现这里声明的捕获、账号、
- * 网络、任务与本机状态门面，扩展只通过同样的门面访问云盘，不接触 SQLite 连接、
- * 绝对磁盘路径或全局 token。运行时中立：不依赖 Node、Electron 或存储实现。
+ * This file is the single type boundary between the core and official extensions: the core only implements the capture, account,
+ * network, task, and local-state facades declared here, and extensions access the cloud only through those same facades, never touching SQLite connections,
+ * absolute disk paths, or global tokens. Runtime-neutral: does not depend on Node, Electron, or a storage implementation.
  */
 
-/** 云盘厂商标识；官方扩展固定使用这三个 id。 */
+/** Cloud provider id; official extensions always use these three ids. */
 export type CloudProviderId = "google-drive" | "dropbox" | "onedrive";
 
-/** 校验等级（设计 §13.1）。 */
+/** Verification level (design §13.1). */
 export type CloudVerificationLevel =
   | "provider-checksum"
   | "download-sha256"
   | "accepted-size";
 
-/** 厂商不透明对象引用；临时下载 URL 不写入长期清单。 */
+/** Vendor-opaque object reference; temporary download URLs are not written into the long-term manifest. */
 export interface CloudObjectLocator {
-  /** 厂商内部对象类型，例如 `drive.file` / `path` / `graph.item`。 */
+  /** Vendor-internal object kind, e.g. `drive.file` / `path` / `graph.item`. */
   kind: string;
-  /** 厂商侧稳定身份，例如文件 ID、路径或 driveId/itemId。 */
+  /** Stable vendor-side identity, e.g. file ID, path, or driveId/itemId. */
   ref: string;
-  /** 版本 token（file ID 之外的并发判定线索）。 */
+  /** Version token (a concurrency hint beyond the file ID). */
   versionToken?: string;
 }
 
 /* ------------------------------------------------------------------ *
- * 持久化目标与账号（设备侧 `_local/` 状态，设计 §14.1）
+ * Persisted targets and accounts (device-side `_local/` state, design §14.1)
  * ------------------------------------------------------------------ */
 
-/** 账号引用；凭据实际内容只进入系统安全存储。 */
+/** Account reference; the actual credential content only goes into the system secure storage. */
 export interface CloudAccountRef {
   providerId: CloudProviderId;
-  /** 官方 OAuth 应用 Client ID 或 App Key；公开应用标识。 */
+  /** Official OAuth app Client ID or App Key; a public application identifier. */
   oauthClientId: string;
-  /** 云盘账号 ID（厂商返回的稳定身份）。 */
+  /** Cloud account ID (the stable identity returned by the vendor). */
   accountId: string;
-  /** 租户 / drive / namespace 上下文；个人账号可省略。 */
+  /** Tenant / drive / namespace context; may be omitted for personal accounts. */
   context?: string;
-  /** 用户可见的账号显示名（邮箱或昵称）。 */
+  /** User-visible account display name (email or nickname). */
   displayName?: string;
 }
 
-/** 一个已连接的云盘账号。 */
+/** A connected cloud account. */
 export interface CloudBackupAccount {
-  /** 本机账号引用 ID（同时是安全存储中的凭据键）。 */
+  /** Local account reference ID (also the credential key in secure storage). */
   id: string;
   ref: CloudAccountRef;
   createdAt: number;
   lastRefreshedAt?: number;
-  /** 需要重新登录时记录原因，便于 UI 如实提示。 */
+  /** Reason recorded when re-login is needed, so the UI can prompt truthfully. */
   reauthReason?: string | null;
 }
 
-/** 一个云盘备份目标（Notebook × Provider × 设备槽）。 */
+/** A cloud backup target (Notebook × Provider × device slot). */
 export interface CloudBackupTarget {
   id: string;
   notebookId: string;
   providerId: CloudProviderId;
   accountRefId: string;
-  /** 设备槽 ID；存本机，不随 Notebook 导出复制（设计 §9.1）。 */
+  /** Device slot ID; stored locally and not copied with Notebook export (design §9.1). */
   deviceSlotId: string;
-  /** 用户可命名的设备标签。 */
+  /** User-nameable device label. */
   deviceLabel?: string;
-  /** 云盘侧 AnynoteBackup 根目录的不透明引用。 */
+  /** Opaque reference to the AnynoteBackup root directory on the cloud. */
   rootRef?: string;
-  /** Notebook 目录的不透明引用。 */
+  /** Opaque reference to the Notebook directory. */
   notebookRef?: string;
   autoBackup?: boolean;
   intervalMinutes?: number;
@@ -76,22 +76,22 @@ export interface CloudBackupTarget {
   nextAttemptAt?: number | null;
   pausedReason?: string | null;
   lastTaskBytes?: number;
-  /** 最近一次成功发布的 head 身份，用于无变化检查与提交确认。 */
+  /** Identity of the last successfully published head, used for no-change checks and commit confirmation. */
   lastHeadCommitId?: string | null;
   lastHeadManifestSha256?: string | null;
-  /** 最近一次成功发布的完整指针；Provider 据此读取上次清单复用附件。 */
+  /** Full pointer of the last successful publish; the Provider uses it to read the previous manifest and reuse assets. */
   lastHead?: CloudBackupHead | null;
-  /** 最近一次上传的数据库 SHA-256；与捕获结果比对即文件级增量判定。 */
+  /** SHA-256 of the last uploaded database; comparing it with the capture result gives a file-level incremental decision. */
   lastDatabaseSha256?: string | null;
-  /** 待清理对象数量；清理失败只标记不回滚（设计 §8.2）。 */
+  /** Number of objects pending cleanup; cleanup failure only marks, never rolls back (design §8.2). */
   pendingCleanup?: number;
   credentialsMode?: "system-encrypted" | "session-only";
   createdAt?: number;
-  /** 占位 Provider 标记；UI 据此显示 Beta 且不承诺可用。 */
+  /** Placeholder Provider flag; the UI shows Beta accordingly and makes no availability promise. */
   beta?: boolean;
 }
 
-/** 可恢复的备份槽摘要（恢复向导列表项）。 */
+/** Restorable backup slot summary (a restore wizard list item). */
 export interface CloudBackupDeviceSlot {
   deviceSlotId: string;
   deviceLabel?: string;
@@ -100,15 +100,15 @@ export interface CloudBackupDeviceSlot {
   databaseBytes?: number;
   assetCount?: number;
   verification?: CloudVerificationLevel;
-  /** 该槽是否由本机写入；跨设备槽为只读候选。 */
+  /** Whether this slot was written by this device; cross-device slots are read-only candidates. */
   local?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
- * 文件格式（设计 §7.2、§7.4）
+ * File format (design §7.2, §7.4)
  * ------------------------------------------------------------------ */
 
-/** 逻辑目录常量；Provider 负责映射到自身 ID/路径语义。 */
+/** Logical directory constants; the Provider maps them to its own ID/path semantics. */
 export const cloudBackupLayout = {
   root: "AnynoteBackup",
   rootMarker: "root.json",
@@ -120,7 +120,7 @@ export const cloudBackupLayout = {
   assetsPrefix: "sha256",
 } as const;
 
-/** 备份根目录身份标记，避免在陌生目录里写入受管对象。 */
+/** Backup root identity marker, to avoid writing managed objects into a foreign directory. */
 export interface CloudBackupRootMarker {
   format: "anynote.cloud-backup-root";
   formatVersion: 1;
@@ -128,33 +128,33 @@ export interface CloudBackupRootMarker {
   createdAt: string;
 }
 
-/** 当前指针；只在不可变对象就绪后发布（设计 §7.4）。 */
+/** Current pointer; published only after the immutable objects are ready (design §7.4). */
 export interface CloudBackupHead {
   format: "anynote.cloud-backup-head";
   formatVersion: 1;
   notebookId: string;
   deviceSlotId: string;
   commitId: string;
-  /** Provider 不透明引用，指向完整 manifest。 */
+  /** Provider-opaque reference pointing to the full manifest. */
   manifestRef: string;
   manifestSha256: string;
   completedAt: string;
 }
 
-/** 清单中的数据库/附件引用。 */
+/** Database/asset reference within the manifest. */
 export interface CloudBackupObjectRef {
-  /** 应用 SHA-256（十六进制）。 */
+  /** Application SHA-256 (hexadecimal). */
   sha256: string;
   size: number;
   locator: CloudObjectLocator;
-  /** 厂商计算的 checksum 说明信息，不是校验凭证。 */
+  /** Vendor-computed checksum descriptive info, not a verification proof. */
   providerChecksum?: string;
-  /** 实际达到的校验等级。 */
+  /** Verification level actually achieved. */
   verification?: CloudVerificationLevel;
   mimeType?: string;
 }
 
-/** 完整清单；资源引用必须全部可解析。 */
+/** Full manifest; all asset references must be resolvable. */
 export interface CloudBackupManifest {
   format: "anynote.cloud-backup-manifest";
   formatVersion: 1;
@@ -171,83 +171,83 @@ export interface CloudBackupManifest {
     contentSeq: number;
   };
   assets: (CloudBackupObjectRef & { path: string })[];
-  /** 本条清单来源设备；仅用于诊断，不作为身份。 */
+  /** Source device of this manifest; for diagnostics only, not used as identity. */
   sourceDevice?: string;
 }
 
 /* ------------------------------------------------------------------ *
- * 能力描述（设计 §3.2、§9.2、§15.1）
+ * Capability description (design §3.2, §9.2, §15.1)
  * ------------------------------------------------------------------ */
 
-/** 静态能力声明；可按账号/endpoint 由 `probe` 覆盖。 */
+/** Static capability declaration; may be overridden per account/endpoint by `probe`. */
 export interface CloudBackupCapabilities {
   resumableUpload: boolean;
-  /** 是否具备经实测的条件写（预期版本 token）。 */
+  /** Whether verified conditional writes (with an expected version token) are supported. */
   conditionalHead: boolean;
-  /** 厂商计算的 checksum 算法名（如 `sha256`、`dropbox-content-hash`）。 */
+  /** Vendor-computed checksum algorithm names (e.g. `sha256`, `dropbox-content-hash`). */
   providerChecksum: readonly string[];
   appScopedStorage: boolean;
   quotaAvailable: boolean;
 }
 
-/** `probe` 得到的账号/目标级能力覆盖。 */
+/** Account/target-level capability override obtained from `probe`. */
 export interface TargetCapabilities extends CloudBackupCapabilities {
   quotaBytes?: number | null;
   quotaUsedBytes?: number | null;
   accountType?: string;
 }
 
-/** 厂商认证描述；核心据此执行 PKCE 流程。 */
+/** Vendor auth description; the core runs the PKCE flow based on it. */
 export interface OAuthProviderDescriptor {
   providerId: CloudProviderId;
-  /** 授权码端点。 */
+  /** Authorization code endpoint. */
   authorizationEndpoint: string;
-  /** token 端点（同时用于刷新）。 */
+  /** Token endpoint (also used for refresh). */
   tokenEndpoint: string;
-  /** 可选撤销端点。 */
+  /** Optional revocation endpoint. */
   revocationEndpoint?: string;
   scopes: readonly string[];
-  /** 是否支持/要求 PKCE（官方均为 true）。 */
+  /** Whether PKCE is supported/required (true for all official providers). */
   pkce: boolean;
-  /** 回调形式；官方桌面流程统一使用回环地址。 */
+  /** Callback form; official desktop flows uniformly use a loopback address. */
   redirect: "loopback";
-  /** 回调路径（仅回环）；`/` 允许厂商注册的任意端口。 */
+  /** Callback path (loopback only); `/` allows any port registered with the vendor. */
   redirectPath?: string;
   /**
-   * 优先使用的回环回调端口；为空时使用随机端口。
+   * Preferred loopback callback ports; a random port is used when empty.
    *
-   * 仅在厂商要求预注册固定回调端口时使用；端口被占用会回落，全部占用时报
-   * 明确状态（设计 §6.1）。
+   * Only used when the vendor requires pre-registered fixed callback ports; if a port is occupied it falls back, and if all are occupied it reports an
+   * explicit state (design §6.1).
    */
   redirectPorts?: readonly number[];
-  /** 刷新 token 轮换时是否可能返回新的 refresh token。 */
+  /** Whether a new refresh token may be returned on refresh token rotation. */
   refreshTokenRotation: boolean;
-  /** 账号标识取法提示，供核心在交换后读取。 */
+  /** Hint for how to obtain the account identifier, read by the core after the exchange. */
   accountIdClaim?: "id_token:sub" | "id_token:email" | "response:account_id";
 }
 
 /* ------------------------------------------------------------------ *
- * 运行期上下文（设计 §15.2）
+ * Runtime context (design §15.2)
  * ------------------------------------------------------------------ */
 
-/** 只读字节来源；支持按 offset 读取以复用续传。 */
+/** Read-only byte source; supports offset reads to reuse resumable transfers. */
 export interface ScopedReadSource {
   size: number;
-  /** 按 offset/length 读取；返回的字节数可以小于请求长度。 */
+  /** Read by offset/length; the returned byte count may be smaller than the requested length. */
   read(offset: number, length: number): Promise<Uint8Array>;
-  /** 全量顺序流（上传用），受 `signal` 取消。 */
+  /** Full sequential stream (for upload), cancellable via `signal`. */
   stream(signal?: AbortSignal): AsyncIterable<Uint8Array>;
 }
 
-/** 捕获到的资源闭包项。 */
+/** A captured asset closure item. */
 export interface CloudCapturedAsset extends ScopedReadSource {
-  /** 相对路径（已在核心侧校验，禁止逃逸）。 */
+  /** Relative path (already validated on the core side; escaping is forbidden). */
   path: string;
   sha256: string;
   mimeType?: string;
 }
 
-/** 一致性捕获结果句柄；`release` 后临时副本可被回收。 */
+/** Consistent capture result handle; the temporary copy may be reclaimed after `release`. */
 export interface CloudCaptureHandle {
   notebookId: string;
   notebookName: string;
@@ -258,7 +258,7 @@ export interface CloudCaptureHandle {
   release(): Promise<void>;
 }
 
-/** 数据捕获门面（设计 §3.1「数据捕获」）。 */
+/** Data capture facade (design §3.1 "data capture"). */
 export interface NotebookCaptureAPI {
   capture(
     notebookId: string,
@@ -266,46 +266,46 @@ export interface NotebookCaptureAPI {
   ): Promise<CloudCaptureHandle>;
 }
 
-/** 资源访问门面；只允许访问已授权 Notebook 内被 pin 的资源。 */
+/** Asset access facade; only allows access to pinned assets within an authorized Notebook. */
 export interface ScopedReadStreamAPI {
   open(sha256: string, signal?: AbortSignal): Promise<ScopedReadSource>;
 }
 
-/** 短时 access token 提供者，由核心负责 single-flight 刷新。 */
+/** Short-lived access token provider; the core handles single-flight refresh. */
 export interface AccessTokenProvider {
   getAccessToken(): Promise<{ token: string; expiryDate?: number }>;
 }
 
-/** 一次受限 HTTP 请求的输入。 */
+/** Input for a single restricted HTTP request. */
 export interface AuthorizedRequest {
   method?: string;
   headers?: Record<string, string>;
   body?: Uint8Array | string;
   signal?: AbortSignal;
-  /** 上传会话 URL 等自带凭据时禁止注入 Bearer。 */
+  /** When the URL already carries credentials (e.g. an upload session URL), injecting Bearer is forbidden. */
   raw?: boolean;
-  /** 响应体读取上限；默认 8MiB。 */
+  /** Response body read limit; defaults to 8MiB. */
   maxBytes?: number;
 }
 
-/** 受限 HTTP 响应。 */
+/** Restricted HTTP response. */
 export interface AuthorizedResponse {
   status: number;
   headers: Record<string, string>;
   bytes: Uint8Array;
 }
 
-/** 账号与凭据门面；扩展拿不到 refresh token 或其他 Provider 的 token。 */
+/** Account and credential facade; extensions cannot obtain refresh tokens or other Providers' tokens. */
 export interface ScopedAccountAPI {
   current(): CloudAccountRef;
-  /** 受信首方扩展可在有限时间内持有短时 access token。 */
+  /** Trusted first-party extensions may hold a short-lived access token for a limited time. */
   tokenProvider(): AccessTokenProvider;
-  /** 注入 Bearer 并处理 401 刷新/重定向策略的受限 HTTP 客户端。 */
+  /** Restricted HTTP client that injects Bearer and handles the 401 refresh/redirect policy. */
   request(url: string, init?: AuthorizedRequest): Promise<AuthorizedResponse>;
   /**
-   * 流式下载到核心私有临时文件；大对象不进内存。
+   * Stream a download to a core-private temporary file; large objects do not enter memory.
    *
-   * @returns 临时文件路径、字节数与可选的应用 SHA-256。
+   * @returns The temporary file path, byte count, and optional application SHA-256.
    */
   downloadToFile(
     url: string,
@@ -314,16 +314,16 @@ export interface ScopedAccountAPI {
       maxBytes?: number;
       hash?: boolean;
       /**
-       * 相对核心临时目录的目标路径；核心会做路径逃逸校验。
-       * 恢复时用于把数据库与附件落到清单声明的相对位置。
+       * Destination path relative to the core temp directory; the core validates path escapes.
+       * Used during restore to place the database and assets at the relative locations declared in the manifest.
        */
       dest?: string;
     },
   ): Promise<{ filePath: string; bytes: number; sha256?: string }>;
   /**
-   * 流式上传；请求体来自捕获的资源或数据库来源。
+   * Streaming upload; the request body comes from a captured asset or database source.
    *
-   * @returns 厂商响应（分片续传的 308 也在此返回）。
+   * @returns The vendor response (the 308 of a resumable chunk upload is returned here too).
    */
   upload(
     url: string,
@@ -331,159 +331,159 @@ export interface ScopedAccountAPI {
   ): Promise<AuthorizedResponse>;
 }
 
-/** 已授权 HTTP 客户端（与 `ScopedAccountAPI.request` 相同的规则）。 */
+/** Authorized HTTP client (same rules as `ScopedAccountAPI.request`). */
 export type AuthorizedHTTPAPI = ScopedAccountAPI["request"];
 
-/** 任务进度与取消门面。 */
+/** Task progress and cancellation facade. */
 export interface TaskProgressAPI {
   signal: AbortSignal;
-  /** 上报进度（0..1 可省略时按字节）。 */
+  /** Report progress (0..1; when omitted, interpreted as bytes). */
   progress(bytes: number, message?: string): void;
-  /** 脱敏日志：只记录耗时/大小/错误码。 */
+  /** Redacted log: only duration/size/error codes are recorded. */
   log(level: "info" | "warn" | "error", message: string): void;
-  /** 限流预算（并发上传数），由核心按账号共享。 */
+  /** Rate-limit budget (concurrent upload count), shared by the core per account. */
   concurrency(): number;
 }
 
-/** 本机作用域状态（设计 §14.1）；按 Provider 命名空间隔离。 */
+/** Local scoped state (design §14.1); isolated per Provider namespace. */
 export interface ScopedLocalStateAPI {
   get<T = unknown>(key: string): Promise<T | null>;
   set(key: string, value: unknown): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
-/** 校验门面：统一 SHA-256 与厂商 checksum 的解释（设计 §13.1）。 */
+/** Verification facade: unifies the interpretation of SHA-256 and vendor checksums (design §13.1). */
 export interface BackupVerificationAPI {
-  /** 计算字节流的应用 SHA-256。 */
+  /** Compute the application SHA-256 of a byte stream. */
   sha256(bytes: Uint8Array): string;
-  /** 递增计算器，用于分片流式校验。 */
+  /** Incremental hasher for chunked streaming verification. */
   createHasher(): { update(chunk: Uint8Array): void; digest(): string };
 }
 
-/** 核心交给扩展的完整运行期上下文。 */
+/** The full runtime context the core hands to an extension. */
 export interface BackupHostContext {
   capture: NotebookCaptureAPI;
   resources: ScopedReadStreamAPI;
   accounts: ScopedAccountAPI;
   http: AuthorizedHTTPAPI;
-  /** 绑定到当前任务的进度/取消/限流门面。 */
+  /** Progress/cancellation/rate-limit facade bound to the current task. */
   tasks: TaskProgressAPI;
   /**
-   * 本机作用域状态；核心按 `providerId + notebookId` 隔离命名空间，
-   * 因此扩展可以用 `slots`、`notebook.ref` 这类简单键。
+   * Local scoped state; the core isolates namespaces by `providerId + notebookId`,
+   * so extensions can use simple keys like `slots` and `notebook.ref`.
    */
   state: ScopedLocalStateAPI;
   verifier: BackupVerificationAPI;
-  /** 当前 Notebook；能力探测等场景可以为空。 */
+  /** Current Notebook; may be empty in scenarios such as capability probing. */
   notebookId?: string;
-  /** 当前目标的设备标签，供备份目录与清单显示。 */
+  /** Device label of the current target, for display in the backup directory and manifest. */
   deviceLabel?: string;
 }
 
 /* ------------------------------------------------------------------ *
- * Provider 接口（设计 §15.1）
+ * Provider interface (design §15.1)
  * ------------------------------------------------------------------ */
 
-/** `probe` 输入。 */
+/** `probe` input. */
 export interface AccountContext {
   account: CloudAccountRef;
   ctx: BackupHostContext;
 }
 
-/** `ensureTarget` 输入。 */
+/** `ensureTarget` input. */
 export interface TargetInput {
   notebookId: string;
   notebookName: string;
   deviceSlotId: string;
   deviceLabel?: string;
-  /** 已存在的目标引用；重配置时用于复用目录。 */
+  /** Existing target reference; used to reuse directories on reconfiguration. */
   existing?: { rootRef?: string; notebookRef?: string };
 }
 
-/** 目标句柄：扩展返回给核心的不透明引用。 */
+/** Target handle: an opaque reference the extension returns to the core. */
 export interface BackupTargetHandle {
   rootRef: string;
   notebookRef: string;
   deviceSlotRef?: string;
-  /** 本次探测到的实际能力覆盖。 */
+  /** The actual capability override probed this time. */
   capabilities?: TargetCapabilities;
 }
 
-/** `plan` 输入：捕获结果与最近一次成功状态。 */
+/** `plan` input: the capture result and the most recent successful state. */
 export interface CapturedBackupInput {
   capture: CloudCaptureHandle;
   target: BackupTargetHandle;
-  /** 上次成功提交的清单；用于复用附件与比较数据库。 */
+  /** Manifest of the last successful commit; used to reuse assets and compare databases. */
   previous?: CloudBackupManifest | null;
-  /** 上次成功发布的 head。 */
+  /** The last successfully published head. */
   previousHead?: CloudBackupHead | null;
-  /** 无变化检查时是否仍确认指针状态。 */
+  /** Whether to still confirm the pointer state during a no-change check. */
   verifyOnly?: boolean;
 }
 
-/** 上传计划中的一项。 */
+/** An item in the upload plan. */
 export interface CloudUploadItem {
   kind: "database" | "asset" | "manifest";
   sha256: string;
   size: number;
-  /** 复用的远端 locator；未提供表示需要上传。 */
+  /** Remote locator to reuse; if absent, the object needs uploading. */
   reuse?: CloudObjectLocator;
   assetPath?: string;
 }
 
-/** 差异计划与空间预算。 */
+/** Diff plan and space budget. */
 export interface CloudBackupPlan {
   commitId: string;
   items: CloudUploadItem[];
   uploadBytes: number;
-  /** 无需上传（数据库与全部附件均可复用）。 */
+  /** Nothing to upload (both the database and all assets can be reused). */
   unchanged: boolean;
   requiredBytes: number;
   availableBytes?: number | null;
-  /** 计划是否有待清理对象。 */
+  /** Whether the plan has objects pending cleanup. */
   cleanupCandidates?: number;
   /**
-   * 本次计划的捕获结果；由核心在 `plan` 之后附加，使 `execute` 能取得
-   * 只读数据库与资源来源，而无需扩展自行持有临时路径。
+   * The capture result of this plan; attached by the core after `plan` so that `execute`
+   * can obtain a read-only database and asset sources without the extension holding temporary paths.
    */
   capture?: CloudCaptureHandle;
 }
 
-/** 已上传但尚未发布的远端对象集合。 */
+/** A set of remote objects that have been uploaded but not yet published. */
 export interface PreparedRemoteBackup {
   commitId: string;
   database: CloudBackupObjectRef;
   assets: (CloudBackupObjectRef & { path: string })[];
-  /** 本次实际传输字节。 */
+  /** Bytes actually transferred this time. */
   transferredBytes: number;
-  /** 是否所有对象都已上传（无变化时为 true）。 */
+  /** Whether all objects have been uploaded (true when unchanged). */
   complete: boolean;
   /**
-   * 清单骨架：`execute` 阶段填写对象引用与身份，但校验等级尚未确定；
-   * `verify` 阶段补齐校验结果后上传，再回填 `manifestRef`/`manifestSha256`。
+   * Manifest skeleton: the `execute` phase fills in object references and identity, but the
+   * verification level is not yet determined; the `verify` phase completes it, uploads, and backfills `manifestRef`/`manifestSha256`.
    */
   manifestDraft: CloudBackupManifest;
-  /** 已上传清单的不透明引用；`verify` 成功后填写。 */
+  /** Opaque reference to the uploaded manifest; filled in after `verify` succeeds. */
   manifestRef?: CloudObjectLocator;
   manifestSha256?: string;
-  /** 读回确认后的最终清单。 */
+  /** Final manifest after read-back confirmation. */
   manifest?: CloudBackupManifest;
 }
 
-/** 发布输入。 */
+/** Publish input. */
 export interface PublishInput {
   prepared: PreparedRemoteBackup;
-  /** 期望的当前 head 版本 token；不支持条件写时为 undefined。 */
+  /** Expected current head version token; undefined when conditional writes are unsupported. */
   expectedVersionToken?: string;
-  /** 最近读到的 head，用于发布前后检查。 */
+  /** The most recently observed head, used for pre/post-publish checks. */
   observedHead?: CloudBackupHead | null;
 }
 
-/** 发布结果。 */
+/** Publish result. */
 export interface CommittedBackup {
   commitId: string;
   head: CloudBackupHead;
-  /** 发布读回确认等级。 */
+  /** Publish read-back confirmation level. */
   verification: CloudVerificationLevel;
   versionToken?: string;
 }
@@ -493,7 +493,7 @@ export interface ReconcileInput {
 }
 
 export interface ReconcileResult {
-  /** 远端 head 的确切 commitId（若已发布）。 */
+  /** Exact commitId of the remote head (if published). */
   committedCommitId?: string;
   head?: CloudBackupHead | null;
   verification?: CloudVerificationLevel;
@@ -506,24 +506,24 @@ export interface BackupPage {
 
 export interface RestoreSelection {
   deviceSlotId: string;
-  /** 固定读取的清单引用；恢复开始后不再改选。 */
+  /** Manifest reference fixed for reading; no further selection after restore starts. */
   manifestRef?: string;
 }
 
-/** 恢复包：已下载到核心私有临时目录的对象。 */
+/** Restore bundle: objects downloaded into the core-private temp directory. */
 export interface RestoreBundle {
   manifest: CloudBackupManifest;
-  /** 数据库临时文件（核心私有临时目录内）。 */
+  /** Temporary database file (inside the core-private temp directory). */
   databasePath: string;
   databaseSha256: string;
-  /** 附件临时文件；`path` 为清单中的相对路径。 */
+  /** Temporary asset files; `path` is the relative path in the manifest. */
   assets: { path: string; sha256: string; size: number; filePath: string }[];
-  /** 下载期间校验等级。 */
+  /** Verification level during download. */
   verification: CloudVerificationLevel;
 }
 
 export interface CleanupPlan {
-  /** 只允许清理这些受管 locator。 */
+  /** Only these managed locators may be cleaned up. */
   objects: CloudObjectLocator[];
 }
 
@@ -532,7 +532,7 @@ export interface CleanupResult {
   failed: number;
 }
 
-/** 官方扩展实现的云盘 Provider（设计 §15.1）。 */
+/** Cloud Provider implemented by an official extension (design §15.1). */
 export interface CloudBackupProvider {
   id: CloudProviderId;
   protocolVersion: number;
@@ -571,10 +571,10 @@ export interface CloudBackupProvider {
   ): Promise<RestoreBundle>;
   cleanup(input: CleanupPlan, ctx: BackupHostContext): Promise<CleanupResult>;
   /**
-   * 显式删除一个设备槽的受管对象（设计 §5.4）。
+   * Explicitly delete the managed objects of a device slot (design §5.4).
    *
-   * 这是独立于「断开连接」的破坏性操作，必须由用户在确认影响范围后触发；
-   * 未实现时 UI 只提示手动清理，不静默使用受管 GC 代替。
+   * This is a destructive operation independent of "disconnect" and must be triggered by
+   * the user after confirming the scope of impact; when unimplemented, the UI only prompts for manual cleanup and never silently substitutes managed GC.
    */
   deleteSlot?(
     input: { deviceSlotId: string },
@@ -583,10 +583,10 @@ export interface CloudBackupProvider {
 }
 
 /* ------------------------------------------------------------------ *
- * 备份中心对外 API（SDK / 首方适配器共用）
+ * Backup center public API (shared by the SDK and first-party adapters)
  * ------------------------------------------------------------------ */
 
-/** 备份中心卡片所需的目标视图。 */
+/** Target view needed by a backup center card. */
 export interface CloudBackupTargetView {
   target: CloudBackupTarget;
   account?: CloudBackupAccount;
@@ -612,7 +612,7 @@ export interface CloudBackupTargetView {
   pendingBytes?: number;
 }
 
-/** 恢复落地结果。 */
+/** Restore landing result. */
 export interface CloudRestoreResult {
   notebookId: string;
   name: string;
@@ -621,7 +621,7 @@ export interface CloudRestoreResult {
   verification: CloudVerificationLevel;
 }
 
-/** 云盘备份的公共 SDK 调用面。 */
+/** Public SDK surface for cloud backup. */
 export interface CloudBackupAPI {
   listProviders(input?: object): Promise<
     {
@@ -630,14 +630,14 @@ export interface CloudBackupAPI {
       beta: boolean;
       installed: boolean;
       capabilities: CloudBackupCapabilities;
-      /** 将申请的厂商权限；用于连接前的如实展示。 */
+      /** Vendor scopes to be requested; shown truthfully before connecting. */
       scopes: readonly string[];
     }[]
   >;
   listAccounts(input?: object): Promise<CloudBackupAccount[]>;
   beginAuthorization(input: {
     providerId: CloudProviderId;
-    /** 自编译版本可注入自定义 OAuth Client ID。 */
+    /** Self-compiled builds can inject a custom OAuth Client ID. */
     oauthClientId?: string;
   }): Promise<{ sessionId: string; authorizationUrl: string; opened: boolean }>;
   completeAuthorization(input: {

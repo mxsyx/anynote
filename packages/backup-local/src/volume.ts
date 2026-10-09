@@ -153,9 +153,9 @@ export function parsePlist(xml: string): Plist {
       if (close < 0) throw Error("plist 标签未闭合");
       index = close + 1;
       const raw = xml.slice(open + 1, close).trim();
-      if (raw.startsWith("?") || raw.startsWith("!")) continue; // 声明与注释。
+      if (raw.startsWith("?") || raw.startsWith("!")) continue; // Declaration and comment.
       const selfClosed = raw.endsWith("/");
-      // 丢弃属性（`<plist version="1.0">`、`<key xml:space="preserve">`），只保留名称。
+      // Discard attributes (`<plist version="1.0">`, `<key xml:space="preserve">`), keeping only the name.
       return {
         name: (selfClosed ? raw.slice(0, -1) : raw).trim().split(/\s+/)[0],
         selfClosed,
@@ -186,14 +186,14 @@ export function parsePlist(xml: string): Plist {
   const read = (tag: { name: string; selfClosed: boolean }): Plist => {
     const { name, selfClosed } = tag;
     if (name === "plist") {
-      // 根元素只包裹一个值。
+      // The root element wraps exactly one value.
       const child = nextTag();
       if (!child) throw Error("plist 缺少根值");
       return read(child);
     }
     if (name === "true") return true;
     if (name === "false") return false;
-    // 自闭合的空值（`<string/>`、`<array/>` 等）没有配对结束标签，必须直接返回空值。
+    // Self-closing empty values (`<string/>`, `<array/>`, etc.) have no matching end tag and must return empty directly.
     if (name === "integer")
       return selfClosed ? 0 : parseInt(text("integer"), 10);
     if (name === "real") return selfClosed ? 0 : parseFloat(text("real"));
@@ -207,7 +207,7 @@ export function parsePlist(xml: string): Plist {
         if (!key) throw Error("plist dict 未闭合");
         if (key.name === "/dict") return out;
         if (key.name !== "key") throw Error("plist dict 缺少 key 标签");
-        // key 的文本必须先于取值消费，否则会把 `</key>` 当成值标签。
+        // The key's text must be consumed before its value, otherwise `</key>` would be treated as a value tag.
         const name = text("key"),
           value = nextTag();
         if (!value) throw Error("plist dict 缺少值");
@@ -403,7 +403,7 @@ export async function probeLinuxVolume(
         filesystem = right.split(" ")[0];
       }
     }
-  } catch {} // statfs 在 mount 元数据受限时仍然可用。
+  } catch {} // statfs remains usable when mount metadata is restricted.
   const remote =
     [0x6969, 0x517b, 0xff534d42].includes(statfsMagic) ||
     /^(nfs|cifs|smb|fuse\.(rclone|sshfs|s3fs|gcsfuse))/.test(filesystem) ||
@@ -491,7 +491,7 @@ export async function inspectVolume(
   const hit = macCache.get(path);
   if (hit && Date.now() - hit.at < macCacheTtl) return hit.value;
   const value = await probeMacVolume(path);
-  // 失败或未知结果不缓存：换盘与离线必须能被后续任务及时识别。
+  // Failures or unknown results are not cached: disk swaps and offline states must be detected promptly by later tasks.
   if (value.filesystem) {
     if (macCache.size > 32) macCache.clear();
     macCache.set(path, { at: Date.now(), value });
