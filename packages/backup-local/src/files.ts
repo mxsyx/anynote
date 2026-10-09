@@ -9,15 +9,7 @@ import {
   rename,
   unlink,
 } from "node:fs/promises";
-import {
-  dirname,
-  isAbsolute,
-  join,
-  parse,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 
@@ -35,7 +27,9 @@ export function digest(bytes: Uint8Array | string) {
  * Validate and resolve a safe path relative to a root directory.
  *
  * Rejects absolute paths, backslashes, `..`/`.` segments, and any symlink or
- * junction along the path; missing intermediate directories are allowed.
+ * junction at the root or below it (prefixes above the root are not checked, so
+ * symbolically linked system paths work); missing intermediate directories are
+ * allowed.
  *
  * @param root Root directory.
  * @param name Relative path name.
@@ -49,10 +43,14 @@ export async function safePath(root: string, name = "") {
     name.split("/").some((p) => p === ".." || p === ".")
   )
     throw Error("备份路径无效");
-  const path = resolve(root, name);
-  let current = parse(path).root;
-  for (const part of path.slice(current.length).split(sep).filter(Boolean)) {
-    current = join(current, part);
+  const path = resolve(root, name),
+    parts = relative(root, path).split(sep).filter(Boolean);
+  // 只校验 root 自身及其下级组件。root 由原生目录授权选择并会被 realpath 规范化，
+  // 而 macOS 的系统前缀（/var → /private/var、/tmp → /private/tmp）本身是符号链接，
+  // 校验它们会让合法的临时目录与用户目录无法用作备份目标。
+  let current = root;
+  for (let i = -1; i < parts.length; i++) {
+    if (i >= 0) current = join(current, parts[i]);
     try {
       if ((await lstat(current)).isSymbolicLink())
         throw Error("备份路径不允许符号链接或 junction");

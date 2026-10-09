@@ -1,6 +1,6 @@
 # P0：备份可靠性与发布验收
 
-更新：2026-10-04。这里区分代码完成、本机隔离实测和仍需外部设备的发布门槛；不会把不同临时目录当作另一台物理设备。
+更新：2026-10-08。这里区分代码完成、本机隔离实测和仍需外部设备的发布门槛；不会把不同临时目录当作另一台物理设备。
 
 ## Cloudflare 维护中断恢复
 
@@ -67,6 +67,21 @@ pnpm run test:recovery:portable verify /path/to/kit --allow-same-host
 验证在全新临时工作区导入，核对归档大小/SHA-256、领域表行、所有附件哈希、恢复后的自链接及搜索。保留原始变更日志，并单独规范化导入产生的 Notebook 身份和名称。识别同一主机时拒绝正式跨设备验收；显式排练生成 `same-host-rehearsal` 报告。主机标识不同仍不能自动证明独立物理设备，需要人工记录设备和故障过程。
 
 输出为 `test-results/portable-recovery-acceptance.json`。本轮的独立物理设备、Windows/macOS、整机断电/磁盘丢失恢复尚未执行，不能标记 v1 全部发布门槛完成。验收包不是用户资料的备份工具，也不是自动触发整机故障的工具。
+
+## macOS/APFS 实盘验收（2026-10-08）
+
+开发环境切换到 macOS 后，先补齐备份层的 macOS 卷适配（`packages/backup-local/src/volume.ts`：`df -P` 定位设备节点，`diskutil info -plist` 取文件系统类型、用户可见卷名与稳定 `VolumeUUID`，`mount` 表回退并负责网络挂载判定；解析为纯函数，工具缺失或输出损坏时降级为 statfs 基础信息），并修复 macOS 符号链接前缀（`/var`、`/tmp` → `/private/*`）导致 `safePath` 与 `assertLocalPath` 拒绝合法临时路径的问题；该问题此前使全部 macOS 用例与本地备份验收无法运行。
+
+```sh
+pnpm run test:macos:volume
+mkdir -p artifacts/macos-desktop
+node scripts/desktop-local-backup-acceptance.mjs --base-dir artifacts/macos-desktop \
+  --require-filesystem apfs --report-path artifacts/macos-desktop/desktop-local-backup-apfs.json
+```
+
+`scripts/macos-volume-acceptance.mjs` 用 `hdiutil` 创建并挂载真实 APFS/FAT32 卷（免 root，结束自动卸载并删除镜像），验证卷身份与 `diskutil` 报告一致且能与源卷区分、替换/读回/目录 fsync 探测、复制与覆盖替换、完整校验与完整恢复（恢复后数据库与全部附件哈希核对）、卸载后 `TARGET_OFFLINE` 且不发布、重挂载后清单与卷身份一致、同一路径换上另一块卷被拒绝、FAT32 单文件限制按计划拒绝超限。报告 `test-results/macos-volume-acceptance.json`：5 项通过、1 项跳过。桌面端在真实 APFS 上以真实 Electron 41.9.1 与 Utility Process 通过 9 项验收，报告 `artifacts/macos-desktop/desktop-local-backup-apfs.json`；本机单元测试 376 项全部通过。
+
+仍未完成：本机系统拒绝创建 exFAT 镜像（`hdiutil` 返回「操作不被允许」），exFAT 单文件限制识别目前只有解析层 fixture 覆盖；SMB/NFS 真实网络盘挂载未验收；外接物理盘的真实拔盘、真实断电、独立物理设备与整机灾难恢复仍见 §1/§2 的独立条目，不能由磁盘镜像或本地目录替代。
 
 ## 本轮验收结果（2026-10-04）
 

@@ -44,7 +44,14 @@ export interface LocalBackupFilesystem {
   remote: boolean;
   maximumFileBytes?: number;
   mountPoint?: string;
-  volumeIdentity: "filesystem-device-only";
+  /** Strength of the volume identity: a real volume UUID, or only the filesystem device. */
+  volumeIdentity: "volume-uuid" | "filesystem-device-only";
+  /** Stable volume UUID, provided when the platform exposes one (macOS/APFS). */
+  volumeUuid?: string;
+  /** Whether the volume is currently mounted (statfs succeeded). */
+  mounted?: boolean;
+  /** Whether the volume is removable media. */
+  removable?: boolean;
 }
 
 /** Configuration and recent state of a local backup target. */

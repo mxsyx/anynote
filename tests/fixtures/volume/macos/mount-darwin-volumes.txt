@@ -1,0 +1,7 @@
+/dev/disk3s5 on /System/Volumes/Data (apfs, local, journaled, nobrowse, protect, root data)
+/dev/disk7s1 on /Volumes/My\040Disk (exfat, local, nodev, nosuid, noowners)
+/dev/disk8s2 on /Volumes/ANYNOTE_FIXTURE_FAT32 (msdos, local, nodev, nosuid, noowners)
+//guest@server.local/Share on /Volumes/Share (smbfs, nodev, nosuid, mounted by guest)
+server.local:/export/docs on /Volumes/docs (nfs, nodev, nosuid, mounted by user)
+map auto_home on /System/Volumes/Data/home (autofs, automounted, nobrowse)
+/dev/disk9s1 on /Volumes/APFS\040Image (apfs, local, nodev, nosuid, journaled)

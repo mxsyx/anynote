@@ -1,12 +1,14 @@
 # Anynote 剩余待办
 
-更新：2026-10-07。依据 [产品与技术设计](docs/Anynote-Design.md)、[本地磁盘备份设计](docs/Anynote-Local-Disk-Backup-Design.md)，结合当前源码、实施记录与验收报告整理。本文是全项目剩余工作入口；只列未完成事项，已完成项集中在文末「§10 已完成」。
+更新：2026-10-08。依据 [产品与技术设计](docs/Anynote-Design.md)、[本地磁盘备份设计](docs/Anynote-Local-Disk-Backup-Design.md)，结合当前源码、实施记录与验收报告整理。本文是全项目剩余工作入口；只列未完成事项，已完成项集中在文末「§10 已完成」。
 
 优先级：**P0** 为发布前可靠性/数据保护门槛，**P1** 为 v1 能力补齐与发行，**P2** 为性能和工程完善，**P3** 为设计明确的后续能力或可选优化。优先级是本清单的建议排期，不直接等同于设计文档的实施阶段。
 
 代码完成、自动化通过和真实平台/设备验收分别判断。Linux 同机不同目录、SIGKILL、模拟 I/O 错误、合成 PDF、派发组合事件均不能代替独立设备、断电、复杂文件或真实输入法验收。图索引存在旧路径及未跟踪的新源码，相关结论已回到当前文件和最新专项记录核对；旧 README/实施记录中的历史描述不作为功能缺失的唯一依据。
 
 本次重排：原「聚焦清单：不涉及跨平台/跨设备/真实环境验收的 P0/P1」已全部实现并移入 §10；剩余条目均需真实环境或跨平台验证，或属后续完善，其中需要 Windows/macOS 真机的条目集中在 §2，其余章节按优先级重排（跨平台适配代码前置为 P1）。
+
+2026-10-08：开发环境切换到 macOS 后，补齐了备份层的 macOS 卷适配（`diskutil`/`df`/`mount` 解析、稳定 `VolumeUUID`、挂载状态、网络挂载与 FAT32 限制识别，含解析 fixture 与降级测试），并完成 §2.3 的 macOS/APFS 实盘验收；同时修复了 macOS 符号链接前缀（`/var`、`/tmp` → `/private/*`）导致 `safePath` 与 `assertLocalPath` 拒绝合法临时目录、进而使全部 macOS 用例与验收无法运行的阻塞问题。§3 的卷适配条目因此只剩 Windows 部分。
 
 ## 1. 真实环境与可靠性验收
 
@@ -25,7 +27,7 @@
 
 - [ ] **P0 — 跨平台数据闭环**：macOS/Windows 真机验证离线创建/编辑/阅读、写锁与 LRU 重开、迁移、导入导出、云备份与恢复，以及旧客户端/新 Worker、新客户端/旧 Worker、旧插件/新桌面、新 schema/旧桌面的接受或明确拒绝行为。
 - [ ] **P0 — 凭据系统实测**：macOS Keychain、Windows 系统加密及 Linux keyring 在系统重启、锁定/解锁、服务缺失或不可用时验证；确认错误可操作、无明文持久化，凭据不进入日志、归档或 Renderer。现有 Linux 隔离 keyring 验收只覆盖应用重启。
-- [ ] **P1 — 各平台 Electron 底层能力**：在 macOS/Windows 的内嵌 Node 上验证 SQLite Online Backup、statfs、文件替换和同步；对不支持目录同步的平台验证实际降级行为。Linux 当前运行时已通过。
+- [ ] **P1 — 各平台 Electron 底层能力**：在 macOS/Windows 的内嵌 Node 上验证 SQLite Online Backup、statfs、文件替换和同步；对不支持目录同步的平台验证实际降级行为。Linux 当前运行时已通过；macOS 已于 2026-10-08 在真实 Electron 41.9.1 内嵌 Node 上通过桌面端 APFS 验收（`node:sqlite` Online Backup 捕获、`statfs` 卷信息、同盘替换与目录 fsync 探测），Windows 仍待验证。
 - [ ] **P1 — 签名与更新**：接入 Windows 代码签名、macOS 签名/公证、安装包和更新签名验证、升级失败回退及 schema 兼容检查；当前 GitHub Release/校验和流程不等于签名更新。
 - [ ] **P1 — 真实安装与 CI/CD 运行**：在 Linux/macOS/Windows 执行安装、首次启动、卸载保留数据、升级与回退；核对各平台架构、内嵌 Node/SQLite、PDF/白板静态资源与 Worker。现有三平台 workflow 是配置，本地静态检查不能代替 GitHub 实际运行和真机发行验收。
 - [ ] **P1 — 人工无障碍与平台 UI**：读屏器、真实 IME、原生对话框、200% 缩放、减少动态、键盘及窄窗口人工验收；核对 axe 的 incomplete 项和实际对比度，覆盖新增任务/维护/扩展页面。已有零自动违规不等于完整 WCAG 认证。
@@ -36,7 +38,7 @@
 
 ### 2.3 macOS 专属
 
-- [ ] **P1 — macOS/APFS 实盘验收**：验证卷身份、挂载/重挂载、网络盘与 FAT 限制，以及复制、覆盖替换、fsync、校验和完整恢复。
+- [x] **P1 — macOS/APFS 实盘验收**：验证卷身份、挂载/重挂载、网络盘与 FAT 限制，以及复制、覆盖替换、fsync、校验和完整恢复。已新增 `scripts/macos-volume-acceptance.mjs`（`pnpm run test:macos:volume`），用 `hdiutil` 挂载真实 APFS/FAT32 卷（免 root、结束自动卸载清理）逐项验证：卷身份与 `diskutil` 报告的 `VolumeUUID` 一致且能与源卷区分、替换/读回/目录 fsync 探测、复制与覆盖替换、完整校验与完整恢复（恢复后数据库与全部附件哈希核对）、卸载后 `TARGET_OFFLINE` 且不发布、重挂载后清单与卷身份一致、同一路径换上另一块卷被拒绝、FAT32 单文件限制按计划拒绝超限；报告 `test-results/macos-volume-acceptance.json`（5 项通过）。真实 Electron 41.9.1 与 Utility Process 在 APFS 上以 `--require-filesystem apfs` 通过 9 项桌面验收，报告 `artifacts/macos-desktop/desktop-local-backup-apfs.json`。仍未执行：本机系统拒绝创建 exFAT 镜像（`hdiutil` 返回「操作不被允许」，记为 `skipped`，exFAT 仅保留解析层 fixture 覆盖）、真实网络盘挂载（仅解析层覆盖）及真实输入法/原生对话框人工验收。
 
 ## 3. 本地磁盘备份
 
@@ -44,7 +46,7 @@
 
 - [ ] **P0 — 外接 exFAT 与真实拔盘/磁盘满**：外接盘验证复制、替换、同步、恢复；大附件复制中拔盘、USB 重连、原挂载点被另一卷占用和真实磁盘满后，确认停止发布/删除、旧副本保留及重接后的提交协调。
 - [ ] **P0 — 发布/清理断电耐久性**：分别在支持的平台和文件系统上，使用独立测试设备验证发布及清理阶段断电后的恢复；进程终止与模拟 ENOSPC 不作为断电证据。
-- [ ] **P1 — macOS/Windows 卷适配代码**：补齐稳定卷标识、挂载状态、磁盘名称、文件系统类型、网络挂载与 FAT32 限制识别，提供输出解析、错误降级及 fixture 测试。当前 Linux 使用 statfs/mountinfo，其他平台只返回基础信息；这是 §2.2/§2.3 实盘验收的前置条件。
+- [ ] **P1 — Windows 卷适配代码**：补齐稳定卷标识、挂载状态、磁盘名称、文件系统类型、网络挂载与 FAT32 限制识别，提供输出解析、错误降级及 fixture 测试。macOS 已按此要求完成（`df -P` 定位设备节点 + `diskutil info -plist` 取 `VolumeUUID`/卷名/可移动介质，`mount` 表回退，纯函数解析与 fixture 覆盖，见 §2.3）；Windows 仍只返回 statfs 基础信息，是 §2.2 实盘验收的前置条件。
 - [ ] **P1 — 不同物理设备及性能组合**：验证同设备双分区、两块独立磁盘和设备无法识别时的提示；记录 SSD→SSD、SSD→HDD、USB 外接盘与冷缓存样本。同盘 ext4 基准不替代这些组合。
 - [ ] **P1 — 真实输入法与原生对话框**：人工确认组合输入、保存、目录选择和初始化取消/确认，覆盖本地备份及恢复导航。自动化对话框 fixture 和组合事件仅保留为回归证据。
 - [ ] **P2 — 物理设备枚举与提示**：实现 Linux 文件系统到物理设备的映射、未知/虚拟设备降级及 UI 提示，并提供其他平台适配接口与 fixture。`stat.dev` 只能识别文件系统/任务期间设备变化，不能证明两个分区属于独立物理设备，也不等于持久卷 UUID。

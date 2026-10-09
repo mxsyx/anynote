@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>APFSPhysicalStores</key>
+	<array/>
+	<key>BusProtocol</key>
+	<string/>
+	<key>Fusion</key>
+	<dict/>
+	<key>FilesystemType</key>
+	<string>apfs</string>
+	<key>MediaName</key>
+	<string></string>
+	<key>MountPoint</key>
+	<string>/Volumes/SelfClosing</string>
+	<key>RemovableMedia</key>
+	<true/>
+	<key>VolumeName</key>
+	<string>SelfClosing</string>
+	<key>VolumeUUID</key>
+	<string>AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE</string>
+</dict>
+</plist>

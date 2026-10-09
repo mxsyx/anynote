@@ -25,6 +25,11 @@ import {
 } from "../.build/packages/backup-local/index.js";
 import { startBackupScheduler } from "../.build/packages/backup/scheduler.js";
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const volumeFixture = (name) =>
+  readFileSync(
+    join(import.meta.dirname, "fixtures/volume/macos", name),
+    "utf8",
+  );
 async function fixture(_t) {
   const root = mkdtempSync(join(tmpdir(), "anynote-local-")),
     s = new Storage(join(root, "source"));
@@ -901,7 +906,12 @@ test("filesystem capabilities reject unsupported network mounts and FAT-size fil
     await import("../.build/packages/backup-local/filesystem.js");
   const info = await inspectFilesystem(f.target.path);
   assert.equal(info.remote, false);
-  assert.equal(info.volumeIdentity, "filesystem-device-only");
+  assert.ok(
+    ["volume-uuid", "filesystem-device-only"].includes(info.volumeIdentity),
+  );
+  if (info.volumeIdentity === "volume-uuid")
+    assert.match(info.volumeUuid, /^[0-9A-F-]{36}$/i);
+  assert.equal(info.mounted, true);
   assert.ok(info.deviceId);
   assert.ok(info.availableBytes > 0);
   assert.throws(
@@ -928,6 +938,180 @@ test("filesystem capabilities reject unsupported network mounts and FAT-size fil
     ),
   );
 });
+
+test("macOS volume probing parses diskutil/mount output, normalizes FAT limits and degrades to the mount table", async () => {
+  const {
+    parseDiskutilPlist,
+    parseDfDevice,
+    parseMountTable,
+    normalizeFilesystem,
+    fat32MaximumFileBytes,
+    probeMacVolume,
+    inspectVolume,
+  } = await import("../.build/packages/backup-local/volume.js");
+
+  // 真实录制的内建 APFS 卷输出。
+  const apfs = parseDiskutilPlist(
+    volumeFixture("diskutil-apfs-internal.plist"),
+  );
+  assert.equal(apfs.filesystem, "apfs");
+  assert.equal(apfs.mountPoint, "/");
+  assert.equal(apfs.diskName, "Macintosh HD");
+  assert.equal(apfs.volumeIdentity, "volume-uuid");
+  assert.equal(apfs.volumeUuid, "96D53426-6538-4A3E-83AA-B5BB607274AB");
+  assert.equal(apfs.mounted, true);
+  assert.equal(apfs.removable, false);
+
+  const exfat = parseDiskutilPlist(
+    volumeFixture("diskutil-exfat-removable.plist"),
+  );
+  assert.equal(exfat.filesystem, "exfat");
+  assert.equal(exfat.diskName, "ANYNOTE_FIXTURE_EXFAT");
+  assert.equal(exfat.removable, true);
+  assert.equal(exfat.mountPoint, "/Volumes/ANYNOTE_FIXTURE_EXFAT");
+
+  const fat = parseDiskutilPlist(volumeFixture("diskutil-msdos-fat32.plist"));
+  assert.equal(fat.filesystem, "msdos");
+  // 自闭合的空值（部分 diskutil 输出会带 `<array/>`、`<string/>`、`<dict/>`）不能打断解析。
+  const selfClosed = parseDiskutilPlist(
+    volumeFixture("diskutil-self-closed-values.plist"),
+  );
+  assert.equal(selfClosed.filesystem, "apfs");
+  assert.equal(selfClosed.mountPoint, "/Volumes/SelfClosing");
+  assert.equal(selfClosed.diskName, "SelfClosing");
+  assert.equal(selfClosed.removable, true);
+  assert.equal(selfClosed.volumeUuid, "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
+  assert.equal(normalizeFilesystem("MS-DOS FAT32"), "msdos");
+  assert.equal(normalizeFilesystem("APFS"), "apfs");
+  assert.equal(fat32MaximumFileBytes("msdos"), 4294967295);
+  assert.equal(fat32MaximumFileBytes("vfat"), 4294967295);
+  assert.equal(fat32MaximumFileBytes("exfat"), undefined);
+  assert.equal(fat32MaximumFileBytes("apfs"), undefined);
+
+  // 网络/自动挂载、转义空格与最长挂载点优先。
+  const volumes = volumeFixture("mount-darwin-volumes.txt");
+  assert.deepEqual(parseMountTable(volumes, "/Volumes/Share/notes"), {
+    filesystem: "smbfs",
+    mountPoint: "/Volumes/Share",
+    remote: true,
+    mounted: true,
+  });
+  assert.deepEqual(parseMountTable(volumes, "/Volumes/docs"), {
+    filesystem: "nfs",
+    mountPoint: "/Volumes/docs",
+    remote: true,
+    mounted: true,
+  });
+  assert.equal(
+    parseMountTable(volumes, "/Volumes/My Disk").mountPoint,
+    "/Volumes/My Disk",
+  );
+  assert.equal(
+    parseMountTable(volumes, "/System/Volumes/Data/home/user").mountPoint,
+    "/System/Volumes/Data/home",
+  );
+  assert.equal(
+    parseMountTable(volumes, "/System/Volumes/Data/home/user").remote,
+    true,
+  );
+  assert.deepEqual(parseMountTable(volumes, "/tmp/elsewhere"), {});
+
+  assert.equal(
+    parseDfDevice(
+      "Filesystem 512-blocks Used Available Capacity Mounted on\n/dev/disk3s5 100 1 99 1% /System/Volumes/Data\n",
+    ),
+    "/dev/disk3s5",
+  );
+  assert.equal(
+    parseDfDevice("//guest@server.local/Share 100 1 99 1% /Volumes/Share\n"),
+    undefined,
+  );
+
+  const df = (device, mount) =>
+    `Filesystem 512-blocks Used Available Capacity Mounted on\n${device} 100 1 99 1% ${mount}\n`;
+  const ok = {
+    run: async (command, args) => {
+      if (command === "mount") return volumeFixture("mount-darwin.txt");
+      if (command === "df") return df("/dev/disk3s1s1", "/");
+      assert.deepEqual(args, ["info", "-plist", "/dev/disk3s1s1"]);
+      return volumeFixture("diskutil-apfs-internal.plist");
+    },
+  };
+  const merged = await probeMacVolume("/notes", ok);
+  assert.equal(merged.filesystem, "apfs");
+  assert.equal(merged.diskName, "Macintosh HD");
+  assert.equal(merged.volumeIdentity, "volume-uuid");
+  assert.equal(merged.remote, false);
+
+  // firmlink 路径下 mount 表只给出 `/`，diskutil 的挂载点与身份必须优先。
+  const firmlink = {
+    run: async (command) => {
+      if (command === "mount")
+        return "/dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)\n";
+      if (command === "df") return df("/dev/disk3s5", "/System/Volumes/Data");
+      return '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>FilesystemType</key><string>apfs</string><key>MountPoint</key><string>/System/Volumes/Data</string><key>VolumeName</key><string>Macintosh HD - Data</string><key>VolumeUUID</key><string>24370498-0AB3-44A3-A29C-44BFA0B2C2C3</string></dict></plist>';
+    },
+  };
+  const data = await probeMacVolume("/System/Volumes/Data/notes", firmlink);
+  assert.equal(data.mountPoint, "/System/Volumes/Data");
+  assert.equal(data.diskName, "Macintosh HD - Data");
+  assert.equal(data.filesystem, "apfs");
+  assert.equal(data.remote, false);
+  assert.equal(data.volumeUuid, "24370498-0AB3-44A3-A29C-44BFA0B2C2C3");
+
+  // 网络卷 diskutil 不可用：只依赖 mount 表并保留远程标记。
+  const network = {
+    run: async (command) => {
+      if (command === "df")
+        return df("//guest@server.local/Share", "/Volumes/Share");
+      if (command === "mount") return volumeFixture("mount-darwin-volumes.txt");
+      throw Error("Unable to find disk for path");
+    },
+  };
+  const share = await probeMacVolume("/Volumes/Share/notes", network);
+  assert.equal(share.filesystem, "smbfs");
+  assert.equal(share.remote, true);
+  assert.equal(share.volumeIdentity, undefined);
+
+  // 损坏的 plist、缺失的工具与不支持的平台都降级为空结果，绝不抛错。
+  const broken = {
+    run: async (command) =>
+      command === "diskutil"
+        ? volumeFixture("diskutil-malformed.plist")
+        : Promise.reject(Error("工具不可用")),
+  };
+  assert.deepEqual(await probeMacVolume("/Volumes/Unknown", broken), {});
+  assert.deepEqual(await inspectVolume("/", { platform: "win32" }), {});
+  assert.deepEqual(
+    await inspectVolume("/", {
+      platform: "darwin",
+      probe: { run: () => Promise.reject(Error("工具缺失")) },
+    }),
+    {},
+  );
+});
+
+test.skipIf(process.platform !== "darwin")(
+  "macOS reports the APFS volume identity, disk name and mount point of the local disk",
+  async (t) => {
+    const f = await fixture(t);
+    const { inspectFilesystem } = await import(
+      "../.build/packages/backup-local/filesystem.js"
+    );
+    const info = await inspectFilesystem(f.target.path);
+    assert.equal(info.filesystem, "apfs");
+    assert.equal(info.volumeIdentity, "volume-uuid");
+    assert.match(
+      info.volumeUuid,
+      /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    );
+    assert.equal(info.remote, false);
+    assert.equal(info.mounted, true);
+    assert.equal(info.maximumFileBytes, undefined);
+    assert.ok(info.diskName.length > 0);
+    assert.ok(info.mountPoint.startsWith("/"));
+  },
+);
 
 test("backup results report committed deletions, cut and measured checking and verification work", async (t) => {
   const f = await fixture(t),

@@ -41,7 +41,9 @@
 
 ## 文件系统能力
 
-Linux 通过 statfs/mountinfo 报告磁盘名称、文件系统与可用空间，拒绝已识别的网络/云挂载和超过 FAT32 单文件限制的计划。真实复制前在独占临时目录探测覆盖替换、同步与读回；不会触碰现有 Notebook 文件。每阶段验证目标标记，任务期间还验证文件系统设备标识。macOS/Windows 的稳定卷标识与能力适配尚未完成。
+Linux 通过 statfs magic 与 `/proc/self/mountinfo` 报告磁盘名称、文件系统、挂载点与可用空间。macOS 先用 `df -P` 定位设备节点，再用 `diskutil info -plist` 取得文件系统类型、用户可见卷名与稳定 `VolumeUUID`（`volumeIdentity: "volume-uuid"`），`mount` 表作为回退并保留网络挂载与可移动介质判断；命令输出解析为纯函数，工具缺失、输出损坏或平台不支持时降级为 statfs 基础信息，绝不因探测失败中断检查。目标路径先取真实路径再匹配挂载表，避免 macOS `/var`、`/tmp` 等符号链接前缀被误判为 `/`。
+
+两个平台都拒绝已识别的网络/云挂载，并按归一化文件系统名（Linux 还结合 statfs magic）判定 FAT32 的 4 GiB−1 单文件限制；exFAT 不设该限制。真实复制前在独占临时目录探测覆盖替换、同步与读回；不会触碰现有 Notebook 文件。每阶段验证目标标记，任务期间还验证文件系统设备标识。Windows 的稳定卷标识与能力适配尚未完成。
 
 ## 验证与平台边界
 
@@ -58,7 +60,21 @@ pnpm run test:desktop:local-backup
 
 桌面验收在隔离临时数据中启动生产 Electron 窗口和真实 Utility Process，覆盖目录授权/取消、范围和计划、增量统计、组合输入保护与保存、异常删除确认、批量部分失败、损坏报告、恢复保护与新库导航、大附件复制取消。原生对话框使用临时目录适配器；组合事件由自动化派发，不能代替真实输入法硬件验收。结果写入 `artifacts/local-backup-acceptance.json`，失败会写入 `passed: false`，临时数据自动移除。需要可用的桌面显示环境；可设置 `ANYNOTE_EXECUTABLE` 验收已打包可执行程序。
 
-已在本开发环境验证 Linux。macOS/APFS、Windows/NTFS、外接 exFAT、真实拔盘及不同物理设备的性能样本仍需对应设备实测。目录同步在平台不支持时明确按能力跳过；不承诺任意断电或拔盘零损坏，也不能仅凭 Node `stat.dev` 证明两个分区位于独立物理磁盘。SMB/NFS/云盘挂载不属于首版保证范围。
+`tests/backup-local.test.mjs` 的文件系统测试使用录制并合成到 `tests/fixtures/volume/macos/` 的 `diskutil -plist`、`mount` 与 `df` 输出，逐项覆盖解析、平台合并、自闭合空值、损坏输出、网络/自动挂载、转义空格与最长挂载点优先，并断言降级不会抛错。
+
+macOS/APFS 实盘验收：
+
+```sh
+pnpm run test:macos:volume
+# 真实 Electron 与 Utility Process 在 APFS 上的端到端验收：
+mkdir -p artifacts/macos-desktop
+node scripts/desktop-local-backup-acceptance.mjs --base-dir artifacts/macos-desktop \
+  --require-filesystem apfs --report-path artifacts/macos-desktop/desktop-local-backup-apfs.json
+```
+
+`scripts/macos-volume-acceptance.mjs` 用 `hdiutil` 挂载真实 APFS 与 FAT32 卷（不需要 root，结束自动卸载并删除临时镜像），逐项验证：卷身份与 `diskutil` 报告一致且可区分源卷、替换/读回/目录 fsync 探测、复制与覆盖替换、完整校验与完整恢复（含恢复后数据库与附件哈希）、卸载后 `TARGET_OFFLINE`、重挂载后清单与身份一致、同一路径换上另一块卷被拒绝、FAT32 单文件限制按计划拒绝超限。报告写入 `test-results/macos-volume-acceptance.json`；环境无法完成的项目记入 `skipped`，不会写成通过。
+
+已在本开发环境验证 Linux 与 macOS/APFS。Windows/NTFS、外接物理 exFAT 盘的真实拔盘、真实断电、独立设备、真实网络盘挂载及不同物理设备的性能样本仍需对应设备实测；本机系统拒绝创建 exFAT 镜像（`hdiutil` 返回「操作不被允许」），exFAT 限制识别目前只有解析层 fixture 覆盖。目录同步在平台不支持时明确按能力跳过；不承诺任意断电或拔盘零损坏，也不能仅凭 Node `stat.dev` 证明两个分区位于独立物理磁盘。SMB/NFS/云盘挂载不属于首版保证范围。
 
 尚未完成的功能、平台与性能验收见 [TODO.md](./TODO.md)。
 

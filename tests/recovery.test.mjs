@@ -5,6 +5,7 @@ import {
   mkdirSync,
   writeFileSync,
   existsSync,
+  realpathSync,
   rmSync,
   readdirSync,
   readFileSync,
@@ -22,7 +23,8 @@ import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { createServer } from "node:http";
 import { recoveryScenario } from "../scripts/cloud/recovery-scenario.mjs";
 test("startup recovery retains live and legacy jobs and reclaims only released tracked jobs", (t) => {
-  const root = mkdtempSync(join(tmpdir(), "anynote-job-lease-"));
+  // macOS 的 tmpdir 位于符号链接 /var 之下，而存储层要求 Notebook 根目录是规范路径。
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "anynote-job-lease-")));
   t.onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   const live = temporaryJob(root, "backup-jobs"),
     legacy = join(root, "_local/archive-jobs/legacy");

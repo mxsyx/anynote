@@ -7,6 +7,7 @@ import {
   readFileSync,
   writeFileSync,
   mkdirSync,
+  realpathSync,
   renameSync,
   symlinkSync,
   cpSync,
@@ -25,7 +26,8 @@ import { once } from "node:events";
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=";
 async function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), "anynote-workspace-"));
+  // macOS 的 tmpdir 位于符号链接 /var 之下，而存储层要求 Notebook 根目录是规范路径。
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "anynote-workspace-")));
   const stores = [];
   const make = (name) => {
     const s = new Storage(join(root, name));

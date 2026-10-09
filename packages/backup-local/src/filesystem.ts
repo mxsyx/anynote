@@ -1,112 +1,66 @@
 import {
-  readFile,
-  stat,
-  statfs,
   mkdir,
   open,
-  unlink,
+  readFile,
+  realpath,
   rmdir,
+  stat,
+  statfs,
+  unlink,
 } from "node:fs/promises";
-import { basename, relative, isAbsolute, sep } from "node:path";
+import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
+import type { LocalBackupFilesystem } from "@anynote/types/local-backup.js";
 import { safePath, replace } from "./files.js";
+import { fat32MaximumFileBytes, inspectVolume } from "./volume.js";
+import type { VolumeAttributes } from "./volume.js";
 
-/** Mapping from Linux statfs magic numbers to filesystem names. */
-const linuxTypes = new Map<number, string>([
-  [0xef53, "ext4"],
-  [0x2011bab0, "exFAT"],
-  [0x4d44, "FAT"],
-  [0x6969, "NFS"],
-  [0x517b, "SMB"],
-  [0xff534d42, "SMB"],
-  [0x794c7630, "overlay"],
-]);
-
-/** Filesystem information of the destination volume. */
-export interface FilesystemInfo {
-  filesystem: string;
-  diskName: string;
-  deviceId: string;
-  availableBytes: number;
-  remote: boolean;
-  maximumFileBytes?: number;
-  mountPoint?: string;
-  volumeIdentity: "filesystem-device-only";
-}
-
-/**
- * Whether a path lies inside the given root directory.
- *
- * @param root Root directory.
- * @param path Candidate path.
- * @returns True when the path is inside the root.
- */
-function inside(root: string, path: string) {
-  const p = relative(root, path);
-  return !p || (!isAbsolute(p) && p !== ".." && !p.startsWith(".." + sep));
-}
-
-/**
- * Decode octal escapes in mountinfo (e.g. `\040` for a space).
- *
- * @param p Raw mountinfo field.
- * @returns Decoded string.
- */
-const decode = (p: string) =>
-  p.replace(/\\([0-7]{3})/g, (_m, octal) =>
-    String.fromCharCode(parseInt(octal, 8)),
-  );
+/** Filesystem information of the destination volume (public contract). */
+export type FilesystemInfo = LocalBackupFilesystem;
 
 /**
  * Inspect the filesystem that hosts the destination path.
  *
- * On Linux it reads `/proc/self/mountinfo` to obtain the real filesystem and
- * mount point, and uses that to detect network drives and FAT-style
- * single-file limits.
+ * `statfs`/`stat` always provide capacity and the device number; the platform
+ * probe (`/proc/self/mountinfo` on Linux, `diskutil`/`mount` on macOS) adds the
+ * real filesystem, mount point, disk name and, where available, a stable volume
+ * identity. Probing degrades to basics instead of failing the inspection.
  *
  * @param path Destination path to inspect.
  * @returns Filesystem information.
  */
 export async function inspectFilesystem(path: string): Promise<FilesystemInfo> {
   const [space, device] = await Promise.all([statfs(path), stat(path)]);
-  let filesystem =
-    process.platform === "linux"
-      ? linuxTypes.get(space.type) || "unknown"
-      : "unknown";
-  let mountPoint: string | undefined;
-  if (process.platform === "linux") {
-    try {
-      for (const row of (await readFile("/proc/self/mountinfo", "utf8")).split(
-        "\n",
-      )) {
-        const [left, right] = row.split(" - ");
-        if (!right) continue;
-        const mount = decode(left.split(" ")[4]);
-        if (
-          inside(mount, path) &&
-          (!mountPoint || mount.length > mountPoint.length)
-        ) {
-          mountPoint = mount;
-          filesystem = right.split(" ")[0];
-        }
-      }
-    } catch {} // statfs 在 mount 元数据受限时仍然可用。
-  }
-  const remote =
-    [0x6969, 0x517b, 0xff534d42].includes(space.type) ||
-    /^(nfs|cifs|smb|fuse\.(rclone|sshfs|s3fs|gcsfuse))/.test(filesystem);
+  // 按真实路径查询挂载信息：macOS 的 /var、/tmp 等系统前缀本身是符号链接，
+  // 用未解析的路径会匹配到 `/` 而误判文件系统与网络挂载。
+  const resolved = await realpath(path).catch(() => path);
+  const attributes: VolumeAttributes = await inspectVolume(resolved, {
+    statfsMagic: space.type,
+  }).catch((): VolumeAttributes => ({}));
+  const filesystem = attributes.filesystem || "unknown",
+    mountPoint = attributes.mountPoint,
+    // Linux 的 statfs magic 在 mount 名称受限时仍然可靠；macOS 按归一化名称判定。
+    maximumFileBytes =
+      fat32MaximumFileBytes(filesystem) ??
+      (process.platform === "linux" && space.type === 0x4d44
+        ? 4 * 1024 ** 3 - 1
+        : undefined);
   return {
     filesystem,
     deviceId: String(device.dev),
     diskName:
-      mountPoint && mountPoint !== "/" ? basename(mountPoint) : "本地磁盘",
+      attributes.diskName ||
+      (mountPoint && mountPoint !== "/" ? basename(mountPoint) : "本地磁盘"),
     mountPoint,
     availableBytes: space.bavail * space.bsize,
-    remote,
-    ...(space.type === 0x4d44 || filesystem === "vfat" || filesystem === "msdos"
-      ? { maximumFileBytes: 4 * 1024 ** 3 - 1 }
+    remote: attributes.remote ?? false,
+    ...(maximumFileBytes !== undefined ? { maximumFileBytes } : {}),
+    volumeIdentity: attributes.volumeIdentity ?? "filesystem-device-only",
+    ...(attributes.volumeUuid ? { volumeUuid: attributes.volumeUuid } : {}),
+    mounted: attributes.mounted ?? true,
+    ...(attributes.removable !== undefined
+      ? { removable: attributes.removable }
       : {}),
-    volumeIdentity: "filesystem-device-only",
   };
 }
 
