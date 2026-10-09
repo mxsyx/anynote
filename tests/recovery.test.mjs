@@ -17,7 +17,6 @@ import {
   temporaryJob,
   recoverTemporaryJobs,
 } from "../.build/packages/storage-sqlite/temporary-jobs.js";
-import { fileS3Server } from "./helpers/file-s3-server.mjs";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { createServer } from "node:http";
@@ -48,26 +47,6 @@ test("startup recovery retains live and legacy jobs and reclaims only released t
   assert.ok(existsSync(legacy));
   assert.deepEqual(readdirSync(markerDir), []);
 });
-test("S3 public tasks recover from real SIGKILL before commit, after commit and during restore", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "anynote-recovery-s3-")),
-    server = await fileS3Server(root);
-  t.onTestFinished(async () => {
-    await server.close();
-    rmSync(root, { recursive: true, force: true });
-  });
-  const steps = await recoveryScenario({
-    provider: "s3",
-    settings: {
-      config: {
-        endpoint: server.endpoint,
-        allowInsecure: true,
-        bucket: "bucket",
-      },
-      secrets: { accessKeyId: "fixture", secretAccessKey: "fixture" },
-    },
-  });
-  assert.equal(steps.length, 6);
-});
 test("Cloudflare public tasks recover from real SIGKILL over HTTP with persistent D1/R2 state", async (t) => {
   const env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: "fixture" };
   const server = createServer(async (req, res) => {
@@ -96,7 +75,6 @@ test("Cloudflare public tasks recover from real SIGKILL over HTTP with persisten
     env.DB.db.close();
   });
   const steps = await recoveryScenario({
-    provider: "cloudflare",
     settings: {
       config: {
         endpoint: `http://127.0.0.1:${server.address().port}`,

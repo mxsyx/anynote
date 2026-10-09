@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import { hashFile } from "../../.build/packages/storage-sqlite/archive-stream.js";
-export async function coldRecoveryScenario({
-  provider,
-  settings,
-  onStep = () => {},
-}) {
+export async function coldRecoveryScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cold-device-")),
     source = new Storage(join(root, "source")),
     fresh = new Storage(join(root, "fresh")),
@@ -50,7 +46,6 @@ export async function coldRecoveryScenario({
       data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF9sAAAAASUVORK5CYII=",
     });
     const target = await call("configureBackup", {
-      provider,
       name: "源设备验收",
       ...settings.config,
       ...settings.secrets,
@@ -77,7 +72,6 @@ export async function coldRecoveryScenario({
     assert.ok(!existsSync(join(fresh.root, "_local/backup-targets.json")));
     record("all-source-files-and-device-target-config-removed");
     const connection = await fresh.run("configureCloudRecovery", {
-      provider,
       name: "全新设备连接",
       ...settings.config,
       ...settings.secrets,

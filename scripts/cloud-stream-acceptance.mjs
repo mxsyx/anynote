@@ -32,13 +32,8 @@ if (
     process.env.ANYNOTE_CF_TOKEN = managed.token;
   }
 }
-const args = process.argv.slice(2),
-  selected = args[args.indexOf("--provider") + 1] || "all";
-if (
-  !["all", "cloudflare", "s3"].includes(selected) ||
-  args.some((a) => a.startsWith("--") && a !== "--provider")
-)
-  throw Error("用法：pnpm run test:cloud:stream --provider all|cloudflare|s3");
+if (process.argv.slice(2).length)
+  throw Error("用法：pnpm run test:cloud:stream");
 const file = resolve("test-results/cloud-stream-acceptance.json"),
   report = {
     format: "anynote.cloud-stream-acceptance.v1",
@@ -48,7 +43,7 @@ const file = resolve("test-results/cloud-stream-acceptance.json"),
     providers: [],
     limitations: [
       "112MiB 附件由随机 64KiB 块重复组成；验证去重与完整恢复，不代表随机 112MiB 上传吞吐。",
-      "使用独立 Notebook/lineage 和 S3 前缀，保留远端验收数据。未验证 20GiB 满负载或长期自动备份。",
+      "使用独立 Notebook/lineage，保留远端验收数据。未验证 20GiB 满负载或长期自动备份。",
     ],
   };
 function save() {
@@ -57,18 +52,16 @@ function save() {
     mode: 0o600,
   });
 }
-for (const provider of selected === "all" ? ["cloudflare", "s3"] : [selected]) {
-  const record = { provider, status: "running", steps: [] };
+{
+  const provider = "cloudflare",
+    record = { provider, status: "running", steps: [] };
   report.providers.push(record);
   save();
   try {
-    const settings = readCloudConfig(provider);
+    const settings = readCloudConfig();
     if (settings.missing)
       throw Error("缺少配置：" + settings.missing.join(", "));
-    if (provider === "s3")
-      settings.config.prefix = "anynote-stream-acceptance/" + report.runId;
     await streamScenario({
-      provider,
       settings,
       onStep: (step, steps) => {
         record.steps = steps;

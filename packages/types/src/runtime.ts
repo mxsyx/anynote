@@ -84,13 +84,8 @@ export interface BackupTarget {
   notebookId: string;
   lineageId: string;
   deviceId: string;
-  provider: "s3" | "cloudflare";
   endpoint: string;
   name?: string;
-  bucket?: string;
-  region?: string;
-  prefix?: string;
-  pathStyle?: boolean;
   writerEpoch?: number;
   remoteNotebookId?: string;
   lastGeneration?: string;
@@ -115,9 +110,6 @@ export interface BackupTarget {
 /** Access credentials for a backup target. */
 export interface Credentials {
   token?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  sessionToken?: string;
 }
 
 /** System-encrypted credential access interface implemented by the host. */

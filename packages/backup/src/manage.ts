@@ -1,9 +1,3 @@
-import {
-  previewS3Retention,
-  applyS3Retention,
-  s3RetentionState,
-} from "./s3-maintenance.js";
-import { s3ProtectionAudit, releaseS3LegacyProtection } from "./s3-control.js";
 import { z } from "zod";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type {
@@ -11,7 +5,7 @@ import type {
   Credentials,
   Task,
 } from "@anynote/types/runtime.js";
-import { CloudflareClient, S3Objects } from "./providers.js";
+import { CloudflareClient } from "./providers.js";
 
 const uuid = z.string().uuid();
 
@@ -22,16 +16,13 @@ export const managementOperations = [
   "previewRemoteRetention",
   "applyRemoteRetention",
   "remoteRetentionState",
-  "remoteProtectionAudit",
-  "releaseRemoteProtection",
 ];
 
 /**
  * Handle remote maintenance operations: device takeover, retention preview, and cleanup.
  *
- * Dispatched by target provider: S3 uses the local maintenance implementation,
- * while Cloudflare runs through the Worker API. Write operations require
- * explicit confirmation and are rejected when the target has an active task.
+ * Runs through the Cloudflare Worker API. Write operations require explicit
+ * confirmation and are rejected when the target has an active task.
  *
  * @param s Storage service.
  * @param op Operation name.
@@ -74,80 +65,15 @@ export async function manage(
         expectedHead: z.string().max(36).optional(),
         expectedWriterEpoch: z.number().int().positive().optional(),
         confirmed: z.boolean().optional(),
-        protectionKind: z.enum(["writer", "reader"]).optional(),
-        protectionId: uuid.optional(),
-        generationId: uuid.optional(),
-        attestation: z.literal("legacy-requests-stopped").optional(),
       })
       .strict()
       .parse(raw),
     target = find(s, p);
 
-  if (target.provider === "s3") {
-    if (op === "previewRemoteRetention" && p.confirmed !== true)
-      throw Error("S3 维护须确认所有客户端已升级且旧任务已停止");
-    if (p.remoteNotebookId || p.lineageId)
-      throw Error("S3 维护只能访问当前目标分支");
-    const objects = new S3Objects(target, await secret(s, target.id)),
-      base = `${p.notebookId}/${target.lineageId}`;
-    if (op === "remoteRetentionState") return s3RetentionState(objects, base);
-    if (op === "remoteProtectionAudit")
-      // Read-only: allowed even while a task runs so the caller can observe it.
-      return s3ProtectionAudit(objects, base, target.pendingGeneration ?? null);
-    if (["remoteWriter", "takeoverRemoteWriter"].includes(op))
-      throw Error("S3 维护不提供设备接管");
-    if (
-      [...s.jobs.values()].some(
-        (j) =>
-          j.targetId === target.id &&
-          ["running", "committing"].includes(j.status),
-      )
-    )
-      throw Error("目标有进行中的任务，请完成后重试");
-    if (op === "releaseRemoteProtection") {
-      if (p.confirmed !== true) throw Error("解除遗留保护需要显式确认");
-      if (!p.protectionKind || !p.protectionId || !p.generationId)
-        throw Error("解除遗留保护需要登记类型、登记身份与生成身份");
-      return releaseS3LegacyProtection(
-        objects,
-        base,
-        {
-          kind: p.protectionKind,
-          id: p.protectionId,
-          generationId: p.generationId,
-        },
-        p.attestation ?? "",
-        target.pendingGeneration ?? null,
-      );
-    }
-    if (op === "previewRemoteRetention")
-      return previewS3Retention(
-        objects,
-        base,
-        p.keep ?? 30,
-        p.calendar,
-        p.confirmed === true,
-      );
-    if (!p.planId || p.confirmed !== true)
-      throw Error("清理需要计划与显式确认");
-    let result;
-    for (let batch = 0; batch < 200; batch++) {
-      result = await applyS3Retention(objects, base, p.planId, true);
-      if (result.completed) return result;
-    }
-    throw Error("清理批次超过预算，请重试同一计划");
-  }
-
   const client = new CloudflareClient(target, await secret(s, target.id)),
     book = p.remoteNotebookId || target.remoteNotebookId || p.notebookId,
     lineage = p.lineageId || target.lineageId,
     base = `/v1/notebooks/${book}`;
-  // S3's control-record protections have no Cloudflare equivalent; the Worker
-  // exposes its own legacy execution lock diagnosis and release.
-  if (["remoteProtectionAudit", "releaseRemoteProtection"].includes(op))
-    throw Error(
-      "遗留保护处置仅用于 S3 目标；Cloudflare 使用 cloud:legacy-lock",
-    );
   const capability = await client.call("/v1/capabilities");
   if (
     !capability.capabilities?.includes("retention-gc") ||

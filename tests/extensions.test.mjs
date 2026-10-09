@@ -26,11 +26,6 @@ import {
   resourceIds,
 } from "../.build/packages/protocol/markdown.js";
 import {
-  uploadSnapshot,
-  listSnapshots,
-  restoreSnapshot,
-} from "../.build/packages/backup/providers.js";
-import {
   logicalBundle,
   restoreLogical,
 } from "../.build/packages/backup/logical.js";
@@ -582,76 +577,6 @@ test("AI proposal stale checks, explicit apply, duplicate apply and version-awar
     /版本冲突/,
   );
 });
-class MemoryObjects {
-  constructor() {
-    this.objects = new Map();
-    this.uploads = 0;
-  }
-  async has(k) {
-    return this.objects.has(k);
-  }
-  async put(k, b) {
-    this.uploads++;
-    this.objects.set(k, Buffer.from(b));
-  }
-  async get(k) {
-    if (!this.objects.has(k)) throw Error("missing");
-    return this.objects.get(k);
-  }
-  async list(p) {
-    return [...this.objects.keys()]
-      .filter((k) => k.startsWith(p))
-      .map((key) => ({ key, date: Date.now() }));
-  }
-}
-test("S3 contract skips unchanged content objects, commits only verified data and restores full state", async (t) => {
-  const { s, book, call } = await fixture(t);
-  await call("importFile", { name: "图.png", mime: "image/png", data: png });
-  const n = await call("createNode", { title: "S3", body: "正文" }),
-    objects = new MemoryObjects(),
-    lineageId = randomUUID(),
-    first = Buffer.from((await call("exportArchive")).data, "base64"),
-    one = await uploadSnapshot(objects, first, {
-      notebookId: book.id,
-      lineageId,
-      generationId: randomUUID(),
-    });
-  assert.equal(one.uploaded, 2);
-  await call("saveNote", { id: n.id, expectedRevision: 1, body: "正文变化" });
-  const two = await uploadSnapshot(
-    objects,
-    Buffer.from((await call("exportArchive")).data, "base64"),
-    { notebookId: book.id, lineageId, generationId: randomUUID() },
-  );
-  assert.equal(two.uploaded, 1);
-  assert.equal((await listSnapshots(objects, book.id, lineageId)).length, 2);
-  const restored = await restoreSnapshot(objects, {
-      notebookId: book.id,
-      lineageId,
-      generationId: two.generationId,
-    }),
-    result = await s.run("importArchive", {
-      data: restored.toString("base64"),
-    });
-  assert.equal(
-    (await s.run("getNote", { notebookId: result.id, id: n.id })).body,
-    "正文变化",
-  );
-  const failing = new MemoryObjects();
-  failing.get = async () => Buffer.from("corrupted");
-  await assert.rejects(
-    uploadSnapshot(failing, first, {
-      notebookId: book.id,
-      lineageId,
-      generationId: randomUUID(),
-    }),
-    /校验失败/,
-  );
-  assert.equal(
-    [...failing.objects.keys()].some((k) => k.endsWith("COMMITTED.json")),
-    false,
-  );
-});
 class D1 {
   constructor() {
     this.db = new DatabaseSync(":memory:");
@@ -875,7 +800,6 @@ test("backup service keeps secrets outside archives, retries failed stages and s
     return result;
   });
   const target = await call("configureBackup", {
-    provider: "cloudflare",
     name: "服务测试",
     endpoint: "https://backup.test",
     token: "session-secret",

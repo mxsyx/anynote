@@ -5,7 +5,6 @@ import { request } from "./api";
 interface Connection {
   id: string;
   name: string;
-  provider: string;
   credentialsMode: string;
 }
 
@@ -30,8 +29,9 @@ interface Page {
 /**
  * Cloud recovery panel.
  *
- * Connects to S3/Cloudflare without the original device config, discovers
- * existing versions with pagination, and restores one as a new Notebook.
+ * Connects to the self-hosted Cloudflare service without the original device
+ * config, discovers existing versions with pagination, and restores one as a
+ * new Notebook.
  */
 export default function CloudRecovery({
   onStarted,
@@ -39,7 +39,6 @@ export default function CloudRecovery({
   onStarted: () => void;
 }) {
   const [connections, setConnections] = useState<Connection[]>([]),
-    [provider, setProvider] = useState("cloudflare"),
     [connection, setConnection] = useState<Connection | null>(null),
     [versions, setVersions] = useState<Version[]>([]),
     [warnings, setWarnings] = useState<string[]>([]),
@@ -119,9 +118,7 @@ export default function CloudRecovery({
       {connections.map((c) => (
         <div className="setting-row" key={c.id}>
           <div>
-            <h3>
-              {c.name} · {c.provider === "s3" ? "S3" : "Cloudflare"}
-            </h3>
+            <h3>{c.name}</h3>
             <p>
               {c.credentialsMode === "session-only"
                 ? "预览凭据仅内存"
@@ -154,21 +151,8 @@ export default function CloudRecovery({
             void action(async () => {
               const c = await request<Connection>("configureCloudRecovery", {
                 name: String(form.get("name")),
-                provider,
                 endpoint: String(form.get("endpoint")),
-                ...(provider === "cloudflare"
-                  ? { token: String(form.get("token")) }
-                  : {
-                      bucket: String(form.get("bucket")),
-                      region: String(form.get("region") || "us-east-1"),
-                      prefix: String(form.get("prefix") || "anynote"),
-                      pathStyle: form.get("addressing") !== "virtual",
-                      accessKeyId: String(form.get("access")),
-                      secretAccessKey: String(form.get("secret")),
-                      ...(String(form.get("session") || "").trim()
-                        ? { sessionToken: String(form.get("session")) }
-                        : {}),
-                    }),
+                token: String(form.get("token")),
               });
               await reload();
               setAdd(false);
@@ -176,19 +160,6 @@ export default function CloudRecovery({
             });
           }}
         >
-          <label>
-            存储类型
-            <select
-              aria-label="存储类型"
-              name="provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              disabled={busy}
-            >
-              <option value="cloudflare">Cloudflare 自托管服务</option>
-              <option value="s3">S3 兼容存储</option>
-            </select>
-          </label>
           <label>
             连接名称
             <input name="name" defaultValue="云恢复" required disabled={busy} />
@@ -203,71 +174,16 @@ export default function CloudRecovery({
               disabled={busy}
             />
           </label>
-          {provider === "cloudflare" ? (
-            <label>
-              应用 Token
-              <input
-                name="token"
-                type="password"
-                required
-                autoComplete="new-password"
-                disabled={busy}
-              />
-            </label>
-          ) : (
-            <>
-              <label>
-                Bucket
-                <input name="bucket" required disabled={busy} />
-              </label>
-              <label>
-                Region
-                <input name="region" defaultValue="us-east-1" disabled={busy} />
-              </label>
-              <label>
-                Prefix
-                <input name="prefix" defaultValue="anynote" disabled={busy} />
-              </label>
-              <p className="small-note">
-                填写原备份的对象前缀；不同前缀中的备份需分别查询。
-              </p>
-              <label>
-                寻址方式
-                <select aria-label="寻址方式" name="addressing" disabled={busy}>
-                  <option value="path">路径寻址</option>
-                  <option value="virtual">虚拟主机寻址（OSS）</option>
-                </select>
-              </label>
-              <label>
-                Access Key ID
-                <input
-                  name="access"
-                  required
-                  autoComplete="off"
-                  disabled={busy}
-                />
-              </label>
-              <label>
-                Secret Access Key
-                <input
-                  name="secret"
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  disabled={busy}
-                />
-              </label>
-              <label>
-                Session Token（可选）
-                <input
-                  name="session"
-                  type="password"
-                  autoComplete="off"
-                  disabled={busy}
-                />
-              </label>
-            </>
-          )}
+          <label>
+            应用 Token
+            <input
+              name="token"
+              type="password"
+              required
+              autoComplete="new-password"
+              disabled={busy}
+            />
+          </label>
           <button className="primary" type="submit" disabled={busy}>
             {busy ? "正在连接…" : "保存连接并查询"}
           </button>
@@ -279,9 +195,7 @@ export default function CloudRecovery({
           {!versions.length && (
             <p className="muted">
               当前已查询范围没有可恢复版本。
-              {cursor
-                ? "还有更多数据，可以继续加载。"
-                : "请核对连接、Bucket 和前缀。"}
+              {cursor ? "还有更多数据，可以继续加载。" : "请核对连接配置。"}
             </p>
           )}
           {warnings.map((w, i) => (

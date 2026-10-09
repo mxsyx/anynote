@@ -162,7 +162,6 @@ try {
   }
   if (!ready) throw Error("Wrangler 本地服务启动超时：\n" + logs);
   await acceptanceScenario({
-    provider: "cloudflare",
     client,
     onPrepared: (scope) => {
       report.scope = scope;
@@ -187,7 +186,6 @@ try {
     },
   });
   await streamScenario({
-    provider: "cloudflare",
     settings: {
       config: { endpoint: client.url, allowInsecure: true },
       secrets: { token },

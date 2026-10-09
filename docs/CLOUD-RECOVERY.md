@@ -5,7 +5,7 @@
 ## 使用
 
 1. 打开「设置 → 从云端恢复」，添加云连接。
-2. Cloudflare 填写原 Worker Endpoint 和应用 Token。S3 填写原 Endpoint、Bucket、Region、Prefix 和访问凭据；阿里云 OSS 选择「虚拟主机寻址」。Prefix 必须与原备份一致。
+2. Cloudflare 填写原 Worker Endpoint 和应用 Token。
 3. 点击「保存连接并查询」，按需「继续加载版本」。核对 Notebook 和版本 UUID、时间与附件数量，再点击「恢复此版本」。旧备份缺少名称时以 UUID 标识。
 4. 在任务中心查看进度或取消；完成后打开恢复的 Notebook。如需继续备份，另行为副本配置目标。
 
@@ -13,7 +13,7 @@
 
 ## 发现与恢复
 
-恢复连接独立保存于设备 `_local/recovery-connections.json`。发现跨越该连接范围内的 Notebook 和分支，每次最多读取 10 个版本清单，继续按钮使用分页游标。Cloudflare 按提交时间倒序；S3 按对象列表顺序，不保证跨库时间排序。S3 每次对象列表最多 1,000 个键，只接受规范路径下的 COMMITTED 标记并验证清单哈希及身份；损坏版本跳过并显示警告。
+恢复连接独立保存于设备 `_local/recovery-connections.json`。发现跨越该连接范围内的 Notebook 和分支，每次最多读取 10 个版本清单，继续按钮使用分页游标。版本按提交时间倒序返回；损坏版本跳过并显示警告。
 
 Cloudflare 需升级包含 `backup-discovery-v1` 能力的 Worker，可运行 `pnpm run cloud:deploy` 复用已有 Wrangler 管理部署，无需新增 D1 迁移。`GET /v1/backups` 使用相同 APP_TOKEN，只返回已提交且未退役的版本。
 
@@ -25,14 +25,12 @@ Cloudflare 需升级包含 `backup-discovery-v1` 能力的 Worker，可运行 `p
 
 ```sh
 pnpm run test:cloud:cold-recovery
-pnpm run test:cloud:cold-recovery --provider cloudflare
-pnpm run test:cloud:cold-recovery --provider s3
 ```
 
-报告写入 `test-results/cloud-cold-recovery-acceptance.json`。真实 Cloudflare 和阿里云 OSS 各六项通过，见真实云报告：发布两个版本、删除全部独立源工作区、在空工作区只配置云连接、发现旧新版本，再分别恢复并验证正文、未知块、自链接重写、标签/收藏、历史、回收站、附件哈希与搜索。恢复后没有备份目标。
+报告写入 `test-results/cloud-cold-recovery-acceptance.json`。真实 Cloudflare 六项通过，见真实云报告：发布两个版本、删除全部独立源工作区、在空工作区只配置云连接、发现旧新版本，再分别恢复并验证正文、未知块、自链接重写、标签/收藏、历史、回收站、附件哈希与搜索。恢复后没有备份目标。
 
-本地回归新增三项：两个提供方各 12 个版本的分页及无源恢复、连接持久化和错误身份拒绝；完整 92 项及类型检查通过。
+本地回归新增三项：12 个版本的分页及无源恢复、连接持久化和错误身份拒绝；完整回归及类型检查通过。
 
 桌面扩展验收见 [桌面说明](./DESKTOP-CLOUD-ACCEPTANCE.md)。真实云脚本删除的是独立测试数据；仍需有效账号凭据，不证明丢失云账号后可恢复。尚未覆盖 Windows/macOS、整机故障和长期负载，完整 v1 发布门槛仍未全部完成。
 
-真实 Cloudflare 和 OSS 的最新 Linux 打包应用各通过 11 项桌面检查，包含独立新设备目录的界面连接、真实系统加密、重启发现及恢复打开；见 Cloudflare 打包报告和 OSS 打包报告。
+真实 Cloudflare 的最新 Linux 打包应用通过 11 项桌面检查，包含独立新设备目录的界面连接、真实系统加密、重启发现及恢复打开；见 Cloudflare 打包报告。

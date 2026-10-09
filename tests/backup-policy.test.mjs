@@ -138,39 +138,25 @@ test("policy operations persist settings and environment reporting", async (t) =
   assert.equal(reread.environment.metered, true);
 });
 
-test("setBackupSchedule applies provider-correct intervals", async (t) => {
+test("setBackupSchedule applies the Cloudflare interval", async (t) => {
   const f = await fixture(t, "默认间隔"),
-    s3 = await f.call("configureBackup", {
-      provider: "s3",
-      name: "S3",
-      endpoint: "https://s3.test",
-      bucket: "b",
-      accessKeyId: "a",
-      secretAccessKey: "s",
-    }),
     cf = await f.call("configureBackup", {
-      provider: "cloudflare",
       name: "CF",
       endpoint: "https://cf.test",
       token: "t",
     }),
-    s3Set = await f.call("setBackupSchedule", {
-      targetId: s3.id,
-      enabled: true,
-    }),
-    cfSet = await f.call("setBackupSchedule", {
+    set = await f.call("setBackupSchedule", {
       targetId: cf.id,
       enabled: true,
     });
-  assert.equal(s3Set.intervalMinutes, 10);
-  assert.equal(cfSet.intervalMinutes, 1);
-  // S3 never drops below its 10 minute floor even when explicitly requested.
-  const clamped = await f.call("setBackupSchedule", {
-    targetId: s3.id,
+  assert.equal(set.intervalMinutes, 1);
+  // An explicit interval above the platform floor is honored.
+  const custom = await f.call("setBackupSchedule", {
+    targetId: cf.id,
     enabled: true,
-    intervalMinutes: 2,
+    intervalMinutes: 5,
   });
-  assert.equal(clamped.intervalMinutes, 10);
+  assert.equal(custom.intervalMinutes, 5);
 });
 
 test("the scheduler honors the battery pause policy for local targets", async (t) => {
@@ -204,7 +190,6 @@ test("the scheduler honors the battery pause policy for local targets", async (t
 test("a throttled remote failure backs off before the next automatic attempt", async (t) => {
   const f = await fixture(t, "限流退避"),
     target = await f.call("configureBackup", {
-      provider: "cloudflare",
       name: "限流",
       endpoint: "https://throttle.test",
       token: "t",
@@ -238,7 +223,6 @@ test("a throttled remote failure backs off before the next automatic attempt", a
 test("a permanent authentication failure halts automatic scheduling", async (t) => {
   const f = await fixture(t, "鉴权停止"),
     target = await f.call("configureBackup", {
-      provider: "cloudflare",
       name: "鉴权",
       endpoint: "https://auth.test",
       token: "t",

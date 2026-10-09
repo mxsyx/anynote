@@ -32,17 +32,8 @@ if (
     process.env.ANYNOTE_CF_TOKEN = managed.token;
   }
 }
-const args = process.argv.slice(2);
-if (
-  args.length &&
-  (args.length !== 2 ||
-    args[0] !== "--provider" ||
-    !["all", "cloudflare", "s3"].includes(args[1]))
-)
-  throw Error(
-    "用法：pnpm run test:cloud:recovery --provider all|cloudflare|s3",
-  );
-const selected = args[1] || "all";
+if (process.argv.slice(2).length)
+  throw Error("用法：pnpm run test:cloud:recovery");
 const file = resolve("test-results/cloud-recovery-acceptance.json"),
   report = {
     format: "anynote.cloud-recovery-acceptance.v1",
@@ -54,7 +45,7 @@ const file = resolve("test-results/cloud-recovery-acceptance.json"),
     limitations: [
       "使用真实子进程 SIGKILL，在客户端协议检查点中断；不代表厂商区域故障或断电。",
       "源 Notebook 离线场景保留设备目标配置与凭据；不代表全新设备无配置恢复向导验收。",
-      "使用独立 Notebook/lineage 和 S3 前缀，保留远端验收数据。凭据由验收进程通过 IPC 提供，不作为系统密钥服务验收。Cloudflare 被中断的恢复 pin 按服务端 TTL 过期。",
+      "使用独立 Notebook/lineage，保留远端验收数据。凭据由验收进程通过 IPC 提供，不作为系统密钥服务验收。被中断的恢复 pin 按服务端 TTL 过期。",
     ],
   };
 function save() {
@@ -63,18 +54,16 @@ function save() {
     mode: 0o600,
   });
 }
-for (const provider of selected === "all" ? ["cloudflare", "s3"] : [selected]) {
-  const record = { provider, status: "running", steps: [] };
+{
+  const provider = "cloudflare",
+    record = { provider, status: "running", steps: [] };
   report.providers.push(record);
   save();
   try {
-    const settings = readCloudConfig(provider);
+    const settings = readCloudConfig();
     if (settings.missing)
       throw Error("缺少配置：" + settings.missing.join(", "));
-    if (provider === "s3")
-      settings.config.prefix = "anynote-recovery-acceptance/" + report.runId;
     await recoveryScenario({
-      provider,
       settings,
       onStep: (step, steps) => {
         record.steps = steps;

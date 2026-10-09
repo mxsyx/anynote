@@ -14,11 +14,7 @@ import { dirname, join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import { hashFile } from "../../.build/packages/storage-sqlite/archive-stream.js";
-export async function streamScenario({
-  provider,
-  settings,
-  onStep = () => {},
-}) {
+export async function streamScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cloud-stream-"));
   const storage = new Storage(join(root, "data"));
   const steps = [];
@@ -74,7 +70,6 @@ export async function streamScenario({
     const trash = await call("createNode", { title: "回收站验收" });
     await call("trashNode", { id: trash.id });
     const target = await call("configureBackup", {
-      provider,
       name: "分块验收",
       ...settings.config,
       ...settings.secrets,

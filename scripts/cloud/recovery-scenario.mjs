@@ -18,9 +18,6 @@ export async function recoveryChild(message) {
   for (const key of [
     "ANYNOTE_CF_TOKEN",
     "ANYNOTE_CF_ENDPOINT",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
     "CLOUDFLARE_API_TOKEN",
   ])
     delete env[key];
@@ -62,11 +59,7 @@ export async function recoveryChild(message) {
     }
   }
 }
-export async function recoveryScenario({
-  provider,
-  settings,
-  onStep = () => {},
-}) {
+export async function recoveryScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-recovery-")),
     data = join(root, "data"),
     steps = [];
@@ -119,7 +112,6 @@ export async function recoveryScenario({
       data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF9sAAAAASUVORK5CYII=",
     });
     target = await call("configureBackup", {
-      provider,
       name: "恢复演练",
       ...settings.config,
       ...settings.secrets,

@@ -1,6 +1,6 @@
 # 真实云备份验收
 
-2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。阿里云 OSS 的 S3 兼容 API 也已通过 7 项真实云检查，结果见 OSS 报告。这些协议测试不代表完整产品发布验收通过。
+2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。这些协议测试不代表完整产品发布验收通过。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）
 
@@ -16,61 +16,33 @@ pnpm run cloud:deploy
 
 部署配置和状态保存在 `.cloudflare-acceptance/`，已加入 git 忽略；`secrets.json` 权限为 600，不包含在验收报告中。请保留该目录以复用这套测试资源。后续 `pnpm run test:cloud --provider cloudflare` 自动读取保存的地址与 Token；只有完整的手填 Endpoint/Token 对才优先覆盖自动配置。
 
-此命令只部署并验收 Cloudflare；S3 仍需配置下表中的 bucket 和访问凭据。源文件 `apps/cloudflare-backup/wrangler.jsonc` 留作手动生产部署配置，自动流程使用独立生成的配置。
+此命令只部署并验收 Cloudflare。源文件 `apps/cloudflare-backup/wrangler.jsonc` 留作手动生产部署配置，自动流程使用独立生成的配置。
 
-## 配置已有服务（可选手动 Cloudflare / S3）
+## 配置已有服务（可选手动 Cloudflare）
 
 将根目录 `.env.cloud.example` 复制为 `.env.cloud`，在本机填写；此文件已加入 git 忽略，不要提交或粘贴密钥到聊天。
 
-| 环境变量                                      | 用途                                          |
-| --------------------------------------------- | --------------------------------------------- |
-| `ANYNOTE_CF_ENDPOINT`                         | 已部署 Worker 的 HTTPS 地址                   |
-| `ANYNOTE_CF_TOKEN`                            | Worker 的 APP_TOKEN，非 Cloudflare 管理 token |
-| `ANYNOTE_S3_ENDPOINT`                         | S3 兼容服务 HTTPS Endpoint                    |
-| `ANYNOTE_S3_BUCKET`                           | 已存在的测试 bucket                           |
-| `ANYNOTE_S3_REGION`                           | 服务要求的 Region                             |
-| `ANYNOTE_S3_PATH_STYLE`                       | 默认 `true`，虚拟主机寻址可设为 `false`       |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | 对测试前缀有 Put/Get/Head/List 权限的 S3 凭据 |
-| `AWS_SESSION_TOKEN`                           | 临时凭据可选 session token                    |
+| 环境变量              | 用途                                          |
+| --------------------- | --------------------------------------------- |
+| `ANYNOTE_CF_ENDPOINT` | 已部署 Worker 的 HTTPS 地址                   |
+| `ANYNOTE_CF_TOKEN`    | Worker 的 APP_TOKEN，非 Cloudflare 管理 token |
 
 Node 24 可直接读取文件，无需把密钥放入 shell 命令参数。直接调用脚本前先编译核心；`pnpm run test:cloud` 会自动完成编译：
 
 ```sh
 pnpm run build:backend
 node --env-file=.env.cloud scripts/cloud-acceptance.mjs --preflight
-node --env-file=.env.cloud scripts/cloud-acceptance.mjs --provider all
+node --env-file=.env.cloud scripts/cloud-acceptance.mjs
 ```
 
 也可以由当前环境提供变量，再运行：
 
 ```sh
-pnpm run test:cloud --provider cloudflare
-pnpm run test:cloud --provider s3
-pnpm run test:cloud --provider all --report test-results/cloud-acceptance.json
+pnpm run test:cloud
+pnpm run test:cloud --report test-results/cloud-acceptance.json
 ```
 
-预检查不联网，仅验证变量与地址格式，不验证凭据可用性。缺少配置退出码为 2、验收失败为 1、通过为 0；预检查通过报告为 `configured`，绝不会标成真实云 `passed`。默认全部 Provider，单个 Provider 通过仅证明对应目标。
-
-## 阿里云 OSS 的 S3 兼容配置
-
-使用 S3 兼容 Endpoint，并关闭路径寻址。例如杭州地域：
-
-```dotenv
-ANYNOTE_S3_ENDPOINT=https://s3.oss-cn-hangzhou.aliyuncs.com
-ANYNOTE_S3_REGION=cn-hangzhou
-ANYNOTE_S3_PATH_STYLE=false
-```
-
-Bucket 填实际 bucket 名称，访问凭据使用有权限的阿里云 RAM AccessKey；环境变量沿用 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`，不要求使用 AWS 账号。不要把 bucket 名提前加到这里的区域 Endpoint 中，SDK 会生成虚拟主机地址。
-
-`https://oss-cn-hangzhou.aliyuncs.com` 是 OSS 原生地址，S3 SDK 应使用上述 `s3.oss-...` 地址。OSS 只支持虚拟主机寻址，路径寻址会被拒绝。依据 [阿里云 AWS SDK 接入说明](https://help.aliyun.com/zh/oss/developer-reference/use-aws-sdks-to-access-oss) 和 [S3 兼容性限制](https://www.alibabacloud.com/help/en/oss/developer-reference/compatibility-with-amazon-s3)。更换地域时同步修改 Endpoint 和 Region。
-
-```sh
-pnpm run build:backend
-node --env-file=.env.cloud scripts/cloud-acceptance.mjs --provider s3
-```
-
-本次最初在上传步骤收到 HTTP 403；修正 Endpoint 与寻址方式后，原有凭据即通过全部验收，无需更换密钥或扩大权限。若正确配置后仍返回 403，请核对 RAM/bucket policy 和服务返回的错误，而非将 403 当作对象不存在。
+预检查不联网，仅验证变量与地址格式，不验证凭据可用性。缺少配置退出码为 2、验收失败为 1、通过为 0；预检查通过报告为 `configured`，绝不会标成真实云 `passed`。
 
 ## 部署 Cloudflare Worker
 
@@ -96,27 +68,27 @@ npx wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc
 
 临时库包含中文正文、未知扩展块、目录、标题/标签/收藏历史、内联资源、独立图片和回收站内容。真实云下载后使用正式导入路径创建新 Notebook，验证内容、资源字节、历史、回收站与重建搜索。远端数据读取会执行正式 Provider 的 SHA-256、大小、schema 与完整性检查。
 
-| 场景                       | S3                                            | Cloudflare                                       |
-| -------------------------- | --------------------------------------------- | ------------------------------------------------ |
-| 无效身份凭据被拒绝         | 无效签名 HEAD                                 | 错误 APP_TOKEN 返回 401                          |
-| 上传、读取校验与完整恢复   | 完整快照与附件                                | 逻辑实体 checkpoint 与附件                       |
-| 未变化对象不再上传         | 相同 bundle 新 generation 上传数为 0          | 新 generation plan 的 missing 为 0               |
-| 未提交版本对恢复列表不可见 | marker 写入前注入中断                         | staging 版本、缺对象提交拒绝                     |
-| 提交响应丢失与幂等重试     | marker 已写入后客户端抛错、同 generation 重试 | commit 已完成后客户端抛错、查询状态并重复 commit |
-| 篡改校验                   | 客户端下载字节篡改后拒绝恢复                  | 错误哈希对象上传被拒绝                           |
-| 幂等身份冲突               | 未覆盖不同内容复用同一 generation             | 同 generation 不同 manifest 返回 409             |
-| 并发提交竞争               | 不提供分支 CAS                                | 两个 generation 同时提交，只有一个可发布         |
-| 新旧版本恢复               | 修改后恢复新版本，同时验证旧版本              | 修改后走公开 Provider 上传/恢复，同时验证旧版本  |
+| 场景                       | Cloudflare                                       |
+| -------------------------- | ------------------------------------------------ |
+| 无效身份凭据被拒绝         | 错误 APP_TOKEN 返回 401                          |
+| 上传、读取校验与完整恢复   | 逻辑实体 checkpoint 与附件                       |
+| 未变化对象不再上传         | 新 generation plan 的 missing 为 0               |
+| 未提交版本对恢复列表不可见 | staging 版本、缺对象提交拒绝                     |
+| 提交响应丢失与幂等重试     | commit 已完成后客户端抛错、查询状态并重复 commit |
+| 篡改校验                   | 错误哈希对象上传被拒绝                           |
+| 幂等身份冲突               | 同 generation 不同 manifest 返回 409             |
+| 并发提交竞争               | 两个 generation 同时提交，只有一个可发布         |
+| 新旧版本恢复               | 修改后走公开 Provider 上传/恢复，同时验证旧版本  |
 
 新增 5 项 Cloudflare 检查覆盖恢复 pin 与预览不删除、保护改变后旧计划拒绝、确认后旧版本删除/保留 head 恢复、接管后旧设备拒绝上传及新设备提交、日/周/月策略保留旧月代表版本并恢复。新上传对象仍在 24 小时宽限期内，不据此宣称真实云老化对象回收已验收。
 
-故障注入发生在客户端调用边界，上传、commit、列举和恢复仍由真实服务执行；不表示云厂商发生实际故障，不包括区域失效、跨地域复制或权限撤销演练。AWS S3 的 PUT/GET/LIST 使用[官方强一致性保证](https://aws.amazon.com/s3/consistency/)；其他 S3 兼容服务由本工具验证其实际行为，不预设兼容性。
+故障注入发生在客户端调用边界，上传、commit、列举和恢复仍由真实服务执行；不表示云厂商发生实际故障，不包括区域失效、跨地域复制或权限撤销演练。
 
 ## 报告与测试数据
 
-报告默认写入 `test-results/cloud-acceptance.json`，每步更新：模式、整体/目标状态、步骤耗时、endpoint、测试 Notebook/lineage/generation UUID、S3 独立前缀、错误或缺失变量。已知 token 和访问凭据会脱敏；报告目录已被 git 忽略。
+报告默认写入 `test-results/cloud-acceptance.json`，每步更新：模式、整体/目标状态、步骤耗时、endpoint、测试 Notebook/lineage/generation UUID、错误或缺失变量。已知 token 和访问凭据会脱敏；报告目录已被 git 忽略。
 
-S3 每次只写 `anynote-acceptance/<runId>/`；Cloudflare 每次使用新的 Notebook 和 lineage。云端测试数据保留供核查，脚本不删除原有数据；清理时仅处理报告列出的本次测试范围。Cloudflare 已提供受并发保护的清理 API；新增维护场景只删除本次新建测试库中的指定旧版本，其余测试数据继续保留。详见 [远端维护](./REMOTE-MAINTENANCE.md)。
+每次验收使用新的 Notebook 和 lineage。云端测试数据保留供核查，脚本不删除原有数据；清理时仅处理报告列出的本次测试范围。Cloudflare 已提供受并发保护的清理 API；新增维护场景只删除本次新建测试库中的指定旧版本，其余测试数据继续保留。详见 [远端维护](./REMOTE-MAINTENANCE.md)。
 
 仅当报告 `mode=real-cloud`，所有选定目标 `status=passed` 且全部步骤通过，才能记录该目标的真实云协议验收成功。Linux 真实 GNOME Keyring、应用重启、正式自动备份与恢复流程已另行通过 [桌面验收](./DESKTOP-CLOUD-ACCEPTANCE.md)。其他平台的系统密钥服务、系统重启、自动备份长期运行、超过 24 小时无引用对象的真实回收及厂商级故障仍需独立验收。
 

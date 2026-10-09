@@ -137,7 +137,7 @@ export function startBackupScheduler(
         if (target.nextAttemptAt && time < target.nextAttemptAt) continue;
         if (
           time - (target.lastAttempt || target.lastSuccess || 0) <
-          (target.intervalMinutes || 10) * 60000
+          (target.intervalMinutes || 1) * 60000
         )
           continue;
         try {

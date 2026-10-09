@@ -4,6 +4,18 @@
 版本号使用语义化版本。发布单元的独立版本与兼容窗口见
 [发布矩阵](./docs/RELEASE-MATRIX.md)；本文件随每个 tarball 一起发布。
 
+## Unreleased
+
+### 桌面应用
+
+- 移除：S3 兼容备份端。远端备份与云端恢复仅支持自托管 Cloudflare 服务，配置不再包含
+  `provider` / `bucket` / `region` / `prefix` / `pathStyle` 与 Access Key 凭据；删除
+  `S3Objects`、S3 快照上传/恢复及 S3 维护相关模块。
+- 移除：`remoteProtectionAudit` 与 `releaseRemoteProtection` 操作及其维护界面入口。
+- 移除：`@aws-sdk/client-s3` 依赖、`ANYNOTE_S3_*` / `AWS_*` 环境变量与
+  `test:s3:second`、`test:s3:maintenance:capabilities`、`test:desktop:s3` 脚本；云验收脚本
+  只接受 Cloudflare。
+
 ## 0.1.0
 
 首个预览版本，尚未发布到 npm。桌面安装包通过 GitHub Release 分发，Worker 通过

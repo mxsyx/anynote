@@ -29,14 +29,14 @@ pnpm run test:desktop:cloud --isolated-keyring
 1. 系统加密可用且后端不为 basic_text，窗口启用 sandbox/contextIsolation 并关闭 nodeIntegration。
 2. 真实桌面保存中文/未知块夹具，包含标签、收藏、历史、回收站和内联资源。
 3. UI 配置目标并测试真实云连接，凭据文件非明文、目标元数据不含 Token。
-4. UI 开启默认 10 分钟自动备份配置，退出并重启，Electron 环境不传入云端 Token。
+4. UI 开启约每分钟自动备份配置，退出并重启，Electron 环境不传入云端 Token。
 5. 等待正式 60 秒轮询触发到期的首个自动备份；核对任务中心、远端 generation 和本机 ack 游标。
 6. 修改笔记后通过 UI 手动备份，再次备份无变化时跳过上传且远端版本数不增加。
 7. UI 选择旧、新云版本分别恢复为副本，核对正文、未知块、资源字节、历史、回收站和搜索；原 Notebook 不被覆盖。
 8. 导出归档不含 Token、设备凭据及备份目标。
 9. 再次退出并重启，核对游标和自动备份开关持久化，再测试连接与列举版本。
 
-自动备份没有模拟时钟、缩短调度轮询或绕过调度器；首次备份因没有 lastAttempt/lastSuccess 而到期。它不等于持续每 10 分钟备份的长时间负载测试。
+自动备份没有模拟时钟、缩短调度轮询或绕过调度器；首次备份因没有 lastAttempt/lastSuccess 而到期。它不等于持续自动备份的长时间负载测试。
 
 验收启动时设置 `NODE_USE_ENV_PROXY=1`，使真实存储进程使用本机已有的 HTTP(S) 代理配置；没有代理时仍直连。测试不注入或替换网络响应。
 
@@ -47,19 +47,6 @@ pnpm run test:desktop:cloud --isolated-keyring
 ```sh
 ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote pnpm run test:desktop:cloud --isolated-keyring
 ```
-
-## 阿里云 OSS（S3 API）
-
-生产页面和最新 Linux 打包应用均通过同样 9 项真实桌面检查，见 OSS 生产页面报告和 OSS Linux 打包报告。在 `.env.cloud` 中配置 OSS 的 S3 Endpoint、Bucket、Region 与访问凭据；OSS 使用虚拟主机寻址（`ANYNOTE_S3_PATH_STYLE=false`）。桌面添加 S3 目标时可选择寻址方式，临时凭据可填写 Session Token。
-
-```sh
-pnpm run build
-pnpm run test:desktop:s3 --isolated-keyring
-# Linux 打包版
-ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote pnpm run test:desktop:s3 --isolated-keyring
-```
-
-默认报告为 `test-results/desktop-s3-acceptance.json`。S3 凭据仅用于界面填写，启动的 Electron 不从环境获得 AWS 密钥；重启后由系统加密存储读取。OSS 是已验收的一种 S3 兼容服务，Cloudflare Worker/D1/R2 逻辑备份不计作第二种 S3 服务。
 
 ## 远端维护扩展验收
 
@@ -82,9 +69,8 @@ ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote pnpm run test:desktop:cloud --
 
 ```sh
 ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote pnpm run test:desktop:cloud --isolated-keyring --cold-recovery
-ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote pnpm run test:desktop:s3 --isolated-keyring --cold-recovery
 ```
 
-默认报告仍为对应提供方的 `test-results/desktop-*-acceptance.json`。此扩展验证全新设备向导与应用重启；彻底删除源工作区并分别恢复旧新版本的独立云验收见 [全新设备恢复](./CLOUD-RECOVERY.md)。
+默认报告仍为 `test-results/desktop-cloud-acceptance.json`。此扩展验证全新设备向导与应用重启；彻底删除源工作区并分别恢复旧新版本的独立云验收见 [全新设备恢复](./CLOUD-RECOVERY.md)。
 
-真实 Cloudflare 和 OSS 的最新 Linux 打包应用各通过 11 项桌面检查，包含独立新设备目录的界面连接、真实系统加密、重启发现及恢复打开；见 Cloudflare 打包报告和 OSS 打包报告。
+真实 Cloudflare 的最新 Linux 打包应用通过 11 项桌面检查，包含独立新设备目录的界面连接、真实系统加密、重启发现及恢复打开；见 Cloudflare 打包报告。

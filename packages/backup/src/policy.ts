@@ -134,16 +134,10 @@ const authNames = new Set([
   "Unauthorized",
   "AccessDenied",
   "AccessDeniedException",
-  "InvalidAccessKeyId",
-  "SignatureDoesNotMatch",
   "ExpiredToken",
   "ExpiredTokenException",
   "InvalidToken",
-  "InvalidClientTokenId",
-  "TokenRevoked",
-  "CredentialsError",
   "MissingAuthenticationToken",
-  "AccountProblem",
 ]);
 
 /** Error names that mean the service asked us to slow down. */
@@ -157,7 +151,7 @@ const throttledNames = new Set([
 ]);
 
 /**
- * Extract an HTTP status code from an error thrown by fetch or the AWS SDK.
+ * Extract an HTTP status code from an error thrown by fetch.
  *
  * @param error Thrown error.
  * @returns Status code when the error carries one.
@@ -344,34 +338,22 @@ export function environmentPause(
 }
 
 /**
- * Provider-specific automatic interval defaults and floors.
+ * Automatic backup interval floor and default, in minutes.
  *
- * Design §11.3 suggests triggering Cloudflare about 60s after edits stop and
- * only every 10min for S3. We keep interval-based scheduling (the scheduler
- * polls every 60s) but adopt those cadences as defaults and enforce the S3
- * floor, so the configured behavior matches the design's intent.
+ * Design §11.3 triggers Cloudflare about 60s after edits stop; the scheduler
+ * polls every 60s and enforces this floor so the configured behavior matches
+ * the design's intent.
  */
-export const providerSchedule = {
-  cloudflare: { defaultIntervalMinutes: 1, minimumIntervalMinutes: 1 },
-  s3: { defaultIntervalMinutes: 10, minimumIntervalMinutes: 10 },
-} as const;
+const minimumIntervalMinutes = 1;
 
 /**
- * Resolve a target's automatic backup interval against the provider defaults.
+ * Resolve a target's automatic backup interval.
  *
- * @param provider Target provider.
  * @param requested Requested interval in minutes, if any.
- * @returns The interval to persist, never below the provider floor.
+ * @returns The interval to persist, never below the platform floor.
  */
-export function scheduleInterval(
-  provider: "s3" | "cloudflare",
-  requested?: number,
-): number {
-  const preset = providerSchedule[provider] ?? providerSchedule.s3;
-  return Math.max(
-    preset.minimumIntervalMinutes,
-    requested ?? preset.defaultIntervalMinutes,
-  );
+export function scheduleInterval(requested?: number): number {
+  return Math.max(minimumIntervalMinutes, requested ?? minimumIntervalMinutes);
 }
 
 /**

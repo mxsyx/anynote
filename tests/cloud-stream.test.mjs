@@ -19,14 +19,9 @@ import {
   transferChunkBytes,
   objectDescriptors,
 } from "../.build/packages/protocol/cloud-objects.js";
-import {
-  S3Objects,
-  uploadSnapshot,
-  CloudflareClient,
-} from "../.build/packages/backup/providers.js";
+import { CloudflareClient } from "../.build/packages/backup/providers.js";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
-import { fileS3Server } from "./helpers/file-s3-server.mjs";
 const size = 112 * 1024 ** 2;
 async function fixture(t, large = true) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cloud-stream-")),
@@ -123,89 +118,6 @@ async function verifyRestore(s, id, f) {
   if (f.hash)
     assert.equal((await hashFile(s.notebookPath(id, f.path))).sha256, f.hash);
 }
-test("S3 public tasks back up and restore 112MiB without ZIP buffers; edits during upload keep the captured revision", async (t) => {
-  const f = await fixture(t),
-    server = await fileS3Server(join(f.root, "s3"));
-  t.onTestFinished(() => server.close());
-  const target = await f.call("configureBackup", {
-    provider: "s3",
-    name: "S3",
-    endpoint: server.endpoint,
-    allowInsecure: true,
-    bucket: "bucket",
-    accessKeyId: "fixture",
-    secretAccessKey: "fixture",
-  });
-  let entered, release;
-  const waiting = new Promise((r) => (entered = r)),
-    gate = new Promise((r) => (release = r));
-  server.pause(async (key) => {
-    if (key.includes("/objects/")) {
-      server.pause(undefined);
-      entered();
-      await gate;
-    }
-  });
-  forbidLegacy(f.s);
-  t.onTestFinished(() => release());
-  const job = await f.call("startBackup", { targetId: target.id });
-  await Promise.race([
-    waiting,
-    f.s.jobs.get(job.id).promise.then(() => {
-      throw Error(f.s.jobs.get(job.id).error || "upload did not reach asset");
-    }),
-  ]);
-  await f.call("saveNote", {
-    id: f.note.id,
-    expectedRevision: f.note.revision,
-    body: f.note.body + "\n上传时编辑",
-  });
-  release();
-  await complete(f.s, job);
-  assert.ok(
-    (await f.call("listBackupTargets"))[0].lastAckSeq <
-      f.s.open(f.book.id).prepare("SELECT content_seq FROM notebook_meta").get()
-        .content_seq,
-    "edits during upload must remain unacknowledged",
-  );
-  assert.ok(server.puts.every((p) => p.size <= transferChunkBytes));
-  assert.equal(f.s.pins.size, 0);
-  assert.deepEqual(readdirSync(join(f.s.root, "_local/backup-jobs")), []);
-  const versions = await f.call("listRemoteBackups", { targetId: target.id });
-  const restored = await complete(
-    f.s,
-    await f.call("restoreRemoteBackup", {
-      targetId: target.id,
-      generationId: versions[0].id,
-    }),
-  );
-  await verifyRestore(f.s, restored.restoredId, f);
-  const _changed = await complete(
-    f.s,
-    await f.call("startBackup", { targetId: target.id }),
-  );
-  const latest = (await f.call("listBackupTargets"))[0];
-  assert.notEqual(latest.lastGeneration, versions[0].id);
-  assert.equal(
-    latest.lastAckSeq,
-    f.s.open(f.book.id).prepare("SELECT content_seq FROM notebook_meta").get()
-      .content_seq,
-  );
-  const assetUploads = server.puts.filter((p) =>
-    p.key.includes("/objects/sha256/"),
-  );
-  assert.equal(
-    assetUploads.length,
-    1,
-    "unchanged repeated chunks deduplicate across versions",
-  );
-  assert.equal(
-    (await complete(f.s, await f.call("startBackup", { targetId: target.id })))
-      .progress,
-    "没有变化，已跳过上传",
-  );
-  assert.deepEqual(readdirSync(join(f.s.root, "_local/archive-jobs")), []);
-});
 test("Cloudflare public tasks split 112MiB, protect chunk references during GC and reject a damaged restore", async (t) => {
   const f = await fixture(t),
     env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: "fixture" };
@@ -216,7 +128,6 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
     return worker.fetch(new Request(url, opts), env);
   });
   const target = await f.call("configureBackup", {
-    provider: "cloudflare",
     name: "CF",
     endpoint: "https://backup.test",
     token: "fixture",
@@ -275,38 +186,6 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
     env.DB.db.prepare("SELECT COUNT(*) AS n FROM restore_pins").get().n,
     0,
   );
-});
-test("the file restore path reads legacy S3 manifests", async (t) => {
-  const f = await fixture(t, false),
-    server = await fileS3Server(join(f.root, "s3"));
-  t.onTestFinished(() => server.close());
-  const config = {
-    provider: "s3",
-    name: "S3",
-    endpoint: server.endpoint,
-    allowInsecure: true,
-    bucket: "bucket",
-    accessKeyId: "fixture",
-    secretAccessKey: "fixture",
-  };
-  const target = await f.call("configureBackup", config);
-  const objects = new S3Objects(target, {
-    accessKeyId: "fixture",
-    secretAccessKey: "fixture",
-  });
-  const generationId = randomUUID(),
-    bundle = Buffer.from((await f.call("exportArchive")).data, "base64");
-  await uploadSnapshot(objects, bundle, {
-    notebookId: f.book.id,
-    lineageId: target.lineageId,
-    generationId,
-  });
-  forbidLegacy(f.s);
-  const restored = await complete(
-    f.s,
-    await f.call("restoreRemoteBackup", { targetId: target.id, generationId }),
-  );
-  await verifyRestore(f.s, restored.restoredId, f);
 });
 test("chunk metadata rejects inconsistent sizes, paths and hash conflicts before staging", () => {
   const hash = "a".repeat(64),
@@ -373,7 +252,6 @@ test("cancelled cloud uploads and restores release temporary files and pins with
     return worker.fetch(new Request(url, opts), env);
   });
   const target = await f.call("configureBackup", {
-    provider: "cloudflare",
     name: "CF",
     endpoint: "https://backup.test",
     token: "fixture",
@@ -474,52 +352,6 @@ test("Cloudflare refuses to commit when an asset chunk is missing", async (t) =>
     0,
   );
 });
-test("S3 also chunks a SQLite database larger than 16MiB and restores it through validation", async (t) => {
-  const f = await fixture(t, false),
-    server = await fileS3Server(join(f.root, "s3"));
-  t.onTestFinished(() => server.close());
-  for (let n = 0; n < 18; n++)
-    f.s.tx(f.s.open(f.book.id), f.note.id, "fixture", () => ({
-      padding: "x".repeat(1024 ** 2),
-    }));
-  const target = await f.call("configureBackup", {
-    provider: "s3",
-    name: "S3",
-    endpoint: server.endpoint,
-    allowInsecure: true,
-    bucket: "bucket",
-    accessKeyId: "fixture",
-    secretAccessKey: "fixture",
-  });
-  forbidLegacy(f.s);
-  await complete(f.s, await f.call("startBackup", { targetId: target.id }));
-  const { readFileSync } = await import("node:fs"),
-    manifestFile = [...server.files].find(([key]) =>
-      key.endsWith("/manifest.json"),
-    )[1].file;
-  const manifest = JSON.parse(readFileSync(manifestFile));
-  assert.equal(manifest.protocolVersion, 2);
-  assert.ok(manifest.database.chunks.length >= 2);
-  assert.ok(server.puts.every((p) => p.size <= transferChunkBytes));
-  const version = (
-      await f.call("listRemoteBackups", { targetId: target.id })
-    )[0],
-    restored = await complete(
-      f.s,
-      await f.call("restoreRemoteBackup", {
-        targetId: target.id,
-        generationId: version.id,
-      }),
-    );
-  await verifyRestore(f.s, restored.restoredId, f);
-  assert.equal(
-    f.s
-      .open(restored.restoredId)
-      .prepare("SELECT COUNT(*) AS n FROM changes WHERE operation='fixture'")
-      .get().n,
-    18,
-  );
-});
 test("Cloudflare download budgets apply even when Content-Length is absent", async () => {
   let cancelled = false;
   vi.spyOn(globalThis, "fetch").mockImplementation(
@@ -553,7 +385,6 @@ test("file-based Cloudflare restore also accepts legacy manifests without chunks
     worker.fetch(new Request(url, opts), env),
   );
   const target = await f.call("configureBackup", {
-      provider: "cloudflare",
       name: "CF",
       endpoint: "https://backup.test",
       token: "fixture",
@@ -592,7 +423,6 @@ test("an old Worker rejects large-file backup before staging and releases the lo
     return response;
   });
   const target = await f.call("configureBackup", {
-    provider: "cloudflare",
     name: "CF",
     endpoint: "https://backup.test",
     token: "fixture",

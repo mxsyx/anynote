@@ -121,7 +121,6 @@ test("a lost cloud commit can be queried and retried from the task history after
     return result;
   });
   const target = await f.call("configureBackup", {
-    provider: "cloudflare",
     name: "任务历史",
     endpoint: "https://backup.test",
     token: "session-secret",

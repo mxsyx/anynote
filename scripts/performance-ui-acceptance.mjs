@@ -10,7 +10,9 @@ import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fixture } from "./acceptance/performance-fixture.mjs";
-import { fileS3Server } from "../tests/helpers/file-s3-server.mjs";
+import { createServer } from "node:http";
+import { D1, R2 } from "../tests/helpers/cloud-adapters.mjs";
+import worker from "../.build/apps/cloudflare-backup/src/index.js";
 if (
   process.platform === "linux" &&
   !process.env.ANYNOTE_ACCEPTANCE_KEYRING_ROOT
@@ -58,7 +60,7 @@ if (
     screenshots: [],
     limitations: [
       "Fresh application processes with OS filesystem cache retained; no system cache purge or power-loss claim.",
-      "Synthetic corpus and local HTTP S3 adapter; cloud reliability and full-load throughput are covered separately.",
+      "Synthetic corpus and local Cloudflare Worker adapter; cloud reliability and full-load throughput are covered separately.",
       "Automated WCAG 2.2 AA checks plus keyboard/zoom checks do not replace human screen reader review.",
       "Screenshot CSS viewports are pinned through CDP because the host window manager can constrain native window sizes.",
       "Foreground scheduling flags prevent test-window occlusion throttling; startup measurements retain the OS file cache.",
@@ -428,19 +430,45 @@ if (
       },
     );
     await check("UI-responsive-during-streamed-100MiB-backup", async () => {
-      server = await fileS3Server(join(root, "s3"));
+      // A local Cloudflare Worker (D1/R2 adapters) backs the streamed upload so
+      // the UI responsiveness measurement does not depend on a real cloud.
+      const env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: randomUUID() },
+        uploads = [];
+      const bridge = createServer(async (req, res) => {
+        try {
+          const chunks = [];
+          for await (const chunk of req) chunks.push(chunk);
+          const body = chunks.length ? Buffer.concat(chunks) : undefined;
+          if (req.method === "PUT" && body) uploads.push(body.length);
+          const response = await worker.fetch(
+            new Request("https://backup.test" + req.url, {
+              method: req.method,
+              headers: req.headers,
+              ...(body ? { body } : {}),
+            }),
+            env,
+          );
+          res.writeHead(response.status, Object.fromEntries(response.headers));
+          res.end(Buffer.from(await response.arrayBuffer()));
+        } catch (e) {
+          res.writeHead(500);
+          res.end(e.message);
+        }
+      });
+      await new Promise((r) => bridge.listen(0, "127.0.0.1", r));
+      server = {
+        close: async () => {
+          bridge.closeAllConnections();
+          await new Promise((r) => bridge.close(r));
+          env.DB.db.close();
+        },
+      };
       const target = await rpc("configureBackup", {
         notebookId: f.book.id,
-        provider: "s3",
         name: "本地性能验收",
-        endpoint: server.endpoint,
-        bucket: "bucket",
-        region: "us-east-1",
-        prefix: "performance",
-        pathStyle: true,
+        endpoint: `http://127.0.0.1:${bridge.address().port}`,
         allowInsecure: true,
-        accessKeyId: "fixture",
-        secretAccessKey: "fixture",
+        token: env.APP_TOKEN,
       });
       const job = await rpc("startBackup", {
         notebookId: f.book.id,
@@ -471,7 +499,10 @@ if (
       assert.ok(done, "backup must complete");
       report.measurements.backupUI = stats(times);
       assert.ok(report.measurements.backupUI.p95Ms < 150);
-      assert.ok(server.puts.some((x) => x.size === 16 * 1024 ** 2));
+      assert.ok(
+        uploads.some((size) => size === 16 * 1024 ** 2),
+        "the 100MiB asset must stream in 16MiB chunks",
+      );
       report.memory.afterBackup = await app.evaluate(({ app }) =>
         app.getAppMetrics().map((p) => ({
           type: p.type,

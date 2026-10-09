@@ -622,8 +622,6 @@ export async function advancedOperations(
       "previewRemoteRetention",
       "applyRemoteRetention",
       "remoteRetentionState",
-      "remoteProtectionAudit",
-      "releaseRemoteProtection",
       "configureCloudRecovery",
       "listCloudRecoveryConnections",
       "discoverCloudBackups",

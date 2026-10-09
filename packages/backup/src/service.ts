@@ -1,5 +1,4 @@
 import { localBackupOperation, localOperations } from "./local.js";
-import { readControl, cancelS3Generation } from "./s3-control.js";
 import { configSchema } from "./connection.js";
 import { recoveryOperation } from "./recovery.js";
 import { startCloudRestore } from "./restore-task.js";
@@ -25,7 +24,6 @@ import {
   type Task,
 } from "@anynote/types/runtime.js";
 import { uploadLogicalFiles } from "./file-logical.js";
-import { uploadSnapshotFiles } from "./file-s3.js";
 import type { FileSnapshot } from "./file-snapshot.js";
 import { listLogical } from "./logical.js";
 import { manage, managementOperations } from "./manage.js";
@@ -37,12 +35,7 @@ import {
   readPolicy,
   scheduleInterval,
 } from "./policy.js";
-import {
-  CloudflareClient,
-  digest,
-  listSnapshots,
-  S3Objects,
-} from "./providers.js";
+import { CloudflareClient } from "./providers.js";
 
 const uuid = z.string().uuid();
 
@@ -122,50 +115,19 @@ async function secret(
  */
 async function readCommittedGeneration(
   target: BackupTarget,
-  provider: S3Objects | CloudflareClient,
+  provider: CloudflareClient,
   signal: AbortSignal,
 ) {
   const generation = target.pendingGeneration;
   if (!generation) return undefined;
-  const base = `${target.notebookId}/${target.lineageId}`;
-  if (provider instanceof CloudflareClient) {
-    const state = await provider.call(
-      `/v1/notebooks/${target.remoteNotebookId || target.notebookId}/backup/${generation}`,
-      { signal },
-    );
-    if (state.status === "committed")
-      return {
-        generationId: state.id,
-        snapshotSeq: state.snapshotSeq,
-      };
-    return undefined;
-  }
-  const prefix = `${base}/generations/${generation}`,
-    marker = JSON.parse(
-      (
-        await provider.get(prefix + "/COMMITTED.json", {
-          maxBytes: 65536,
-          signal,
-        })
-      ).toString(),
-    ),
-    bytes = await provider.get(prefix + "/manifest.json", {
-      maxBytes: 16 * 1024 ** 2,
-      signal,
-    });
-  if (digest(bytes) !== marker.manifestHash) throw Error("提交记录校验失败");
-  const manifest = JSON.parse(bytes.toString());
-  if (
-    manifest.generationId !== generation ||
-    manifest.notebookId !== target.notebookId ||
-    manifest.lineageId !== target.lineageId
-  )
-    throw Error("提交身份不匹配");
-  const managed = (await readControl(provider, base))?.value;
-  if (!managed || managed.committed.includes(generation))
+  const state = await provider.call(
+    `/v1/notebooks/${target.remoteNotebookId || target.notebookId}/backup/${generation}`,
+    { signal },
+  );
+  if (state.status === "committed")
     return {
-      generationId: manifest.generationId,
-      snapshotSeq: manifest.snapshotSeq,
+      generationId: state.id,
+      snapshotSeq: state.snapshotSeq,
     };
   return undefined;
 }
@@ -237,36 +199,13 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       (endpoint.protocol === "http:" && !p.allowInsecure)
     )
       throw Error("默认要求 HTTPS；本机测试服务需明确允许 HTTP。");
-    if (
-      p.provider === "s3" &&
-      (!p.bucket || !p.accessKeyId || !p.secretAccessKey)
-    )
-      throw Error("请填写 bucket 与访问凭据");
-    if (p.provider === "cloudflare" && !p.token)
-      throw Error("请填写应用 Token");
+    if (!p.token) throw Error("请填写应用 Token");
     s.open(p.notebookId);
     const items = read(s),
       previous = p.targetId ? find(s, p) : null,
       id = previous?.id || randomUUID();
-    await secret(
-      s,
-      id,
-      p.provider === "s3"
-        ? {
-            accessKeyId: p.accessKeyId,
-            secretAccessKey: p.secretAccessKey,
-            sessionToken: p.sessionToken,
-          }
-        : { token: p.token },
-    );
-    const {
-      accessKeyId,
-      secretAccessKey,
-      sessionToken,
-      token,
-      targetId,
-      ...config
-    } = p;
+    await secret(s, id, { token: p.token });
+    const { token, targetId, ...config } = p;
     const target = {
       ...previous,
       ...config,
@@ -303,10 +242,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         .parse(raw),
       target = find(s, p);
     target.autoBackup = p.enabled;
-    target.intervalMinutes = scheduleInterval(
-      target.provider,
-      p.intervalMinutes,
-    );
+    target.intervalMinutes = scheduleInterval(p.intervalMinutes);
     // Enabling automatic backup is the user's explicit recovery action: clear a
     // sticky pause (auth/permanent/exhausted) and any pending backoff.
     if (p.enabled) Object.assign(target, clearFailureState());
@@ -347,27 +283,10 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   }
 
   const credentials = await secret(s, target.id),
-    provider =
-      target.provider === "s3"
-        ? new S3Objects(target, credentials)
-        : new CloudflareClient(target, credentials);
+    provider = new CloudflareClient(target, credentials);
 
   if (op === "testBackupConnection") {
-    if (provider instanceof S3Objects) {
-      const key = `_connection-check/${randomUUID()}`,
-        bytes = Buffer.from("anynote-connection-check");
-      try {
-        await provider.put(key, bytes);
-        if (
-          !(await provider.has(key)) ||
-          (await provider.get(key)).toString() !== bytes.toString()
-        )
-          throw Error("连接验证失败");
-        await provider.list("_connection-check/");
-      } finally {
-        await provider.delete(key);
-      }
-    } else await provider.call("/v1/capabilities");
+    await provider.call("/v1/capabilities");
     return { handled: true, result: { ok: true } };
   }
 
@@ -411,13 +330,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   }
 
   if (op === "listRemoteBackups")
-    return {
-      handled: true,
-      result:
-        provider instanceof S3Objects
-          ? await listSnapshots(provider, p.notebookId, target.lineageId)
-          : await listLogical(provider, target),
-    };
+    return { handled: true, result: await listLogical(provider, target) };
 
   if (op === "restoreRemoteBackup") {
     if (!p.generationId) throw Error("请选择版本");
@@ -477,12 +390,6 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           )
             throw e;
         }
-        if (provider instanceof S3Objects)
-          await cancelS3Generation(
-            provider,
-            `${p.notebookId}/${target.lineageId}`,
-            target.pendingGeneration,
-          );
         controller.signal.throwIfAborted();
         if (confirmed) {
           await s.run("commitBackupCursor", {
@@ -559,26 +466,15 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
       };
-      const result =
-        provider instanceof S3Objects
-          ? await uploadSnapshotFiles(
-              provider,
-              snapshot,
-              target,
-              generationId,
-              controller.signal,
-              progress,
-              onBytes,
-            )
-          : await uploadLogicalFiles(
-              provider,
-              snapshot,
-              target,
-              generationId,
-              controller.signal,
-              progress,
-              onBytes,
-            );
+      const result = await uploadLogicalFiles(
+        provider,
+        snapshot,
+        target,
+        generationId,
+        controller.signal,
+        progress,
+        onBytes,
+      );
       await s.run("commitBackupCursor", {
         notebookId: p.notebookId,
         targetId: target.id,

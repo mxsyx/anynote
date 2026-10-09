@@ -86,8 +86,6 @@
   "previewRemoteRetention",
   "applyRemoteRetention",
   "remoteRetentionState",
-  "remoteProtectionAudit",
-  "releaseRemoteProtection",
   "configureCloudRecovery",
   "listCloudRecoveryConnections",
   "discoverCloudBackups",

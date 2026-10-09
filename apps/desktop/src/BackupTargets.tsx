@@ -7,7 +7,6 @@ import { Cloud, Plus, X, Check } from "lucide-react";
 interface Target {
   id: string;
   name: string;
-  provider: "s3" | "cloudflare";
   endpoint: string;
   lineageId: string;
   remoteNotebookId?: string;
@@ -71,7 +70,7 @@ interface Version {
   assets: number;
 }
 
-/** Remote backup target panel: configure S3/Cloudflare, test connections, view history, and restore. */
+/** Remote backup target panel: configure Cloudflare, test connections, view history, and restore. */
 export default function BackupTargets({
   notebookId,
   onStarted,
@@ -84,7 +83,6 @@ export default function BackupTargets({
   const [targets, setTargets] = useState<Target[]>([]),
     [maintenance, setMaintenance] = useState<Target | null>(null),
     [open, setOpen] = useState(false),
-    [provider, setProvider] = useState<"s3" | "cloudflare">("s3"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<Target | null>(null),
@@ -145,9 +143,7 @@ export default function BackupTargets({
         <div className="feature-card backup-target" key={t.id}>
           <Cloud size={22} />
           <div>
-            <h3>
-              {t.name} · {t.provider === "s3" ? "S3" : "Cloudflare"}
-            </h3>
+            <h3>{t.name} · Cloudflare</h3>
             <p>
               {t.lastSuccess
                 ? "最近成功：" + new Date(t.lastSuccess).toLocaleString("zh-CN")
@@ -186,16 +182,14 @@ export default function BackupTargets({
                       notebookId,
                       targetId: t.id,
                       enabled,
-                      // Cloudflare follows the design's 60s cadence; S3 keeps
-                      // its 10min minimum (enforced server-side too).
-                      intervalMinutes: t.provider === "s3" ? 10 : 1,
+                      // Cloudflare follows the design's 60s cadence.
+                      intervalMinutes: 1,
                     });
                     await reload();
                   });
                 }}
               />
-              自动备份 · {t.provider === "s3" ? "每 10 分钟" : "约每分钟"}
-              检查变更
+              自动备份 · 约每分钟检查变更
             </label>
           </div>
           <button
@@ -255,7 +249,7 @@ export default function BackupTargets({
       ))}
       {!targets.length && (
         <p className="muted">
-          添加你的 S3 兼容存储或自托管 Cloudflare 服务。无需配置也可在本地使用。
+          添加你的自托管 Cloudflare 备份服务。无需配置也可在本地使用。
         </p>
       )}
       {policy && (
@@ -312,23 +306,10 @@ export default function BackupTargets({
               void action(async () => {
                 await request("configureBackup", {
                   notebookId,
-                  provider,
                   name: String(form.get("name")),
                   endpoint: String(form.get("endpoint")),
                   allowInsecure: form.get("http") === "on",
-                  ...(provider === "s3"
-                    ? {
-                        bucket: String(form.get("bucket")),
-                        region: String(form.get("region") || "us-east-1"),
-                        prefix: String(form.get("prefix") || "anynote"),
-                        pathStyle: form.get("addressing") !== "virtual",
-                        ...(String(form.get("session") || "").trim()
-                          ? { sessionToken: String(form.get("session")) }
-                          : {}),
-                        accessKeyId: String(form.get("access")),
-                        secretAccessKey: String(form.get("secret")),
-                      }
-                    : { token: String(form.get("token")) }),
+                  token: String(form.get("token")),
                 });
                 setOpen(false);
                 await reload();
@@ -346,18 +327,6 @@ export default function BackupTargets({
               </button>
             </div>
             <label>
-              类型
-              <select
-                value={provider}
-                onChange={(e) =>
-                  setProvider(e.target.value as "s3" | "cloudflare")
-                }
-              >
-                <option value="s3">S3 兼容存储</option>
-                <option value="cloudflare">Cloudflare 自托管服务</option>
-              </select>
-            </label>
-            <label>
               名称
               <input name="name" required placeholder="我的备份" />
             </label>
@@ -370,62 +339,15 @@ export default function BackupTargets({
                 placeholder="https://…"
               />
             </label>
-            {provider === "s3" ? (
-              <>
-                <div className="config-grid">
-                  <label>
-                    Bucket
-                    <input name="bucket" required />
-                  </label>
-                  <label>
-                    Region
-                    <input name="region" defaultValue="us-east-1" />
-                  </label>
-                </div>
-                <label>
-                  Prefix
-                  <input name="prefix" defaultValue="anynote" />
-                </label>
-                <label>
-                  寻址方式
-                  <select name="addressing" defaultValue="path">
-                    <option value="path">路径寻址</option>
-                    <option value="virtual">虚拟主机寻址（OSS 必选）</option>
-                  </select>
-                </label>
-                <p className="small-note">
-                  阿里云 OSS 使用 S3 兼容 Endpoint（如
-                  https://s3.oss-cn-hangzhou.aliyuncs.com），并选择虚拟主机寻址。
-                </p>
-                <label>
-                  Access Key ID
-                  <input name="access" required autoComplete="off" />
-                </label>
-                <label>
-                  Secret Access Key
-                  <input
-                    name="secret"
-                    type="password"
-                    required
-                    autoComplete="new-password"
-                  />
-                </label>
-                <label>
-                  Session Token（临时凭据，可选）
-                  <input name="session" type="password" autoComplete="off" />
-                </label>
-              </>
-            ) : (
-              <label>
-                应用 Token
-                <input
-                  name="token"
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                />
-              </label>
-            )}
+            <label>
+              应用 Token
+              <input
+                name="token"
+                type="password"
+                required
+                autoComplete="new-password"
+              />
+            </label>
             <label className="check-label">
               <input name="http" type="checkbox" />
               允许 HTTP，仅用于可信本机测试服务

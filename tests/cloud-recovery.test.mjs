@@ -4,10 +4,9 @@ import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
-import { fileS3Server } from "./helpers/file-s3-server.mjs";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
-async function setup(t, provider) {
+async function setup(t) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cold-recovery-")),
     source = new Storage(join(root, "source")),
     fresh = new Storage(join(root, "fresh"));
@@ -21,36 +20,20 @@ async function setup(t, provider) {
     fresh.close();
     rmSync(root, { recursive: true, force: true });
   });
-  let config;
-  if (provider === "s3") {
-    const server = await fileS3Server(join(root, "s3"));
-    t.onTestFinished(() => server.close());
-    config = {
-      provider,
-      name: "恢复连接",
-      endpoint: server.endpoint,
-      allowInsecure: true,
-      bucket: "bucket",
-      accessKeyId: "fixture",
-      secretAccessKey: "never-persist-this-secret",
-    };
-  } else {
-    const env = {
-      DB: new D1(),
-      BUCKET: new R2(),
-      APP_TOKEN: "never-persist-this-secret",
-    };
-    t.onTestFinished(() => env.DB.db.close());
-    vi.spyOn(globalThis, "fetch").mockImplementation((url, opts) =>
-      worker.fetch(new Request(url, opts), env),
-    );
-    config = {
-      provider,
-      name: "恢复连接",
-      endpoint: "https://backup.test",
-      token: env.APP_TOKEN,
-    };
-  }
+  const env = {
+    DB: new D1(),
+    BUCKET: new R2(),
+    APP_TOKEN: "never-persist-this-secret",
+  };
+  t.onTestFinished(() => env.DB.db.close());
+  vi.spyOn(globalThis, "fetch").mockImplementation((url, opts) =>
+    worker.fetch(new Request(url, opts), env),
+  );
+  const config = {
+    name: "恢复连接",
+    endpoint: "https://backup.test",
+    token: env.APP_TOKEN,
+  };
   const book = await source.run("createNotebook", { title: "原设备知识库" }),
     note = await source.run("createNode", {
       notebookId: book.id,
@@ -78,78 +61,67 @@ async function setup(t, provider) {
   };
   return { root, source, fresh, book, note, target, config, vault, backup };
 }
-for (const provider of ["s3", "cloudflare"])
-  test(
-    provider +
-      " discovers paginated committed versions and restores into a completely empty workspace",
-    async (t) => {
-      const f = await setup(t, provider);
-      for (let n = 0; n < 12; n++) await f.backup(n);
-      assert.deepEqual(await f.fresh.run("listNotebooks"), []);
-      assert.deepEqual(
-        await f.fresh.run("listBackupTargets", { notebookId: f.book.id }),
-        [],
-      );
-      const connection = await f.fresh.run("configureCloudRecovery", f.config);
-      assert.ok(!JSON.stringify(connection).includes("never-persist"));
-      assert.ok(
-        !readFileSync(
-          join(f.fresh.root, "_local/recovery-connections.json"),
-          "utf8",
-        ).includes("never-persist"),
-      );
-      const a = await f.fresh.run("discoverCloudBackups", {
-        connectionId: connection.id,
-      });
-      assert.equal(a.backups.length, 10);
-      assert.ok(a.cursor);
-      assert.equal(a.backups[0].name, "原设备知识库");
-      const b = await f.fresh.run("discoverCloudBackups", {
-        connectionId: connection.id,
-        cursor: a.cursor,
-      });
-      assert.equal(b.backups.length, 2);
-      assert.equal(b.cursor, null);
-      assert.equal(
-        new Set([...a.backups, ...b.backups].map((v) => v.id)).size,
-        12,
-      );
-      assert.deepEqual(await f.fresh.run("listNotebooks"), []);
-      const v = [...a.backups, ...b.backups].find(
-        (v) =>
-          v.snapshotSeq ===
-          Math.max(...[...a.backups, ...b.backups].map((v) => v.snapshotSeq)),
-      );
-      f.source.close();
-      rmSync(f.source.root, { recursive: true, force: true });
-      const result = await f.fresh.run("restoreCloudBackup", {
-          connectionId: connection.id,
-          notebookId: v.notebookId,
-          lineageId: v.lineageId,
-          generationId: v.id,
-        }),
-        job = f.fresh.jobs.get(result.id);
-      await job.promise;
-      assert.equal(job.status, "completed", job.error);
-      const actual = await f.fresh.run("getNote", {
-        notebookId: job.restoredId,
-        id: f.note.id,
-      });
-      assert.equal(actual.body, "故障恢复正文 11");
-      assert.notEqual(job.restoredId, f.book.id);
-      assert.equal((await f.fresh.run("listNotebooks")).length, 1);
-      assert.deepEqual(
-        await f.fresh.run("listBackupTargets", { notebookId: f.book.id }),
-        [],
-      );
-      assert.deepEqual(
-        readdirSync(join(f.fresh.root, "_local/archive-jobs")),
-        [],
-      );
-    },
+test("Cloudflare discovers paginated committed versions and restores into a completely empty workspace", async (t) => {
+  const f = await setup(t);
+  for (let n = 0; n < 12; n++) await f.backup(n);
+  assert.deepEqual(await f.fresh.run("listNotebooks"), []);
+  assert.deepEqual(
+    await f.fresh.run("listBackupTargets", { notebookId: f.book.id }),
+    [],
   );
+  const connection = await f.fresh.run("configureCloudRecovery", f.config);
+  assert.ok(!JSON.stringify(connection).includes("never-persist"));
+  assert.ok(
+    !readFileSync(
+      join(f.fresh.root, "_local/recovery-connections.json"),
+      "utf8",
+    ).includes("never-persist"),
+  );
+  const a = await f.fresh.run("discoverCloudBackups", {
+    connectionId: connection.id,
+  });
+  assert.equal(a.backups.length, 10);
+  assert.ok(a.cursor);
+  assert.equal(a.backups[0].name, "原设备知识库");
+  const b = await f.fresh.run("discoverCloudBackups", {
+    connectionId: connection.id,
+    cursor: a.cursor,
+  });
+  assert.equal(b.backups.length, 2);
+  assert.equal(b.cursor, null);
+  assert.equal(new Set([...a.backups, ...b.backups].map((v) => v.id)).size, 12);
+  assert.deepEqual(await f.fresh.run("listNotebooks"), []);
+  const v = [...a.backups, ...b.backups].find(
+    (v) =>
+      v.snapshotSeq ===
+      Math.max(...[...a.backups, ...b.backups].map((v) => v.snapshotSeq)),
+  );
+  f.source.close();
+  rmSync(f.source.root, { recursive: true, force: true });
+  const result = await f.fresh.run("restoreCloudBackup", {
+      connectionId: connection.id,
+      notebookId: v.notebookId,
+      lineageId: v.lineageId,
+      generationId: v.id,
+    }),
+    job = f.fresh.jobs.get(result.id);
+  await job.promise;
+  assert.equal(job.status, "completed", job.error);
+  const actual = await f.fresh.run("getNote", {
+    notebookId: job.restoredId,
+    id: f.note.id,
+  });
+  assert.equal(actual.body, "故障恢复正文 11");
+  assert.notEqual(job.restoredId, f.book.id);
+  assert.equal((await f.fresh.run("listNotebooks")).length, 1);
+  assert.deepEqual(
+    await f.fresh.run("listBackupTargets", { notebookId: f.book.id }),
+    [],
+  );
+  assert.deepEqual(readdirSync(join(f.fresh.root, "_local/archive-jobs")), []);
+});
 test("recovery connections persist independently; wrong remote identity never registers a Notebook", async (t) => {
-  const f = await setup(t, "s3");
+  const f = await setup(t);
   await f.backup(0);
   const connection = await f.fresh.run("configureCloudRecovery", f.config);
   f.fresh.close();

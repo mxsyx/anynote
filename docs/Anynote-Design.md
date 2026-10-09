@@ -23,7 +23,6 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 | PDF | PDF.js 阅读器，批注独立存储 | 原始 PDF 保持不可变；先做阅读、高亮与批注 |
 | 本地搜索 | SQLite FTS5 + 中文分词适配 | 基础全文检索不依赖远程服务 |
 | Cloudflare 备份 | Worker API + D1 元数据/结构化记录 + R2 正文对象/附件 | 采用逻辑增量，不把 D1 当本地 SQLite 文件镜像 |
-| S3 备份 | 一致性 SQLite 快照 + 内容寻址附件 + 版本清单 | 未变化的对象不传；数据库有变化时传完整快照 |
 | 导入/导出 | `.anynote` 私有 ZIP 容器 | 包含一致性数据库、全部持久化资源与校验清单 |
 | 扩展系统 | 公共 SDK + 声明式扩展点 + 隔离运行时 | 核心可控，能力可选，插件不直接修改数据库 |
 | AI | 受权限控制的工具 API + 变更提案与撤销 | AI 通过与用户相同的领域服务操作笔记 |
@@ -32,7 +31,7 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 ### 1.2 必须明确的产品边界
 
 1. **备份不等于同步**：第一版提供自动备份、历史版本、灾难恢复；不承诺两台设备实时合并同一 Notebook。
-2. **文件级增量不等于 SQLite 页级增量**：S3 模式只跳过未变化文件，发生变化的数据库快照整体上传。真正的页级或分块增量作为后续优化。
+2. **文件级增量不等于 SQLite 页级增量**：增量备份只跳过未变化的实体与附件，发生变化的数据库快照整体上传。真正的页级或分块增量作为后续优化。
 3. **Markdown 不天然表达全部在线文档能力**：白板、视频等采用 Anynote 明确的扩展语法。未来复杂表格、布局、评论也必须定义持久化协议，不能只保存在编辑器 JSON 中。
 4. **本地优先不等于默认加密**：v1 提供操作系统凭据保护与传输加密；端到端加密为独立后续能力，不能将普通 D1/R2 存储描述为端到端加密。
 5. **无限嵌套是逻辑能力**：模型不设产品层级上限，运行时仍有查询、渲染和输入预算，防止极端数据卡死。
@@ -48,13 +47,13 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 | 收藏网页 | 粘贴网页链接或导入 HTML 文件 | 正文转为 Markdown，可下载媒体本地化 |
 | 阅读资料 | 导入 PDF、查看图片、做批注 | 原文件完整保存，批注与知识笔记关联 |
 | 离线工作 | 无网络启动、搜索、编辑 | 核心功能正常，待备份状态清晰 |
-| 数据保护 | 配置 Cloudflare 或 S3，可同时启用 | 自动增量备份，可验证和恢复历史版本 |
+| 数据保护 | 配置 Cloudflare 备份目标 | 自动增量备份，可验证和恢复历史版本 |
 | 扩展能力 | 安装编辑器、备份、AI 插件 | 按需增强，插件停用不破坏现有数据 |
 | AI 整理 | 让 AI 总结、分类、修改、建立关联 | 先展示修改方案，应用后可追溯和撤销 |
 
 ### 2.2 范围划分
 
-**v1 范围**：桌面应用；本地 Notebook；目录树；三种笔记；双模式 Markdown；白板与 YouTube 链接；网页/HTML 导入；搜索、标签、内部链接；本地快照；Cloudflare 与 S3 备份；完整导入导出；基础插件 SDK；AI 工具接口预留。
+**v1 范围**：桌面应用；本地 Notebook；目录树；三种笔记；双模式 Markdown；白板与 YouTube 链接；网页/HTML 导入；搜索、标签、内部链接；本地快照；Cloudflare 备份；完整导入导出；基础插件 SDK；AI 工具接口预留。
 
 **后续范围**：多设备同步、移动端、多人协作、OCR、语义检索、完整 PDF 写回、复杂多列布局、数据库表格视图、插件市场、端到端加密。
 
@@ -104,7 +103,6 @@ flowchart TB
   Plugins["插件宿主与公共 SDK"] --> Core
   Jobs --> Providers["备份 Provider"]
   Providers --> CF["Worker / D1 / R2"]
-  Providers --> S3["S3 兼容对象存储"]
 ```
 
 ### 4.1 Electron 进程职责
@@ -125,7 +123,7 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 1. **Domain**：实体、校验、不变量、领域命令，不依赖 Electron/Cloudflare。
 2. **Application**：Notebook、Note、Asset、Search、Import、Backup、AI 操作服务。
 3. **Ports**：Storage、BackupProvider、Importer、EditorAdapter、AIProvider。
-4. **Adapters**：SQLite、Electron IPC、Cloudflare、S3、Tiptap、PDF.js。
+4. **Adapters**：SQLite、Electron IPC、Cloudflare、Tiptap、PDF.js。
 5. **Presentation**：桌面 Shell、编辑器视图、设置、恢复向导。
 
 服务通过接口组合，UI 不判断当前使用哪个备份厂商。网络 Service 仅处理请求，业务流程留在 Application 层。
@@ -144,7 +142,6 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 | HTML 导入 | Readability、Turndown、DOMPurify | 抽取、转换、清洗分工明确 |
 | PDF / 白板 | PDF.js / Excalidraw | 懒加载；白板数据协议由 Anynote 适配层版本化 |
 | Cloudflare API | Workers + Hono + D1 + R2 | API 使用稳定协议，避免暴露 Cloudflare 管理凭据 |
-| S3 | AWS SDK S3 Client，Provider 封装 | 兼容性以能力探测和适配器测试为准 |
 
 以上为技术推荐而非已完成兼容验证。立项时锁定依赖与许可证，尤其注意编辑器商业扩展、字体分发与插件再分发边界。
 
@@ -464,7 +461,7 @@ flowchart TB
 
 ### 11.1 备份模型
 
-每个 Notebook 可以启用一个或多个备份目标。Cloudflare 为主目标，S3 可作为次目标；两者独立调度、独立成功状态、独立游标。
+每个 Notebook 可以启用一个或多个备份目标。Cloudflare 为主目标；各目标独立调度、独立成功状态、独立游标。
 
 一个备份版本至少包含：Notebook ID、lineage/branch ID、generation ID、base generation、schema/format 版本、快照内容序号、所有实体版本、资源清单及 SHA-256、创建时间、创建设备、完成状态。
 
@@ -488,7 +485,7 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 
 任务状态：`queued → preparing → uploading → verifying → committing → completed`；另有 `paused`、`failed`、`cancelled`，失败任务可从已验证对象继续。
 
-默认建议：编辑停止 60s 后触发 Cloudflare；S3 以 10min 为最小自动间隔；手动“立即备份”可绕过间隔。无业务变更和资源变更时跳过快照上传。电池、计量网络、大文件任务允许暂停策略。
+默认建议：编辑停止 60s 后触发 Cloudflare，自动备份约每分钟检查一次变更；手动“立即备份”可绕过间隔。无业务变更和资源变更时跳过快照上传。电池、计量网络、大文件任务允许暂停策略。
 
 重试采用指数退避与抖动；永久鉴权失败提示配置修复；限流按服务返回的重试信息延后。应用退出不保证长备份能完成，保留任务状态下次恢复。
 
@@ -500,7 +497,7 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 - GC 采用 mark-and-sweep：从所有保留版本及进行中任务标记，再回收无引用且超过宽限期的对象。
 - 恢复默认创建新的本地目录和新 Notebook 身份，保留 `restoredFrom` 来源，不覆盖现有库。
 - 灾难恢复保留原 Notebook 身份时必须重新认领写入权、产生新 epoch/lineage，并重新建立备份游标，防止旧客户端继续写旧分支。
-- 两个备份端独立失败时显示具体情况，例如“Cloudflare 已完成；S3 待重试”，不提供虚假的单一绿色成功图标。
+- 多个备份目标独立失败时显示具体情况，例如“Cloudflare 已完成；本地备份待重试”，不提供虚假的单一绿色成功图标。
 
 ## 12. Cloudflare 主备份端
 
@@ -591,56 +588,9 @@ D1 `batch()` 支持 SQL 批次的事务回滚，但 D1 与 R2 之间不存在跨
 - D1 分片与 Worker bindings 规划需另行容量设计；不能假设动态创建无限 D1 后即可无配置绑定访问。
 - 成本由 D1 行读写/容量、R2 容量/操作、Workers 调用与计算构成。本文不固定报价；通过实际 Notebook、附件量、版本保留量进行压测与预算。
 
-## 13. S3 兼容次备份端
+## 13. S3 兼容次备份端（已移除）
 
-### 13.1 配置
-
-Provider 支持 endpoint、region、bucket、prefix、path-style、Access Key/Secret 或短期凭据、加密设置引用。凭据进入操作系统 Secret Store；配置只记录引用 ID。
-
-建立连接时探测 PUT/GET/HEAD/LIST、multipart、条件写、checksum、版本控制等能力。不能把“S3 兼容”理解为所有 AWS S3 特性完全一致。
-
-### 13.2 对象布局
-
-```text
-<prefix>/<notebook-id>/<lineage-id>/
-  objects/sha256/<hash>
-  databases/<snapshot-sha256>.sqlite
-  generations/<generation-id>/manifest.json
-  generations/<generation-id>/COMMITTED.json
-  latest.json
-```
-
-`objects/` 保存附件；`databases/` 保存完整 SQLite 快照；manifest 将它们关联。`latest.json` 是辅助指针，不是唯一恢复依据；只有完成标记与校验正确的版本能恢复。
-
-### 13.3 文件级增量算法
-
-1. 若内容序号与该 Provider 上次切点相同，且迁移/历史清理等持久化变化也未发生，则直接跳过。
-2. 获取一致性 SQLite 快照；流式计算快照哈希。
-3. 快照哈希已存在且校验可信则复用；不同则将完整 `.sqlite` 文件作为新对象上传。
-4. 从快照提取所需资源哈希；只上传远端缺失对象。已备份资源通过历史清单和目录记录判断，减少逐个 HEAD。
-5. 上传 manifest，核验其数据库与资源对象，最后写 `COMMITTED.json`。
-6. 如目标支持条件更新，用 CAS 更新 `latest.json`；否则按 device/lineage 分支写入，列举完成版本恢复，不假设覆盖 latest 可以保证并发安全。
-7. 保存本地 Provider 状态。中断后复用已验证对象；支持 multipart 的大文件可继续或清理旧上传。
-
-### 13.4 “增量”的具体解释
-
-假设数据库 50MB、附件共 2GB，用户只改一段文字：本次通常上传新 50MB 数据库快照与很小的 manifest，2GB 原附件不再传。
-
-如果新增一张 5MB 图片：本次通常上传新数据库快照、5MB 图片和 manifest。图片字节未变化但改名时，图片对象复用，数据库快照发生变化。
-
-这满足“未改动文件不要同步”。它**不满足**“只上传 SQLite 变化的几页”。S3 multipart 只是分段传输，不自动提供差量备份。
-
-### 13.5 后续优化
-
-数据库达到较大体积且频繁变动后，可添加第二种 Provider 格式：内容定义分块或固定页块 + chunk manifest + 重建器。该格式不再等价于“一个完整 SQLite 文件对象”，需单独版本与恢复验证。
-
-初版保留整库快照方案，先保证可靠恢复。历史正文增长、VACUUM、压缩与加密可能改变整个文件字节，优化时应测真实命中率，不能仅凭数据库页理论估算。
-
-### 13.6 恢复与生命周期
-
-选择完成版本 → 下载 manifest → 下载指定 SQLite 对象与资源 → 验证 SHA-256 → 在临时目录执行数据库/引用检查 → 原子注册新 Notebook。
-
-远端删除或对象生命周期规则不能盲目按对象创建日期清理，因为旧对象可能仍被新版本复用。只有按所有保留 manifest 引用计算后才删除；Bucket Versioning 可增加保护，但不替代应用版本清单。
+早期设计将 S3 兼容对象存储作为 Cloudflare 之外的次备份端。为集中维护一套远端协议，本项目已移除 S3 备份支持：`packages/backup` 不再包含 S3 对象适配器，界面与云端恢复只接受 Cloudflare 目标，基于 S3 的脚本、测试与验收入口已删除。本地快照与本地磁盘备份不受影响。本章及后续可能出现的 `[S3]` 标记仅为参考文献编号，与存储协议无关。
 
 ## 14. 备份 Provider 公共接口
 
@@ -758,7 +708,7 @@ PDF/图片原件按原始字节输出，批注可附加 JSON/Markdown sidecar。
 | `editor.nodes/marks` | 白板、视频、公式、Callout |
 | `noteTypeViews` | 新笔记类型查看器，后续能力 |
 | `importers/exporters` | 网页导入、站点适配、格式转换 |
-| `backupProviders` | Cloudflare、S3、其他对象存储 |
+| `backupProviders` | Cloudflare、其他对象存储 |
 | `searchProviders` | OCR/语义检索 |
 | `aiProviders/tools` | 模型接入、知识操作 |
 | `panels` | AI、大纲、知识关联 |
@@ -1021,7 +971,6 @@ anynote/
     video/
     html-import/
     backup-cloudflare/
-    backup-s3/
     ai/                      # 首先提供接口与禁用态
   tooling/
     eslint-config/
@@ -1100,7 +1049,7 @@ anynote/
 - Editor：Markdown 往返语料、未知块、模式切换、中文 IME、撤销、插件禁用。
 - Import：相对路径、srcset、懒加载、编码、脚本清洗、网络重定向、媒体失败与重试。
 - Provider 合约：无变化不上传、重复请求幂等、部分上传不提交、哈希不匹配、配额与鉴权。
-- Restore：完整包、S3 快照、Cloudflare checkpoint+delta、历史/回收站、跨版本。
+- Restore：完整包、Cloudflare checkpoint+delta、历史/回收站、跨版本。
 - Plugin：权限、生命周期、崩溃隔离、opaque 降级、SDK 兼容。
 - UI：真实内容截图、键盘、无障碍、浅/深主题、窗口尺度。
 
@@ -1114,7 +1063,7 @@ anynote/
 | 上传后对象损坏/被删除 | 校验失败，不显示备份成功；可重新上传 |
 | 第二设备使用旧 epoch 写入 | 拒绝或新分支，不覆盖现有 head |
 | 备份期间继续编辑/GC | 恢复状态与 snapshotSeq 一致，资源完整 |
-| S3 latest 指针损坏 | 列举完成 manifest 仍可恢复 |
+| Cloudflare 提交记录损坏 | 列举已完成版本仍可恢复，未提交版本不可见 |
 | 插件停用/卸载 | 文档数据不丢，预览/原始块仍存在 |
 | 导入恶意 ZIP/SQLite | 无路径逃逸、代码执行或覆盖现有 Notebook |
 | AI patch 基于旧版本 | 拒绝或重新提案，保留用户修改 |
@@ -1125,8 +1074,8 @@ anynote/
 2. 一个 Notebook 一个数据库，至少验证 1,000 层逻辑嵌套与 10,000 节点样本，具备性能预算与可取消处理。
 3. HTML 导入报告准确，成功本地化媒体断网可见。
 4. `.anynote` 导出后在另一台干净设备恢复，笔记、资源、历史与批注一致。
-5. Cloudflare 与至少两个 S3 兼容实现完成备份→恢复实测。
-6. S3 无变化不传数据库/附件；只改正文不重传原附件。
+5. Cloudflare 完成备份→恢复实测。
+6. 无变化不传实体/附件；只改正文不重传原附件。
 7. Cloudflare 增量备份含删除与插件数据，逻辑恢复后与源快照领域数据一致。
 8. 第三方受限插件不能获得未授权文件/网络/Notebook，首方高权限边界明确。
 9. 核心页面通过浅/深色、中文、键盘与尺寸检查。
@@ -1138,10 +1087,10 @@ anynote/
 
 | 阶段 | 主要交付 | 完成依据 |
 | --- | --- | --- |
-| P0：设计与技术验证 | UI 样张、SQLite 快照、Markdown round-trip、白板/资源闭包、D1 CAS/S3 能力验证 | 关键风险有可运行实验与 ADR |
+| P0：设计与技术验证 | UI 样张、SQLite 快照、Markdown round-trip、白板/资源闭包、D1 CAS 验证 | 关键风险有可运行实验与 ADR |
 | P1：本地知识库 | Desktop Shell、Notebook、目录树、源码编辑/渲染、PDF/图片、资源、搜索、完整导入导出 | 离线闭环与导出恢复通过 |
 | P2：文档与扩展 | 富文本 Beta、SDK/宿主、白板、视频、HTML 导入、统一任务中心 | 未知内容保留与权限测试通过 |
-| P3：备份闭环 | 本地快照、Cloudflare、S3、历史与恢复向导、保留/GC | 故障注入与灾难恢复通过 |
+| P3：备份闭环 | 本地快照、Cloudflare、历史与恢复向导、保留/GC | 故障注入与灾难恢复通过 |
 | P4：v1 打磨 | 富文本稳定化、视觉/无障碍、打包签名、更新、性能 | 达到第 22 节发布门槛 |
 | P5：AI 与扩展生态 | AI 提案/应用/撤销、OCR、语义检索、外部插件开发体验 | 权限、隐私、版本与回归指标可控 |
 
@@ -1155,7 +1104,7 @@ anynote/
 | --- | --- |
 | 富文本和 Markdown 两种表达不等价 | 私有协议、opaque 节点、源码真源、语料验证、富文本渐进上线 |
 | 插件系统过度设计 | 先支持首方插件与有限扩展点，SDK 边界从真实能力验证 |
-| S3 大数据库频繁整库上传 | 调度间隔、历史策略、数据库体积观测，后续分块格式 |
+| 大数据库频繁整库上传 | 调度间隔、历史策略、数据库体积观测，后续分块格式 |
 | D1/R2 不具备跨服务事务 | 不可变对象、staging generation、CAS 发布、GC 宽限 |
 | 附件遗漏导致备份不可恢复 | 版本资源闭包、pin、哈希校验、恢复演练 |
 | 多设备误以为已经同步 | 单写设备/显式分支、清晰 UI 文案、接管 epoch |
@@ -1169,7 +1118,7 @@ anynote/
 
 - 首发桌面平台建议 macOS + Windows，Linux 保留兼容并在 beta 验证；若 Linux 是首要用户环境，应将 keyring、打包与图形兼容测试提前。
 - v1 个人使用为主，Cloudflare 优先自托管；托管服务版认证/计费以后单独设计。
-- 两种远端均可同时启用；无付费/账号依赖也能本地使用。
+- Cloudflare 远端备份与本地快照可同时启用；无付费/账号依赖也能本地使用。
 - 目录由 Folder 管理，Note 不做子页面容器。
 - 首版不提供多设备实时同步、E2EE 或插件市场审核基础设施。
 - AI 接口预留完整，但模型调用与自主代理不影响 v1 本地/备份闭环发布。
@@ -1183,7 +1132,7 @@ anynote/
 3. ADR-003：Asset 不可变、Resource 稳定身份与历史资源闭包。
 4. ADR-004：备份与同步分开，v1 远端单写/分支策略。
 5. ADR-005：Cloudflare generation staging + 原子发布。
-6. ADR-006：S3 文件级增量与完整 SQLite 对象。
+6. ADR-006：远端备份的实体级增量与完整 SQLite 快照边界。
 7. ADR-007：受信与受限插件运行时及公共 SDK。
 8. ADR-008：`.anynote` 容器、安全导入与版本兼容。
 9. ADR-009：AI 提案、权限、乐观锁与撤销。

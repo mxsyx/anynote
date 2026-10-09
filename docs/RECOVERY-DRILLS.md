@@ -1,12 +1,12 @@
 # 客户端故障恢复演练
 
-正式云任务已通过真实子进程 SIGKILL 中断、重新启动和云端恢复测试。Cloudflare 使用已有 Wrangler 管理的独立 Worker/D1/R2，S3 兼容服务使用阿里云 OSS；演练创建独立 Notebook/lineage/对象前缀，保留远端验收数据。
+正式云任务已通过真实子进程 SIGKILL 中断、重新启动和云端恢复测试。Cloudflare 使用已有 Wrangler 管理的独立 Worker/D1/R2；演练创建独立 Notebook/lineage，保留远端验收数据。
 
 ## 场景
 
 | 检查点                                                    | 验证结果                                                                           |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Cloudflare plan 成功或 S3 manifest 上传后，commit 前终止  | staging/未提交版本不可见；重启清理私有暂存，再备份发布完整版本                     |
+| Cloudflare plan 成功后，commit 前终止                     | staging/未提交版本不可见；重启清理私有暂存，再备份发布完整版本                     |
 | 服务端 commit 或 COMMITTED PUT 成功，客户端收到结果前终止 | pending generation 保留；重启查询固定版本、修复 ack 游标，完成版本数量不增加       |
 | 下载第一个恢复对象后终止                                  | 暂存数据不登记为 Notebook；重启回收暂存，重新恢复可完成                            |
 | 中断后的完整恢复                                          | 完整正文、未知块、自链接、标签/收藏、三次历史、回收站、附件 SHA-256 及重建搜索通过 |
@@ -26,16 +26,14 @@
 
 ```sh
 pnpm run test:cloud:recovery
-pnpm run test:cloud:recovery --provider cloudflare
-pnpm run test:cloud:recovery --provider s3
 ```
 
-配置复用 `.env.cloud` 与 Wrangler 管理部署；不需要额外填写 Cloudflare Endpoint/Token。缺少提供方配置时报告失败。报告写入 `test-results/cloud-recovery-acceptance.json`，经过凭据脱敏。已归档结果见真实演练报告。
+配置复用 `.env.cloud` 与 Wrangler 管理部署；不需要额外填写 Cloudflare Endpoint/Token。缺少配置时报告失败。报告写入 `test-results/cloud-recovery-acceptance.json`，经过凭据脱敏。已归档结果见真实演练报告。
 
-本地 `pnpm test` 增加三项：活动/旧暂存保护、真实 HTTP S3 进程中断恢复、经 HTTP 调用本地 D1/R2 适配器的 Cloudflare 进程中断恢复。整套 89 项回归、类型检查和 Linux 打包通过；最新打包应用的 112MiB 流式完整归档另行复验通过。
+本地 `pnpm test` 增加两项：活动/旧暂存保护、经 HTTP 调用本地 D1/R2 适配器的 Cloudflare 进程中断恢复。整套回归、类型检查和 Linux 打包通过；最新打包应用的 112MiB 流式完整归档另行复验通过。
 
 ## 验收边界
 
 本轮在 Linux 执行，SIGKILL 作用于独立 Node 存储客户端进程，未覆盖整机断电、系统重启、厂商级断网/区域故障、权限撤销或 Windows/macOS。演练凭据通过 IPC 注入内存，不替代系统密钥服务验收。
 
-源目录不可用场景仍保留 `_local` 设备配置和凭据，该场景没有验证全新设备。独立云连接及彻底删除源工作区后的恢复已另行实现，见 [全新设备恢复](./CLOUD-RECOVERY.md)。没有故意破坏用户数据库；源目录只移动独立测试数据并保留原始文件到演练结束。完整 v1 发布门槛、另一种 S3 服务及长期调度负载仍需后续验收。
+源目录不可用场景仍保留 `_local` 设备配置和凭据，该场景没有验证全新设备。独立云连接及彻底删除源工作区后的恢复已另行实现，见 [全新设备恢复](./CLOUD-RECOVERY.md)。没有故意破坏用户数据库；源目录只移动独立测试数据并保留原始文件到演练结束。完整 v1 发布门槛及长期调度负载仍需后续验收。

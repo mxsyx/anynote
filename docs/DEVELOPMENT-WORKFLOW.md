@@ -90,7 +90,7 @@ Cloudflare 部署需要先配置 GitHub Environment `cloudflare-production`：
 - Variables：`CLOUDFLARE_ACCOUNT_ID`、`ANYNOTE_CF_DATABASE_ID`。
 - 可选 Variables：`ANYNOTE_CF_WORKER_NAME`、`ANYNOTE_CF_DATABASE_NAME`、`ANYNOTE_CF_BUCKET_NAME`；默认使用仓库 Wrangler 配置里的名称。
 
-此工作流复用既有资源与 Worker 认证密钥，不创建桶、不重置令牌。第一次创建云资源仍使用 `pnpm run cloud:deploy` 的现有 Wrangler 流程。CI 不接触 `.env.cloud`、真实 Notebook、生产 S3 或真实云验收。普通 PR 仅有仓库读取权限；写 Release 的权限仅在发布 job 中开放。
+此工作流复用既有资源与 Worker 认证密钥，不创建桶、不重置令牌。第一次创建云资源仍使用 `pnpm run cloud:deploy` 的现有 Wrangler 流程。CI 不接触 `.env.cloud`、真实 Notebook、生产云资源或真实云验收。普通 PR 仅有仓库读取权限；写 Release 的权限仅在发布 job 中开放。
 
 本次只交付配置与本地工具检查，按要求不触发 GitHub 工作流、不发布版本、不部署云端，也不执行桌面/云端验收。配置 GitHub 环境及推送代码后，工作流按触发条件运行。
 

@@ -32,17 +32,8 @@ if (
     process.env.ANYNOTE_CF_TOKEN = managed.token;
   }
 }
-const args = process.argv.slice(2);
-if (
-  args.length &&
-  (args.length !== 2 ||
-    args[0] !== "--provider" ||
-    !["all", "cloudflare", "s3"].includes(args[1]))
-)
-  throw Error(
-    "用法：pnpm run test:cloud:cold-recovery --provider all|cloudflare|s3",
-  );
-const selected = args[1] || "all";
+if (process.argv.slice(2).length)
+  throw Error("用法：pnpm run test:cloud:cold-recovery");
 const file = resolve("test-results/cloud-cold-recovery-acceptance.json"),
   report = {
     format: "anynote.cloud-cold-recovery-acceptance.v1",
@@ -53,7 +44,7 @@ const file = resolve("test-results/cloud-cold-recovery-acceptance.json"),
     providers: [],
     limitations: [
       "完全删除独立源工作区，仅重新提供云连接凭据；不代表账号凭据也丢失时可恢复。",
-      "使用独立 Notebook/lineage/S3前缀，保留远端验收数据；协议工具凭据仅内存，系统密钥服务由桌面验收另行验证。",
+      "使用独立 Notebook/lineage，保留远端验收数据；协议工具凭据仅内存，系统密钥服务由桌面验收另行验证。",
     ],
   };
 function save() {
@@ -62,19 +53,16 @@ function save() {
     mode: 0o600,
   });
 }
-for (const provider of selected === "all" ? ["cloudflare", "s3"] : [selected]) {
-  const record = { provider, status: "running", steps: [] };
+{
+  const provider = "cloudflare",
+    record = { provider, status: "running", steps: [] };
   report.providers.push(record);
   save();
   try {
-    const settings = readCloudConfig(provider);
+    const settings = readCloudConfig();
     if (settings.missing)
       throw Error("缺少配置：" + settings.missing.join(", "));
-    if (provider === "s3")
-      settings.config.prefix =
-        "anynote-cold-recovery-acceptance/" + report.runId;
     await coldRecoveryScenario({
-      provider,
       settings,
       onStep: (step, steps) => {
         record.steps = steps;

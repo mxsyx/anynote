@@ -14,9 +14,6 @@ export async function launchDesktop(userData) {
   for (const key of [
     "ANYNOTE_CF_TOKEN",
     "ANYNOTE_CF_ENDPOINT",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
     "CLOUDFLARE_API_TOKEN",
   ])
     delete env[key];

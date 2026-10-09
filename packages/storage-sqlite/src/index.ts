@@ -326,8 +326,6 @@ export class Storage {
         "previewRemoteRetention",
         "applyRemoteRetention",
         "remoteRetentionState",
-        "remoteProtectionAudit",
-        "releaseRemoteProtection",
         // The consistency scan runs off the serial queue so it can be cancelled
         // and never blocks editing; it stays read-only.
         "inspectIntegrity",

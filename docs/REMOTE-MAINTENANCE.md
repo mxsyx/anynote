@@ -52,21 +52,10 @@ pnpm run cloud:legacy-lock <远端NotebookUUID> --release <计划UUID> <执行UU
 
 必须先证明旧请求已停止，例如部署新 Worker 并确认旧版本不再有 `/retention/apply` 活动；不能按锁的时间长短猜测其是否仍在运行。`/v1/capabilities` 公布 `maintenance-admin-v1`，`0004.sql` 建立审计表。
 
-## S3 遗留保护处置
-
-崩溃或独立工具可能留下没有本地 pending 回执的写登记与残留恢复登记。它们会阻塞清理规划并保守保护对应版本，且不会自动过期。
-
-先在维护界面点「审查遗留保护」（或调用 `remoteProtectionAudit`）做只读查看：返回当前写/恢复登记、活动保护预算、已提交/退役数量，以及每项是否匹配本地 pending 回执的判定。审查不改变任何状态；备份或恢复任务进行中也能查看。
-
-确认这些登记的来源任务已停止后，勾选声明并逐项「解除」（或调用 `releaseRemoteProtection`）。解除要求显式确认与 `legacy-requests-stopped` 声明，并且只清除被确切观测的 `kind`+`id`+`generationId` 登记（控制记录 revision 条件写入）；条件不满足返回 `LEGACY_PROTECTION_CHANGED`，匹配本地 pending 回执的登记会被拒绝。未提交的写 generation 在解除时一并退役，迟到上传无法再发布它；已提交版本保持可恢复。残留 reader 解除后，其保护的旧版本才可能进入清理。
-
-不以登记存在时间判断其是否仍在运行；必须由使用者确认来源任务已停止，且目标存在进行中的本地任务时拒绝解除。Cloudflare 目标沿用「旧维护锁处置」，不使用这里的入口。
-
 ## 验证与边界
 
 - `pnpm test` 包含 11 项维护合约及 3 项采样策略合约：旧设备撤销、幂等接管、其他分支/恢复 pin/staging 保护、陈旧计划拒绝、中断重试、分批游标与并发执行互斥、恢复副本身份映射及公开 API 的持久化/显式确认。
 - 旧维护锁的只读诊断、受限释放（显式确认 + 旧请求停止声明 + 精确 CAS）与释放后协调器从游标续跑由 `tests/maintenance-recovery.test.mjs` 合约覆盖；不按时间抢占。
-- S3 遗留保护的只读审查、受限精确解除（显式确认 + 来源停止声明 + 登记身份 CAS）以及迟到上传/恢复不越权由 `tests/s3-maintenance.test.mjs` 合约覆盖；残留 reader 解除后旧版本才进入清理。
 - `pnpm run test:cloud:local` 使用官方 workerd、本地 D1/R2 执行原有 7 项与新增 5 项维护场景。
 - `pnpm run cloud:deploy` 部署后执行真实 Cloudflare 原有 8 项与新增 5 项检查。只删除本次新建验收 Notebook 内列出的旧版本，用户已有数据不参与测试。
 - `pnpm run test:desktop:cloud --isolated-keyring --maintenance` 在真实 Electron、GNOME Keyring 和 Cloudflare 上验证清理预览/确认/恢复、接管确认与持久化、接管后重启备份。
@@ -75,6 +64,6 @@ pnpm run cloud:legacy-lock <远端NotebookUUID> --release <计划UUID> <执行UU
 
 实际云验收覆盖旧版本 manifest/D1 删除和保留 head 恢复。新建测试对象仍在 24 小时宽限期内，因此超过宽限期对象的物理回收目前由使用模拟 R2 时间的合约验证，尚未声称真实云 aged-object 回收通过。
 
-S3 已加入基于条件写入和不可变对象版本的保留/GC；需要实际桶启用版本管理且兼容 API 通过探测，否则拒绝删除。S3 不提供设备接管；旧客户端必须停止并升级。范围、预算、遗留保护和真实 MinIO 验收见 [P0 备份可靠性](P0-BACKUP-READINESS.md)。Windows/macOS、旧版无协调器锁、大规模规划及长期周期负载仍待验收。
+远端维护的清理与保留范围、预算见 [P0 备份可靠性](P0-BACKUP-READINESS.md)。Windows/macOS、旧版无协调器锁、大规模规划及长期周期负载仍待验收。
 
 日/周/月采样已通过官方 workerd、真实 Cloudflare、生产页面及 Linux 打包版验收；云端历史日期由独立测试分支的协议夹具指定，不改动用户既有版本。它验证采样版本的保留和恢复，不代表超过 24 小时 R2 孤立对象的真实老化回收。

@@ -181,8 +181,6 @@ export type Operation =
   | "previewRemoteRetention"
   | "applyRemoteRetention"
   | "remoteRetentionState"
-  | "remoteProtectionAudit"
-  | "releaseRemoteProtection"
   | "configureCloudRecovery"
   | "listCloudRecoveryConnections"
   | "discoverCloudBackups"

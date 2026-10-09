@@ -5,8 +5,7 @@ import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { BackupTarget } from "@anynote/types/runtime.js";
 import { restoreLogicalFiles } from "./file-logical.js";
-import { restoreSnapshotFiles } from "./file-s3.js";
-import { S3Objects, CloudflareClient } from "./providers.js";
+import { CloudflareClient } from "./providers.js";
 import type { Task } from "@anynote/types/runtime.js";
 
 /**
@@ -21,7 +20,7 @@ import type { Task } from "@anynote/types/runtime.js";
 export function startCloudRestore(
   s: Storage,
   target: BackupTarget,
-  provider: S3Objects | CloudflareClient,
+  provider: CloudflareClient,
   generationId: string,
 ) {
   const id = randomUUID(),
@@ -47,30 +46,17 @@ export function startCloudRestore(
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
       };
-      const manifest =
-        provider instanceof S3Objects
-          ? await restoreSnapshotFiles(
-              provider,
-              target,
-              generationId,
-              dir,
-              controller.signal,
-              onBytes,
-              (bytes) => {
-                job.totalBytes = bytes;
-              },
-            )
-          : await restoreLogicalFiles(
-              provider,
-              target,
-              generationId,
-              dir,
-              controller.signal,
-              onBytes,
-              (bytes) => {
-                job.totalBytes = bytes;
-              },
-            );
+      const manifest = await restoreLogicalFiles(
+        provider,
+        target,
+        generationId,
+        dir,
+        controller.signal,
+        onBytes,
+        (bytes) => {
+          job.totalBytes = bytes;
+        },
+      );
       controller.signal.throwIfAborted();
       job.progress = "正在独立线程校验数据库与重建搜索";
       const result = await validateAndPublish(

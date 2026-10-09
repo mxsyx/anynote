@@ -5,11 +5,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import {
-  uploadSnapshot,
-  listSnapshots,
-  restoreSnapshot,
-} from "../../.build/packages/backup/providers.js";
-import {
   logicalBundle,
   uploadLogical,
   listLogical,
@@ -18,7 +13,6 @@ import {
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=";
 export async function acceptanceScenario({
-  provider,
   client,
   onStep = () => {},
   onPrepared = () => {},
@@ -135,273 +129,147 @@ export async function acceptanceScenario({
         png,
       );
     };
-    if (provider === "s3") {
-      await check("upload-and-verified-commit", async () => {
-        await uploadSnapshot(client, bundle, {
-          ...target,
-          generationId: ids.first,
-        });
-        assert.ok(
-          (await listSnapshots(client, book.id, target.lineageId)).some(
-            (g) => g.id === ids.first,
-          ),
+    const base = `/v1/notebooks/${book.id}/backup`,
+      logical = logicalBundle(bundle);
+    const manifest = (id, head = "") => ({
+      ...logical.manifest,
+      ...target,
+      generationId: id,
+      expectedHead: head,
+      writerEpoch: 1,
+    });
+    const commit = (id, head = "") =>
+      client.call(`${base}/${id}/commit`, {
+        method: "POST",
+        body: { expectedHead: head, writerEpoch: 1 },
+      });
+    let plan, winningHead;
+    await check("capabilities-and-staging-invisibility", async () => {
+      const capabilities = await client.call("/v1/capabilities");
+      assert.equal(capabilities.protocolVersion, 1);
+      plan = await client.call(base + "/plan", {
+        method: "POST",
+        body: manifest(ids.first),
+      });
+      assert.ok(plan.missing.length > 0);
+      assert.equal((await listLogical(client, target)).length, 0);
+    });
+    await check("missing-and-tampered-objects-cannot-commit", async () => {
+      await assert.rejects(
+        commit(ids.first),
+        (e) => e.status === 409 && e.message === "ASSET_MISSING",
+      );
+      const hash = plan.missing[0],
+        bytes = Buffer.from(logical.objects.get(hash));
+      bytes[0] ^= 1;
+      await assert.rejects(
+        client.uploadObject(`${base}/${ids.first}/objects/${hash}`, bytes),
+        (e) => e.status === 400,
+      );
+    });
+    await check("upload-and-lost-commit-response-recovery", async () => {
+      for (const hash of plan.missing)
+        await client.uploadObject(
+          `${base}/${ids.first}/objects/${hash}`,
+          logical.objects.get(hash),
         );
-      });
-      await check("restore-content-history-trash-and-assets", async () =>
-        verify(
-          await restoreSnapshot(client, { ...target, generationId: ids.first }),
-          originalBody,
-        ),
+      await assert.rejects(
+        (async () => {
+          await commit(ids.first);
+          throw Error("INJECTED_LOST_RESPONSE");
+        })(),
+        /INJECTED_LOST_RESPONSE/,
       );
-      await check("unchanged-objects-are-not-uploaded", async () => {
-        const result = await uploadSnapshot(client, bundle, {
-          ...target,
-          generationId: ids.second,
-        });
-        assert.equal(result.uploaded, 0);
-      });
-      const changed = await call("saveNote", {
-        id: note.id,
-        expectedRevision: note.revision,
-        body: originalBody + "\n版本二。",
-      });
-      const nextBundle = Buffer.from(
-        (await call("exportArchive")).data,
-        "base64",
+      assert.equal(
+        (await client.call(`${base}/${ids.first}`)).status,
+        "committed",
       );
-      await check("interruption-does-not-publish-a-version", async () => {
-        const faulty = {
-          has: client.has.bind(client),
-          get: client.get.bind(client),
-          put: async (key, bytes) => {
-            if (key.endsWith("/COMMITTED.json"))
-              throw Error("INJECTED_BEFORE_COMMIT");
-            await client.put(key, bytes);
+      await commit(ids.first);
+      assert.equal((await listLogical(client, target)).length, 1);
+    });
+    await check("restore-content-history-trash-and-assets", async () =>
+      verify(await restoreLogical(client, target, ids.first), originalBody),
+    );
+    await check("unchanged-objects-and-idempotency-conflict", async () => {
+      const next = await client.call(base + "/plan", {
+        method: "POST",
+        body: manifest(ids.second, ids.first),
+      });
+      assert.equal(next.missing.length, 0);
+      await commit(ids.second, ids.first);
+      await assert.rejects(
+        client.call(base + "/plan", {
+          method: "POST",
+          body: {
+            ...manifest(ids.second, ids.first),
+            snapshotSeq: logical.manifest.snapshotSeq + 1,
           },
-        };
-        await assert.rejects(
-          uploadSnapshot(faulty, nextBundle, {
-            ...target,
-            generationId: ids.interrupted,
-          }),
-          /INJECTED_BEFORE_COMMIT/,
-        );
-        assert.ok(
-          !(await listSnapshots(client, book.id, target.lineageId)).some(
-            (g) => g.id === ids.interrupted,
+        }),
+        (e) => e.status === 409 && e.message === "IDEMPOTENCY_CONFLICT",
+      );
+    });
+    await check("concurrent-head-CAS-only-publishes-one-version", async () => {
+      await client.call(base + "/plan", {
+        method: "POST",
+        body: manifest(ids.interrupted, ids.second),
+      });
+      await client.call(base + "/plan", {
+        method: "POST",
+        body: manifest(ids.race, ids.second),
+      });
+      const raced = await Promise.allSettled([
+        commit(ids.interrupted, ids.second),
+        commit(ids.race, ids.second),
+      ]);
+      assert.equal(raced.filter((r) => r.status === "fulfilled").length, 1);
+      const loser = raced.find((r) => r.status === "rejected");
+      assert.equal(loser.reason.status, 409);
+      assert.equal(loser.reason.message, "HEAD_CONFLICT");
+      winningHead =
+        raced[0].status === "fulfilled" ? ids.interrupted : ids.race;
+      const losingHead =
+        winningHead === ids.interrupted ? ids.race : ids.interrupted;
+      scope.casWinner = winningHead;
+      onPrepared(scope);
+      assert.ok(
+        !(await listLogical(client, target)).some((g) => g.id === losingHead),
+      );
+      await verify(
+        await restoreLogical(client, target, ids.first),
+        originalBody,
+      );
+    });
+    await check(
+      "changed-content-round-trip-through-public-provider",
+      async () => {
+        const changed = await call("saveNote", {
+          id: note.id,
+          expectedRevision: note.revision,
+          body: originalBody + "\n版本二。",
+        });
+        const nextBundle = Buffer.from(
+            (await call("exportArchive")).data,
+            "base64",
           ),
+          generationId = randomUUID();
+        scope.generations.changed = generationId;
+        onPrepared(scope);
+        await uploadLogical(
+          client,
+          nextBundle,
+          { ...target, lastGeneration: winningHead },
+          {
+            generationId,
+            signal: new AbortController().signal,
+            progress: () => {},
+          },
         );
         await verify(
-          await restoreSnapshot(client, { ...target, generationId: ids.first }),
-          originalBody,
-        );
-      });
-      await check("lost-commit-response-and-idempotent-retry", async () => {
-        const faulty = {
-          has: client.has.bind(client),
-          get: client.get.bind(client),
-          put: async (key, bytes) => {
-            await client.put(key, bytes);
-            if (key.endsWith("/COMMITTED.json"))
-              throw Error("INJECTED_LOST_RESPONSE");
-          },
-        };
-        await assert.rejects(
-          uploadSnapshot(faulty, nextBundle, {
-            ...target,
-            generationId: ids.interrupted,
-          }),
-          /INJECTED_LOST_RESPONSE/,
-        );
-        assert.ok(
-          (await listSnapshots(client, book.id, target.lineageId)).some(
-            (g) => g.id === ids.interrupted,
-          ),
-        );
-        const retry = await uploadSnapshot(client, nextBundle, {
-          ...target,
-          generationId: ids.interrupted,
-        });
-        assert.equal(retry.uploaded, 0);
-        assert.equal(
-          (await listSnapshots(client, book.id, target.lineageId)).filter(
-            (g) => g.id === ids.interrupted,
-          ).length,
-          1,
-        );
-        await verify(
-          await restoreSnapshot(client, {
-            ...target,
-            generationId: ids.interrupted,
-          }),
+          await restoreLogical(client, target, generationId),
           changed.body,
         );
-      });
-      await check("download-corruption-is-rejected", async () => {
-        const corrupt = {
-          get: async (key) => {
-            const bytes = await client.get(key);
-            if (key.includes("/databases/")) {
-              const tampered = Buffer.from(bytes);
-              tampered[0] ^= 1;
-              return tampered;
-            }
-            return bytes;
-          },
-        };
-        await assert.rejects(
-          restoreSnapshot(corrupt, { ...target, generationId: ids.first }),
-          /校验失败/,
-        );
-      });
-    } else if (provider === "cloudflare") {
-      const base = `/v1/notebooks/${book.id}/backup`,
-        logical = logicalBundle(bundle);
-      const manifest = (id, head = "") => ({
-        ...logical.manifest,
-        ...target,
-        generationId: id,
-        expectedHead: head,
-        writerEpoch: 1,
-      });
-      const commit = (id, head = "") =>
-        client.call(`${base}/${id}/commit`, {
-          method: "POST",
-          body: { expectedHead: head, writerEpoch: 1 },
-        });
-      let plan, winningHead;
-      await check("capabilities-and-staging-invisibility", async () => {
-        const capabilities = await client.call("/v1/capabilities");
-        assert.equal(capabilities.protocolVersion, 1);
-        plan = await client.call(base + "/plan", {
-          method: "POST",
-          body: manifest(ids.first),
-        });
-        assert.ok(plan.missing.length > 0);
-        assert.equal((await listLogical(client, target)).length, 0);
-      });
-      await check("missing-and-tampered-objects-cannot-commit", async () => {
-        await assert.rejects(
-          commit(ids.first),
-          (e) => e.status === 409 && e.message === "ASSET_MISSING",
-        );
-        const hash = plan.missing[0],
-          bytes = Buffer.from(logical.objects.get(hash));
-        bytes[0] ^= 1;
-        await assert.rejects(
-          client.uploadObject(`${base}/${ids.first}/objects/${hash}`, bytes),
-          (e) => e.status === 400,
-        );
-      });
-      await check("upload-and-lost-commit-response-recovery", async () => {
-        for (const hash of plan.missing)
-          await client.uploadObject(
-            `${base}/${ids.first}/objects/${hash}`,
-            logical.objects.get(hash),
-          );
-        await assert.rejects(
-          (async () => {
-            await commit(ids.first);
-            throw Error("INJECTED_LOST_RESPONSE");
-          })(),
-          /INJECTED_LOST_RESPONSE/,
-        );
-        assert.equal(
-          (await client.call(`${base}/${ids.first}`)).status,
-          "committed",
-        );
-        await commit(ids.first);
-        assert.equal((await listLogical(client, target)).length, 1);
-      });
-      await check("restore-content-history-trash-and-assets", async () =>
-        verify(await restoreLogical(client, target, ids.first), originalBody),
-      );
-      await check("unchanged-objects-and-idempotency-conflict", async () => {
-        const next = await client.call(base + "/plan", {
-          method: "POST",
-          body: manifest(ids.second, ids.first),
-        });
-        assert.equal(next.missing.length, 0);
-        await commit(ids.second, ids.first);
-        await assert.rejects(
-          client.call(base + "/plan", {
-            method: "POST",
-            body: {
-              ...manifest(ids.second, ids.first),
-              snapshotSeq: logical.manifest.snapshotSeq + 1,
-            },
-          }),
-          (e) => e.status === 409 && e.message === "IDEMPOTENCY_CONFLICT",
-        );
-      });
-      await check(
-        "concurrent-head-CAS-only-publishes-one-version",
-        async () => {
-          await client.call(base + "/plan", {
-            method: "POST",
-            body: manifest(ids.interrupted, ids.second),
-          });
-          await client.call(base + "/plan", {
-            method: "POST",
-            body: manifest(ids.race, ids.second),
-          });
-          const raced = await Promise.allSettled([
-            commit(ids.interrupted, ids.second),
-            commit(ids.race, ids.second),
-          ]);
-          assert.equal(raced.filter((r) => r.status === "fulfilled").length, 1);
-          const loser = raced.find((r) => r.status === "rejected");
-          assert.equal(loser.reason.status, 409);
-          assert.equal(loser.reason.message, "HEAD_CONFLICT");
-          winningHead =
-            raced[0].status === "fulfilled" ? ids.interrupted : ids.race;
-          const losingHead =
-            winningHead === ids.interrupted ? ids.race : ids.interrupted;
-          scope.casWinner = winningHead;
-          onPrepared(scope);
-          assert.ok(
-            !(await listLogical(client, target)).some(
-              (g) => g.id === losingHead,
-            ),
-          );
-          await verify(
-            await restoreLogical(client, target, ids.first),
-            originalBody,
-          );
-        },
-      );
-      await check(
-        "changed-content-round-trip-through-public-provider",
-        async () => {
-          const changed = await call("saveNote", {
-            id: note.id,
-            expectedRevision: note.revision,
-            body: originalBody + "\n版本二。",
-          });
-          const nextBundle = Buffer.from(
-              (await call("exportArchive")).data,
-              "base64",
-            ),
-            generationId = randomUUID();
-          scope.generations.changed = generationId;
-          onPrepared(scope);
-          await uploadLogical(
-            client,
-            nextBundle,
-            { ...target, lastGeneration: winningHead },
-            {
-              generationId,
-              signal: new AbortController().signal,
-              progress: () => {},
-            },
-          );
-          await verify(
-            await restoreLogical(client, target, generationId),
-            changed.body,
-          );
-        },
-      );
-    } else throw Error("未知 Provider");
+      },
+    );
     return { scope, steps };
   } finally {
     s.close();

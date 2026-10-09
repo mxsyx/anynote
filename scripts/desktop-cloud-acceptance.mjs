@@ -18,10 +18,9 @@ import { unzipSync } from "fflate";
 import { managedCloudConfig } from "./cloud/deploy.mjs";
 import { readCloudConfig, redact } from "./cloud/config.mjs";
 const args = process.argv.slice(2);
-const providerIndex = args.indexOf("--provider");
-const provider = providerIndex < 0 ? "cloudflare" : args[providerIndex + 1];
-if (!["cloudflare", "s3"].includes(provider))
-  throw Error("--provider 仅支持 cloudflare 或 s3");
+if (args.includes("--provider"))
+  throw Error("--provider 已移除；仅支持 Cloudflare");
+const provider = "cloudflare";
 const maintenance = args.includes("--maintenance");
 
 // Optional isolated, real Secret Service; never substitute safeStorage or its vault.
@@ -44,10 +43,7 @@ if (args.includes("--isolated-keyring")) {
         "--",
         process.execPath,
         fileURLToPath(import.meta.url),
-        "--provider",
-        provider,
         ...(maintenance ? ["--maintenance"] : []),
-        ...(args.includes("--local-s3") ? ["--local-s3"] : []),
         ...(args.includes("--cold-recovery") ? ["--cold-recovery"] : []),
       ],
       { env, stdio: "inherit" },
@@ -62,66 +58,39 @@ if (args.includes("--isolated-keyring")) {
 }
 async function acceptance() {
   const settings =
-    provider === "s3"
-      ? readCloudConfig("s3", process.env, {
-          allowLocalHTTP: args.includes("--local-s3"),
-        })
-      : process.env.ANYNOTE_CF_ENDPOINT && process.env.ANYNOTE_CF_TOKEN
-        ? readCloudConfig("cloudflare")
-        : null;
+    process.env.ANYNOTE_CF_ENDPOINT && process.env.ANYNOTE_CF_TOKEN
+      ? readCloudConfig()
+      : null;
   if (settings?.missing?.length)
     throw Error("缺少配置：" + settings.missing.join(", "));
-  const config =
-    provider === "s3"
-      ? { ...settings.config, ...settings.secrets }
-      : settings?.config
-        ? { endpoint: settings.config.endpoint, token: settings.secrets.token }
-        : managedCloudConfig();
+  const config = settings?.config
+    ? { endpoint: settings.config.endpoint, token: settings.secrets.token }
+    : managedCloudConfig();
   if (!config)
     throw Error("请先运行 pnpm run cloud:deploy，或提供完整 Cloudflare 配置。");
   const reportEnv = {
     ...process.env,
     ...(config.token ? { ANYNOTE_CF_TOKEN: config.token } : {}),
   };
-  const privateValues = [
-    config.token,
-    config.accessKeyId,
-    config.secretAccessKey,
-    config.sessionToken,
-  ].filter(Boolean);
+  const privateValues = [config.token].filter(Boolean);
   const root = mkdtempSync(join(tmpdir(), "anynote-desktop-cloud-"));
   const reportPath = resolve(
-    maintenance && provider === "s3"
+    maintenance
       ? process.env.ANYNOTE_EXECUTABLE
-        ? "test-results/desktop-s3-maintenance-packaged-acceptance.json"
-        : "test-results/desktop-s3-maintenance-acceptance.json"
-      : maintenance
-        ? process.env.ANYNOTE_EXECUTABLE
-          ? "test-results/desktop-cloud-maintenance-packaged-acceptance.json"
-          : "test-results/desktop-cloud-maintenance-acceptance.json"
-        : provider === "s3"
-          ? "test-results/desktop-s3-acceptance.json"
-          : "test-results/desktop-cloud-acceptance.json",
+        ? "test-results/desktop-cloud-maintenance-packaged-acceptance.json"
+        : "test-results/desktop-cloud-maintenance-acceptance.json"
+      : "test-results/desktop-cloud-acceptance.json",
   );
   const report = {
     format: "anynote.desktop-cloud-acceptance.v1",
     runId: randomUUID(),
     startedAt: new Date().toISOString(),
-    mode: args.includes("--local-s3")
-      ? "desktop-local-real-s3"
-      : "desktop-real-cloud",
+    mode: "desktop-real-cloud",
     entry: process.env.ANYNOTE_EXECUTABLE
       ? "linux-packaged"
       : "source-production",
     provider,
     endpoint: config.endpoint,
-    ...(provider === "s3"
-      ? {
-          bucket: config.bucket,
-          region: config.region,
-          pathStyle: config.pathStyle,
-        }
-      : {}),
     status: "running",
     keyringSession: process.env.ANYNOTE_ACCEPTANCE_KEYRING_ROOT
       ? "isolated-real-gnome-keyring"
@@ -130,7 +99,7 @@ async function acceptance() {
     steps: [],
     limitations: [
       "只验证当前 Linux/Electron 环境；未验证 Windows/macOS、系统重启或长期运行。",
-      "自动备份使用正式 60 秒轮询和 10 分钟间隔配置；验证重启后到期的首个备份，不是持续 10 分钟负载测试。",
+      "自动备份使用正式 60 秒轮询和约每分钟间隔配置；验证重启后到期的首个备份，不是持续负载测试。",
       "云端临时 Notebook/lineage 数据保留；桌面数据和隔离 keyring 在结束时删除。",
       "--no-sandbox 用于本环境启动；窗口仍验证 sandbox/contextIsolation 设置。",
     ],
@@ -190,9 +159,6 @@ async function acceptance() {
     for (const key of [
       "ANYNOTE_CF_TOKEN",
       "ANYNOTE_CF_ENDPOINT",
-      "AWS_ACCESS_KEY_ID",
-      "AWS_SECRET_ACCESS_KEY",
-      "AWS_SESSION_TOKEN",
       "CLOUDFLARE_API_TOKEN",
     ])
       delete env[key];
@@ -464,31 +430,11 @@ async function acceptance() {
       await navigateBackup();
       await page.getByRole("button", { name: "添加目标", exact: true }).click();
       const form = page.getByRole("dialog", { name: "配置备份", exact: true });
-      await form.getByRole("combobox").first().selectOption(provider);
       await form
         .getByLabel("名称", { exact: true })
         .fill("真实 " + provider + " 桌面验收");
       await form.getByLabel("Endpoint", { exact: true }).fill(config.endpoint);
-      if (provider === "cloudflare")
-        await form.getByLabel("应用 Token", { exact: true }).fill(config.token);
-      else {
-        await form.getByLabel("Bucket", { exact: true }).fill(config.bucket);
-        await form.getByLabel("Region", { exact: true }).fill(config.region);
-        const prefix = "anynote-desktop-acceptance/" + report.runId;
-        await form.getByLabel("Prefix", { exact: true }).fill(prefix);
-        report.prefix = prefix;
-        await form
-          .locator('select[name="addressing"]')
-          .selectOption(config.pathStyle ? "path" : "virtual");
-        await form
-          .getByLabel("Access Key ID", { exact: true })
-          .fill(config.accessKeyId);
-        await form
-          .getByLabel("Secret Access Key", { exact: true })
-          .fill(config.secretAccessKey);
-        if (config.sessionToken)
-          await form.locator('input[name="session"]').fill(config.sessionToken);
-      }
+      await form.getByLabel("应用 Token", { exact: true }).fill(config.token);
       if (config.allowInsecure)
         await form
           .getByRole("checkbox", { name: "允许 HTTP，仅用于可信本机测试服务" })
@@ -511,7 +457,6 @@ async function acceptance() {
       for (const value of privateValues) assert.ok(!metadata.includes(value));
       for (const value of privateValues)
         assert.ok(!JSON.stringify(target).includes(value));
-      if (provider === "s3") assert.equal(target.pathStyle, config.pathStyle);
       await page.getByRole("button", { name: "测试连接", exact: true }).click();
       await page
         .getByRole("alert")
@@ -522,19 +467,19 @@ async function acceptance() {
       "enable-auto-backup-and-restart-without-token-in-environment",
       async () => {
         await page
-          .getByRole("checkbox", { name: "自动备份 · 每 10 分钟检查变更" })
+          .getByRole("checkbox", { name: "自动备份 · 约每分钟检查变更" })
           .click();
         for (let i = 0; i < 50 && !(await backups())[0].autoBackup; i++)
           await new Promise((r) => setTimeout(r, 100));
         assert.equal((await backups())[0].autoBackup, true);
-        assert.equal((await backups())[0].intervalMinutes, 10);
+        assert.equal((await backups())[0].intervalMinutes, 1);
         await app.close();
         app = null;
         await launch();
         await navigateBackup();
         assert.equal(
           await page
-            .getByRole("checkbox", { name: "自动备份 · 每 10 分钟检查变更" })
+            .getByRole("checkbox", { name: "自动备份 · 约每分钟检查变更" })
             .isChecked(),
           true,
         );
@@ -566,7 +511,7 @@ async function acceptance() {
         assert.ok(saved.lastAckSeq > 0);
         await closeTasks();
         await page
-          .getByRole("checkbox", { name: "自动备份 · 每 10 分钟检查变更" })
+          .getByRole("checkbox", { name: "自动备份 · 约每分钟检查变更" })
           .click();
         for (let i = 0; i < 50 && (await backups())[0].autoBackup; i++)
           await new Promise((r) => setTimeout(r, 100));
@@ -691,12 +636,6 @@ async function acceptance() {
             name: "远端维护",
             exact: true,
           });
-          if (provider === "s3")
-            await dialog
-              .getByRole("checkbox", {
-                name: /确认访问此分支的所有客户端已升级/,
-              })
-              .check();
           await dialog.getByLabel("保留最近版本数").fill("1");
           await dialog.getByLabel("每日采样保留天数").fill("7");
           await dialog.getByLabel("每周采样保留周数").fill("4");
@@ -891,39 +830,11 @@ async function acceptance() {
           await settingsPage();
           const form = page.getByRole("form", { name: "云恢复连接" });
           await form
-            .getByLabel("存储类型", { exact: true })
-            .selectOption(provider);
-          await form
             .getByLabel("Endpoint", { exact: true })
             .fill(config.endpoint);
-          if (provider === "cloudflare")
-            await form
-              .getByLabel("应用 Token", { exact: true })
-              .fill(config.token);
-          else {
-            await form
-              .getByLabel("Bucket", { exact: true })
-              .fill(config.bucket);
-            await form
-              .getByLabel("Region", { exact: true })
-              .fill(config.region);
-            await form
-              .getByLabel("Prefix", { exact: true })
-              .fill(report.prefix);
-            await form
-              .getByLabel("寻址方式", { exact: true })
-              .selectOption(config.pathStyle ? "path" : "virtual");
-            await form
-              .getByLabel("Access Key ID", { exact: true })
-              .fill(config.accessKeyId);
-            await form
-              .getByLabel("Secret Access Key", { exact: true })
-              .fill(config.secretAccessKey);
-            if (config.sessionToken)
-              await form
-                .getByLabel("Session Token（可选）", { exact: true })
-                .fill(config.sessionToken);
-          }
+          await form
+            .getByLabel("应用 Token", { exact: true })
+            .fill(config.token);
           await form
             .getByRole("button", { name: "保存连接并查询", exact: true })
             .click();

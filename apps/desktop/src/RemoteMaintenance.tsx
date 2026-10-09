@@ -4,7 +4,6 @@ import { request } from "./api";
 
 /** Target that a remote maintenance operation acts on. */
 interface Target {
-  provider?: "s3" | "cloudflare";
   id: string;
   lineageId: string;
   remoteNotebookId?: string;
@@ -51,24 +50,6 @@ interface Writer {
   writerEpoch: number;
 }
 
-/** One leftover writer/reader protection registration without a local pending receipt. */
-interface ProtectionEntry {
-  kind: "writer" | "reader";
-  id: string;
-  generationId: string;
-  committed: boolean;
-}
-
-/** Read-only audit of the S3 maintenance control record's protections. */
-interface ProtectionAudit {
-  managed: boolean;
-  leftover: ProtectionEntry[];
-  committed: number;
-  retired: number;
-  activity: { used: number; limit: number };
-  guidance: string;
-}
-
 /**
  * Remote maintenance dialog.
  *
@@ -101,9 +82,6 @@ export default function RemoteMaintenance({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirmed, setConfirmed] = useState(false),
-    [s3Ready, setS3Ready] = useState(false),
-    [protection, setProtection] = useState<ProtectionAudit | null>(null),
-    [attested, setAttested] = useState(false),
     [notice, setNotice] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
@@ -159,16 +137,6 @@ export default function RemoteMaintenance({
             <X size={18} />
           </button>
         </div>
-        {target.provider === "s3" && (
-          <label>
-            <input
-              type="checkbox"
-              checked={s3Ready}
-              onChange={(e) => setS3Ready(e.target.checked)}
-            />
-            确认访问此分支的所有客户端已升级，旧任务已停止。清理需要桶版本管理和条件写入；不会自动修改桶设置。
-          </label>
-        )}
         <div className="dialog-actions">
           <button
             disabled={busy || plan?.status === "deleting"}
@@ -179,24 +147,22 @@ export default function RemoteMaintenance({
           >
             版本保留与清理
           </button>
-          {target.provider !== "s3" && (
-            <button
-              disabled={busy || plan?.status === "deleting"}
-              onClick={() => {
-                setMode("writer");
-                setConfirmed(false);
-              }}
-            >
-              设备接管
-            </button>
-          )}
+          <button
+            disabled={busy || plan?.status === "deleting"}
+            onClick={() => {
+              setMode("writer");
+              setConfirmed(false);
+            }}
+          >
+            设备接管
+          </button>
         </div>
         {mode === "retention" ? (
           <>
             <p>
-              {target.provider === "s3"
-                ? "仅清理此目标分支；保留版本和活动恢复受保护，备份执行期间不能清理。无引用资源版本的宽限期为 24 小时，失败后可重试同一计划。"
-                : "仅清理当前分支的旧版本。所有分支的 head、保留版本、上传中版本和恢复 pin 均受保护；对象宽限期为 24 小时。"}
+              仅清理当前分支的旧版本。所有分支的
+              head、保留版本、上传中版本和恢复 pin 均受保护；对象宽限期为 24
+              小时。
             </p>
             <label>
               保留最近版本数
@@ -242,16 +208,11 @@ export default function RemoteMaintenance({
             ))}
             <button
               className="secondary"
-              disabled={
-                busy ||
-                plan?.status === "deleting" ||
-                (target.provider === "s3" && !s3Ready)
-              }
+              disabled={busy || plan?.status === "deleting"}
               onClick={() =>
                 void act(async () => {
                   setPlan(
                     await request<Plan>("previewRemoteRetention", {
-                      confirmed: target.provider === "s3" ? s3Ready : undefined,
                       notebookId,
                       targetId: target.id,
                       keep,
@@ -268,12 +229,9 @@ export default function RemoteMaintenance({
               <>
                 <p>
                   将删除 {plan.remove.length} 个旧版本、{plan.objects.length}{" "}
-                  {target.provider === "s3" ? "个对象版本" : "个无引用对象"}
-                  ，预计释放 {(plan.reclaimBytes / 1024 ** 2).toFixed(2)}{" "}
-                  MB。保护 {plan.protected.length} 个版本
-                  {target.provider === "s3"
-                    ? "。"
-                    : `及 ${plan.staging} 个上传中版本。`}
+                  个无引用对象，预计释放{" "}
+                  {(plan.reclaimBytes / 1024 ** 2).toFixed(2)} MB。保护{" "}
+                  {plan.protected.length} 个版本及 {plan.staging} 个上传中版本。
                 </p>
                 {plan.calendar && (
                   <p>
@@ -354,86 +312,6 @@ export default function RemoteMaintenance({
                       : "确认永久清理"}
                 </button>
               </>
-            )}
-            {target.provider === "s3" && (
-              <details>
-                <summary>遗留保护审查与解除</summary>
-                <p>
-                  崩溃或独立工具可能留下写登记与恢复登记，它们没有本地 pending
-                  回执，会阻塞清理并保护对应版本，且不会按时间自动抢占。解除前必须确认来源任务已停止。
-                </p>
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void act(async () => {
-                      setProtection(
-                        await request<ProtectionAudit>(
-                          "remoteProtectionAudit",
-                          {
-                            notebookId,
-                            targetId: target.id,
-                          },
-                        ),
-                      );
-                    })
-                  }
-                >
-                  审查遗留保护
-                </button>
-                {protection && (
-                  <>
-                    <p>
-                      活动保护 {protection.activity.used}/
-                      {protection.activity.limit} · 遗留登记{" "}
-                      {protection.leftover.length}
-                    </p>
-                    <label className="check-label">
-                      <input
-                        type="checkbox"
-                        checked={attested}
-                        disabled={busy}
-                        onChange={(e) => setAttested(e.target.checked)}
-                      />
-                      我确认这些保护登记的来源任务已停止
-                    </label>
-                    {protection.leftover.map((entry) => (
-                      <p key={entry.kind + entry.id}>
-                        {entry.kind === "writer" ? "写登记" : "恢复登记"} ·{" "}
-                        {entry.generationId.slice(0, 8)} ·{" "}
-                        {entry.committed ? "已提交版本" : "未提交"}
-                        <button
-                          className="secondary"
-                          disabled={busy || !attested}
-                          onClick={() =>
-                            void act(async () => {
-                              await request("releaseRemoteProtection", {
-                                notebookId,
-                                targetId: target.id,
-                                protectionKind: entry.kind,
-                                protectionId: entry.id,
-                                generationId: entry.generationId,
-                                attestation: "legacy-requests-stopped",
-                                confirmed: true,
-                              });
-                              setProtection(
-                                await request<ProtectionAudit>(
-                                  "remoteProtectionAudit",
-                                  { notebookId, targetId: target.id },
-                                ),
-                              );
-                              setNotice("已解除一项遗留保护登记。");
-                            })
-                          }
-                        >
-                          解除
-                        </button>
-                      </p>
-                    ))}
-                    <p role="status">{protection.guidance}</p>
-                  </>
-                )}
-              </details>
             )}
           </>
         ) : (

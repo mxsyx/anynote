@@ -17,7 +17,7 @@
 - [ ] **P0 — 独立物理设备恢复**：将便携恢复验收包带到另一台干净设备，执行正式 `test:recovery:portable verify`，记录两端设备与环境，核对笔记、目录、资源哈希、历史、回收站、批注、插件数据、自链接和搜索。当前仅同机隔离排练通过。
 - [ ] **P0 — 真实灾难恢复演练**：在独立测试资料上覆盖整机不可用、系统重启、磁盘丢失/断电；从 `.anynote`、本地磁盘副本及远端 committed 版本恢复，保存过程、恢复切点和校验证据。已有源目录移走、空工作区恢复和客户端 SIGKILL 不能替代整机故障。
 - [ ] **P0 — 真实远端故障与长期调度**：覆盖网络中断/限流、鉴权或权限撤销、配额不足、服务不可用及多轮自动备份；核对退避、取消、幂等、提交结果确认、旧版本可恢复和本地编辑不受阻，保留真实服务报告。
-- [ ] **P0 — 汇总 v1 发布门槛**：按设计 §22.3 建立逐项证据表，注明版本、设备、语料、命令、报告及未执行项；Cloudflare、OSS 和真实 MinIO 已有备份恢复证据，不重复列为未实现，但不能据此宣称跨设备/跨平台门槛全部通过。
+- [ ] **P0 — 汇总 v1 发布门槛**：按设计 §22.3 建立逐项证据表，注明版本、设备、语料、命令、报告及未执行项；Cloudflare 已有备份恢复证据，不重复列为未实现，但不能据此宣称跨设备/跨平台门槛全部通过。
 
 ## 2. 跨平台验证（Windows / macOS）
 
@@ -58,14 +58,12 @@
 
 依据：设计 §11–14；[远端维护](docs/REMOTE-MAINTENANCE.md)、[P0 备份可靠性](docs/P0-BACKUP-READINESS.md)、[大文件云备份](docs/STREAMING-CLOUD-BACKUP.md)。
 
-- [ ] **P0 — OSS 维护能力与实测**：在经授权的独立版本化桶/前缀验证条件写入、按 VersionId 删除、保留版本恢复和中断重试。当前主 OSS 桶未启用版本管理，维护探测安全拒绝；已有备份恢复成功不代表 GC 可用。历史 `null` VersionId 对象须制定独立迁移方案，不能直接清理。
-- [ ] **P0 — 真实老化对象回收**：Cloudflare R2 与支持维护的 S3 服务分别实测超过 24 小时宽限期的无引用对象删除，同时验证保留版本、其他分支、staging 和恢复保护不受损。当前 aged-object 删除主要依赖受控时间合约。
-- [ ] **P2 — 维护记录生命周期**：设计并实现 staging、孤立 manifest、清理计划、接管回执、retired 墓碑及 S3 控制记录的安全归档/回收；解决长期运行触及活动版本、保护项及 2000 项身份预算的情况，保持幂等和恢复证据。
+- [ ] **P0 — 真实老化对象回收**：Cloudflare R2 实测超过 24 小时宽限期的无引用对象删除，同时验证保留版本、其他分支、staging 和恢复保护不受损。当前 aged-object 删除主要依赖受控时间合约。
+- [ ] **P2 — 维护记录生命周期**：设计并实现 staging、孤立 manifest、清理计划、接管回执和 retired 墓碑的安全归档/回收；解决长期运行触及活动版本、保护项及 2000 项身份预算的情况，保持幂等和恢复证据。
 - [ ] **P2 — 保留策略持久化与空间预估**：按目标保存数量/日周月保留配置，首次设置展示预计空间；自动执行清理如要支持，单独定义用户授权和保护契约。当前采样为每次手动预览/确认，不是定时删除策略。
 - [ ] **P2 — 中断字节续传**：评估复用已验证分块/下载进度及可选 multipart 的续传和遗留上传清理，补充中断、取消、源切点变化测试；当前重试重新捕获或下载，16MiB 应用分块不等于厂商 multipart 或字节续传。
 - [ ] **P2 — 远端容量与真实负载**：测量大规模维护规划、20GiB/大量附件、长期版本积累、D1/R2 配额与成本；必要时拆分清单、分批验证或异步任务。现有重复块 112MiB 样本不代表随机数据吞吐或满预算通过。
 - [ ] **P3 — Cloudflare checkpoint 策略优化**：评估从每代完整实体映射改为周期 checkpoint+delta，以及可选 SQLite 恢复加速点；测量链长、上传量和恢复成本，完整定义依赖保护。当前每代自包含 checkpoint 可正确恢复，不属于可靠性缺陷。
-- [ ] **P3 — S3 数据库差量格式**：仅在整库变化上传的真实成本证明有必要时，设计页块/内容分块清单和重建器，单独版本化并验证恢复、VACUUM、压缩和加密后的命中率；不将现有分块传输描述为页级增量。
 
 ## 5. 编辑器、阅读器与知识组织
 
@@ -128,9 +126,8 @@
 ### 10.1 远端备份、维护与统一任务（原 §3）
 
 - [x] **P1 — Cloudflare 旧维护锁处置**：新增只读诊断 `/retention/diagnostics` 与受限释放 `/retention/legacy-lock/release`（显式确认 + 旧请求停止声明 + 精确 CAS + 审计），并提供 `pnpm run cloud:legacy-lock` 管理员工具；仅清除被确切观测的无主执行锁并保留 Notebook 锁，释放后在维护界面重试由协调器续跑；不按时间抢占。新协调器中断恢复回归保留。
-- [x] **P1 — S3 遗留保护管理**：新增只读审查 `remoteProtectionAudit` 与受限解除 `releaseRemoteProtection`（显式确认 + 来源停止声明 + 精确登记身份 CAS），并在远端维护界面提供入口；仅解除被确切观测、无本地 pending 回执的写登记与崩溃残留恢复登记，未提交的写 generation 一并退役以阻止迟到上传发布，已提交版本仍可恢复，残留 reader 解除后旧版本才可进入清理；不按时间抢占。
 - [x] **P1 — 持久化任务历史与中断恢复入口**：任务状态/错误/校验报告写入设备侧 `_local/task-history.json`（原子写、200 条上限、单条证据预算），任务创建与结束统一经 `track`/`settle` 记录，进程退出或重启时仍在进行中的任务标记 `interrupted`，`listTasks` 合并历史与当前会话任务；新增 `retryTask`（只重放记录了可复现入参的操作）与只读 `queryPendingGeneration`，任务中心提供重试与提交查询入口。
-- [x] **P1 — 统一重试和暂停策略**：新增 `packages/backup/src/policy.ts` 统一引擎：错误分类（transient / throttled / auth / permanent / aborted）、指数退避（`base → 2^n`，上限截断）与 equal-jitter 抖动、按服务 `Retry-After`（秒或 HTTP 日期）优先延后；永久鉴权与协议错误写入粘性 `pausedReason`（`auth`/`permanent`）停止自动调度，重试次数用尽记 `exhausted`，仅在成功或用户改配置/重新启用时清除。失败计数、`nextAttemptAt` 与暂停原因随远端目标（`backup-targets.json`）及本地目标持久化，调度器据此门控自动触发；电池/计量网络/大任务暂停为设备级可选策略（`_local/backup-policy.json`），由桌面 `powerMonitor` 与渲染进程 Network Information API 上报，手动“立即备份”始终可执行。新增 `getBackupPolicy`/`setBackupPolicy`/`reportBackupEnvironment` 操作并在策略界面展示暂停原因；Cloudflare 采用设计建议的约 60 秒间隔作为默认值，S3 保留 10 分钟下限（仍为周期触发，非编辑停止空闲去抖）。`tests/backup-policy.test.mjs` 覆盖分类、退避/Retry-After、暂停与鉴权停止。
+- [x] **P1 — 统一重试和暂停策略**：新增 `packages/backup/src/policy.ts` 统一引擎：错误分类（transient / throttled / auth / permanent / aborted）、指数退避（`base → 2^n`，上限截断）与 equal-jitter 抖动、按服务 `Retry-After`（秒或 HTTP 日期）优先延后；永久鉴权与协议错误写入粘性 `pausedReason`（`auth`/`permanent`）停止自动调度，重试次数用尽记 `exhausted`，仅在成功或用户改配置/重新启用时清除。失败计数、`nextAttemptAt` 与暂停原因随远端目标（`backup-targets.json`）及本地目标持久化，调度器据此门控自动触发；电池/计量网络/大任务暂停为设备级可选策略（`_local/backup-policy.json`），由桌面 `powerMonitor` 与渲染进程 Network Information API 上报，手动“立即备份”始终可执行。新增 `getBackupPolicy`/`setBackupPolicy`/`reportBackupEnvironment` 操作并在策略界面展示暂停原因；Cloudflare 采用设计建议的约 60 秒间隔作为默认值（仍为周期触发，非编辑停止空闲去抖）。`tests/backup-policy.test.mjs` 覆盖分类、退避/Retry-After、暂停与鉴权停止。
 
 ### 10.2 编辑器、阅读器与知识组织（原 §4）
 
