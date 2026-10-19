@@ -8,7 +8,7 @@ import type {
 import type { NoteNode } from "@anynote/types";
 import type { BoardBlock } from "./DocumentView";
 import { request } from "./api";
-import { X, Save, LoaderCircle } from "lucide-react";
+import { X, Save, LoaderCircle } from "./icons";
 
 declare global {
   interface Window {

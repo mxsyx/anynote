@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cloud, ShieldCheck, X } from "lucide-react";
+import { Cloud, ShieldCheck, X } from "./icons";
 import { request } from "./api";
 
 interface ProviderView {

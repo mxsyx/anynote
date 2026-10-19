@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { HardDrive, Plus } from "lucide-react";
+import { HardDrive, Plus } from "./icons";
 import { request } from "./api";
 import LocalBackupReview from "./LocalBackupReview";
 import LocalBackupScope from "./LocalBackupScope";

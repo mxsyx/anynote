@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { request, download } from "./api";
-import { Download, LoaderCircle, RefreshCw } from "lucide-react";
+import { Download, LoaderCircle, RefreshCw } from "./icons";
 
 /** One media item recorded in an import report. */
 interface Media {

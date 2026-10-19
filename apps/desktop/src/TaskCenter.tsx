@@ -6,7 +6,7 @@ import type {
   LocalVerificationReport,
   NoteNode,
 } from "@anynote/types";
-import { X, LoaderCircle, Check, AlertCircle } from "lucide-react";
+import { X, LoaderCircle, Check, AlertCircle } from "./icons";
 
 /** Summary of a web-import task report. */
 interface ImportTaskReport {

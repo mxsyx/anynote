@@ -14,7 +14,7 @@ import { imageBlock } from "@anynote/protocol/image.js";
 import ResourceImage from "./ResourceImage";
 import { request } from "./api";
 import type { NoteNode } from "@anynote/types";
-import { PenLine, Play, ExternalLink } from "lucide-react";
+import { PenLine, Play, ExternalLink } from "./icons";
 
 /** Location info of a whiteboard block. */
 export type BoardBlock = {

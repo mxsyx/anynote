@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Check,
-  Cloud,
-  HardDriveDownload,
-  Link2,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Check, Cloud, HardDriveDownload, Link2, Plus, Trash2 } from "./icons";
 import { request } from "./api";
 import CloudBackupAdd from "./CloudBackupAdd";
 import CloudRestoreWizard from "./CloudRestoreWizard";

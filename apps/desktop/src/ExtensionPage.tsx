@@ -13,7 +13,7 @@ import type {
   InstalledExtension,
   InstallableManifest,
 } from "@anynote/plugin-sdk/declarative";
-import { Puzzle, Globe, Play, Sparkles } from "lucide-react";
+import { Puzzle, Globe, Play, Sparkles } from "./icons";
 
 /** Display metadata of first-party extensions. */
 const extensions = [

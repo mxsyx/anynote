@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "./icons";
 import type { Notebook, NoteNode } from "@anynote/types";
 import { request } from "./api";
 

@@ -13,7 +13,7 @@ import {
   Trash2,
   ZoomIn,
   ZoomOut,
-} from "lucide-react";
+} from "./icons";
 import { imageSize, previewEdge } from "@anynote/protocol/image-safety.js";
 import { readExif, type ExifEntry } from "@anynote/protocol/image-exif.js";
 import type { NoteNode } from "@anynote/types";

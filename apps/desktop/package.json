@@ -28,6 +28,7 @@
   "dependencies": {
     "@anynote/backup": "workspace:*",
     "@anynote/backup-core": "workspace:*",
+    "@anynote/extension-host": "workspace:*",
     "@anynote/plugin-sdk": "workspace:*",
     "@anynote/protocol": "workspace:*",
     "@anynote/storage-sqlite": "workspace:*",
@@ -44,13 +45,12 @@
     "@tiptap/react": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@uiw/react-codemirror": "4.25.3",
-    "lucide-react": "0.468.0",
+    "naive-icons": "1.6.0",
     "pdfjs-dist": "5.4.149",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1",
-    "@anynote/extension-host": "workspace:*"
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

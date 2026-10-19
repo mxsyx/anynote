@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import RemoteMaintenance from "./RemoteMaintenance";
 import { request } from "./api";
-import { Cloud, Plus, X, Check } from "lucide-react";
+import { Cloud, Plus, X, Check } from "./icons";
 
 /** A remote backup target. */
 interface Target {

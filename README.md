@@ -18,6 +18,8 @@ pnpm run build
 pnpm start
 ```
 
+界面图标使用 [Naive Icons](https://guokaigdg.github.io/naive-icons/)，统一从 `apps/desktop/src/icons.tsx` 引入。该入口集中维护语义映射、颜色继承和无障碍默认属性；图标随应用打包，离线可用。
+
 核心源码已使用 TypeScript，运行前编译到 `.build/`；开发和测试命令会自动编译。可运行 `pnpm run typecheck` 检查前后端及类型合约，编译规则和类型边界见 [TypeScript 迁移](./docs/TYPESCRIPT-MIGRATION.md)。
 
 SQLite 与附件读写在独立 Electron Utility Process 中执行；渲染器使用校验后的 IPC 门面。白板字体、PDF worker 和静态资源随应用打包，本地编辑无需联网。

@@ -45,7 +45,7 @@ import {
   RotateCcw,
   LoaderCircle,
   Maximize2,
-} from "lucide-react";
+} from "./icons";
 
 import type {
   Notebook,

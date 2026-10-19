@@ -192,9 +192,9 @@ importers:
       '@uiw/react-codemirror':
         specifier: 4.25.3
         version: 4.25.3(@codemirror/search@6.5.11)(@codemirror/view@6.43.13)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      lucide-react:
-        specifier: 0.468.0
-        version: 0.468.0(react@19.1.1)
+      naive-icons:
+        specifier: 1.6.0
+        version: 1.6.0(@types/react@19.1.16)(react@19.1.1)
       pdfjs-dist:
         specifier: 5.4.149
         version: 5.4.149
@@ -3787,11 +3787,6 @@ packages:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
 
-  lucide-react@0.468.0:
-    resolution: {integrity: sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
-
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -4112,6 +4107,16 @@ packages:
 
   multimath@2.0.0:
     resolution: {integrity: sha512-toRx66cAMJ+Ccz7pMIg38xSIrtnbozk0dchXezwQDMgQmbGpfxjtv68H+L00iFL8hxDaVjrmwAFSb3I6bg8Q2g==}
+
+  naive-icons@1.6.0:
+    resolution: {integrity: sha512-wKWV2K2s8OFdaZJ6rQdxbBZnQpS5cW5yHw+UPcoooHzG/dAvrYGm9mfMHXGqVBhyBWBCqQaGcbZMQpK2SrJZJQ==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@types/react': ^18.0.0 || ^19.0.0
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   nanoid@3.3.19:
     resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==}
@@ -8147,12 +8152,9 @@ snapshots:
       path-is-absolute: 1.0.1
 
   glob@8.1.0:
-    dependencies:
-      fs.realpath: 1.0.0
-      inflight: 1.0.6
-      inherits: 2.0.4
-      minimatch: 5.1.9
-      once: 1.4.0
+    resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
+    engines: {node: '>=12'}
+    deprecated: Glob versions prior to v9 are no longer supported
 
   globals@14.0.0: {}
 
@@ -8543,10 +8545,6 @@ snapshots:
       yallist: 4.0.0
 
   lru-cache@7.18.3: {}
-
-  lucide-react@0.468.0(react@19.1.1):
-    dependencies:
-      react: 19.1.1
 
   magic-string@0.30.21:
     dependencies:
@@ -9203,6 +9201,12 @@ snapshots:
     dependencies:
       glur: 1.1.2
       object-assign: 4.1.1
+
+  naive-icons@1.6.0(@types/react@19.1.16)(react@19.1.1):
+    dependencies:
+      react: 19.1.1
+    optionalDependencies:
+      '@types/react': 19.1.16
 
   nanoid@3.3.19: {}
 
@@ -9926,13 +9930,8 @@ snapshots:
   symbol-tree@3.2.4: {}
 
   tar@6.2.1:
-    dependencies:
-      chownr: 2.0.0
-      fs-minipass: 2.1.0
-      minipass: 5.0.0
-      minizlib: 2.1.2
-      mkdirp: 1.0.4
-      yallist: 4.0.0
+    resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
+    engines: {node: '>=10'}
 
   temp-file@3.4.0:
     dependencies:

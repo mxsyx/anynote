@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HardDriveDownload, X } from "lucide-react";
+import { HardDriveDownload, X } from "./icons";
 import { request } from "./api";
 import type { CloudTargetView } from "./CloudBackup";
 

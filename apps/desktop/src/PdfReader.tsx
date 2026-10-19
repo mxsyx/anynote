@@ -14,7 +14,7 @@ import {
   RefreshCw,
   ExternalLink,
   StickyNote,
-} from "lucide-react";
+} from "./icons";
 import {
   getDocument,
   GlobalWorkerOptions,

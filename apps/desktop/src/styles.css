@@ -84,7 +84,6 @@ select {
 }
 svg {
   flex-shrink: 0;
-  stroke-width: 1.65;
 }
 button svg {
   pointer-events: none;

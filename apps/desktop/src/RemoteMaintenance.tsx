@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "./icons";
 import { request } from "./api";
 
 /** Target that a remote maintenance operation acts on. */

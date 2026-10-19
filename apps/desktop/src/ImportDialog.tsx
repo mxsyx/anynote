@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { request, base64 } from "./api";
-import {
-  X,
-  Globe,
-  FileCode,
-  LoaderCircle,
-  ArrowLeft,
-  Check,
-} from "lucide-react";
+import { X, Globe, FileCode, LoaderCircle, ArrowLeft, Check } from "./icons";
 
 /** Converted import result shown before the user confirms the commit. */
 interface ImportPreview {
