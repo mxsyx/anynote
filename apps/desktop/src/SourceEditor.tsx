@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import CodeMirror, {
   type ReactCodeMirrorProps,
   type ReactCodeMirrorRef,
@@ -62,7 +63,9 @@ export default function SourceEditor({
   return (
     <>
       <div className="source-toolbar" role="group" aria-label="源码工具栏">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             const view = editor.current?.view;
             if (view) {
@@ -71,11 +74,23 @@ export default function SourceEditor({
           }}
         >
           搜索与替换
-        </button>
-        <button onClick={() => wrap("**")}>加粗</button>
-        <button onClick={() => wrap("*")}>斜体</button>
-        <button onClick={() => wrap("`")}>行内代码</button>
-        <button onClick={() => wrap("[", "](https://)")}>链接</button>
+        </Button>
+        <Button variant="ghost" size="layout" onClick={() => wrap("**")}>
+          加粗
+        </Button>
+        <Button variant="ghost" size="layout" onClick={() => wrap("*")}>
+          斜体
+        </Button>
+        <Button variant="ghost" size="layout" onClick={() => wrap("`")}>
+          行内代码
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          onClick={() => wrap("[", "](https://)")}
+        >
+          链接
+        </Button>
       </div>
       <CodeMirror
         ref={editor}

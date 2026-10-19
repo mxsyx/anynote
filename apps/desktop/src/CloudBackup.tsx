@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { Check, Cloud, HardDriveDownload, Link2, Plus, Trash2 } from "./icons";
 import { request } from "./api";
@@ -119,10 +120,15 @@ export default function CloudBackup({
     <>
       <h2 className="subheading">
         云盘备份{" "}
-        <button className="secondary" onClick={() => setOpen(true)}>
+        <Button
+          variant="ghost"
+          size="layout"
+          className="secondary"
+          onClick={() => setOpen(true)}
+        >
           <Plus size={12} />
           添加云盘
-        </button>
+        </Button>
       </h2>
       <p className="small-note">
         云盘备份由官方扩展直接调用厂商
@@ -187,7 +193,9 @@ export default function CloudBackup({
               自动备份 · 至少每 {view.target.intervalMinutes ?? 10} 分钟检查变更
             </label>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() =>
@@ -205,24 +213,30 @@ export default function CloudBackup({
             }
           >
             检查
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() => setRestore(view)}
           >
             <HardDriveDownload size={14} />
             恢复
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() => setConfirm({ target: view })}
           >
             <Link2 size={14} />
             断开 / 删除
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="primary"
             disabled={busy || !view.provider.installed}
             onClick={() =>
@@ -236,7 +250,7 @@ export default function CloudBackup({
             }
           >
             立即备份
-          </button>
+          </Button>
         </div>
       ))}
       {!targets.length && (
@@ -255,7 +269,9 @@ export default function CloudBackup({
                 {account.ref.displayName ?? account.ref.accountId}
                 <small> · {account.ref.providerId}</small>
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
@@ -269,7 +285,7 @@ export default function CloudBackup({
                 }
               >
                 断开账号
-              </button>
+              </Button>
             </div>
           ))}
           <p className="small-note">
@@ -318,9 +334,14 @@ export default function CloudBackup({
           >
             <div className="dialog-heading">
               <h2>断开连接，或不保留云端备份？</h2>
-              <button onClick={() => setConfirm(null)} aria-label="关闭">
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setConfirm(null)}
+                aria-label="关闭"
+              >
                 <Trash2 size={18} />
-              </button>
+              </Button>
             </div>
             <p>
               目标：{confirm.target.provider.title} ·{" "}
@@ -330,10 +351,17 @@ export default function CloudBackup({
               断开只清除本机凭据与任务，云端副本保留；删除云端备份是不可撤销的独立操作，会移除该设备槽的全部受管对象。
             </p>
             <div className="dialog-actions">
-              <button className="secondary" onClick={() => setConfirm(null)}>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                onClick={() => setConfirm(null)}
+              >
                 取消
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
@@ -349,8 +377,10 @@ export default function CloudBackup({
                 }
               >
                 仅断开连接
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="primary"
                 disabled={busy}
                 onClick={() =>
@@ -367,7 +397,7 @@ export default function CloudBackup({
                 }
               >
                 同时删除云端备份
-              </button>
+              </Button>
             </div>
           </div>
         </div>

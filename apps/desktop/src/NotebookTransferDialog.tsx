@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { NativeSelect } from "./components/ui/native-select";
 import React, { useEffect, useState } from "react";
 import { X } from "./icons";
 import type { Notebook, NoteNode } from "@anynote/types";
@@ -97,7 +99,9 @@ export default function NotebookTransferDialog({
       >
         <div className="dialog-heading">
           <h2>{mode === "copy" ? "复制" : "移动"}到其他 Notebook</h2>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             type="button"
             className="icon-button"
             aria-label="关闭"
@@ -105,7 +109,7 @@ export default function NotebookTransferDialog({
             onClick={onClose}
           >
             <X size={18} />
-          </button>
+          </Button>
         </div>
         <p>
           “{node.title}
@@ -114,7 +118,7 @@ export default function NotebookTransferDialog({
         </p>
         <label>
           目标 Notebook
-          <select
+          <NativeSelect
             autoFocus
             value={target}
             disabled={busy || attempted}
@@ -125,11 +129,11 @@ export default function NotebookTransferDialog({
                 {b.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label>
           目标目录
-          <select
+          <NativeSelect
             value={parent}
             disabled={loading || busy || attempted}
             onChange={(e) => setParent(e.target.value)}
@@ -140,7 +144,7 @@ export default function NotebookTransferDialog({
                 {f.title} · {f.id.slice(0, 8)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {!targets.length && (
           <p role="status">请先创建或打开另一个 Notebook。</p>
@@ -156,15 +160,19 @@ export default function NotebookTransferDialog({
           </p>
         )}
         <div className="dialog-actions">
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             type="button"
             className="secondary"
             disabled={busy}
             onClick={onClose}
           >
             取消
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             type="submit"
             className="primary"
             disabled={busy || loading || !target}
@@ -176,7 +184,7 @@ export default function NotebookTransferDialog({
                 : mode === "copy"
                   ? "复制"
                   : "移动"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

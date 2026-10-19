@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type {
@@ -150,17 +151,24 @@ export default function ExtensionDataControls({
       </p>
       <div className="extension-actions">
         {(entry.manifest.contributes.dataMigrations ?? []).map((rule) => (
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             key={rule.id}
             disabled={locked}
             onClick={() => void preview("migration", rule.id)}
           >
             预览迁移：{rule.title}
-          </button>
+          </Button>
         ))}
-        <button disabled={locked} onClick={() => void reload()}>
+        <Button
+          variant="ghost"
+          size="layout"
+          disabled={locked}
+          onClick={() => void reload()}
+        >
           刷新数据备份
-        </button>
+        </Button>
       </div>
       {overview.backups.map((b) => (
         <div className="extension-data-backup" key={b.id}>
@@ -168,12 +176,14 @@ export default function ExtensionDataControls({
             {b.reason} · {b.target === "settings" ? "设置" : "脚本状态"} v
             {b.version} · {new Date(b.createdAt).toLocaleString()}
           </span>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             disabled={locked}
             onClick={() => void preview("restore", b.id)}
           >
             预览恢复
-          </button>
+          </Button>
         </div>
       ))}
       {review && (
@@ -204,14 +214,24 @@ export default function ExtensionDataControls({
             {review.after}
           </pre>
           <div className="extension-actions">
-            <button disabled={locked} onClick={() => void apply()}>
+            <Button
+              variant="ghost"
+              size="layout"
+              disabled={locked}
+              onClick={() => void apply()}
+            >
               {review.mode === "migration"
                 ? "确认迁移并备份"
                 : "确认恢复并备份"}
-            </button>
-            <button disabled={locked} onClick={() => setReview(null)}>
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
+              disabled={locked}
+              onClick={() => setReview(null)}
+            >
               取消预览
-            </button>
+            </Button>
           </div>
         </section>
       )}

@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import type { Notebook } from "@anynote/types";
 import { request } from "./api";
@@ -78,7 +79,9 @@ export default function LocalBackupScope({
         </p>
       )}
       <div className="button-row">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={busy}
           onClick={() =>
             setSelected(
@@ -89,10 +92,15 @@ export default function LocalBackupScope({
           }
         >
           选择全部可用 Notebook
-        </button>
-        <button disabled={busy} onClick={() => setSelected([])}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          disabled={busy}
+          onClick={() => setSelected([])}
+        >
           取消全选
-        </button>
+        </Button>
       </div>
       {books.map((b) => (
         <label className="check-label" key={b.id}>
@@ -113,7 +121,9 @@ export default function LocalBackupScope({
         </label>
       ))}
       <div className="button-row">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy || !dirty}
           onClick={() =>
@@ -128,8 +138,10 @@ export default function LocalBackupScope({
           }
         >
           保存备份范围
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className="primary"
           disabled={busy || dirty || !saved.length}
           onClick={() =>
@@ -144,8 +156,10 @@ export default function LocalBackupScope({
           }
         >
           备份所选范围
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy || dirty || !saved.length}
           onClick={() =>
@@ -165,7 +179,7 @@ export default function LocalBackupScope({
           }
         >
           恢复所选范围
-        </button>
+        </Button>
       </div>
     </details>
   );

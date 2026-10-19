@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useState } from "react";
 import type { LocalVerificationReport } from "@anynote/types";
 
@@ -52,12 +53,14 @@ export default function LocalVerificationDetails({
             ))}
           </ul>
           {report.issues.length > limit && (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               onClick={() => setLimit((n) => n + 50)}
             >
               再显示 50 项
-            </button>
+            </Button>
           )}
         </details>
       )}

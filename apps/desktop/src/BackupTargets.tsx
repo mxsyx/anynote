@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import RemoteMaintenance from "./RemoteMaintenance";
 import { request } from "./api";
@@ -134,10 +136,15 @@ export default function BackupTargets({
     <>
       <h2 className="subheading">
         远端备份{" "}
-        <button className="secondary" onClick={() => setOpen(true)}>
+        <Button
+          variant="ghost"
+          size="layout"
+          className="secondary"
+          onClick={() => setOpen(true)}
+        >
           <Plus size={12} />
           添加目标
-        </button>
+        </Button>
       </h2>
       {targets.map((t) => (
         <div className="feature-card backup-target" key={t.id}>
@@ -192,7 +199,9 @@ export default function BackupTargets({
               自动备份 · 约每分钟检查变更
             </label>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() =>
@@ -206,8 +215,10 @@ export default function BackupTargets({
             }
           >
             测试连接
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() =>
@@ -223,17 +234,21 @@ export default function BackupTargets({
             }
           >
             历史版本
-          </button>
+          </Button>
           {
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy}
               onClick={() => setMaintenance(t)}
             >
               远端维护
-            </button>
+            </Button>
           }
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="primary"
             disabled={busy}
             onClick={() =>
@@ -244,7 +259,7 @@ export default function BackupTargets({
             }
           >
             立即备份
-          </button>
+          </Button>
         </div>
       ))}
       {!targets.length && (
@@ -318,21 +333,23 @@ export default function BackupTargets({
           >
             <div className="dialog-heading">
               <h2>添加备份目标</h2>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="关闭"
               >
                 <X size={18} />
-              </button>
+              </Button>
             </div>
             <label>
               名称
-              <input name="name" required placeholder="我的备份" />
+              <Input name="name" required placeholder="我的备份" />
             </label>
             <label>
               Endpoint
-              <input
+              <Input
                 name="endpoint"
                 type="url"
                 required
@@ -341,7 +358,7 @@ export default function BackupTargets({
             </label>
             <label>
               应用 Token
-              <input
+              <Input
                 name="token"
                 type="password"
                 required
@@ -358,16 +375,23 @@ export default function BackupTargets({
             </p>
             {error && <p className="form-error">{error}</p>}
             <div className="dialog-actions">
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 type="button"
                 className="secondary"
                 onClick={() => setOpen(false)}
               >
                 取消
-              </button>
-              <button className="primary" disabled={busy}>
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="primary"
+                disabled={busy}
+              >
                 保存配置
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -382,9 +406,13 @@ export default function BackupTargets({
           >
             <div className="dialog-heading">
               <h2>{selected.name} · 历史版本</h2>
-              <button onClick={() => setSelected(null)}>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setSelected(null)}
+              >
                 <X size={18} />
-              </button>
+              </Button>
             </div>
             <p>
               恢复创建新
@@ -401,7 +429,9 @@ export default function BackupTargets({
                     · seq {v.snapshotSeq} · {v.assets} 个资源
                   </small>
                 </span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="secondary"
                   disabled={busy}
                   onClick={() =>
@@ -417,7 +447,7 @@ export default function BackupTargets({
                   }
                 >
                   恢复为副本
-                </button>
+                </Button>
               </div>
             ))}
           </div>

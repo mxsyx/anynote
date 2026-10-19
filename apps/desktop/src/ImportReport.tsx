@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { request, download } from "./api";
 import { Download, LoaderCircle, RefreshCw } from "./icons";
@@ -177,10 +178,16 @@ export default function ImportReport({
       {report.originalHtml && (
         <p>
           已保存原始 HTML（{(report.originalHtml.size / 1024).toFixed(1)} KB）
-          <button type="button" className="secondary" onClick={saveOriginal}>
+          <Button
+            variant="ghost"
+            size="layout"
+            type="button"
+            className="secondary"
+            onClick={saveOriginal}
+          >
             <Download size={13} />
             下载原始 HTML
-          </button>
+          </Button>
         </p>
       )}
       {failed.length > 0 && (
@@ -199,7 +206,9 @@ export default function ImportReport({
               </span>
             </label>
           ))}
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             type="button"
             className="secondary"
             disabled={busy || !selected.size}
@@ -211,8 +220,10 @@ export default function ImportReport({
               <RefreshCw size={13} />
             )}
             重试选中（{selected.size}）
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             type="button"
             className="secondary"
             disabled={busy}
@@ -224,7 +235,7 @@ export default function ImportReport({
               <RefreshCw size={13} />
             )}
             重试全部
-          </button>
+          </Button>
         </div>
       )}
       {skipped.length > 0 && (

@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 
@@ -81,7 +83,9 @@ export default function ExtensionUpdateSettings({
         默认关闭。启用后仅自动检查已信任、全局启用的签名扩展；会访问各扩展的公开更新地址。发现新版后仍需审核、确认安装并重新授权。
       </p>
       <div className="extension-update-controls">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           role="switch"
           aria-label="自动检查扩展更新"
           aria-checked={settings?.enabled === true}
@@ -96,10 +100,10 @@ export default function ExtensionUpdateSettings({
           }
         >
           {settings?.enabled ? "自动检查已启用" : "自动检查已关闭"}
-        </button>
+        </Button>
         <label>
           检查间隔（小时）
-          <input
+          <Input
             type="number"
             min={1}
             max={168}
@@ -108,7 +112,9 @@ export default function ExtensionUpdateSettings({
             onChange={(e) => setHours(Number(e.target.value))}
           />
         </label>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={
             disabled ||
             busy ||
@@ -127,16 +133,20 @@ export default function ExtensionUpdateSettings({
           }
         >
           保存检查间隔
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={disabled || busy || settings?.running}
           onClick={() => void action(() => request("checkExtensionUpdates"))}
         >
           立即检查所有扩展更新
-        </button>
+        </Button>
       </div>
       {settings?.running && (
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() =>
             void request("cancelExtensionUpdateCheck").catch((e) =>
               setError(e.message),
@@ -144,7 +154,7 @@ export default function ExtensionUpdateSettings({
           }
         >
           取消更新检查
-        </button>
+        </Button>
       )}
       {settings?.running && <p role="status">正在检查扩展更新…</p>}
       {settings?.lastAttempt ? (
@@ -168,12 +178,14 @@ export default function ExtensionUpdateSettings({
             </p>
           </div>
           {result.status === "available" && (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={disabled || busy}
               onClick={() => onReview(result.extensionId)}
             >
               审核扩展更新
-            </button>
+            </Button>
           )}
         </div>
       ))}

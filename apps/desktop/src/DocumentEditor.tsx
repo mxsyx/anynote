@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   EditorContent,
@@ -158,9 +160,14 @@ export default function DocumentEditor(props: Props) {
                     hideSource
                   />
                   {(image || definition) && (
-                    <button type="button" onClick={() => setEditing(true)}>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      type="button"
+                      onClick={() => setEditing(true)}
+                    >
                       编辑内容
-                    </button>
+                    </Button>
                   )}
                   {!image && block?.kind !== "extension" && (
                     <small className="muted">此内容保留原格式</small>
@@ -350,16 +357,30 @@ export default function DocumentEditor(props: Props) {
           className="rich-selection-menu"
           aria-label="选区格式"
         >
-          <button onClick={() => editor.chain().focus().toggleBold().run()}>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().toggleBold().run()}
+          >
             加粗
-          </button>
-          <button onClick={() => editor.chain().focus().toggleItalic().run()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+          >
             斜体
-          </button>
-          <button onClick={() => editor.chain().focus().toggleStrike().run()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+          >
             删除线
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             onClick={() => {
               setHref(editor.getAttributes("link").href || "https://");
               setLinkError("");
@@ -367,7 +388,7 @@ export default function DocumentEditor(props: Props) {
             }}
           >
             链接
-          </button>
+          </Button>
         </BubbleMenu>
       )}
       {linkOpen && (
@@ -388,16 +409,23 @@ export default function DocumentEditor(props: Props) {
             setLinkOpen(false);
           }}
         >
-          <input
+          <Input
             aria-label="链接地址"
             autoFocus
             value={href}
             onChange={(event) => setHref(event.target.value)}
           />
-          <button type="submit">应用链接</button>
-          <button type="button" onClick={() => setLinkOpen(false)}>
+          <Button variant="ghost" size="layout" type="submit">
+            应用链接
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            type="button"
+            onClick={() => setLinkOpen(false)}
+          >
             取消
-          </button>
+          </Button>
           {linkError && <span role="alert">{linkError}</span>}
         </form>
       )}
@@ -413,7 +441,9 @@ export default function DocumentEditor(props: Props) {
           onMouseDown={(event) => event.preventDefault()}
         >
           {matching(slash.query).map(([kind, label], index) => (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               key={kind}
               type="button"
               role="menuitem"
@@ -421,7 +451,7 @@ export default function DocumentEditor(props: Props) {
               onClick={() => run(kind)}
             >
               {label}
-            </button>
+            </Button>
           ))}
           {!matching(slash.query).length && <p>没有匹配的内容</p>}
           <small>↑ ↓ 选择 · Enter 插入 · Esc 关闭</small>
@@ -429,18 +459,34 @@ export default function DocumentEditor(props: Props) {
       )}
       {editor?.isActive("table") && (
         <div className="rich-toolbar" aria-label="表格操作">
-          <button onClick={() => editor.chain().focus().addRowAfter().run()}>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().addRowAfter().run()}
+          >
             增加表格行
-          </button>
-          <button onClick={() => editor.chain().focus().addColumnAfter().run()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().addColumnAfter().run()}
+          >
             增加表格列
-          </button>
-          <button onClick={() => editor.chain().focus().deleteRow().run()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().deleteRow().run()}
+          >
             删除表格行
-          </button>
-          <button onClick={() => editor.chain().focus().deleteColumn().run()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={() => editor.chain().focus().deleteColumn().run()}
+          >
             删除表格列
-          </button>
+          </Button>
         </div>
       )}
     </div>

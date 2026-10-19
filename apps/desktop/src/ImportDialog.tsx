@@ -1,3 +1,6 @@
+import { Button } from "./components/ui/button";
+import { Textarea } from "./components/ui/textarea";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { request, base64 } from "./api";
@@ -176,9 +179,15 @@ export default function ImportDialog({
           <div className="feature-icon">
             <Globe />
           </div>
-          <button type="button" onClick={onClose} aria-label="关闭">
+          <Button
+            variant="ghost"
+            size="layout"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
         <h2>{preview ? "确认导入结果" : "留住值得重读的内容"}</h2>
         <p>
@@ -188,22 +197,26 @@ export default function ImportDialog({
         </p>
         {!preview && (
           <div className="mode-switch import-tabs">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               type="button"
               className={mode === "url" ? "chosen" : ""}
               onClick={() => setMode("url")}
             >
               <Globe size={14} />
               网页链接
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               type="button"
               className={mode === "html" ? "chosen" : ""}
               onClick={() => setMode("html")}
             >
               <FileCode size={14} />
               HTML 文件
-            </button>
+            </Button>
           </div>
         )}
         {preview ? (
@@ -258,7 +271,7 @@ export default function ImportDialog({
         ) : mode === "url" ? (
           <label>
             网页地址
-            <input
+            <Input
               type="url"
               required
               autoFocus
@@ -282,14 +295,16 @@ export default function ImportDialog({
                 }
               }}
             />
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               type="button"
               className="secondary"
               onClick={() => fileRef.current?.click()}
             >
               选择 HTML 文件
-            </button>
-            <textarea
+            </Button>
+            <Textarea
               required
               aria-label="HTML 内容"
               placeholder="或在这里粘贴 HTML…"
@@ -340,7 +355,9 @@ export default function ImportDialog({
         <div className="dialog-actions">
           {preview ? (
             <>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 type="button"
                 className="secondary"
                 onClick={() => {
@@ -351,27 +368,42 @@ export default function ImportDialog({
               >
                 <ArrowLeft size={14} />
                 返回修改
-              </button>
-              <button className="primary" disabled={busy}>
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="primary"
+                disabled={busy}
+              >
                 <Check size={14} />
                 {busy ? "正在保存…" : "确认导入"}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button type="button" className="secondary" onClick={onClose}>
+              <Button
+                variant="ghost"
+                size="layout"
+                type="button"
+                className="secondary"
+                onClick={onClose}
+              >
                 取消
-              </button>
+              </Button>
               {busy ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   type="button"
                   className="secondary"
                   onClick={cancelPreview}
                 >
                   取消预览
-                </button>
+                </Button>
               ) : (
-                <button className="primary">预览转换结果</button>
+                <Button variant="ghost" size="layout" className="primary">
+                  预览转换结果
+                </Button>
               )}
             </>
           )}

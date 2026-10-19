@@ -18,7 +18,13 @@ pnpm run build
 pnpm start
 ```
 
-界面图标使用 [Naive Icons](https://guokaigdg.github.io/naive-icons/)，统一从 `apps/desktop/src/icons.tsx` 引入。该入口集中维护语义映射、颜色继承和无障碍默认属性；图标随应用打包，离线可用。
+界面采用书籍与笔记本主题：采用浅竹黄、米黄色纸页、深褐墨色与朱砂色配色，搭配淡黄色书脊、页边线和朱砂书签，保留统一的圆角与柔和阴影，支持浅色、深色和窄屏布局。共享控件使用 [shadcn/ui](https://ui.shadcn.com/docs/installation/vite) 的源码组件方式，位于 `apps/desktop/src/components/ui/`；`components.json` 配置生成路径，Tailwind v4 通过 Vite 编译。按钮、文本输入、多行输入和原生选择框在渲染器中统一复用；新建/重命名及搜索弹窗使用 Radix Dialog 管理焦点和键盘关闭。复选框、文件选择器与第三方编辑器保留原生交互。
+
+主题变量与装订材质样式位于 `apps/desktop/src/styles.css`，不依赖外部字体或图片。已有布局类通过 Button 的 `layout` 尺寸保留工具栏和树行的几何尺寸；新增独立按钮可直接使用标准 variant/size。Tailwind 仅加载 theme/utilities，避免全局 preflight 重置富文本、PDF 和白板内容。
+
+使用临时数据启动浏览器预览后，可运行 `node scripts/book-ui-smoke.mjs` 验证创建、编辑持久化、搜索、弹窗焦点、主题与响应式布局；`ANYNOTE_BROWSER` 可指定 Chrome 路径，截图默认写入 `/tmp/anynote-book-ui-screenshots`。
+
+界面图标使用 shadcn/ui 配套的 [Lucide](https://lucide.dev/)，统一从 `apps/desktop/src/icons.tsx` 引入。该入口集中维护线条粗细、颜色继承和无障碍默认属性；图标随应用打包，离线可用。
 
 核心源码已使用 TypeScript，运行前编译到 `.build/`；开发和测试命令会自动编译。可运行 `pnpm run typecheck` 检查前后端及类型合约，编译规则和类型边界见 [TypeScript 迁移](./docs/TYPESCRIPT-MIGRATION.md)。
 

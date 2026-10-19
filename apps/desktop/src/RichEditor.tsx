@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -126,80 +128,117 @@ function BlockEditor({
   return (
     <div className="rich-editing">
       <div className="rich-toolbar">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           aria-label="加粗"
           onClick={() => editor?.chain().focus().toggleBold().run()}
         >
           B
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           aria-label="斜体"
           onClick={() => editor?.chain().focus().toggleItalic().run()}
         >
           <i>I</i>
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() =>
             editor?.chain().focus().toggleHeading({ level: 2 }).run()
           }
         >
           标题
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().toggleBulletList().run()}
         >
           列表
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().toggleBlockquote().run()}
         >
           引用
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().undo().run()}
         >
           撤销
-        </button>
-        <button type="button" onClick={() => insert("task")}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          type="button"
+          onClick={() => insert("task")}
+        >
           任务列表
-        </button>
-        <button type="button" onClick={() => insert("table")}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          type="button"
+          onClick={() => insert("table")}
+        >
           插入表格
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().addRowAfter().run()}
         >
           增加表格行
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().addColumnAfter().run()}
         >
           增加表格列
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().deleteRow().run()}
         >
           删除表格行
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().deleteColumn().run()}
         >
           删除表格列
-        </button>
-        <button type="button" onClick={() => insert("code")}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          type="button"
+          onClick={() => insert("code")}
+        >
           代码块
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => {
             setHref(editor?.getAttributes("link").href || "https://");
@@ -208,16 +247,24 @@ function BlockEditor({
           }}
         >
           插入链接
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           onClick={() => editor?.chain().focus().redo().run()}
         >
           重做
-        </button>
-        <button type="button" className="secondary" onClick={onDone}>
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          type="button"
+          className="secondary"
+          onClick={onDone}
+        >
           完成此块
-        </button>
+        </Button>
       </div>
       {linkOpen && (
         <form
@@ -239,17 +286,24 @@ function BlockEditor({
         >
           <label>
             链接地址
-            <input
+            <Input
               aria-label="链接地址"
               autoFocus
               value={href}
               onChange={(event) => setHref(event.target.value)}
             />
           </label>
-          <button type="submit">应用链接</button>
-          <button type="button" onClick={() => setLinkOpen(false)}>
+          <Button variant="ghost" size="layout" type="submit">
+            应用链接
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            type="button"
+            onClick={() => setLinkOpen(false)}
+          >
             取消链接
-          </button>
+          </Button>
           {linkError && <span role="alert">{linkError}</span>}
         </form>
       )}
@@ -262,11 +316,18 @@ function BlockEditor({
             ["table", "表格"],
             ["code", "代码块"],
           ].map(([kind, label]) => (
-            <button key={kind} onClick={() => insert(kind)}>
+            <Button
+              variant="ghost"
+              size="layout"
+              key={kind}
+              onClick={() => insert(kind)}
+            >
               {label}
-            </button>
+            </Button>
           ))}
-          <button onClick={() => setSlash(false)}>关闭</button>
+          <Button variant="ghost" size="layout" onClick={() => setSlash(false)}>
+            关闭
+          </Button>
         </div>
       )}
       {editor && (
@@ -275,24 +336,30 @@ function BlockEditor({
           className="rich-selection-menu"
           aria-label="选区格式"
         >
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             aria-label="选区加粗"
             onClick={() => editor.chain().focus().toggleBold().run()}
           >
             加粗
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             aria-label="选区斜体"
             onClick={() => editor.chain().focus().toggleItalic().run()}
           >
             斜体
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             aria-label="选区删除线"
             onClick={() => editor.chain().focus().toggleStrike().run()}
           >
             删除线
-          </button>
+          </Button>
         </BubbleMenu>
       )}
       <EditorContent editor={editor} />
@@ -485,7 +552,9 @@ export default function RichEditor({
     >
       <p className="rich-beta">
         富文本 Beta · 支持块编辑、表格和任务列表；复杂结构保留原文。
-        <button onClick={onSource}>切换源码</button>
+        <Button variant="ghost" size="layout" onClick={onSource}>
+          切换源码
+        </Button>
       </p>
       {error && (
         <p className="form-error" role="alert">
@@ -578,7 +647,9 @@ export default function RichEditor({
                   {hint}
                 </span>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 type="button"
                 className="rich-drag-handle"
                 aria-label="拖动此块"
@@ -607,21 +678,25 @@ export default function RichEditor({
                 onDragEnd={clearDrag}
               >
                 ⠿
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 aria-label="上移此块"
                 disabled={i === 0 || Boolean(editing)}
                 onClick={() => move(block, -1)}
               >
                 ↑
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 aria-label="下移此块"
                 disabled={i === blocks.length - 1 || Boolean(editing)}
                 onClick={() => move(block, 1)}
               >
                 ↓
-              </button>
+              </Button>
             </div>
             <DocumentView
               notebookId={notebookId}
@@ -629,7 +704,9 @@ export default function RichEditor({
               onLink={onLink}
               onBoard={onBoard}
             />
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="rich-block-action"
               title={editable ? undefined : hint}
               aria-label={editable ? "编辑此块" : "使用源码编辑此块"}
@@ -641,12 +718,14 @@ export default function RichEditor({
               }}
             >
               {editable ? "编辑此块" : "源码编辑"}
-            </button>
+            </Button>
           </div>
         );
       })}
       {editing && !shown && activeEditor()}
-      <button
+      <Button
+        variant="ghost"
+        size="layout"
         className="secondary"
         onClick={() => {
           setEditing(null);
@@ -657,7 +736,7 @@ export default function RichEditor({
         }}
       >
         添加段落
-      </button>
+      </Button>
     </div>
   );
 }

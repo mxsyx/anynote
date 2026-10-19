@@ -4,7 +4,7 @@ import type { Notebook, NoteNode } from "@anynote/types";
 /** Create a sample Notebook and welcome note in an empty workspace (called on first launch). */
 export async function seed() {
   const book = await request<Notebook>("createNotebook", {
-    title: "我的知识花园",
+    title: "我的第一本笔记",
   });
   const folder = await request<NoteNode>("createNode", {
     notebookId: book.id,
@@ -15,7 +15,7 @@ export async function seed() {
     notebookId: book.id,
     parentId: folder.id,
     title: "欢迎来到 Anynote",
-    body: `> 每一个想法，都值得有一个安静生长的地方。\n\n## 你的第二大脑，从这里开始\n\nAnynote 是一张属于你的数字书桌。记录偶然的灵感，收集值得反复阅读的资料，让零散的知识，慢慢连接成自己的花园。\n\n无须账号，也无须保持在线。你的笔记，始终在你手中。\n\n## 给思考留一点空间\n\n- **随心记录** — 用 Markdown 写下想法，用目录和标签整理脉络。\n- **收藏与阅读** — 导入图片、PDF 和 Markdown，让资料与笔记待在一起。\n- **安心保存** — 每次保存留下历史，本地快照与导出让知识可以随身带走。\n\n---\n\n## 试试这些小事\n\n- [x] 找到一张安静的数字书桌\n- [ ] 写下今天的第一个想法\n- [ ] 创建一个属于自己的主题目录\n- [ ] 用 \`⌘ / Ctrl + K\` 找到一篇笔记\n\n> 🌱 不必急着搭建一套完美的系统。\n> 先写下一句话，让知识从这里生长。\n\n## 为你而留的快捷键\n\n| 想做的事 | 快捷键 |\n| --- | --- |\n| 搜索与快速打开 | ⌘ / Ctrl + K |\n| 新建笔记 | ⌘ / Ctrl + N |\n| 保存当前笔记 | ⌘ / Ctrl + S |\n\n如果你更喜欢直接书写，点击上方 **源码**，开始编辑。每次修改会自动保存到本地。`,
+    body: `> 日常的记录、书里的摘抄，和还没想完的事。\n\n## 翻开第一页\n\n把 Anynote 当作一本随手翻开的笔记本。记下今天的见闻，抄一段喜欢的文字，也可以夹入 PDF 和图片。\n\n无须账号，也无须保持在线。你的笔记，始终在你手中。\n\n## 给思考留一点空间\n\n- **随心记录** — 用 Markdown 写下想法，用目录和标签整理脉络。\n- **收藏与阅读** — 导入图片、PDF 和 Markdown，让资料与笔记待在一起。\n- **安心保存** — 每次保存留下历史，本地快照与导出让知识可以随身带走。\n\n---\n\n## 试试这些小事\n\n- [x] 找到一张安静的数字书桌\n- [ ] 写下今天的第一个想法\n- [ ] 创建一个属于自己的主题目录\n- [ ] 用 \`⌘ / Ctrl + K\` 找到一篇笔记\n\n> 不必写得完整。\n> 从日期、一句话或一个问题开始。\n\n## 为你而留的快捷键\n\n| 想做的事 | 快捷键 |\n| --- | --- |\n| 搜索与快速打开 | ⌘ / Ctrl + K |\n| 新建笔记 | ⌘ / Ctrl + N |\n| 保存当前笔记 | ⌘ / Ctrl + S |\n\n点击正文即可书写，输入 / 插入标题、清单或表格。修改会自动保存到本地。`,
   });
   await request("saveNote", {
     notebookId: book.id,

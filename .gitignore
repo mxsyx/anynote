@@ -5,6 +5,7 @@ release/
 test-results/
 playwright-report/
 .codebase-memory/
+.pnpm-store/
 
 .aws
 

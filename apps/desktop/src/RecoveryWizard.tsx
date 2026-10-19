@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { NativeSelect } from "./components/ui/native-select";
 import { useEffect, useState } from "react";
 import { X } from "./icons";
 import type {
@@ -118,14 +120,16 @@ export default function RecoveryWizard({
               {notebook.error ? ` · ${notebook.error}` : ""}
             </p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             type="button"
             className="icon-button"
             onClick={onClose}
             aria-label="关闭"
           >
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -168,13 +172,15 @@ export default function RecoveryWizard({
                     ))}
                   </ul>
                   {report.issues.length > limit && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       className="secondary"
                       type="button"
                       onClick={() => setLimit((n) => n + 50)}
                     >
                       再显示 50 项
-                    </button>
+                    </Button>
                   )}
                 </details>
               )}
@@ -187,7 +193,9 @@ export default function RecoveryWizard({
           <p className="muted">
             在任何修复前先复制原数据库、写前日志和诊断报告作为证据，原文件保持不变。
           </p>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             type="button"
             disabled={busy}
@@ -203,7 +211,7 @@ export default function RecoveryWizard({
             }
           >
             保存原始文件与日志
-          </button>
+          </Button>
           {evidence && (
             <p role="status" className="small-note">
               已保存 {evidence.files.length} 个文件与诊断日志：
@@ -218,7 +226,7 @@ export default function RecoveryWizard({
             <p className="muted">本地没有可用快照；可改用归档或云端恢复。</p>
           ) : (
             <div className="recovery-source">
-              <select
+              <NativeSelect
                 aria-label="选择快照"
                 value={selected}
                 disabled={busy}
@@ -230,15 +238,17 @@ export default function RecoveryWizard({
                     {new Date(s.createdAt).toLocaleString("zh-CN")}
                   </option>
                 ))}
-              </select>
-              <button
+              </NativeSelect>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 type="button"
                 disabled={busy || !selected}
                 onClick={() => restoreSnapshot(selected)}
               >
                 从快照恢复为副本
-              </button>
+              </Button>
             </div>
           )}
         </section>
@@ -249,14 +259,16 @@ export default function RecoveryWizard({
             选择一个 `.anynote` 归档，校验通过后恢复为新的 Notebook。
           </p>
           {window.anynote ? (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               type="button"
               disabled={busy}
               onClick={restoreArchive}
             >
               选择归档文件
-            </button>
+            </Button>
           ) : (
             <p className="muted">请在桌面应用中选择归档文件。</p>
           )}
@@ -264,14 +276,16 @@ export default function RecoveryWizard({
 
         <section aria-label="从云端恢复">
           <h3>4. 从云端恢复</h3>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             type="button"
             disabled={busy}
             onClick={() => setCloud(!cloud)}
           >
             {cloud ? "收起云端恢复" : "连接云端并选择版本"}
-          </button>
+          </Button>
           {cloud && (
             <CloudRecovery
               onStarted={() => {
@@ -283,9 +297,15 @@ export default function RecoveryWizard({
         </section>
 
         <div className="dialog-actions">
-          <button className="secondary" type="button" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="secondary"
+            type="button"
+            onClick={onClose}
+          >
             关闭
-          </button>
+          </Button>
         </div>
       </div>
     </div>

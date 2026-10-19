@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 
@@ -125,22 +127,26 @@ export default function CloudRecovery({
                 : "凭据由系统加密"}
             </p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             disabled={busy}
             onClick={() => void action(() => discover(c))}
           >
             查询云端版本
-          </button>
+          </Button>
         </div>
       ))}
-      <button
+      <Button
+        variant="ghost"
+        size="layout"
         className="secondary"
         disabled={busy}
         onClick={() => setAdd(!add)}
       >
         {add ? "收起连接表单" : "添加云恢复连接"}
-      </button>
+      </Button>
       {(add || !connections.length) && (
         <form
           className="cloud-recovery-form"
@@ -162,11 +168,11 @@ export default function CloudRecovery({
         >
           <label>
             连接名称
-            <input name="name" defaultValue="云恢复" required disabled={busy} />
+            <Input name="name" defaultValue="云恢复" required disabled={busy} />
           </label>
           <label>
             Endpoint
-            <input
+            <Input
               name="endpoint"
               type="url"
               required
@@ -176,7 +182,7 @@ export default function CloudRecovery({
           </label>
           <label>
             应用 Token
-            <input
+            <Input
               name="token"
               type="password"
               required
@@ -184,9 +190,15 @@ export default function CloudRecovery({
               disabled={busy}
             />
           </label>
-          <button className="primary" type="submit" disabled={busy}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="primary"
+            type="submit"
+            disabled={busy}
+          >
             {busy ? "正在连接…" : "保存连接并查询"}
-          </button>
+          </Button>
         </form>
       )}
       {queried && (
@@ -215,7 +227,9 @@ export default function CloudRecovery({
                   Notebook {v.notebookId} · 版本 {v.id}
                 </small>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
@@ -231,17 +245,19 @@ export default function CloudRecovery({
                 }
               >
                 恢复此版本
-              </button>
+              </Button>
             </div>
           ))}
           {cursor && (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy}
               onClick={() => void action(() => discover(connection!, cursor))}
             >
               继续加载版本
-            </button>
+            </Button>
           )}
           <p className="small-note">
             恢复在任务中心显示进度；成功后打开新的副本。恢复连接不会接管原设备的写入权，也不会自动为副本启用备份。

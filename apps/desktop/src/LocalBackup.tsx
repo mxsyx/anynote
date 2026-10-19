@@ -1,3 +1,6 @@
+import { Button } from "./components/ui/button";
+import { NativeSelect } from "./components/ui/native-select";
+import { Input } from "./components/ui/input";
 import { useCallback, useEffect, useState } from "react";
 import { HardDrive, Plus } from "./icons";
 import { request } from "./api";
@@ -97,13 +100,15 @@ export default function LocalBackup({
         <h2>
           <HardDrive size={20} /> 本地磁盘备份
         </h2>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy}
           onClick={() => void configure()}
         >
           <Plus size={15} /> 添加目标磁盘
-        </button>
+        </Button>
       </div>
       <p className="muted">
         单向更新一份当前副本，不保留历史版本。源端删除会在成功更新后反映到备份；恢复会创建新的
@@ -201,7 +206,7 @@ export default function LocalBackup({
           <div className="local-backup-options">
             <label>
               自动检查间隔（分钟）
-              <input
+              <Input
                 type="number"
                 min={2}
                 max={1440}
@@ -229,7 +234,7 @@ export default function LocalBackup({
             </label>
             <label>
               附件复制并发
-              <select
+              <NativeSelect
                 disabled={busy}
                 value={t.concurrency}
                 onChange={(e) =>
@@ -247,11 +252,13 @@ export default function LocalBackup({
                 <option value={2}>2（默认）</option>
                 <option value={3}>3</option>
                 <option value={4}>4（SSD）</option>
-              </select>
+              </NativeSelect>
             </label>
           </div>
           <div className="button-row">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy || !t.online}
               onClick={() =>
@@ -266,8 +273,10 @@ export default function LocalBackup({
               }
             >
               预览备份
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className="primary"
               disabled={busy || !t.online}
               onClick={() =>
@@ -282,8 +291,10 @@ export default function LocalBackup({
               }
             >
               立即备份
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy || !t.online}
               onClick={() =>
@@ -297,8 +308,10 @@ export default function LocalBackup({
               }
             >
               校验备份
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy || !t.online}
               onClick={() =>
@@ -312,17 +325,21 @@ export default function LocalBackup({
               }
             >
               恢复当前副本
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy}
               onClick={() => void configure(t.id)}
             >
               修改位置
-            </button>
+            </Button>
             <details>
               <summary>更多操作</summary>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy || !t.online}
                 onClick={() =>
                   void act(async () => {
@@ -341,8 +358,10 @@ export default function LocalBackup({
                 }
               >
                 重建丢失的清单
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy}
                 onClick={() =>
                   void act(async () => {
@@ -359,8 +378,10 @@ export default function LocalBackup({
                 }
               >
                 移出备份范围
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy || !t.online}
                 onClick={() =>
                   void act(async () => {
@@ -377,7 +398,7 @@ export default function LocalBackup({
                 }
               >
                 删除此 Notebook 的备份
-              </button>
+              </Button>
             </details>
           </div>
         </div>

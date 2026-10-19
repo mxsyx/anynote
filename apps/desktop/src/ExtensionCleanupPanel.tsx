@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type {
@@ -152,9 +154,14 @@ export default function ExtensionCleanupPanel({
         仅处理当前 Notebook
         的扩展设置、状态、迁移备份和执行记录。正文、资源与笔记历史保留。
       </p>
-      <button disabled={locked} onClick={() => void reload()}>
+      <Button
+        variant="ghost"
+        size="layout"
+        disabled={locked}
+        onClick={() => void reload()}
+      >
         刷新清理列表
-      </button>
+      </Button>
       {!list.namespaces.length && <p>没有可清理的第三方扩展数据。</p>}
       {list.truncated && (
         <p>当前显示前 128 个扩展，清理后刷新可查看其余扩展。</p>
@@ -192,18 +199,22 @@ export default function ExtensionCleanupPanel({
             </label>
           ))}
           <div className="extension-actions">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={locked || !selection[entry.extensionId]?.length}
               onClick={() => void preview(entry, "backups")}
             >
               预览删除所选备份
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={locked || entry.installed}
               onClick={() => void preview(entry, "namespace")}
             >
               预览清理全部留存数据
-            </button>
+            </Button>
           </div>
           {entry.installed && (
             <p>全部清理需先卸载扩展；卸载操作本身保留数据。</p>
@@ -241,7 +252,7 @@ export default function ExtensionCleanupPanel({
           )}
           <label>
             输入扩展 ID 确认
-            <input
+            <Input
               type="text"
               value={confirmation}
               disabled={locked}
@@ -250,13 +261,17 @@ export default function ExtensionCleanupPanel({
             />
           </label>
           <div className="extension-actions">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={locked || confirmation !== review.extensionId}
               onClick={() => void apply()}
             >
               确认永久清理
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={locked}
               onClick={() => {
                 setReview(null);
@@ -264,7 +279,7 @@ export default function ExtensionCleanupPanel({
               }}
             >
               取消清理预览
-            </button>
+            </Button>
           </div>
         </section>
       )}

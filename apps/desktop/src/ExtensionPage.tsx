@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import ExtensionCleanupPanel from "./ExtensionCleanupPanel";
 import HostedExtensionsPanel from "./HostedExtensionsPanel";
 import type { NoteNode } from "@anynote/types";
@@ -231,7 +233,9 @@ export default function ExtensionPage({
             </small>
           </div>
           <div className="feature-actions">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               aria-label={e.name + "启用"}
               role="switch"
               aria-checked={enabled[e.id] !== false}
@@ -251,9 +255,11 @@ export default function ExtensionPage({
               }}
             >
               {enabled[e.id] === false ? "已停用" : "已启用"}
-            </button>
+            </Button>
             {e.id === "anynote.video" && (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 aria-label="远程嵌入"
                 role="switch"
                 aria-checked={remoteEmbeds[e.id] !== false}
@@ -275,7 +281,7 @@ export default function ExtensionPage({
                 }}
               >
                 {remoteEmbeds[e.id] === false ? "禁止远程嵌入" : "允许远程嵌入"}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -312,7 +318,7 @@ export default function ExtensionPage({
         >
           <label>
             签名扩展 HTTPS 地址
-            <input
+            <Input
               type="url"
               required
               value={remoteURL}
@@ -321,12 +327,19 @@ export default function ExtensionPage({
               placeholder="https://example.com/extension.signed.json"
             />
           </label>
-          <button disabled={busy || !remoteURL.trim()} type="submit">
+          <Button
+            variant="ghost"
+            size="layout"
+            disabled={busy || !remoteURL.trim()}
+            type="submit"
+          >
             下载并审核扩展
-          </button>
+          </Button>
         </form>
         {downloading && (
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             onClick={() => {
               generation.current++;
               setCandidate(null);
@@ -336,7 +349,7 @@ export default function ExtensionPage({
             }}
           >
             取消扩展下载
-          </button>
+          </Button>
         )}
         <p>
           选择扩展
@@ -507,7 +520,9 @@ export default function ExtensionPage({
               </p>
             )}
             {candidateSource.signed && !candidateSource.trusted && (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy}
                 onClick={() =>
                   void action(async () => {
@@ -525,7 +540,7 @@ export default function ExtensionPage({
                 }
               >
                 已核对指纹，信任发布者
-              </button>
+              </Button>
             )}
             <details>
               <summary>查看完整贡献定义</summary>
@@ -533,7 +548,9 @@ export default function ExtensionPage({
                 {candidateJSON}
               </pre>
             </details>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="primary"
               disabled={busy || !candidateSource.trusted}
               onClick={() =>
@@ -549,7 +566,7 @@ export default function ExtensionPage({
               }
             >
               确认安装扩展
-            </button>
+            </Button>
             <p>
               安装或更新后，需要重新授权各 Notebook；卸载保留笔记和扩展状态。
             </p>
@@ -563,7 +580,9 @@ export default function ExtensionPage({
             <h3>{p.publisher}</h3>
             <code style={{ overflowWrap: "anywhere" }}>{p.fingerprint}</code>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             disabled={busy}
             onClick={() =>
               void action(() =>
@@ -575,7 +594,7 @@ export default function ExtensionPage({
             }
           >
             撤销发布者信任
-          </button>
+          </Button>
         </div>
       ))}
       {!publishers.length && <p>尚未信任任何签名发布者。</p>}
@@ -608,7 +627,9 @@ export default function ExtensionPage({
             )}
             <div className="extension-actions">
               {e.downloadURL && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   disabled={busy || e.source?.trusted === false}
                   onClick={() =>
                     void download(
@@ -622,9 +643,11 @@ export default function ExtensionPage({
                   }
                 >
                   检查扩展更新
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy}
                 onClick={() =>
                   void configure(e, {
@@ -634,17 +657,21 @@ export default function ExtensionPage({
                 }
               >
                 {e.globallyEnabled ? "全局停用" : "全局启用"}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy}
                 onClick={() =>
                   void configure(e, { scope: "notebook", enabled: !e.enabled })
                 }
               >
                 {e.enabled ? "此库停用" : "此库启用"}
-              </button>
+              </Button>
               {!e.granted && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   disabled={busy || e.source?.trusted === false}
                   onClick={() =>
                     void configure(e, {
@@ -655,19 +682,23 @@ export default function ExtensionPage({
                   }
                 >
                   授权当前 Notebook
-                </button>
+                </Button>
               )}
               {e.granted && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   disabled={busy}
                   onClick={() =>
                     void configure(e, { scope: "notebook", revoke: true })
                   }
                 >
                   撤销当前 Notebook 授权
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={busy}
                 onClick={() =>
                   void action(() =>
@@ -678,7 +709,7 @@ export default function ExtensionPage({
                 }
               >
                 卸载并保留数据
-              </button>
+              </Button>
             </div>
             {e.granted &&
               e.enabled &&

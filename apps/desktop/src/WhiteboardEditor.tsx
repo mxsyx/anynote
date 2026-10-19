@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
@@ -110,11 +111,19 @@ export default function WhiteboardEditor({
       <header>
         <span>白板 · {note.title}</span>
         <p>修改在点击保存后写入本地版本</p>
-        <button className="secondary" onClick={onClose} disabled={saving}>
+        <Button
+          variant="ghost"
+          size="layout"
+          className="secondary"
+          onClick={onClose}
+          disabled={saving}
+        >
           <X size={15} />
           返回笔记
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className="primary"
           onClick={() => void save()}
           disabled={saving || !initial}
@@ -125,7 +134,7 @@ export default function WhiteboardEditor({
             <Save size={15} />
           )}
           保存白板
-        </button>
+        </Button>
       </header>
       {error && <div className="error-banner">{error}</div>}
       <div className="board-canvas">

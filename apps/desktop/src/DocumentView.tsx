@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -102,7 +104,7 @@ export default function DocumentView({
               }
               components={{
                 input: ({ node: _node, ...props }) => (
-                  <input {...props} aria-label="任务状态" />
+                  <Input {...props} aria-label="任务状态" />
                 ),
                 pre: ({ children }) => (
                   <pre role="region" tabIndex={0} aria-label="代码块">
@@ -189,7 +191,9 @@ export default function DocumentView({
               )}
               <div className="extension-caption">
                 <span>白板 · 本地保存的思考空间</span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   disabled={!boardEnabled}
                   onClick={() =>
                     onBoard({
@@ -201,7 +205,7 @@ export default function DocumentView({
                 >
                   <PenLine size={14} />
                   {boardEnabled ? "打开白板" : "扩展已停用 · 保留预览"}
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -266,15 +270,19 @@ export default function DocumentView({
                 </a>
                 <span className="video-caption-actions">
                   {onFetchMeta && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       disabled={!videoEnabled || !remoteEmbed}
                       onClick={() => onFetchMeta(b.attrs.id, video.url)}
                     >
                       {thumb ? "刷新标题与缩略图" : "获取标题与缩略图"}
-                    </button>
+                    </Button>
                   )}
                   {embed && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       disabled={!canPlay}
                       onClick={() => setPlaying(playing ? null : b.attrs.id)}
                     >
@@ -285,7 +293,7 @@ export default function DocumentView({
                           : !remoteEmbed
                             ? "远程嵌入已关闭"
                             : "嵌入播放"}
-                    </button>
+                    </Button>
                   )}
                 </span>
               </div>
@@ -314,7 +322,9 @@ export default function DocumentView({
               {b.attrs.version || "?"}）
             </summary>
             {!hideSource && <pre>{b.source}</pre>}
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               onClick={() => {
                 const url = URL.createObjectURL(
                   new Blob([b.source], { type: "text/plain;charset=utf-8" }),
@@ -327,7 +337,7 @@ export default function DocumentView({
               }}
             >
               下载原始块
-            </button>
+            </Button>
           </details>
         );
       })}

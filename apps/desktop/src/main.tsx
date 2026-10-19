@@ -1,3 +1,13 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "./components/ui/dialog";
+import { NotebookPen } from "lucide-react";
+import { Button } from "./components/ui/button";
+import { NativeSelect } from "./components/ui/native-select";
+import { Input } from "./components/ui/input";
 import React, {
   Suspense,
   lazy,
@@ -655,15 +665,9 @@ function App() {
     };
   }, [active?.id, active?.primary_resource_id, active?.revision, book]);
   useEffect(() => {
-    if (
-      !modal &&
-      !searchOpen &&
-      !transfer &&
-      !importOpen &&
-      !tasksOpen &&
-      !recovery
-    )
-      return;
+    if (modal || searchOpen) return;
+
+    if (!transfer && !importOpen && !tasksOpen && !recovery) return;
     const previous = focusBeforeDialog.current;
 
     /**
@@ -1209,21 +1213,29 @@ function App() {
         <aside className="sidebar">
           <div className="brand">
             <div className="brand-mark">
-              <Leaf size={23} />
+              <NotebookPen size={23} />
             </div>
             <span>
               anynote<span className="brand-dot">.</span>
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="icon-button sidebar-close"
               onClick={() => setSidebar(false)}
               aria-label="收起侧栏"
             >
               <PanelLeft size={17} />
-            </button>
+            </Button>
+          </div>
+          <div className="shelf-label">
+            <span>私人藏书室</span>
+            <span>EX LIBRIS</span>
           </div>
           <div className="notebook-wrap">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="notebook-switch"
               onClick={() => setSwitcher(!switcher)}
             >
@@ -1237,11 +1249,13 @@ function App() {
                 </small>
               </span>
               <ChevronsUpDown size={15} />
-            </button>
+            </Button>
             {switcher && (
               <div className="popover book-popover">
                 {books.map((b) => (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     key={b.id}
                     onClick={() => {
                       setSwitcher(false);
@@ -1262,10 +1276,12 @@ function App() {
                         ? " · 外部"
                         : ""}
                     {b.id === book?.id && <Check size={15} />}
-                  </button>
+                  </Button>
                 ))}
                 <div className="divider" />
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   onClick={() => {
                     setSwitcher(false);
                     showModal("notebook");
@@ -1273,8 +1289,10 @@ function App() {
                 >
                   <Plus size={16} />
                   创建 Notebook
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   onClick={() => {
                     setSwitcher(false);
                     chooseArchive();
@@ -1282,11 +1300,13 @@ function App() {
                 >
                   <Upload size={16} />
                   导入 Notebook
-                </button>
+                </Button>
               </div>
             )}
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="search-trigger"
             aria-label="搜索笔记"
             onClick={() => {
@@ -1297,16 +1317,20 @@ function App() {
             <Search size={16} />
             <span>搜索笔记</span>
             <kbd>⌘ K</kbd>
-          </button>
+          </Button>
           <nav className="nav-main">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className={view === "recent" ? "selected" : ""}
               onClick={() => void navigate("recent")}
             >
               <Clock size={17} />
               最近打开
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className={view === "favorites" ? "selected" : ""}
               onClick={() => void navigate("favorites")}
             >
@@ -1315,17 +1339,27 @@ function App() {
               <span className="nav-count">
                 {visible.filter((n) => n.favorite).length || ""}
               </span>
-            </button>
+            </Button>
           </nav>
           <div className="section-label">
-            <span>知识花园</span>
+            <span>本册目录</span>
             <div>
-              <button onClick={() => showModal("folder")} aria-label="新建目录">
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => showModal("folder")}
+                aria-label="新建目录"
+              >
                 <FolderPlus size={15} />
-              </button>
-              <button onClick={() => showModal("note")} aria-label="新建笔记">
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => showModal("note")}
+                aria-label="新建笔记"
+              >
                 <Plus size={16} />
-              </button>
+              </Button>
             </div>
           </div>
           <div
@@ -1489,7 +1523,9 @@ function App() {
                 title={[...ancestors.map((a) => a.title), n.title].join(" / ")}
                 style={{ paddingLeft: 12 + Math.min(depth, 4) * 12 }}
               >
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="tree-main"
                   data-node-id={n.id}
                   aria-expanded={
@@ -1523,14 +1559,16 @@ function App() {
                     )}
                     {n.title}
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="tree-action"
                   aria-label={n.title + "操作"}
                   onClick={() => showModal("rename", n)}
                 >
                   <MoreHorizontal size={14} />
-                </button>
+                </Button>
               </div>
             ))}
             <div style={{ height: (tree.length - treeEnd) * 36 }} />
@@ -1538,9 +1576,13 @@ function App() {
               <p className="tree-empty">
                 从一篇笔记开始
                 <br />
-                <button onClick={() => showModal("note")}>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  onClick={() => showModal("note")}
+                >
                   创建第一篇笔记
-                </button>
+                </Button>
               </p>
             )}
           </div>
@@ -1551,7 +1593,9 @@ function App() {
           <div className="sidebar-tags">
             {tags.length ? (
               tags.map((t) => (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className={tagFilter === t ? "active" : ""}
                   key={t}
                   onClick={() => {
@@ -1561,14 +1605,16 @@ function App() {
                 >
                   <span className="tag-dot" />
                   {t}
-                </button>
+                </Button>
               ))
             ) : (
               <span className="muted">为笔记添加标签，连接想法</span>
             )}
           </div>
           <div className="sidebar-bottom">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className={view === "trash" ? "selected" : ""}
               onClick={() => void navigate("trash")}
             >
@@ -1577,9 +1623,11 @@ function App() {
               <span className="nav-count">
                 {nodes.filter((n) => n.deleted_at).length || ""}
               </span>
-            </button>
+            </Button>
             <div className="divider" />
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="backup-link"
               onClick={() => void navigate("backup")}
             >
@@ -1591,21 +1639,32 @@ function App() {
                 <small>你的知识，始终属于你</small>
               </span>
               <ChevronRight size={14} />
-            </button>
+            </Button>
             <div className="bottom-actions">
-              <button onClick={() => void navigate("settings")}>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => void navigate("settings")}
+              >
                 <Settings size={16} />
                 设置
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 onClick={() => void navigate("extensions")}
                 aria-label="扩展"
               >
                 <Puzzle size={16} />
-              </button>
-              <button onClick={() => setDark(!dark)} aria-label="切换主题">
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setDark(!dark)}
+                aria-label="切换主题"
+              >
                 {dark ? <Sun size={16} /> : <Moon size={16} />}
-              </button>
+              </Button>
             </div>
           </div>
         </aside>
@@ -1613,13 +1672,15 @@ function App() {
       <main className="workspace">
         <header className="topbar">
           <div className="breadcrumbs">
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="icon-button"
               onClick={() => setSidebar(!sidebar)}
               aria-label="切换侧栏"
             >
               <PanelLeft size={17} />
-            </button>
+            </Button>
             <span className="breadcrumb-root">{book?.name || "Notebook"}</span>
             {ancestors.slice(-2).map((n) => (
               <React.Fragment key={n.id}>
@@ -1633,43 +1694,69 @@ function App() {
               <span />
               本地空间
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className={"icon-button " + (panel ? "pressed" : "")}
               onClick={() => setPanel(panel ? null : "outline")}
               aria-label="切换辅助面板"
             >
               <PanelRight size={17} />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               className="icon-button"
               onClick={() => setMenu(!menu)}
               aria-label="更多操作"
             >
               <MoreHorizontal size={20} />
-            </button>
+            </Button>
             {menu && (
               <div className="popover note-menu">
                 {active && (
                   <>
-                    <button onClick={() => showModal("rename", active)}>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      onClick={() => showModal("rename", active)}
+                    >
                       <FileText size={15} />
                       重命名
-                    </button>
-                    <button onClick={() => showModal("move", active)}>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      onClick={() => showModal("move", active)}
+                    >
                       <Move size={15} />
                       移动到目录
-                    </button>
-                    <button onClick={() => void beginTransfer(active, "copy")}>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      onClick={() => void beginTransfer(active, "copy")}
+                    >
                       复制到其他 Notebook
-                    </button>
-                    <button onClick={() => void beginTransfer(active, "move")}>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      onClick={() => void beginTransfer(active, "move")}
+                    >
                       移动到其他 Notebook
-                    </button>
-                    <button onClick={() => showModal("tags", active)}>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      onClick={() => showModal("tags", active)}
+                    >
                       <Hash size={15} />
                       编辑标签
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       onClick={() => {
                         setPanel("history");
                         setMenu(false);
@@ -1677,8 +1764,10 @@ function App() {
                     >
                       <History size={15} />
                       版本历史
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       onClick={() => {
                         download(
                           btoa(unescape(encodeURIComponent(active.body || ""))),
@@ -1690,21 +1779,27 @@ function App() {
                     >
                       <Download size={15} />
                       导出 Markdown
-                    </button>
+                    </Button>
                     <div className="divider" />
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       className="danger"
                       onClick={() => void trash(active)}
                     >
                       <Trash2 size={15} />
                       移入回收站
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button onClick={() => void exportBook()}>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  onClick={() => void exportBook()}
+                >
                   <Download size={15} />
                   导出完整 Notebook
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -1714,10 +1809,16 @@ function App() {
             <span>{error}</span>
             {dirty.current && (
               <>
-                <button onClick={() => void flush().catch(() => {})}>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  onClick={() => void flush().catch(() => {})}
+                >
                   重试保存
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   onClick={() =>
                     download(
                       btoa(
@@ -1731,19 +1832,24 @@ function App() {
                   }
                 >
                   下载草稿
-                </button>
+                </Button>
               </>
             )}
-            <button onClick={() => setError("")} aria-label="关闭错误">
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => setError("")}
+              aria-label="关闭错误"
+            >
               <X size={16} />
-            </button>
+            </Button>
           </div>
         )}
         <div className="content-layout">
           <section className="main-content" ref={contentRef}>
             {listView ? (
               <div className="collection page">
-                <span className="eyebrow">YOUR KNOWLEDGE GARDEN</span>
+                <span className="eyebrow">FROM YOUR BOOKSHELF</span>
                 <h1>
                   {tagFilter
                     ? "# " + tagFilter
@@ -1756,7 +1862,7 @@ function App() {
                 <p className="page-intro">
                   {view === "trash"
                     ? "暂时放下的内容，还可以重新找回来。"
-                    : "每一次重访，都可能生长出新的理解。"}{" "}
+                    : "最近翻阅过的笔记，都收在这里。"}{" "}
                   · {list.length} 篇笔记
                 </p>
                 {view === "trash" &&
@@ -1769,7 +1875,9 @@ function App() {
                           {n.title}
                           <small>目录</small>
                         </span>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="layout"
                           className="secondary"
                           onClick={() =>
                             void task(async () => {
@@ -1784,13 +1892,15 @@ function App() {
                         >
                           <RotateCcw size={14} />
                           恢复
-                        </button>
+                        </Button>
                       </div>
                     ))}
                 {list.map((n) => (
                   <div className="collection-row" key={n.id}>
                     {icon(n, 20)}
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       disabled={view === "trash"}
                       onClick={() => void openNote(n)}
                     >
@@ -1803,9 +1913,11 @@ function App() {
                             ? "PDF 文档"
                             : "图片笔记"}
                       </small>
-                    </button>
+                    </Button>
                     {view === "trash" ? (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="secondary"
                         onClick={() =>
                           void task(async () => {
@@ -1820,7 +1932,7 @@ function App() {
                       >
                         <RotateCcw size={14} />
                         恢复
-                      </button>
+                      </Button>
                     ) : (
                       <ArrowUpRight size={16} />
                     )}
@@ -1839,9 +1951,9 @@ function App() {
             ) : view === "backup" ? (
               <div className="page">
                 <span className="eyebrow">SAFE & LOCAL</span>
-                <h1>让知识，有一份安心的备份</h1>
+                <h1>给藏书留一份副本</h1>
                 <p className="page-intro">
-                  先在本地写好每一个想法，再为它们留一条回家的路。
+                  备份笔记、附件与修改历史，随时找回写过的内容。
                 </p>
                 <div className="feature-card">
                   <div className="feature-icon">
@@ -1851,7 +1963,9 @@ function App() {
                     <h3>本地快照</h3>
                     <p>保存完整的 Notebook、附件、历史与回收站。</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="primary"
                     disabled={busy}
                     onClick={() =>
@@ -1868,7 +1982,7 @@ function App() {
                   >
                     <Plus size={15} />
                     创建快照
-                  </button>
+                  </Button>
                 </div>
                 <div className="feature-card">
                   <div className="feature-icon">
@@ -1878,16 +1992,23 @@ function App() {
                     <h3>完整导入与导出</h3>
                     <p>以 .anynote 文件带走知识，在新空间重新打开。</p>
                   </div>
-                  <button className="secondary" onClick={chooseArchive}>
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    className="secondary"
+                    onClick={chooseArchive}
+                  >
                     导入
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     disabled={busy}
                     onClick={() => void exportBook()}
                   >
                     导出
-                  </button>
+                  </Button>
                 </div>
                 <h2 className="subheading">
                   本地快照记录 <span>{snapshots.length}</span>
@@ -1903,7 +2024,9 @@ function App() {
                         <Check size={14} />
                         已完成
                       </span>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="secondary"
                         disabled={busy}
                         onClick={() =>
@@ -1925,7 +2048,7 @@ function App() {
                       >
                         <RotateCcw size={13} />
                         恢复副本
-                      </button>
+                      </Button>
                     </div>
                   ))
                 ) : (
@@ -1995,36 +2118,47 @@ function App() {
                     <h3>外观</h3>
                     <p>温暖浅色，或安静深色。</p>
                   </div>
-                  <button className="secondary" onClick={() => setDark(!dark)}>
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    className="secondary"
+                    onClick={() => setDark(!dark)}
+                  >
                     {dark ? <Sun size={16} /> : <Moon size={16} />}切换为
                     {dark ? "浅色" : "深色"}
-                  </button>
+                  </Button>
                 </div>
                 <div className="setting-row">
                   <div>
                     <h3>Notebook</h3>
                     <p>每个主题拥有独立的本地数据库与资源。</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     onClick={() => showModal("renameNotebook")}
                   >
                     重命名 Notebook
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     onClick={() => showModal("notebook")}
                   >
                     <Plus size={16} />
                     创建 Notebook
-                  </button>
+                  </Button>
                 </div>
                 <div className="setting-row">
                   <div>
                     <h3>外部 Notebook</h3>
                     <p>打开已有目录，在原位置编辑；关闭应用后释放写锁。</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     disabled={!window.anynote}
                     title={
@@ -2044,7 +2178,7 @@ function App() {
                   >
                     <FolderOpen size={16} />
                     打开 Notebook 目录
-                  </button>
+                  </Button>
                 </div>
                 {books
                   .filter((b) => b.external)
@@ -2058,7 +2192,9 @@ function App() {
                             : "已登记的外部目录；原文件始终保留。"}
                         </p>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="secondary"
                         aria-label={"移出工作区：" + externalBook.name}
                         onClick={() =>
@@ -2092,7 +2228,7 @@ function App() {
                         }
                       >
                         移出工作区
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 {books
@@ -2106,12 +2242,14 @@ function App() {
                             "Notebook 无法打开；可进入只读诊断与恢复向导。"}
                         </p>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="secondary"
                         onClick={() => setRecovery(damaged)}
                       >
                         诊断与恢复
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 <div className="setting-row">
@@ -2119,13 +2257,17 @@ function App() {
                     <h3>数据迁移</h3>
                     <p>导出包含历史与回收站，不包含设备凭据。</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     onClick={() => void exportBook()}
                   >
                     导出完整 Notebook
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     onClick={() =>
                       void task(async () => {
@@ -2139,15 +2281,15 @@ function App() {
                     }
                   >
                     导出 Markdown 文件夹
-                  </button>
+                  </Button>
                 </div>
                 <div className="about">
                   <div className="brand-mark">
-                    <Leaf size={23} />
+                    <NotebookPen size={23} />
                   </div>
                   <h3>Anynote</h3>
                   <p>0.1.0 · 本地知识库预览版</p>
-                  <p>让想法扎根，让知识生长。</p>
+                  <p>一本随身的笔记本，一座自己的藏书室。</p>
                 </div>
               </div>
             ) : active ? (
@@ -2166,15 +2308,19 @@ function App() {
                   <div className="document-actions">
                     {active.note_type === "markdown" && (
                       <>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="layout"
                           className="icon-button"
                           title="插入本地图片"
                           aria-label="插入本地图片"
                           onClick={() => imageInput.current?.click()}
                         >
                           <ImageIcon size={16} />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="layout"
                           className="icon-button"
                           title="插入白板"
                           aria-label="插入白板"
@@ -2185,19 +2331,23 @@ function App() {
                           }
                         >
                           <Puzzle size={16} />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="layout"
                           className="icon-button"
                           title="插入视频"
                           aria-label="插入视频"
                           onClick={() => showModal("video")}
                         >
                           <Plus size={16} />
-                        </button>
+                        </Button>
                       </>
                     )}
 
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       className={
                         "icon-button " + (active.favorite ? "favorited" : "")
                       }
@@ -2210,14 +2360,16 @@ function App() {
                         size={17}
                         fill={active.favorite ? "currentColor" : "none"}
                       />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
                       className="icon-button"
                       onClick={() => setSidebar(!sidebar)}
                       aria-label="专注模式"
                     >
                       <Maximize2 size={16} />
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <article
@@ -2238,12 +2390,10 @@ function App() {
                 >
                   <div className="doc-eyebrow">
                     <span className="tiny-dot" />
-                    {active.favorite
-                      ? "留给未来的自己"
-                      : "让一个想法，慢慢生长"}
+                    {active.favorite ? "已夹入书签" : "随笔 · 手记"}
                   </div>
                   <h1>
-                    <input
+                    <Input
                       aria-label="笔记标题"
                       value={active.title}
                       onChange={(e) => edit({ title: e.target.value })}
@@ -2263,17 +2413,24 @@ function App() {
                     </span>
                     <div className="doc-tags">
                       {active.tags.map((t) => (
-                        <button key={t} onClick={() => setTagFilter(t)}>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          key={t}
+                          onClick={() => setTagFilter(t)}
+                        >
                           # {t}
-                        </button>
+                        </Button>
                       ))}
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="tag-add"
                         onClick={() => showModal("tags", active)}
                       >
                         <Plus size={12} />
                         {active.tags.length ? "" : "添加标签"}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   {active.source_uri && (
@@ -2286,9 +2443,13 @@ function App() {
                       >
                         {active.source_uri}
                       </a>
-                      <button onClick={() => setTasksOpen(true)}>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => setTasksOpen(true)}
+                      >
                         查看导入任务
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {active.note_type === "markdown" && book && (
@@ -2346,7 +2507,9 @@ function App() {
                     ) : (
                       <>
                         <div className="asset-download">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="layout"
                             className="secondary"
                             onClick={() =>
                               void task(async () => {
@@ -2364,7 +2527,7 @@ function App() {
                           >
                             <Download size={14} />
                             下载原始 PDF
-                          </button>
+                          </Button>
                         </div>
                         <Suspense
                           fallback={
@@ -2407,34 +2570,41 @@ function App() {
                   />
                   <footer className="document-end">
                     <Leaf size={14} />
-                    <span>每一次记录，都是一次生长。</span>
+                    <span>写于 Anynote · 私人藏本</span>
                   </footer>
                 </article>
               </>
             ) : (
               <div className="empty welcome-empty">
                 <div className="empty-mark">
-                  <Leaf size={44} />
+                  <NotebookPen size={44} />
                 </div>
-                <span className="eyebrow">A QUIET PLACE FOR YOUR IDEAS</span>
-                <h1>从一个想法开始</h1>
+                <span className="eyebrow">A NOTEBOOK OF YOUR OWN</span>
+                <h1>翻开新的一页</h1>
                 <p>
                   这里是你的数字书桌。
                   <br />
-                  写下灵感，收藏资料，让知识慢慢生长。
+                  一本笔记，几页摘录。把值得留下的事写在这里。
                 </p>
                 <div>
-                  <button className="primary" onClick={() => showModal("note")}>
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    className="primary"
+                    onClick={() => showModal("note")}
+                  >
                     <Plus size={16} />
                     写一篇笔记
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     onClick={() => fileInput.current?.click()}
                   >
                     <Upload size={16} />
                     导入资料
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -2442,32 +2612,40 @@ function App() {
           {panel && view === "notes" && !tagFilter && active && (
             <aside className="aux-panel">
               <div className="panel-heading">
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className={panel === "outline" ? "active" : ""}
                   onClick={() => setPanel("outline")}
                 >
                   大纲
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className={panel === "history" ? "active" : ""}
                   onClick={() => setPanel("history")}
                 >
                   历史
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="icon-button"
                   onClick={() => setPanel(null)}
                   aria-label="关闭辅助面板"
                 >
                   <X size={15} />
-                </button>
+                </Button>
               </div>
               {panel === "outline" ? (
                 <>
                   <span className="section-label">在这篇笔记里</span>
                   {headings.length ? (
                     headings.map((h) => (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         className="outline-row"
                         style={{ paddingLeft: 20 + (h.level - 1) * 12 }}
                         key={h.id}
@@ -2489,7 +2667,7 @@ function App() {
                         }}
                       >
                         {h.title}
-                      </button>
+                      </Button>
                     ))
                   ) : (
                     <p className="panel-muted">
@@ -2523,7 +2701,9 @@ function App() {
                         {r.metadata?.tags.map((t) => "#" + t).join(" ")}
                         {r.metadata?.favorite ? " · 已收藏" : ""}
                       </small>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="layout"
                         onClick={() =>
                           void task(async () => {
                             await request("restoreRevision", {
@@ -2539,7 +2719,7 @@ function App() {
                       >
                         <RotateCcw size={12} />
                         恢复此版本
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </>
@@ -2553,19 +2733,38 @@ function App() {
             {busy ? "正在处理…" : status}
           </div>
           <div>
-            <button onClick={() => fileInput.current?.click()}>
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => fileInput.current?.click()}
+            >
               <Upload size={12} />
               导入资料
-            </button>
-            <button onClick={() => setImportOpen(true)}>
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => setImportOpen(true)}
+            >
               网页 / HTML 导入
-            </button>
-            <button onClick={() => setTasksOpen(true)}>任务中心</button>
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => setTasksOpen(true)}
+            >
+              任务中心
+            </Button>
             <span className="status-separator" />
             <span>Markdown · UTF-8</span>
-            <button onClick={() => void navigate("backup")} title="查看备份">
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => void navigate("backup")}
+              title="查看备份"
+            >
               <HardDrive size={13} />
-            </button>
+            </Button>
           </div>
         </footer>
       </main>
@@ -2582,21 +2781,16 @@ function App() {
         </div>
       )}
       {searchOpen && (
-        <div
-          className="modal-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSearchOpen(false);
-          }}
-        >
-          <div
+        <Dialog open onOpenChange={setSearchOpen}>
+          <DialogContent
             className="command-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="搜索笔记"
+            aria-describedby={undefined}
+            onCloseAutoFocus={() => focusBeforeDialog.current?.focus()}
           >
+            <DialogTitle className="sr-only">搜索笔记</DialogTitle>
             <div className="command-input">
               <Search size={21} />
-              <input
+              <Input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -2617,12 +2811,16 @@ function App() {
                     );
                 }}
               />
-              <button onClick={() => setSearchOpen(false)}>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setSearchOpen(false)}
+              >
                 <kbd>ESC</kbd>
-              </button>
+              </Button>
             </div>
             <div className="search-filters">
-              <select
+              <NativeSelect
                 aria-label="搜索范围"
                 value={searchScope}
                 onChange={(e) => {
@@ -2637,8 +2835,8 @@ function App() {
                     {b.name}
                   </option>
                 ))}
-              </select>
-              <select
+              </NativeSelect>
+              <NativeSelect
                 aria-label="笔记类型筛选"
                 value={searchType}
                 onChange={(e) => setSearchType(e.target.value)}
@@ -2647,8 +2845,8 @@ function App() {
                 <option value="markdown">Markdown</option>
                 <option value="pdf">PDF</option>
                 <option value="image">图片</option>
-              </select>
-              <select
+              </NativeSelect>
+              <NativeSelect
                 aria-label="目录筛选"
                 value={searchFolder}
                 disabled={searchScope !== "current" && searchScope !== book?.id}
@@ -2662,15 +2860,15 @@ function App() {
                       {n.title}
                     </option>
                   ))}
-              </select>
-              <input
+              </NativeSelect>
+              <Input
                 aria-label="标签筛选"
                 placeholder="标签"
                 maxLength={40}
                 value={searchTag}
                 onChange={(e) => setSearchTag(e.target.value)}
               />
-              <select
+              <NativeSelect
                 aria-label="更新时间筛选"
                 value={searchAge}
                 onChange={(e) => setSearchAge(e.target.value)}
@@ -2679,7 +2877,7 @@ function App() {
                 <option value="7">最近 7 天</option>
                 <option value="30">最近 30 天</option>
                 <option value="90">最近 90 天</option>
-              </select>
+              </NativeSelect>
             </div>
             {searchInfo?.truncated && (
               <p className="search-notice">
@@ -2707,7 +2905,9 @@ function App() {
             </div>
             <div className="command-results">
               {results.map((n, i) => (
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className={i === searchIndex ? "selected" : ""}
                   key={n.notebookId + n.id}
                   onMouseEnter={() => setSearchIndex(i)}
@@ -2722,7 +2922,7 @@ function App() {
                     {n.snippet && <small>{n.snippet}</small>}
                   </span>
                   <ArrowUpRight size={15} />
-                </button>
+                </Button>
               ))}
               {!searching && !results.length && (
                 <div className="empty">
@@ -2767,7 +2967,9 @@ function App() {
             )}
             <div className="command-footer">
               <span>↑ ↓ 选择 · ↵ 打开</span>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 onClick={() => {
                   setSearchOpen(false);
                   showModal("note");
@@ -2775,10 +2977,10 @@ function App() {
               >
                 <Plus size={14} />
                 新建笔记
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
       {transfer && book && (
         <NotebookTransferDialog
@@ -2810,138 +3012,158 @@ function App() {
         />
       )}
       {modal && (
-        <div
-          className="modal-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setModal(null);
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setModal(null);
           }}
         >
-          <form
+          <DialogContent
             className="form-dialog"
-            role="dialog"
-            aria-modal="true"
             aria-label="条目操作"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submit();
-            }}
+            onCloseAutoFocus={() => focusBeforeDialog.current?.focus()}
           >
-            <div className="dialog-heading">
-              <div className="feature-icon">
-                {modal.type === "notebook" ? (
-                  <BookOpen size={22} />
-                ) : modal.type === "folder" ? (
-                  <FolderPlus size={22} />
-                ) : modal.type === "move" ? (
-                  <Move size={22} />
-                ) : (
-                  <FileText size={22} />
-                )}
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setModal(null)}
-                aria-label="关闭"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <h2>
-              {
-                {
-                  note: "让新的想法扎根",
-                  folder: "为知识留一个位置",
-                  notebook: "开辟一片新的知识花园",
-                  rename: "给它一个新的名字",
-                  move: "把想法放在合适的位置",
-                  tags: "让知识彼此连接",
-                  video: "插入视频链接",
-                  renameNotebook: "重命名 Notebook",
-                }[modal.type]
-              }
-            </h2>
-            <p>
-              {modal.type === "notebook"
-                ? "独立保存，自由生长。无需账号，始终属于你。"
-                : modal.type === "tags"
-                  ? "使用逗号分隔标签，例如：阅读，灵感，项目"
-                  : "用一个容易记住的名字，开始你的下一步。"}
-            </p>
-            <label>
-              {modal.type === "move"
-                ? "目标目录"
-                : modal.type === "tags"
-                  ? "标签"
-                  : "名称"}
-              {modal.type === "move" ? (
-                <select
-                  autoFocus
-                  value={field}
-                  onChange={(e) => setField(e.target.value)}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <div className="dialog-heading">
+                <div className="feature-icon">
+                  {modal.type === "notebook" ? (
+                    <BookOpen size={22} />
+                  ) : modal.type === "folder" ? (
+                    <FolderPlus size={22} />
+                  ) : modal.type === "move" ? (
+                    <Move size={22} />
+                  ) : (
+                    <FileText size={22} />
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setModal(null)}
+                  aria-label="关闭"
                 >
-                  <option value="">Notebook 根目录</option>
-                  {visible
-                    .filter(
-                      (n) => n.kind === "folder" && n.id !== modal.target?.id,
-                    )
-                    .map((n) => (
-                      <option key={n.id} value={n.id}>
-                        {n.title}
-                      </option>
-                    ))}
-                </select>
-              ) : (
-                <input
-                  autoFocus
-                  required={modal.type !== "tags"}
-                  maxLength={240}
-                  placeholder={
-                    modal.type === "tags" ? "阅读，灵感" : "输入一个名称…"
+                  <X size={18} />
+                </Button>
+              </div>
+              <DialogTitle asChild>
+                <h2>
+                  {
+                    {
+                      note: "写一篇新笔记",
+                      folder: "添加一个章节",
+                      notebook: "装订一本新笔记",
+                      rename: "给它一个新的名字",
+                      move: "移动到其他章节",
+                      tags: "整理笔记标签",
+                      video: "插入视频链接",
+                      renameNotebook: "重命名 Notebook",
+                    }[modal.type]
                   }
-                  value={field}
-                  onChange={(e) => setField(e.target.value)}
-                />
+                </h2>
+              </DialogTitle>
+              <DialogDescription asChild>
+                <p>
+                  {modal.type === "notebook"
+                    ? "为这本笔记起个名字。内容独立保存在本地。"
+                    : modal.type === "tags"
+                      ? "使用逗号分隔标签，例如：阅读，灵感，项目"
+                      : "用一个容易记住的名字，开始你的下一步。"}
+                </p>
+              </DialogDescription>
+              <label>
+                {modal.type === "move"
+                  ? "目标目录"
+                  : modal.type === "tags"
+                    ? "标签"
+                    : "名称"}
+                {modal.type === "move" ? (
+                  <NativeSelect
+                    autoFocus
+                    value={field}
+                    onChange={(e) => setField(e.target.value)}
+                  >
+                    <option value="">Notebook 根目录</option>
+                    {visible
+                      .filter(
+                        (n) => n.kind === "folder" && n.id !== modal.target?.id,
+                      )
+                      .map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.title}
+                        </option>
+                      ))}
+                  </NativeSelect>
+                ) : (
+                  <Input
+                    autoFocus
+                    required={modal.type !== "tags"}
+                    maxLength={240}
+                    placeholder={
+                      modal.type === "tags" ? "阅读，灵感" : "输入一个名称…"
+                    }
+                    value={field}
+                    onChange={(e) => setField(e.target.value)}
+                  />
+                )}
+              </label>
+              {modal.type === "rename" && modal.target && (
+                <div className="dialog-actions">
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void beginTransfer(modal.target!, "copy")}
+                  >
+                    复制到其他 Notebook
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void beginTransfer(modal.target!, "move")}
+                  >
+                    移动到其他 Notebook
+                  </Button>
+                </div>
               )}
-            </label>
-            {modal.type === "rename" && modal.target && (
               <div className="dialog-actions">
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   type="button"
-                  disabled={busy}
-                  onClick={() => void beginTransfer(modal.target!, "copy")}
+                  className="secondary"
+                  onClick={() => setModal(null)}
                 >
-                  复制到其他 Notebook
-                </button>
-                <button
-                  type="button"
+                  取消
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  className="primary"
+                  type="submit"
                   disabled={busy}
-                  onClick={() => void beginTransfer(modal.target!, "move")}
                 >
-                  移动到其他 Notebook
-                </button>
+                  {busy
+                    ? "正在保存…"
+                    : modal.type === "rename" || modal.type === "tags"
+                      ? "保存"
+                      : modal.type === "move"
+                        ? "移动"
+                        : "创建"}
+                </Button>
               </div>
-            )}
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setModal(null)}
-              >
-                取消
-              </button>
-              <button className="primary" type="submit" disabled={busy}>
-                {busy
-                  ? "正在保存…"
-                  : modal.type === "rename" || modal.type === "tags"
-                    ? "保存"
-                    : modal.type === "move"
-                      ? "移动"
-                      : "创建"}
-              </button>
-            </div>
-          </form>
-        </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

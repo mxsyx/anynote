@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import type { ExtensionCommand } from "@anynote/plugin-sdk/declarative";
@@ -44,7 +45,9 @@ export default function ExtensionCommands({
     <section className="extension-commands" aria-label="扩展命令">
       <strong>扩展命令</strong>
       {commands.map((c) => (
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           key={c.id}
           disabled={busy}
           onClick={async () => {
@@ -60,11 +63,13 @@ export default function ExtensionCommands({
         >
           {c.title}
           <small>{c.extensionName}</small>
-        </button>
+        </Button>
       ))}
       {hosted.flatMap((extension) =>
         extension.commands.map((command) => (
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             key={command.id}
             disabled={busy}
             onClick={async () => {
@@ -81,7 +86,7 @@ export default function ExtensionCommands({
           >
             {command.title}
             <small>{extension.name} · 首方宿主</small>
-          </button>
+          </Button>
         )),
       )}
       {!commands.length && !hosted.length && (

@@ -1,3 +1,6 @@
+import { Button } from "./components/ui/button";
+import { Textarea } from "./components/ui/textarea";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
@@ -110,7 +113,9 @@ function Thumbnail({
     };
   }, [visible, doc, page]);
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="layout"
       type="button"
       className={"pdf-thumb" + (active ? " active" : "")}
       onClick={onSelect}
@@ -119,7 +124,7 @@ function Thumbnail({
     >
       <canvas ref={ref} />
       <span>{page}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -569,22 +574,26 @@ export default function PdfReader({
   return (
     <div className="pdf-reader">
       <div className="reader-tools">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className={thumbsOpen ? "chosen" : ""}
           onClick={() => setThumbsOpen((v) => !v)}
           aria-pressed={thumbsOpen}
           aria-label={thumbsOpen ? "收起页缩略图" : "展开页缩略图"}
         >
           <PanelLeft size={16} />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
           aria-label="上一页"
         >
           <ChevronLeft size={16} />
-        </button>
-        <input
+        </Button>
+        <Input
           aria-label="PDF 页码"
           type="number"
           min={1}
@@ -600,15 +609,19 @@ export default function PdfReader({
           }
         />
         <span>/ {doc?.numPages || "…"}</span>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={!doc || page === doc.numPages}
           onClick={() => setPage((p) => p + 1)}
           aria-label="下一页"
         >
           <ChevronRight size={16} />
-        </button>
+        </Button>
         <i />
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             setFit("custom");
             setScale((s) => Math.max(0.4, s - 0.2));
@@ -616,9 +629,11 @@ export default function PdfReader({
           aria-label="缩小"
         >
           <ZoomOut size={16} />
-        </button>
+        </Button>
         <span>{Math.round(scale * 100)}%</span>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             setFit("custom");
             setScale((s) => Math.min(3, s + 0.2));
@@ -626,8 +641,10 @@ export default function PdfReader({
           aria-label="放大"
         >
           <ZoomIn size={16} />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={fit === "width" ? "chosen" : ""}
           disabled={!doc}
           onClick={() => setFit((f) => (f === "width" ? "custom" : "width"))}
@@ -635,8 +652,10 @@ export default function PdfReader({
           aria-label="适应宽度"
         >
           <MoveHorizontal size={16} />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={fit === "page" ? "chosen" : ""}
           disabled={!doc}
           onClick={() => setFit((f) => (f === "page" ? "custom" : "page"))}
@@ -644,7 +663,7 @@ export default function PdfReader({
           aria-label="适应页面"
         >
           <Maximize size={16} />
-        </button>
+        </Button>
       </div>
       <form
         className="pdf-search"
@@ -654,22 +673,33 @@ export default function PdfReader({
         }}
       >
         <Search size={15} />
-        <input
+        <Input
           aria-label="PDF 文内搜索"
           placeholder="在 PDF 中查找…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="secondary" disabled={searching}>
+        <Button
+          variant="ghost"
+          size="layout"
+          className="secondary"
+          disabled={searching}
+        >
           查找
-        </button>
+        </Button>
         {hits.length > 0 && (
           <span>
             {hits.length} 页匹配 ·{" "}
             {hits.map((p) => (
-              <button type="button" key={p} onClick={() => setPage(p)}>
+              <Button
+                variant="ghost"
+                size="layout"
+                type="button"
+                key={p}
+                onClick={() => setPage(p)}
+              >
                 {p}
-              </button>
+              </Button>
             ))}
           </span>
         )}
@@ -681,10 +711,15 @@ export default function PdfReader({
             {staleAnnotations.length}{" "}
             条批注来自旧版本文件，未自动套用到当前版本。
           </span>
-          <button className="secondary" onClick={() => void reanchor()}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="secondary"
+            onClick={() => void reanchor()}
+          >
             <RefreshCw size={13} />
             重新锚定到当前版本
-          </button>
+          </Button>
         </div>
       )}
       {needsPassword && (
@@ -699,14 +734,16 @@ export default function PdfReader({
         >
           <label>
             此 PDF 需要密码
-            <input
+            <Input
               type="password"
               autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
-          <button className="primary">解锁阅读</button>
+          <Button variant="ghost" size="layout" className="primary">
+            解锁阅读
+          </Button>
           <p>密码仅用于本次读取，不写入数据库或导出包。</p>
         </form>
       )}
@@ -762,9 +799,14 @@ export default function PdfReader({
       </div>
       <div className="pdf-index-status">
         {!indexRequested ? (
-          <button className="secondary" onClick={() => setIndexRequested(true)}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="secondary"
+            onClick={() => setIndexRequested(true)}
+          >
             为大 PDF 建立全文索引
-          </button>
+          </Button>
         ) : (
           <span
             className={coverage?.partial ? "pdf-partial" : undefined}
@@ -777,23 +819,38 @@ export default function PdfReader({
       {quote && (
         <div className="annotation-form">
           <p>选中文字：{quote}</p>
-          <textarea
+          <Textarea
             aria-label="批注正文"
             placeholder="写下你的思考…"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          <button className="primary" onClick={() => void annotate()}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="primary"
+            onClick={() => void annotate()}
+          >
             <Highlighter size={14} />
             保存高亮与批注
-          </button>
-          <button className="primary" onClick={() => void createLinked()}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="primary"
+            onClick={() => void createLinked()}
+          >
             <StickyNote size={14} />
             创建关联笔记
-          </button>
-          <button className="secondary" onClick={() => setQuote("")}>
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="secondary"
+            onClick={() => setQuote("")}
+          >
             取消
-          </button>
+          </Button>
         </div>
       )}
       {linked && (
@@ -802,10 +859,15 @@ export default function PdfReader({
             已创建阅读笔记「{linked.title}」，链接回第 {page} 页。
           </span>
           {onOpenNote && (
-            <button className="secondary" onClick={() => onOpenNote(linked.id)}>
+            <Button
+              variant="ghost"
+              size="layout"
+              className="secondary"
+              onClick={() => onOpenNote(linked.id)}
+            >
               <ExternalLink size={13} />
               打开阅读笔记
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -819,13 +881,19 @@ export default function PdfReader({
             }
             key={a.id}
           >
-            <button onClick={() => setPage(a.page)}>
+            <Button
+              variant="ghost"
+              size="layout"
+              onClick={() => setPage(a.page)}
+            >
               第 {a.page} 页
               {a.target_asset_hash === assetHash ? "" : " · 旧版本"}
-            </button>
+            </Button>
             <blockquote>{a.quote}</blockquote>
             <p>{a.body}</p>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="icon-button"
               aria-label="删除批注"
               onClick={async () => {
@@ -834,7 +902,7 @@ export default function PdfReader({
               }}
             >
               <Trash2 size={13} />
-            </button>
+            </Button>
           </div>
         ))}
       </div>

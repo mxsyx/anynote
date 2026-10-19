@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Textarea } from "./components/ui/textarea";
 import { useState } from "react";
 import type { DeclarativeNode } from "@anynote/plugin-sdk/declarative";
 import { parseBlocks } from "@anynote/protocol/markdown";
@@ -58,7 +60,7 @@ export function PluginBlockEditor({
       {node.fields.map((f) => (
         <label key={f.key}>
           {f.label}
-          <textarea
+          <Textarea
             aria-label={f.label}
             value={
               typeof values[f.key] === "string" ? (values[f.key] as string) : ""
@@ -79,9 +81,14 @@ export function PluginBlockEditor({
           />
         </label>
       ))}
-      <button className="secondary" onClick={onDone}>
+      <Button
+        variant="ghost"
+        size="layout"
+        className="secondary"
+        onClick={onDone}
+      >
         完成此块
-      </button>
+      </Button>
     </div>
   );
 }

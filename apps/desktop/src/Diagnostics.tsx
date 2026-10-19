@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { NativeSelect } from "./components/ui/native-select";
 import { useEffect, useState } from "react";
 import type {
   DiagnosticLevel,
@@ -125,7 +127,7 @@ export default function Diagnostics() {
       <div className="cleanup-options">
         <label>
           记录级别
-          <select
+          <NativeSelect
             aria-label="诊断记录级别"
             value={settings?.level ?? "minimal"}
             disabled={busy}
@@ -136,29 +138,35 @@ export default function Diagnostics() {
                 {l.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy}
           onClick={() => void load()}
         >
           刷新
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy || !bundle}
           onClick={exportBundle}
         >
           导出诊断
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className="danger-button"
           disabled={busy}
           onClick={() => void clear()}
         >
           清空记录
-        </button>
+        </Button>
       </div>
       {bundle && (
         <div className="cleanup-plan">

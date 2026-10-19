@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type { HostedExtensionStatus } from "@anynote/extension-host/contracts";
@@ -90,7 +91,9 @@ export default function HostedExtensionsPanel({
             <p role="status">{states[extension.state]}</p>
             {extension.error && <p className="form-error">{extension.error}</p>}
             {extension.commands.map((command) => (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 key={command.id}
                 disabled={
                   !extension.enabled || busy || extension.state === "failed"
@@ -111,10 +114,12 @@ export default function HostedExtensionsPanel({
                 }
               >
                 {command.title}
-              </button>
+              </Button>
             ))}
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             disabled={busy}
             onClick={() =>
               void action(() =>
@@ -129,9 +134,11 @@ export default function HostedExtensionsPanel({
             {extension.enabled
               ? `停用${extension.name}`
               : `授权${extension.name}`}
-          </button>
+          </Button>
           {extension.state === "failed" && (
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={busy}
               onClick={() =>
                 void action(() =>
@@ -144,7 +151,7 @@ export default function HostedExtensionsPanel({
               }
             >
               重新授权
-            </button>
+            </Button>
           )}
         </div>
       ))}

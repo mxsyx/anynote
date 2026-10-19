@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import { X } from "./icons";
 import { request } from "./api";
@@ -133,12 +135,20 @@ export default function RemoteMaintenance({
       >
         <div className="dialog-heading">
           <h2>{target.name} · 远端维护</h2>
-          <button aria-label="关闭" disabled={busy} onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="layout"
+            aria-label="关闭"
+            disabled={busy}
+            onClick={onClose}
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
         <div className="dialog-actions">
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             disabled={busy || plan?.status === "deleting"}
             onClick={() => {
               setMode("retention");
@@ -146,8 +156,10 @@ export default function RemoteMaintenance({
             }}
           >
             版本保留与清理
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             disabled={busy || plan?.status === "deleting"}
             onClick={() => {
               setMode("writer");
@@ -155,7 +167,7 @@ export default function RemoteMaintenance({
             }}
           >
             设备接管
-          </button>
+          </Button>
         </div>
         {mode === "retention" ? (
           <>
@@ -166,7 +178,7 @@ export default function RemoteMaintenance({
             </p>
             <label>
               保留最近版本数
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={1000}
@@ -192,7 +204,7 @@ export default function RemoteMaintenance({
             ).map(([key, label, max]) => (
               <label key={key}>
                 {label}
-                <input
+                <Input
                   type="number"
                   min={0}
                   max={max}
@@ -206,7 +218,9 @@ export default function RemoteMaintenance({
                 />
               </label>
             ))}
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy || plan?.status === "deleting"}
               onClick={() =>
@@ -224,7 +238,7 @@ export default function RemoteMaintenance({
               }
             >
               预览清理
-            </button>
+            </Button>
             {plan && (
               <>
                 <p>
@@ -273,7 +287,9 @@ export default function RemoteMaintenance({
                   />
                   我确认永久删除列出的远端版本和对象
                 </label>
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="primary"
                   disabled={busy || !confirmed}
                   onClick={() =>
@@ -310,7 +326,7 @@ export default function RemoteMaintenance({
                     : plan.status === "deleting"
                       ? "重试未完成清理"
                       : "确认永久清理"}
-                </button>
+                </Button>
               </>
             )}
           </>
@@ -322,7 +338,7 @@ export default function RemoteMaintenance({
             </p>
             <label>
               远端 Notebook UUID
-              <input
+              <Input
                 value={remote}
                 disabled={busy || !!writer}
                 onChange={(e) => setRemote(e.target.value)}
@@ -330,13 +346,15 @@ export default function RemoteMaintenance({
             </label>
             <label>
               远端 Lineage UUID
-              <input
+              <Input
                 value={lineage}
                 disabled={busy || !!writer}
                 onChange={(e) => setLineage(e.target.value)}
               />
             </label>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="secondary"
               disabled={busy}
               onClick={() =>
@@ -355,7 +373,7 @@ export default function RemoteMaintenance({
               }
             >
               读取写入权
-            </button>
+            </Button>
             {writer && (
               <>
                 <p>
@@ -372,7 +390,9 @@ export default function RemoteMaintenance({
                   />
                   我确认撤销原设备并接管此远端分支
                 </label>
-                <button
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="primary"
                   disabled={busy || !confirmed}
                   onClick={() =>
@@ -396,7 +416,7 @@ export default function RemoteMaintenance({
                   }
                 >
                   确认设备接管
-                </button>
+                </Button>
               </>
             )}
           </>

@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { HardDriveDownload, X } from "./icons";
 import { request } from "./api";
@@ -115,9 +116,14 @@ export default function CloudRestoreWizard({
       >
         <div className="dialog-heading">
           <h2>{target.provider.title} · 恢复当前副本</h2>
-          <button onClick={onClose} aria-label="关闭">
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {!slots.length && !selected && (
@@ -141,13 +147,15 @@ export default function CloudRestoreWizard({
                   个资源
                 </small>
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 disabled={busy}
                 onClick={() => setSelected(slot)}
               >
                 选择
-              </button>
+              </Button>
             </div>
           ))}
 
@@ -171,10 +179,17 @@ export default function CloudRestoreWizard({
               Notebook，不覆盖当前工作库；缺少的插件内容会保留数据并降级预览。
             </p>
             <div className="dialog-actions">
-              <button className="secondary" onClick={() => setSelected(null)}>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                onClick={() => setSelected(null)}
+              >
                 返回
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="primary"
                 disabled={busy}
                 onClick={() => {
@@ -195,7 +210,7 @@ export default function CloudRestoreWizard({
                 }}
               >
                 下载并校验
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -208,7 +223,9 @@ export default function CloudRestoreWizard({
               Notebook；取消或校验失败都会清理临时文件。
             </p>
             <div className="dialog-actions">
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 onClick={() =>
                   void request("cancelTask", { id: taskId })
@@ -217,7 +234,7 @@ export default function CloudRestoreWizard({
                 }
               >
                 取消恢复
-              </button>
+              </Button>
             </div>
           </>
         )}

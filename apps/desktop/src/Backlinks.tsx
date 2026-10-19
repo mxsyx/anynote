@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import type { NoteNode } from "@anynote/types";
@@ -43,13 +44,15 @@ export default function Backlinks({
       {error && <p role="alert">反链暂无法读取：{error}</p>}
       {links.length ? (
         links.map((n) => (
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             key={n.notebookId + n.id}
             onClick={() => onOpen(n.id, n.notebookId)}
           >
             {n.title}
             <small> · {n.notebookName}</small>
-          </button>
+          </Button>
         ))
       ) : (
         <p>在其他笔记中插入此链接，连接你的想法。</p>

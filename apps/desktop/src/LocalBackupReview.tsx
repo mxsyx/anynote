@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useState } from "react";
 import { X } from "./icons";
 
@@ -52,9 +53,15 @@ export default function LocalBackupReview({
       >
         <div className="dialog-heading">
           <h2>{preview ? "备份预览" : "恢复当前备份"}</h2>
-          <button disabled={busy} onClick={onClose} aria-label="关闭">
+          <Button
+            variant="ghost"
+            size="layout"
+            disabled={busy}
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
         <p className="local-backup-path">{path}</p>
         {preview ? (
@@ -136,10 +143,18 @@ export default function LocalBackupReview({
           </>
         )}
         <div className="button-row">
-          <button className="secondary" disabled={busy} onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
             返回
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="primary"
             disabled={
               busy ||
@@ -154,7 +169,7 @@ export default function LocalBackupReview({
               : preview
                 ? "开始备份"
                 : "校验并恢复为新 Notebook"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

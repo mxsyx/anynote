@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type {
@@ -113,7 +115,7 @@ export default function ExtensionDirectoryBrowser({
       >
         <label>
           目录名称
-          <input
+          <Input
             required
             maxLength={80}
             value={name}
@@ -123,7 +125,7 @@ export default function ExtensionDirectoryBrowser({
         </label>
         <label>
           目录 HTTPS 地址
-          <input
+          <Input
             type="url"
             required
             value={url}
@@ -132,7 +134,9 @@ export default function ExtensionDirectoryBrowser({
             placeholder="https://example.com/extensions.json"
           />
         </label>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={
             blocked || !name.trim() || !url.trim() || sources.length >= 8
@@ -140,7 +144,7 @@ export default function ExtensionDirectoryBrowser({
           type="submit"
         >
           保存扩展目录
-        </button>
+        </Button>
       </form>
       {sources.map((source) => (
         <article className="feature-card directory-source" key={source.id}>
@@ -149,10 +153,17 @@ export default function ExtensionDirectoryBrowser({
             <p style={{ overflowWrap: "anywhere" }}>{source.url}</p>
           </div>
           <div className="extension-actions">
-            <button disabled={blocked} onClick={() => void refresh(source.id)}>
+            <Button
+              variant="ghost"
+              size="layout"
+              disabled={blocked}
+              onClick={() => void refresh(source.id)}
+            >
               刷新目录
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="layout"
               disabled={blocked}
               onClick={() =>
                 void act(async () => {
@@ -167,13 +178,15 @@ export default function ExtensionDirectoryBrowser({
               }
             >
               移除目录
-            </button>
+            </Button>
           </div>
         </article>
       ))}
       {!sources.length && <p>尚未添加扩展目录。</p>}
       {loading && (
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             generation.current++;
             void request("cancelExtensionDownloads").catch((e) =>
@@ -182,7 +195,7 @@ export default function ExtensionDirectoryBrowser({
           }}
         >
           取消目录下载
-        </button>
+        </Button>
       )}
       {snapshot && (
         <div className="directory-results">
@@ -196,7 +209,7 @@ export default function ExtensionDirectoryBrowser({
           </p>
           <label>
             搜索目录扩展
-            <input
+            <Input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -227,12 +240,14 @@ export default function ExtensionDirectoryBrowser({
                   </p>
                 </details>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 disabled={blocked}
                 onClick={() => onDownload(snapshot.snapshotId, entry.id)}
               >
                 下载目录扩展并审核
-              </button>
+              </Button>
             </article>
           ))}
           {!entries.length && <p>没有符合搜索条件的扩展。</p>}

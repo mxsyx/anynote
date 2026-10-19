@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import type {
@@ -154,7 +156,7 @@ export default function ExtensionSettingsForm({
                 }
               />
             ) : (
-              <input
+              <Input
                 type={f.kind === "number" ? "number" : "text"}
                 value={String(draft[f.key] ?? "")}
                 min={f.kind === "number" ? f.min : undefined}
@@ -174,10 +176,12 @@ export default function ExtensionSettingsForm({
         ))}
       </div>
       <div className="extension-actions">
-        <button type="submit" disabled={locked}>
+        <Button variant="ghost" size="layout" type="submit" disabled={locked}>
           保存扩展设置
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           disabled={locked}
           onClick={() => {
@@ -194,14 +198,16 @@ export default function ExtensionSettingsForm({
           }}
         >
           填入默认值
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           type="button"
           disabled={disabled || busy}
           onClick={() => void load()}
         >
           重新加载设置
-        </button>
+        </Button>
       </div>
       {notice && <p role="status">{notice}</p>}
       {error && (

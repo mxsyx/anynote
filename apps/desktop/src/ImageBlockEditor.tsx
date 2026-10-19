@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useState } from "react";
 import { imageBlock, resizeImageBlock } from "@anynote/protocol/image.js";
 import ResourceImage from "./ResourceImage";
@@ -55,7 +57,7 @@ export default function ImageBlockEditor({
       >
         <label>
           图片宽度（像素）
-          <input
+          <Input
             aria-label="图片宽度（像素）"
             type="number"
             min={32}
@@ -65,13 +67,20 @@ export default function ImageBlockEditor({
             onChange={(e) => setWidth(e.target.value)}
           />
         </label>
-        <button type="submit">应用图片尺寸</button>
-        <button type="button" onClick={() => apply(undefined)}>
+        <Button variant="ghost" size="layout" type="submit">
+          应用图片尺寸
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
+          type="button"
+          onClick={() => apply(undefined)}
+        >
           自适应宽度
-        </button>
-        <button type="button" onClick={onDone}>
+        </Button>
+        <Button variant="ghost" size="layout" type="button" onClick={onDone}>
           完成此块
-        </button>
+        </Button>
       </form>
       <p className="small-note">
         保留原图与宽高比例，显示宽度受窗口限制。尺寸保存到 Markdown 扩展块。

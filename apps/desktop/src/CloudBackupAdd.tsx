@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import { Cloud, ShieldCheck, X } from "./icons";
 import { request } from "./api";
@@ -118,9 +120,14 @@ export default function CloudBackupAdd({
                   ? "在浏览器中完成授权"
                   : "确认并创建目标"}
           </h2>
-          <button onClick={onClose} aria-label="关闭">
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {step === "provider" && (
@@ -142,7 +149,9 @@ export default function CloudBackupAdd({
                           : "未配置 OAuth 应用身份，请在自编译或环境变量中提供 Client ID"}
                     </small>
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="layout"
                     className="secondary"
                     disabled={
                       busy ||
@@ -162,7 +171,7 @@ export default function CloudBackupAdd({
                         : oauthReady
                           ? "连接"
                           : "未配置"}
-                  </button>
+                  </Button>
                 </div>
               );
             })}
@@ -189,13 +198,24 @@ export default function CloudBackupAdd({
               ；不会访问通讯录、邮件或其他云盘文件。内容以明文上传，云盘服务端可读取。
             </p>
             <div className="dialog-actions">
-              <button className="secondary" onClick={() => setStep("provider")}>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                onClick={() => setStep("provider")}
+              >
                 返回
-              </button>
-              <button className="primary" disabled={busy} onClick={authorize}>
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="primary"
+                disabled={busy}
+                onClick={authorize}
+              >
                 <ShieldCheck size={14} />
                 打开浏览器授权
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -210,7 +230,9 @@ export default function CloudBackupAdd({
               后立即关闭；取消或超时都会清理会话。
             </p>
             <div className="dialog-actions">
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
@@ -222,7 +244,7 @@ export default function CloudBackupAdd({
                 }
               >
                 取消授权
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -235,7 +257,7 @@ export default function CloudBackupAdd({
             </p>
             <label>
               设备标签
-              <input
+              <Input
                 value={deviceLabel}
                 onChange={(e) => setDeviceLabel(e.target.value)}
                 placeholder="例如：家里的 MacBook"
@@ -253,10 +275,17 @@ export default function CloudBackupAdd({
               创建后立即执行第一次备份
             </label>
             <div className="dialog-actions">
-              <button className="secondary" onClick={onClose}>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                onClick={onClose}
+              >
                 稍后再说
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="primary"
                 disabled={busy}
                 onClick={() =>
@@ -280,7 +309,7 @@ export default function CloudBackupAdd({
                 }
               >
                 保存并完成
-              </button>
+              </Button>
             </div>
           </>
         )}

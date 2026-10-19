@@ -9,7 +9,11 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["apps/desktop/src/*"]
+    }
   },
   "include": [
     "apps/desktop/src",

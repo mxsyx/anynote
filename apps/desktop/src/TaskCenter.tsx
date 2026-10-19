@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import LocalVerificationDetails from "./LocalVerificationDetails";
@@ -146,9 +147,14 @@ export default function TaskCenter({
       >
         <div className="dialog-heading">
           <h2>任务中心</h2>
-          <button onClick={onClose} aria-label="关闭">
+          <Button
+            variant="ghost"
+            size="layout"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
-          </button>
+          </Button>
         </div>
         <p>
           导入、导出与备份在后台进行，你可以继续记录；重启后仍可查看最近任务、校验结果与恢复入口。
@@ -254,9 +260,13 @@ export default function TaskCenter({
                       <LocalVerificationDetails report={r.verificationReport} />
                     )}
                     {r.restoredId && (
-                      <button onClick={() => onRestored?.(r.restoredId!)}>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => onRestored?.(r.restoredId!)}
+                      >
                         打开恢复的 Notebook
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}
@@ -315,25 +325,31 @@ export default function TaskCenter({
               )
             )}
             {j.restoredId && (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 onClick={() => onRestored?.(j.restoredId!)}
               >
                 {j.type === "archive-import"
                   ? "打开导入的 Notebook"
                   : "打开恢复的 Notebook"}
-              </button>
+              </Button>
             )}
             {j.note && (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 onClick={() => onOpen(j.note!, j.notebookId)}
               >
                 打开笔记
-              </button>
+              </Button>
             )}
             {j.status === "running" && (
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="secondary"
                 onClick={async () => {
                   await request("cancelTask", { id: j.id });
@@ -341,22 +357,32 @@ export default function TaskCenter({
                 }}
               >
                 取消任务
-              </button>
+              </Button>
             )}
             {j.retry &&
               ["failed", "cancelled", "interrupted", "waiting-disk"].includes(
                 j.status,
               ) && (
-                <button className="secondary" onClick={() => retry(j.id)}>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  className="secondary"
+                  onClick={() => retry(j.id)}
+                >
                   重试此任务
-                </button>
+                </Button>
               )}
             {j.type === "backup" &&
               j.targetId &&
               ["failed", "interrupted"].includes(j.status) && (
-                <button className="secondary" onClick={() => queryPending(j)}>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  className="secondary"
+                  onClick={() => queryPending(j)}
+                >
                   查询 pending generation
-                </button>
+                </Button>
               )}
             {pending[j.id] && <p>{pending[j.id]}</p>}
           </div>

@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Textarea } from "./components/ui/textarea";
 import {
   useEffect,
   useRef,
@@ -346,7 +348,9 @@ export default function ImageReader({
   return (
     <div className="image-reader">
       <div className="reader-tools">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             setFit("custom");
             setZoom((value) => clamp(value - 0.25, 0.1, 8));
@@ -354,9 +358,11 @@ export default function ImageReader({
           aria-label="缩小"
         >
           <ZoomOut size={16} />
-        </button>
+        </Button>
         <span>{Math.round(scale * 100)}%</span>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() => {
             setFit("custom");
             setZoom((value) => clamp(value + 0.25, 0.1, 8));
@@ -364,37 +370,47 @@ export default function ImageReader({
           aria-label="放大"
         >
           <ZoomIn size={16} />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={fit === "window" ? "chosen" : ""}
           aria-pressed={fit === "window"}
           onClick={() => setFit("window")}
         >
           适应窗口
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={fit === "actual" ? "chosen" : ""}
           aria-pressed={fit === "actual"}
           onClick={() => setFit("actual")}
         >
           实际尺寸
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={rotate ? "chosen" : ""}
           onClick={() => setRotate((value) => (value + 90) % 360)}
           aria-label="顺时针旋转 90°"
         >
           <RotateCw size={16} />
           {rotate ? `${rotate}°` : "旋转"}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           disabled={!rotate || busy}
           onClick={() => void saveRotation()}
           title="旋转不修改原图；另存为新版本会创建新的资源版本"
         >
           另存为新版本
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           onClick={() =>
             download(
               asset?.data || "",
@@ -406,15 +422,17 @@ export default function ImageReader({
         >
           <Download size={14} />
           原件
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="layout"
           className={exifOpen ? "chosen" : ""}
           aria-expanded={exifOpen}
           onClick={() => setExifOpen((value) => !value)}
         >
           <Info size={14} />
           信息
-        </button>
+        </Button>
       </div>
       {exifOpen && (
         <div className="image-exif" role="region" aria-label="图片信息">
@@ -517,16 +535,23 @@ export default function ImageReader({
       {draft && (
         <div className="annotation-form">
           <p>已在图片上选中区域，写下批注：</p>
-          <textarea
+          <Textarea
             aria-label="图片批注正文"
             placeholder="写下你的思考…"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          <button className="primary" onClick={() => void annotate()}>
+          <Button
+            variant="ghost"
+            size="layout"
+            className="primary"
+            onClick={() => void annotate()}
+          >
             保存图片批注
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="layout"
             className="secondary"
             onClick={() => {
               setDraft(null);
@@ -534,12 +559,12 @@ export default function ImageReader({
             }}
           >
             取消
-          </button>
+          </Button>
         </div>
       )}
       <div className="image-caption">
         <label htmlFor={`image-caption-${noteId}`}>说明</label>
-        <textarea
+        <Textarea
           id={`image-caption-${noteId}`}
           aria-label="图片说明"
           placeholder="为这张图片补充说明或来源…"
@@ -550,14 +575,16 @@ export default function ImageReader({
           }}
         />
         <div className="image-caption-actions">
-          <button
+          <Button
+            variant="ghost"
+            size="layout"
             className="primary"
             disabled={!captionDirty || busy}
             onClick={() => void saveCaption()}
           >
             <Check size={14} />
             保存说明
-          </button>
+          </Button>
           <span className="small-note">
             说明保存在笔记正文与历史中；旋转预览不修改原图。
           </span>
@@ -582,7 +609,9 @@ export default function ImageReader({
               {a.target_asset_hash === assetHash ? "当前版本" : "旧版本"}
             </span>
             <p>{a.body || "（无正文）"}</p>
-            <button
+            <Button
+              variant="ghost"
+              size="layout"
               className="icon-button"
               aria-label="删除图片批注"
               onClick={async () => {
@@ -591,7 +620,7 @@ export default function ImageReader({
               }}
             >
               <Trash2 size={13} />
-            </button>
+            </Button>
           </div>
         ))}
       </div>

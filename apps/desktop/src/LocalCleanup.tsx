@@ -1,3 +1,5 @@
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import type { IntegrityReport } from "@anynote/types";
 import { request } from "./api";
@@ -78,7 +80,7 @@ export default function LocalCleanup({
       <div className="cleanup-options">
         <label>
           至少保留最近快照
-          <input
+          <Input
             aria-label="保留快照数量"
             type="number"
             min={1}
@@ -92,7 +94,7 @@ export default function LocalCleanup({
         </label>
         <label>
           保留最近天数
-          <input
+          <Input
             aria-label="保留快照天数"
             type="number"
             min={0}
@@ -104,7 +106,9 @@ export default function LocalCleanup({
             }}
           />
         </label>
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy}
           onClick={() =>
@@ -121,7 +125,7 @@ export default function LocalCleanup({
           }
         >
           预览清理
-        </button>
+        </Button>
       </div>
       {plan && (
         <div className="cleanup-plan">
@@ -139,7 +143,9 @@ export default function LocalCleanup({
                   </p>
                 ))}
               </details>
-              <button
+              <Button
+                variant="ghost"
+                size="layout"
                 className="danger-button"
                 disabled={busy}
                 onClick={() =>
@@ -155,7 +161,7 @@ export default function LocalCleanup({
                 }
               >
                 确认永久清理这些文件
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -166,13 +172,15 @@ export default function LocalCleanup({
         pin； 巡检结果仅作提示，不会自动删除任何文件。
       </p>
       <div className="cleanup-options">
-        <button
+        <Button
+          variant="ghost"
+          size="layout"
           className="secondary"
           disabled={busy}
           onClick={() => void inspect()}
         >
           运行一致性巡检
-        </button>
+        </Button>
       </div>
       {report && (
         <div className="cleanup-plan">
