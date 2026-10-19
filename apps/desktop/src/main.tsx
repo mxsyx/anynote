@@ -35,8 +35,6 @@ import {
   Moon,
   X,
   Leaf,
-  Code2,
-  Eye,
   Image as ImageIcon,
   File,
   Hash,
@@ -60,7 +58,7 @@ import type {
 import { request, base64, download } from "./api";
 import { seed } from "./seed";
 import ImportReport from "./ImportReport";
-import DocumentView, { type BoardBlock } from "./DocumentView";
+import type { BoardBlock } from "./DocumentView";
 import ImportDialog from "./ImportDialog";
 import TaskCenter from "./TaskCenter";
 import ExtensionCommands from "./ExtensionCommands";
@@ -73,10 +71,9 @@ import CloudBackup from "./CloudBackup";
 import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
 import RecoveryWizard from "./RecoveryWizard";
-import SourceEditor from "./SourceEditor";
 import NotebookTransferDialog from "./NotebookTransferDialog";
 import "./styles.css";
-const RichEditor = lazy(() => import("./RichEditor"));
+const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
 const PdfReader = lazy(() => import("./PdfReader"));
 const ImageReader = lazy(() => import("./ImageReader"));
@@ -146,7 +143,6 @@ function App() {
     [active, setActive] = useState<NoteNode | null>(null),
     [view, setView] = useState<View>("notes"),
     [expanded, setExpanded] = useState<Set<string>>(new Set()),
-    [mode, setMode] = useState<"preview" | "source" | "rich">("preview"),
     [panel, setPanel] = useState<"outline" | "history" | null>(null),
     [revisions, setRevisions] = useState<Revision[]>([]),
     [snapshots, setSnapshots] = useState<Snapshot[]>([]),
@@ -252,7 +248,6 @@ function App() {
     composition = useRef(false),
     fileInput = useRef<HTMLInputElement>(null),
     archiveInput = useRef<HTMLInputElement>(null),
-    sourceRef = useRef<HTMLDivElement>(null),
     recent = useRef<string[]>(
       JSON.parse(localStorage.getItem("anynote-recent") || "[]"),
     );
@@ -392,92 +387,13 @@ function App() {
       window.removeEventListener("beforeunload", unload);
     };
   }, [flush]);
-  const modeSequence = useRef(0);
   const contentRef = useRef<HTMLElement>(null);
-  const scrollAnchor = useRef<number | null>(null);
 
-  // Restore the reading position (as a relative ratio) after a mode switch so
-  // long documents do not jump back to the top between preview/source/rich.
+  // Opening another note resets the viewport.
   useLayoutEffect(() => {
-    const ratio = scrollAnchor.current;
-    if (ratio == null) return;
-    scrollAnchor.current = null;
-    /** Apply the saved ratio once the mode's column has a real scroll range. */
-    const apply = () => {
-      const el = contentRef.current;
-      if (!el) return false;
-      const max = el.scrollHeight - el.clientHeight;
-      if (max <= 0) return false;
-      const behavior = el.style.scrollBehavior;
-      el.style.scrollBehavior = "auto";
-      el.scrollTop = Math.round(ratio * max);
-      el.style.scrollBehavior = behavior;
-      return true;
-    };
-    // The new mode lays out asynchronously, so its scroll range may still be
-    // empty; retry until the ratio lands, then stop instead of fighting the user.
-    if (apply()) return;
-    let frame = 0,
-      ticks = 0;
-    const retry = () => {
-      if (!apply() && ticks++ < 30) frame = requestAnimationFrame(retry);
-    };
-    frame = requestAnimationFrame(retry);
-    return () => cancelAnimationFrame(frame);
-  }, [mode]);
-
-  // Opening another note resets the viewport and drops any pending anchor.
-  useLayoutEffect(() => {
-    scrollAnchor.current = null;
     contentRef.current?.scrollTo({ top: 0 });
   }, [active?.id]);
 
-  /**
-   * Switch between preview/source/rich modes; very large bodies fall back to source.
-   *
-   * @param next Target mode.
-   */
-  const switchMode = async (next: "preview" | "source" | "rich") => {
-    if (composition.current) return;
-    const sequence = ++modeSequence.current,
-      id = current.current?.id;
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
-    try {
-      await flush();
-      if (sequence !== modeSequence.current || id !== current.current?.id)
-        return;
-      const target: "preview" | "source" | "rich" =
-        new Blob([current.current?.body || ""]).size > 1024 ** 2
-          ? "source"
-          : next;
-      if (target === mode) return;
-      // Capture the reading position only when a real switch is about to happen,
-      // so no stale anchor survives a no-op or sequence-cancelled switch.
-      const el = contentRef.current;
-      if (el) {
-        const max = el.scrollHeight - el.clientHeight;
-        scrollAnchor.current = max > 0 ? el.scrollTop / max : 0;
-      }
-      const started = performance.now();
-      setMode(target);
-      // Record the conversion latency once the new mode has painted. Only the
-      // mode name and duration are sent, never any document content.
-      requestAnimationFrame(() =>
-        request("reportDiagnostic", {
-          category: "editor",
-          name: "editor.mode",
-          outcome: "ok",
-          code: target,
-          durationMs: Math.round(performance.now() - started),
-          notable: true,
-        }).catch(() => {}),
-      );
-    } catch (e) {
-      report(e);
-    }
-  };
   /**
    * Open a note: flush pending saves first, then load the body, expand ancestors, and record the recent visit.
    *
@@ -500,7 +416,6 @@ function App() {
         // stale PDF return position.
         setPdfAnchor(anchor ? { noteId: n.id, anchor } : null);
         setActive(note);
-        if (new Blob([note.body || ""]).size > 1024 ** 2) setMode("source");
         setView("notes");
         setTagFilter(null);
         setMenu(false);
@@ -954,7 +869,6 @@ function App() {
       setModal(null);
       if (node.kind === "note") {
         await openNote(node);
-        setMode("source");
       } else setExpanded((prev) => new Set([...prev, node.id]));
     });
   };
@@ -2283,36 +2197,6 @@ function App() {
                       </>
                     )}
 
-                    {active.note_type === "markdown" && (
-                      <div className="mode-switch">
-                        <button
-                          className={mode === "preview" ? "chosen" : ""}
-                          onClick={() => {
-                            void switchMode("preview");
-                          }}
-                        >
-                          <Eye size={14} />
-                          阅读
-                        </button>
-                        <button
-                          className={mode === "rich" ? "chosen" : ""}
-                          onClick={() => {
-                            void switchMode("rich");
-                          }}
-                        >
-                          富文本 Beta
-                        </button>
-                        <button
-                          className={mode === "source" ? "chosen" : ""}
-                          onClick={() => {
-                            void switchMode("source");
-                          }}
-                        >
-                          <Code2 size={14} />
-                          源码
-                        </button>
-                      </div>
-                    )}
                     <button
                       className={
                         "icon-button " + (active.favorite ? "favorited" : "")
@@ -2411,59 +2295,18 @@ function App() {
                     <ImportReport notebookId={book.id} noteId={active.id} />
                   )}
                   <div className="doc-divider" />
-                  {active.note_type === "markdown" &&
-                    new Blob([active.body || ""]).size > 1024 ** 2 && (
-                      <p className="large-document-notice" role="status">
-                        文档超过 1MB，已使用源码模式以保持编辑流畅。
-                      </p>
-                    )}
                   {active.note_type === "markdown" ? (
-                    mode === "source" ||
-                    new Blob([active.body || ""]).size > 1024 ** 2 ? (
-                      <div
-                        className="source-editor"
-                        ref={sourceRef}
-                        onCompositionStart={() => (composition.current = true)}
-                        onCompositionEnd={() => {
-                          composition.current = false;
-                          void flush().catch(() => {});
-                        }}
-                      >
-                        <Suspense
-                          fallback={<p className="muted">正在打开编辑器…</p>}
-                        >
-                          <SourceEditor
-                            key={active.id}
-                            value={active.body || ""}
-                            dark={dark}
-                            onChange={(value) => edit({ body: value })}
-                          />
-                        </Suspense>
-                      </div>
-                    ) : mode === "rich" ? (
-                      <Suspense
-                        fallback={
-                          <p className="muted">正在加载富文本编辑器…</p>
-                        }
-                      >
-                        <RichEditor
-                          notebookId={book!.id}
-                          note={active}
-                          onChange={(body) => edit({ body })}
-                          onLink={followLink}
-                          onBoard={(b) => void task(async () => setBoard(b))}
-                          onCompositionState={(value) =>
-                            (composition.current = value)
-                          }
-                          onSource={() => void switchMode("source")}
-                        />
-                      </Suspense>
-                    ) : (
-                      <DocumentView
+                    <Suspense fallback={<p className="muted">正在打开文档…</p>}>
+                      <DocumentEditor
+                        key={book!.id + active.id}
                         notebookId={book!.id}
                         note={active}
-                        onBoard={(b) => void task(async () => setBoard(b))}
+                        onChange={(body) => edit({ body })}
                         onLink={followLink}
+                        onBoard={(b) => void task(async () => setBoard(b))}
+                        onCompositionState={(value) =>
+                          (composition.current = value)
+                        }
                         onFetchMeta={(blockId, url) =>
                           void task(async () => {
                             acceptSaved(
@@ -2479,7 +2322,7 @@ function App() {
                           })
                         }
                       />
-                    )
+                    </Suspense>
                   ) : asset ? (
                     active.note_type === "image" ? (
                       <Suspense
@@ -2629,13 +2472,18 @@ function App() {
                         style={{ paddingLeft: 20 + (h.level - 1) * 12 }}
                         key={h.id}
                         onClick={() => {
-                          setMode("preview");
                           setTimeout(
                             () =>
-                              document.getElementById(h.id)?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                              }),
+                              document
+                                .querySelectorAll(
+                                  ".document-input h1, .document-input h2, .document-input h3",
+                                )
+                                [
+                                  Number(h.id.replace("heading-", ""))
+                                ]?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                }),
                             50,
                           );
                         }}

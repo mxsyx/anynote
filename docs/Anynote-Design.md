@@ -17,8 +17,8 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 | 桌面客户端 | Electron + React + TypeScript + Vite | 桌面文件能力完整，复用 Web 编辑生态；无需引入 Next.js |
 | Notebook 存储 | 一个 Notebook 一个 SQLite + 私有资源目录 | 可单独迁移、备份、导出和恢复 |
 | 笔记目录 | 逻辑无限层级目录；统一节点树 | 目录深度不绑定操作系统路径长度 |
-| Markdown | 扩展 Markdown 为持久化真源，编辑器模型为派生数据 | 保留可读性、源码模式、开放导出能力 |
-| 文档编辑 | Tiptap/ProseMirror 富文本模式 + CodeMirror 6 源码模式 | 支持文档块、扩展节点与传统 Markdown 编辑 |
+| Markdown | 扩展 Markdown 为持久化真源，编辑器模型为派生数据 | 保留可读性与开放导出能力 |
+| 文档编辑 | Tiptap/ProseMirror 连续文档编辑 | 编辑预览合一，支持斜杠菜单与 Markdown 输入快捷方式 |
 | 白板 | 首方 Excalidraw 插件 | 白板场景文件本地保存，静态预览可降级 |
 | PDF | PDF.js 阅读器，批注独立存储 | 原始 PDF 保持不可变；先做阅读、高亮与批注 |
 | 本地搜索 | SQLite FTS5 + 中文分词适配 | 基础全文检索不依赖远程服务 |
@@ -293,7 +293,7 @@ Markdown 笔记在 SQLite 保存 UTF-8 扩展 Markdown 文本，称为 **Anynote
 
 ProseMirror/Tiptap JSON 只作为编辑器派生模型，可以缓存，缓存失效时从正文重建。若未来增加无法可靠映射到协议的在线文档能力，必须先扩展文档协议，不能悄悄把 JSON 升格为另一份真源。
 
-源码模式与富文本模式不能分别独立写不同正文；一个编辑会话只有一个活跃模式，切换先 flush、校验、转换，再更新模式。
+当前采用统一文档编辑会话，正文保存为 Markdown；无模式切换。具体实现与语法边界见 [编辑器与扩展生态](EDITOR-ECOSYSTEM.md)。以下阶段设计中的双模式方案已由统一编辑器替代。
 
 ### 7.2 双模式方案与无损边界
 

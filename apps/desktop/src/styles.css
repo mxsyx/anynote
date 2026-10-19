@@ -2822,3 +2822,60 @@ pre:focus-visible {
   gap: 8px;
   margin: 8px 0;
 }
+
+.document-editor {
+  position: relative;
+}
+.document-editor-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 20px;
+}
+.document-input {
+  min-height: 45vh;
+  padding-bottom: 120px;
+}
+.document-input > p:empty::before {
+  content: "输入文字或 / 插入内容";
+  color: var(--muted);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+.document-preserved {
+  margin: 16px 0;
+}
+.document-preserved.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  border-radius: 6px;
+}
+.document-insert-menu {
+  position: fixed;
+  z-index: 100;
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 30px #0002;
+}
+.document-insert-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.document-insert-menu button.selected,
+.document-insert-menu button:hover {
+  background: var(--sidebar);
+  color: var(--accent);
+}
+.document-insert-menu small {
+  display: block;
+  color: var(--muted);
+  padding: 8px 12px;
+  font-size: 11px;
+}
