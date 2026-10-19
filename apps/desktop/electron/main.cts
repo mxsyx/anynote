@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   powerMonitor,
   safeStorage,
   shell,
@@ -331,7 +332,7 @@ else {
         minHeight: 600,
         title: "Anynote",
         backgroundColor: "#F7F7F4",
-        autoHideMenuBar: true,
+        autoHideMenuBar: false,
         webPreferences: {
           preload: path.join(__dirname, "preload.cjs"),
           contextIsolation: true,
@@ -354,6 +355,15 @@ else {
       if (process.env.ANYNOTE_DEV) win.loadURL("http://127.0.0.1:5173");
       else win.loadFile(path.join(__dirname, "../../../../dist/index.html"));
     };
+    const { applicationMenu } = await import("./menu.js");
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate(
+        applicationMenu(process.platform, (command) => {
+          if (win && !win.isDestroyed())
+            win.webContents.send("anynote:menu", command);
+        }),
+      ),
+    );
     create();
 
     app.on("activate", () => {

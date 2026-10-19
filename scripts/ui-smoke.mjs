@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -17,11 +18,8 @@ try {
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 20000 });
-  await page
-    .getByRole("button", { name: "切换主题", exact: true })
-    .evaluate((el) => {
-      if (document.documentElement.dataset.theme === "dark") el.click();
-    });
+  if ((await page.locator("html").getAttribute("data-theme")) === "dark")
+    await appMenu(page, "theme");
   await page
     .locator(".tree-main")
     .filter({ hasText: "欢迎来到 Anynote" })
@@ -49,13 +47,14 @@ try {
   await page
     .getByRole("heading", { name: "持久化验证", exact: true })
     .waitFor();
+  await page.getByRole("button", { name: "更多操作", exact: true }).click();
   await page.getByRole("button", { name: "收藏笔记", exact: true }).click();
   await page.keyboard.press("Control+s");
   await page.getByText("已保存至本地", { exact: true }).waitFor();
   await page.getByRole("button", { name: "更多操作", exact: true }).click();
   await page.getByRole("button", { name: "移入回收站", exact: true }).click();
   await page.getByText("已移入回收站，可随时恢复", { exact: true }).waitFor();
-  await page.locator(".sidebar-bottom > button").first().click();
+  await appMenu(page, "trash");
   await page.getByRole("button", { name: "恢复", exact: true }).first().click();
   await page.getByText("笔记已恢复", { exact: true }).waitFor();
   await page
@@ -63,11 +62,9 @@ try {
     .filter({ hasText: "欢迎来到 Anynote" })
     .first()
     .click();
-  await page.getByRole("button", { name: "切换主题", exact: true }).click();
+  await appMenu(page, "theme");
   await page.screenshot({ path: "docs/screenshots/dark.png", fullPage: true });
-  await page
-    .getByRole("button", { name: "本地优先，安心记录", exact: false })
-    .click();
+  await appMenu(page, "backup");
   await page.getByRole("button", { name: "创建快照", exact: true }).click();
   await page.getByText("本地快照已完成并校验", { exact: true }).waitFor();
   await page

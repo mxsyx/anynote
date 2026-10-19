@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import {
@@ -151,10 +152,7 @@ try {
       .click();
   };
   await navigateSource();
-  const backupPage = async () =>
-    page
-      .getByRole("button", { name: "本地优先，安心记录", exact: false })
-      .click();
+  const backupPage = () => appMenu(page, "backup", electron);
   await backupPage();
   const local = page.getByRole("region", { name: "本地磁盘备份", exact: true });
   const add = local.getByRole("button", { name: "添加目标磁盘", exact: true });

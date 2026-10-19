@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -118,7 +119,7 @@ try {
     },
     { a: name, b: nameB },
   );
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await appMenu(page, "settings");
   await page
     .getByRole("button", { name: "创建 Notebook", exact: true })
     .click();
@@ -152,9 +153,7 @@ try {
       document.querySelector('input[aria-label="笔记标题"]')?.value === title,
     sourceName,
   );
-  await page
-    .getByRole("button", { name: "本地优先，安心记录", exact: false })
-    .click();
+  await appMenu(page, "backup");
   await page.getByRole("button", { name: "预览清理", exact: true }).click();
   await page.getByText("将清理 0 个文件", { exact: false }).waitFor();
   assert.deepEqual(errors, []);

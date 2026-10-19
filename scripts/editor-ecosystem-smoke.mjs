@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { expect } from "@playwright/test";
 import { createHash } from "node:crypto";
@@ -219,8 +220,8 @@ try {
     assert.ok(n.body.endsWith(opaque));
   });
   await check("install-review-notebook-grant-and-command-panel", async () => {
-    await page.getByRole("button", { name: "设置", exact: true }).click();
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "settings", app);
+    await appMenu(page, "extensions", app);
     await page
       .locator('.extension-install input[type="file"]')
       .setInputFiles("packages/plugin-sdk/src/examples/reading-callout.json");
@@ -287,7 +288,7 @@ try {
   await check(
     "disable-and-uninstall-fallback-retains-original-data",
     async () => {
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       await page.getByRole("button", { name: "此库停用", exact: true }).click();
       await page.keyboard.press("Control+k");
       assert.equal(await page.locator(".extension-commands button").count(), 0);
@@ -418,7 +419,7 @@ try {
     await page.getByRole("button", { name: "完成此块", exact: true }).click();
   });
   await check("script-install-review-grant-transform-and-revoke", async () => {
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     const invalid = join(root, "invalid-extension.json");
     writeFileSync(
       invalid,
@@ -457,7 +458,7 @@ try {
     const n = await saved();
     assert.ok(n.body.includes("正文字符数"));
     assert.ok(n.body.includes(opaque));
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await page
       .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
       .click();
@@ -486,7 +487,7 @@ try {
       loop.contributes.commands[0].action.script = "()=>{while(true){}}";
       const fixture = join(root, "loop-extension.json");
       writeFileSync(fixture, JSON.stringify(loop));
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       await page
         .locator('.extension-install input[type="file"]')
         .setInputFiles(fixture);
@@ -541,7 +542,7 @@ try {
     );
     const fixture = join(root, "signed-extension.json");
     writeFileSync(fixture, JSON.stringify(pack));
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await page
       .locator('.extension-install input[type="file"]')
       .setInputFiles(fixture);
@@ -638,7 +639,7 @@ try {
       };
     }, JSON.stringify(initial));
     try {
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       await page
         .getByRole("textbox", { name: "签名扩展 HTTPS 地址", exact: true })
         .fill("https://8.8.8.8/extension.json");
@@ -789,7 +790,7 @@ try {
       { index: JSON.stringify(listing), package: JSON.stringify(pack) },
     );
     try {
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       const section = page.getByRole("region", {
         name: "扩展目录",
         exact: true,
@@ -935,7 +936,7 @@ try {
     await page.screenshot({
       path: "docs/screenshots/editor/stateful-script.png",
     });
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await card()
       .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
       .click();
@@ -1054,7 +1055,7 @@ try {
         await request("getNote", { notebookId: book.id, id: note.id })
       ).body.includes(opaque),
     );
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await card()
       .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
       .click();
@@ -1211,7 +1212,7 @@ try {
       3,
     );
     assert.ok((await saved()).body.includes(opaque));
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await stateCard
       .getByRole("button", { name: "预览恢复", exact: true })
       .click();
@@ -1427,7 +1428,7 @@ try {
       source.body,
     );
     await scan("搜索上下文命令结果");
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await card
       .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
       .click();
@@ -1486,7 +1487,7 @@ try {
     assert.ok(result.body.includes(opaque));
     assert.ok(!result.body.includes("阅读记录跨库秘密"));
     await scan("异步宿主查询命令结果");
-    await page.getByRole("button", { name: "扩展", exact: true }).click();
+    await appMenu(page, "extensions", app);
     await card
       .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
       .click();
@@ -1600,7 +1601,7 @@ try {
         "User-Agent",
       ]);
       await scan("插件网络响应命令结果");
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       await card
         .getByRole("button", { name: "撤销当前 Notebook 授权", exact: true })
         .click();
@@ -1688,8 +1689,8 @@ try {
         permissions: manifest.permissions,
       });
       // Reload this page's device settings and installed metadata using the normal navigation.
-      await page.getByRole("button", { name: "设置", exact: true }).click();
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "settings", app);
+      await appMenu(page, "extensions", app);
       const section = page.getByRole("region", {
           name: "扩展更新检查",
           exact: true,

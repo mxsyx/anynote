@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import { expect } from "@playwright/test";
@@ -62,7 +63,7 @@ try {
   await create.click();
   await page.keyboard.press("Escape");
   await expect(create).toBeFocused();
-  await page.getByRole("button", { name: "切换主题", exact: true }).click();
+  await appMenu(page, "theme");
   await page.screenshot({ path: `${output}/dark.png` });
   for (const width of [1024, 390]) {
     await page.setViewportSize({ width, height: 844 });

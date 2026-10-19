@@ -509,26 +509,10 @@
   padding: 0 24px 0 20px;
   background: var(--bg);
 }
-.breadcrumbs {
+.topbar-left {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 11px;
-  color: var(--secondary);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.breadcrumbs > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
-.breadcrumbs > .icon-button {
-  margin-right: 4px;
-  color: var(--muted);
-}
-.breadcrumbs .breadcrumb-root {
-  color: var(--muted);
 }
 .topbar-right {
   display: flex;
@@ -564,28 +548,7 @@
   scrollbar-color: var(--border) transparent;
   scroll-behavior: smooth;
 }
-.document-toolbar {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 44px;
-  color: var(--secondary);
-  max-width: 1140px;
-  margin: auto;
-}
-.note-type {
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  opacity: 1;
-}
-.document-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+
 .mode-switch {
   display: flex;
   background: var(--sidebar);
@@ -607,9 +570,7 @@
   background: var(--surface);
   box-shadow: 0 1px 3px #00000008;
 }
-.favorited {
-  color: #a28b47;
-}
+
 .document {
   max-width: 850px;
   padding: 28px 52px 0;
@@ -1608,9 +1569,6 @@
     max-width: 890px;
     padding-top: 45px;
   }
-  .document-toolbar {
-    max-width: 1210px;
-  }
   .markdown-body {
     font-size: 15px;
   }
@@ -1630,9 +1588,6 @@
   .document {
     padding-left: 36px;
     padding-right: 36px;
-  }
-  .document-toolbar {
-    padding: 0 27px;
   }
   .aux-panel {
     position: absolute;
@@ -1668,9 +1623,6 @@
   }
   .document {
     padding: 22px 25px 0;
-  }
-  .document-toolbar {
-    padding: 0 20px;
   }
   .document > h1 {
     font-size: 27px;
@@ -3089,11 +3041,6 @@ pre:focus-visible {
   background-size: 5px 5px;
   padding-bottom: 28px;
 }
-.document-toolbar {
-  max-width: 920px;
-  height: 58px;
-  padding: 0 28px;
-}
 .document {
   position: relative;
   max-width: 840px;
@@ -3295,9 +3242,6 @@ pre:focus-visible {
   .document > h1 {
     font-size: 27px;
   }
-  .document-toolbar {
-    padding: 0 16px;
-  }
   .page {
     margin: 12px;
     padding: 28px 20px;
@@ -3354,36 +3298,115 @@ pre:focus-visible {
 }
 
 /* Spine-out volumes sit on continuous wooden boards at a fixed shelf pitch. */
+/* The 300px pitch keeps each volume on the lit upper edge of its shelf. */
 .book-grid {
+  --wood-grain: repeating-linear-gradient(
+    92deg,
+    #edc08b0c 0 1px,
+    transparent 1px 7px,
+    #24130818 8px 9px,
+    transparent 10px 17px
+  );
+
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fill, 88px);
   grid-auto-rows: 300px;
   align-items: end;
+  align-content: start;
   min-height: 600px;
   padding: 0 24px;
-  margin: 26px 0 38px;
-  border: 12px solid #49301e;
-  border-top-width: 16px;
-  border-radius: 4px;
+  margin: 32px 0 42px;
+  border: 18px solid #714a2e;
+  border-top-width: 24px;
+  border-bottom-width: 26px;
+  border-radius: 5px;
   background:
-    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 3px),
+    linear-gradient(
+        90deg,
+        #160c0870,
+        transparent 7%,
+        transparent 92%,
+        #160c0880
+      )
+      padding-box,
     repeating-linear-gradient(
-      to bottom,
-      #100e0b 0,
-      #211912 32px,
-      #17120e 245px,
-      #080705 274px,
-      #b18a53 275px,
-      #69472a 279px,
-      #9c7040 282px,
-      #4f321d 289px,
-      #2c1b10 294px,
-      #090705 300px
-    );
+        to bottom,
+        #160d0bcc 0,
+        #28170c66 24px,
+        transparent 80px,
+        #f5c88a0c 230px,
+        #11090688 260px,
+        #27150c 264px,
+        #795437 265px,
+        #b78b5a 274px,
+        #e4bd83 275px,
+        #a57647 277px,
+        #805332 280px,
+        #684127 290px,
+        #372115 292px,
+        #120a08 294px,
+        #160d0bcc 300px
+      )
+      padding-box,
+    repeating-linear-gradient(
+        90deg,
+        transparent 0 143px,
+        #1d100a55 144px,
+        #efc28b18 146px,
+        transparent 148px 150px
+      )
+      padding-box,
+    var(--wood-grain) border-box,
+    linear-gradient(105deg, #a7794c, #68422b 45%, #93653e) border-box;
   box-shadow:
-    inset 9px 0 16px #0009,
-    inset -9px 0 16px #0009,
-    0 18px 35px #25190e30;
+    inset 8px 0 12px #180c0a80,
+    inset -8px 0 12px #180c0a80,
+    inset 0 5px 16px #180c0a90,
+    0 1px 0 #e3bf8e,
+    0 5px 0 #452c1d,
+    0 8px 0 #342217,
+    0 22px 30px -8px #25190e65,
+    0 38px 52px -24px #25190e70;
+}
+
+/* Molded rails catch the same upper-left light as the book bindings. */
+.book-grid::before,
+.book-grid::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  left: -24px;
+  right: -24px;
+  height: 15px;
+  border: 1px solid #412818;
+  border-radius: 3px;
+  background:
+    var(--wood-grain),
+    linear-gradient(#d2a06b, #9b6b40 22%, #704629 50%, #94643b 80%, #4d2e1c);
+  box-shadow: 0 3px 5px #160b0850;
+}
+
+.book-grid::before {
+  top: -27px;
+}
+
+.book-grid::after {
+  bottom: -29px;
+  height: 20px;
+}
+
+[data-theme="dark"] .book-grid {
+  box-shadow:
+    inset 8px 0 16px #120907aa,
+    inset -8px 0 16px #120907aa,
+    inset 0 6px 20px #120907aa,
+    0 1px 0 #b58a5a,
+    0 5px 0 #452c1d,
+    0 8px 0 #281a12,
+    0 24px 40px #0008;
 }
 
 .book-volume {
@@ -3391,7 +3414,7 @@ pre:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-self: center;
+  justify-self: start;
   width: var(--book-width);
   height: var(--book-height);
   min-width: 0;
@@ -3416,7 +3439,10 @@ pre:focus-visible {
   box-shadow:
     inset 0 2px 2px #eac68950,
     inset 0 -3px 3px #0008,
-    4px 1px 5px #0009;
+    inset 3px 0 3px #f7d8a326,
+    8px 4px 5px #0006,
+    13px 8px 12px #0005,
+    1px 2px 2px #000b;
   cursor: pointer;
   transform-origin: bottom center;
   transition:
@@ -3424,10 +3450,38 @@ pre:focus-visible {
     filter 180ms ease;
 }
 
-.book-volume:hover,
+/* A narrow cover and exposed page block give the spine a physical depth. */
+.book-volume::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 2px;
+  left: 100%;
+  width: 8px;
+  border: 1px solid #291b16;
+  border-left: 2px solid var(--binding);
+  border-radius: 0 3px 2px 0;
+  background:
+    linear-gradient(90deg, #0007, transparent 50%, #0003),
+    repeating-linear-gradient(0deg, #c5b58f 0 1px, #e2d3ac 1px 3px);
+  transform: skewY(-14deg);
+  transform-origin: left bottom;
+  box-shadow: 2px 1px 2px #0006;
+}
+
+.book-volume::after {
+  content: "";
+  position: absolute;
+  inset: 17px 5px;
+  border: 1px solid #e6bd691e;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.book-volume:hover:not(:disabled),
 .book-volume:focus-visible {
   z-index: 1;
-  transform: translateY(-10px) rotate(-2deg);
+  transform: translateY(-10px) translateX(-2px) rotate(-2deg);
   filter: brightness(1.2);
 }
 
@@ -3496,9 +3550,12 @@ pre:focus-visible {
   height: 218px;
   margin-bottom: 25px;
   padding: 12px 6px;
-  border: 1px dashed #c5a26a80;
+  border: 1px solid #c5a26a60;
   border-radius: 3px;
-  background: #c5a26a08;
+  background: linear-gradient(90deg, #e0c49412, #e0c49406 50%, #0002);
+  box-shadow:
+    inset 1px 0 #f5d6a31a,
+    3px 2px 6px #0004;
   color: #d3b88c;
   cursor: pointer;
 }
@@ -3584,10 +3641,6 @@ pre:focus-visible {
 .sidebar .tree-row.active {
   box-shadow: inset 2px 0 var(--highlight);
 }
-.library-breadcrumb {
-  padding: 4px;
-  font-size: 12px;
-}
 
 @media (max-width: 760px) {
   .bookshelf {
@@ -3602,9 +3655,15 @@ pre:focus-visible {
     gap: 8px;
   }
   .book-grid {
-    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    grid-template-columns: repeat(auto-fill, 86px);
     padding: 0 8px;
-    border-width: 8px;
+    border-left-width: 10px;
+    border-right-width: 10px;
+  }
+  .book-grid::before,
+  .book-grid::after {
+    left: -14px;
+    right: -14px;
   }
   .library-footer {
     align-items: flex-start;
@@ -3628,8 +3687,8 @@ pre:focus-visible {
 
 .sidebar .notebook-switch,
 [data-theme="dark"] .sidebar .notebook-switch {
-  min-height: 70px;
-  padding: 12px 0;
+  min-height: 36px;
+  padding: 6px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -3639,7 +3698,7 @@ pre:focus-visible {
 
 .sidebar .notebook-switch strong {
   color: var(--text);
-  font-size: 20px;
+  font-size: 13px;
 }
 
 .sidebar .notebook-switch small,
@@ -3649,4 +3708,108 @@ pre:focus-visible {
 
 .sidebar .search-trigger {
   margin-top: 12px;
+}
+
+/* The contents page uses its own paper surface below the app toolbar. */
+.content-layout > .sidebar {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 0;
+  margin: 24px 0 24px 24px;
+  padding: 16px 24px 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px 8px 8px 4px;
+  background:
+    linear-gradient(90deg, transparent 88%, #00000009), var(--surface);
+  box-shadow:
+    -3px 3px 0 var(--surface),
+    -4px 4px 0 var(--border),
+    0 8px 24px #00000008;
+}
+
+.content-layout > .sidebar .section-label:has(.contents-title) {
+  margin-top: 14px;
+  padding-top: 24px;
+}
+
+.content-layout > .sidebar .tree {
+  min-height: 100px;
+}
+
+.topbar-right > .icon-button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: inset 0 1px 3px #0002;
+}
+
+@media (max-width: 760px) {
+  .content-layout > .sidebar {
+    position: absolute;
+    inset: 57px auto 0 0;
+    margin: 0;
+    max-width: calc(100vw - 40px);
+    box-shadow: 8px 0 24px #0003;
+  }
+
+  .topbar-right {
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .topbar-left {
+    gap: 4px;
+  }
+}
+
+/* Separate paper surfaces leave a visible strip of desk between contents and text. */
+.notebook-layout {
+  --page-inset: clamp(20px, 3vw, 40px);
+
+  margin: 24px;
+  gap: 20px;
+}
+
+.notebook-layout > .sidebar {
+  margin: 0;
+}
+
+/* The desk scrolls; the complete paper surface moves with its contents. */
+.notebook-layout > .main-content {
+  padding: 4px 24px 16px;
+  scrollbar-gutter: stable;
+  background: transparent;
+}
+
+.notebook-layout .document {
+  max-width: 960px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding-left: var(--page-inset);
+  padding-right: var(--page-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px 12px 12px 4px;
+  background-color: var(--surface);
+  box-shadow:
+    2px 3px 0 var(--surface),
+    3px 4px 0 var(--border),
+    0 12px 32px #00000012;
+}
+
+.notebook-layout .document::before {
+  left: calc(var(--page-inset) / 2);
+}
+
+@media (max-width: 760px) {
+  .notebook-layout {
+    margin: 8px;
+  }
+
+  .notebook-layout > .main-content {
+    padding-inline: 12px;
+  }
+
+  .notebook-layout > .sidebar {
+    background: var(--surface);
+    box-shadow: 8px 0 24px #0003;
+  }
 }

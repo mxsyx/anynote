@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { launchDesktop } from "./acceptance/electron-driver.mjs";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
@@ -51,7 +52,7 @@ const hostMetrics = () =>
 try {
   ({ app, page } = await launchDesktop(root));
   page.setDefaultTimeout(15000);
-  await page.getByRole("button", { name: "扩展", exact: true }).click();
+  await appMenu(page, "extensions", app);
   const panel = page.getByRole("region", { name: "首方扩展宿主", exact: true });
   await check("notebook-grant-and-lazy-activation", async () => {
     await expect(
@@ -111,7 +112,7 @@ try {
   await check(
     "disable-revokes-api-terminates-process-and-retains-notes",
     async () => {
-      await page.getByRole("button", { name: "扩展", exact: true }).click();
+      await appMenu(page, "extensions", app);
       await expect(panel.getByRole("status")).toHaveText("运行中");
       await panel
         .getByRole("button", { name: "停用阅读模板", exact: true })

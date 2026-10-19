@@ -1,3 +1,8 @@
+import {
+  editorCommands as commands,
+  type EditorCommand,
+  type MediaCommand,
+} from "@anynote/types/editor-commands.js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
@@ -29,24 +34,12 @@ import {
   serializeDocument,
 } from "./document-model";
 
-const commands = [
-  ["paragraph", "正文", "文本 text"],
-  ["h1", "一级标题", "heading"],
-  ["h2", "二级标题", "heading"],
-  ["h3", "三级标题", "heading"],
-  ["bullet", "无序列表", "list"],
-  ["ordered", "有序列表", "list"],
-  ["task", "任务列表", "todo"],
-  ["quote", "引用", "quote"],
-  ["code", "代码块", "code"],
-  ["table", "表格", "table"],
-  ["rule", "分割线", "divider"],
-] as const;
-
 type Props = {
   notebookId: string;
   note: NoteNode;
   onChange: (body: string) => void;
+  onInsertMedia: (kind: MediaCommand) => void;
+  insertionBlocked?: boolean;
   onLink: (href: string) => void;
   onBoard: (block: BoardBlock) => void;
   onFetchMeta?: (blockId: string, url: string) => void;
@@ -73,6 +66,7 @@ export default function DocumentEditor(props: Props) {
   const lastBody = useRef<string | null>(null);
   const [slash, setSlash] = useState<Slash | null>(null);
   const [selected, setSelected] = useState(0);
+  const selectedItem = useRef<HTMLButtonElement>(null);
   const menu = useRef<{ slash: Slash | null; selected: number }>({
     slash,
     selected,
@@ -185,14 +179,17 @@ export default function DocumentEditor(props: Props) {
     commands.filter((entry) =>
       entry.join(" ").toLowerCase().includes(query.toLowerCase()),
     );
-  const run = (kind: string) => {
-    if (!editor || editor.view.composing) return;
+  const run = (kind: EditorCommand) => {
+    if (!editor || editor.view.composing || latest.current.insertionBlocked)
+      return;
     const range = menu.current.slash;
     let chain = editor.chain().focus();
     if (range) chain = chain.deleteRange({ from: range.from, to: range.to });
     if (kind === "paragraph") chain.setParagraph().run();
-    else if (/^h[123]$/.test(kind))
-      chain.setHeading({ level: Number(kind[1]) as 1 | 2 | 3 }).run();
+    else if (/^h[1-6]$/.test(kind))
+      chain
+        .setHeading({ level: Number(kind[1]) as 1 | 2 | 3 | 4 | 5 | 6 })
+        .run();
     else if (kind === "bullet") chain.toggleBulletList().run();
     else if (kind === "ordered") chain.toggleOrderedList().run();
     else if (kind === "task") chain.toggleTaskList().run();
@@ -201,9 +198,28 @@ export default function DocumentEditor(props: Props) {
     else if (kind === "table")
       chain.insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run();
     else if (kind === "rule") chain.setHorizontalRule().run();
+    else if (kind === "bold") chain.toggleBold().run();
+    else if (kind === "italic") chain.toggleItalic().run();
+    else if (kind === "strike") chain.toggleStrike().run();
+    else if (kind === "inlineCode") chain.toggleCode().run();
+    else if (kind === "break") chain.setHardBreak().run();
+    else if (kind === "link") {
+      chain.run();
+      setHref(editor.getAttributes("link").href || "https://");
+      setLinkError("");
+      setLinkOpen(true);
+    } else if (kind === "image" || kind === "whiteboard" || kind === "video") {
+      // Commit slash removal before the parent flushes and opens a media dialog.
+      chain.run();
+      latest.current.onInsertMedia(kind);
+    }
     menu.current.slash = null;
     setSlash(null);
   };
+  useEffect(() => {
+    selectedItem.current?.scrollIntoView({ block: "nearest" });
+  }, [selected, slash?.query]);
+
   const runRef = useRef(run);
   runRef.current = run;
 
@@ -312,6 +328,16 @@ export default function DocumentEditor(props: Props) {
     },
   });
 
+  useEffect(
+    () =>
+      window.anynote?.onMenuCommand?.((command) => {
+        if (!command.startsWith("insert.") || linkOpen) return;
+        const entry = commands.find(([id]) => command === `insert.${id}`);
+        if (entry) runRef.current(entry[0]);
+      }),
+    [linkOpen],
+  );
+
   useEffect(() => {
     if (!editor || props.note.body === lastBody.current) return;
     lastBody.current = props.note.body || "";
@@ -357,36 +383,16 @@ export default function DocumentEditor(props: Props) {
           className="rich-selection-menu"
           aria-label="选区格式"
         >
-          <Button
-            variant="ghost"
-            size="layout"
-            onClick={() => editor.chain().focus().toggleBold().run()}
-          >
+          <Button variant="ghost" size="layout" onClick={() => run("bold")}>
             加粗
           </Button>
-          <Button
-            variant="ghost"
-            size="layout"
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-          >
+          <Button variant="ghost" size="layout" onClick={() => run("italic")}>
             斜体
           </Button>
-          <Button
-            variant="ghost"
-            size="layout"
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-          >
+          <Button variant="ghost" size="layout" onClick={() => run("strike")}>
             删除线
           </Button>
-          <Button
-            variant="ghost"
-            size="layout"
-            onClick={() => {
-              setHref(editor.getAttributes("link").href || "https://");
-              setLinkError("");
-              setLinkOpen(true);
-            }}
-          >
+          <Button variant="ghost" size="layout" onClick={() => run("link")}>
             链接
           </Button>
         </BubbleMenu>
@@ -447,6 +453,7 @@ export default function DocumentEditor(props: Props) {
               key={kind}
               type="button"
               role="menuitem"
+              ref={index === selected ? selectedItem : undefined}
               className={index === selected ? "selected" : ""}
               onClick={() => run(kind)}
             >

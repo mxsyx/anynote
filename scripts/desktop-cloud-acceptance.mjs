@@ -260,9 +260,9 @@ async function acceptance() {
       .waitFor({ timeout: 30000 });
   };
   const navigateBackup = async () => {
-    await page
-      .getByRole("button", { name: "本地优先，安心记录", exact: false })
-      .click();
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu().getMenuItemById("backup").click(),
+    );
     await page.getByRole("button", { name: "添加目标", exact: true }).waitFor();
   };
   const closeTasks = async () => {
@@ -776,7 +776,9 @@ async function acceptance() {
       const newDevice = join(root, "new-device");
       let connection;
       const settingsPage = async () => {
-        await page.getByRole("button", { name: "设置", exact: true }).click();
+        await app.evaluate(({ Menu }) =>
+          Menu.getApplicationMenu().getMenuItemById("settings").click(),
+        );
         await page
           .getByRole("heading", { name: "从云端恢复", exact: true })
           .waitFor();

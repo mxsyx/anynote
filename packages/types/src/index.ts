@@ -1,3 +1,4 @@
+import type { EditorCommand } from "./editor-commands.js";
 /** Registration info of a Notebook. */
 export interface Notebook {
   id: string;
@@ -228,8 +229,18 @@ export type Operation =
   | "restoreCloudTargetBackup"
   | "deleteCloudBackup";
 
+/** Application actions dispatched by the native menu. */
+export type AppMenuCommand =
+  | `insert.${EditorCommand}`
+  | "settings"
+  | "extensions"
+  | "backup"
+  | "trash"
+  | "theme";
+
 /** Typed IPC façade exposed to the renderer by preload. */
 export interface AnynoteBridge {
+  onMenuCommand?: (listener: (command: AppMenuCommand) => void) => () => void;
   request<T>(op: Operation, input?: Record<string, unknown>): Promise<T>;
 }
 

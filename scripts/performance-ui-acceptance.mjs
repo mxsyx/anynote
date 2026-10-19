@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { launchDesktop } from "./acceptance/electron-driver.mjs";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -478,9 +479,7 @@ if (
       let done = false;
       for (let i = 0; i < 180; i++) {
         const t = performance.now();
-        await page
-          .getByRole("button", { name: "切换主题", exact: true })
-          .evaluate((el) => el.click());
+        await appMenu(page, "theme", app);
         await page.evaluate(
           () =>
             new Promise((r) =>
@@ -518,11 +517,8 @@ if (
         await page.locator(".missing-image").waitFor();
         mkdirSync("docs/screenshots/acceptance", { recursive: true });
         for (const theme of ["light", "dark"]) {
-          await page
-            .getByRole("button", { name: "切换主题", exact: true })
-            .evaluate((el, theme) => {
-              if (document.documentElement.dataset.theme !== theme) el.click();
-            }, theme);
+          if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+            await appMenu(page, "theme", app);
           for (const [width, height] of [
             [1280, 800],
             [1440, 900],
@@ -618,19 +614,10 @@ if (
     );
     await check("core-pages-WCAG-AA-light-dark", async () => {
       for (const theme of ["light", "dark"]) {
-        await page
-          .getByRole("button", { name: "切换主题", exact: true })
-          .evaluate((el, theme) => {
-            if (document.documentElement.dataset.theme !== theme) el.click();
-          }, theme);
-        for (const [name, button] of [
-          ["backup", "本地优先，安心记录"],
-          ["extensions", "扩展"],
-          ["settings", "设置"],
-        ]) {
-          await page
-            .getByRole("button", { name: button, exact: name !== "backup" })
-            .click();
+        if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+          await appMenu(page, "theme", app);
+        for (const name of ["backup", "extensions", "settings"]) {
+          await appMenu(page, name, app);
           await page.waitForTimeout(150);
           for (const [width, height] of [
             [1280, 800],
@@ -661,11 +648,8 @@ if (
     });
     await check("PDF-and-source-editor-WCAG-AA-light-dark", async () => {
       for (const theme of ["light", "dark"]) {
-        await page
-          .getByRole("button", { name: "切换主题", exact: true })
-          .evaluate((el, theme) => {
-            if (document.documentElement.dataset.theme !== theme) el.click();
-          }, theme);
+        if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+          await appMenu(page, "theme", app);
         await open(f.pdf.title);
         await page.locator(".pdf-page canvas").waitFor();
         await waitPdfPaint(2);
@@ -695,7 +679,7 @@ if (
         await page.screenshot({ path, animations: "disabled" });
         report.screenshots.push(path);
       }
-      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await appMenu(page, "settings", app);
     });
     await check("200-percent-zoom-reflow-and-reduced-motion", async () => {
       await resize(1280, 800);

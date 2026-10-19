@@ -1,3 +1,5 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 const browser = await chromium.launch({
   executablePath: process.env.ANYNOTE_BROWSER || "/usr/bin/google-chrome",
@@ -9,12 +11,13 @@ try {
     viewport: { width: 1440, height: 960 },
   });
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.screenshot({
     path: "docs/screenshots/light.png",
     animations: "disabled",
   });
-  await page.getByRole("button", { name: "切换主题", exact: true }).click();
+  await appMenu(page, "theme");
   await page.screenshot({
     path: "docs/screenshots/dark.png",
     animations: "disabled",

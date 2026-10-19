@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
@@ -84,9 +85,7 @@ try {
     ).body;
   });
   assert.equal(richBody, "## Electron IPC\n\n桌面富文本写入独立存储进程。");
-  await page
-    .getByRole("button", { name: "本地优先，安心记录", exact: false })
-    .click();
+  await appMenu(page, "backup", electron);
   await page.getByRole("button", { name: "创建快照", exact: true }).click();
   await page.getByText("本地快照已完成并校验", { exact: true }).waitFor();
   const imported = await page.evaluate(async () => {
@@ -127,7 +126,7 @@ try {
     .first()
     .click();
   await page.getByRole("button", { name: "阅读", exact: true }).click();
-  await page.getByRole("button", { name: "插入白板", exact: true }).click();
+  await appMenu(page, "insert.whiteboard", electron);
   await page.locator(".excalidraw canvas").first().waitFor({ timeout: 45000 });
   const canvasBox = await page
     .locator(".excalidraw canvas")
@@ -159,7 +158,10 @@ try {
       filePaths: [path],
     });
   }, externalPath);
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await electron.evaluate(({ Menu }) => {
+    const item = Menu.getApplicationMenu().getMenuItemById("settings");
+    item.click();
+  });
   await page
     .getByRole("button", { name: "打开 Notebook 目录", exact: true })
     .click();
@@ -168,7 +170,10 @@ try {
       document.querySelector('input[aria-label="笔记标题"]')?.value ===
       "目录直开验证",
   );
-  await page.getByText("外部 Notebook", { exact: true }).first().waitFor();
+  await page
+    .getByRole("button", { name: "切换笔记本", exact: true })
+    .filter({ has: page.locator("strong", { hasText: "原目录知识库" }) })
+    .waitFor();
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await page.locator(".cm-content").fill("# 原目录中的桌面修改");
   await page.keyboard.press("Control+s");
@@ -201,7 +206,10 @@ try {
       document.querySelector('input[aria-label="笔记标题"]')?.value ===
       "真实桌面测试",
   );
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await electron.evaluate(({ Menu }) => {
+    const item = Menu.getApplicationMenu().getMenuItemById("settings");
+    item.click();
+  });
   await page
     .getByRole("button", { name: "移出工作区：原目录知识库", exact: true })
     .click();

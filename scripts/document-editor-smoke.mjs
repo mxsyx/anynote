@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import { expect } from "@playwright/test";
@@ -124,6 +125,56 @@ try {
   await page.keyboard.insertText("引用内容");
   await expect(input.locator("blockquote")).toContainText("引用内容");
   await expect.poll(async () => (await read()).body).toContain("引用内容");
+  // Both menus operate on the same live document and retain its selection.
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await appMenu(page, "insert.h4", app);
+  await page.keyboard.insertText("原生四级标题");
+  await expect(input.locator("h4")).toHaveText("原生四级标题");
+  await page.keyboard.press("Enter");
+  await appMenu(page, "insert.bold", app);
+  await page.keyboard.insertText("原生加粗");
+  await appMenu(page, "insert.bold", app);
+  await expect(
+    input.locator("strong").filter({ hasText: "原生加粗" }),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/h6");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("斜杠六级标题");
+  await expect(input.locator("h6")).toHaveText("斜杠六级标题");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/video");
+  await page.getByRole("menuitem", { name: "视频", exact: true }).click();
+  await page
+    .getByPlaceholder("输入一个名称…")
+    .fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect.poll(async () => (await read()).body).toContain("core.video");
+  await expect.poll(async () => (await read()).body).not.toContain("/video");
+
+  const chooser = page.waitForEvent("filechooser");
+  await appMenu(page, "insert.image", app);
+  await (
+    await chooser
+  ).setFiles({
+    name: "menu.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect
+    .poll(async () => (await read()).body)
+    .toContain("anynote-resource:");
+  await appMenu(page, "insert.whiteboard", app);
+  await expect(page.locator(".excalidraw").first()).toBeVisible({
+    timeout: 45000,
+  });
+  await page.getByRole("button", { name: "返回笔记", exact: true }).click();
+  await expect.poll(async () => (await read()).body).toContain("原生四级标题");
+
   await page.getByText("已保存至本地", { exact: true }).waitFor();
   mkdirSync("test-results", { recursive: true });
   await page.screenshot({
@@ -132,7 +183,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: unified document, Markdown shortcuts, slash keyboard/click, tables, tasks, persistence, opaque preservation, IME completion",
+    "PASS: unified document, shared slash/native insertions, headings, marks, images, video, whiteboard, tables, tasks, persistence, opaque preservation, IME completion",
   );
 } finally {
   await app.close();

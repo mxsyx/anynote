@@ -88,8 +88,49 @@ try {
   await expect(
     page.getByRole("textbox", { name: "文档内容", exact: true }),
   ).toContainText("记下一点微小的快乐。");
+  await expect(page.locator(".content-layout > .sidebar")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "切换笔记本", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "切换侧栏", exact: true }).click();
+  await expect(page.locator(".sidebar")).toHaveCount(0);
+  await page.getByRole("button", { name: "切换侧栏", exact: true }).click();
+  await expect(page.locator(".content-layout > .sidebar")).toBeVisible();
+  for (const name of ["搜索笔记", "最近打开", "我的收藏"]) {
+    const entry = page
+      .locator(".topbar")
+      .getByRole("button", { name, exact: true });
+    await expect(entry).toBeVisible();
+    await expect(entry).toHaveText("");
+  }
+  await page.getByRole("button", { name: "最近打开", exact: true }).click();
+  await expect(page.locator(".collection-row")).toContainText(["午后的光"]);
+  await page.locator('.tree-main[data-node-id="note"]').click();
+  await expect(page.locator(".topbar-left")).toHaveText("");
+  const theme = page.getByRole("button", { name: "切换主题", exact: true });
+  await expect(theme).toHaveText("");
+  await theme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await theme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  // Scrolling moves the paper's border and title together while the contents stay put.
+  await page.setViewportSize({ width: 1440, height: 500 });
+  const paper = page.locator("article.document");
+  const paperTop = (await paper.boundingBox()).y;
+  const contentsTop = (await page.locator(".sidebar").boundingBox()).y;
+  await page.locator(".main-content").evaluate((element) => {
+    element.scrollTo({ top: 160, behavior: "instant" });
+  });
+  await expect
+    .poll(async () => (await paper.boundingBox()).y)
+    .toBeLessThan(paperTop - 40);
+  expect((await page.locator(".sidebar").boundingBox()).y).toBe(contentsTop);
+  await page
+    .locator(".main-content")
+    .evaluate((element) => element.scrollTo({ top: 0, behavior: "instant" }));
+  await page.setViewportSize({ width: 1440, height: 960 });
   await page.screenshot({ path: `${output}/contents.png` });
-  await page.getByRole("button", { name: "← 返回书橱", exact: true }).click();
+  await page.getByRole("button", { name: "书橱", exact: true }).click();
   await expect(page.locator(".book-volume")).toHaveCount(4);
   await page
     .getByRole("button", { name: "打开 Notebook：阅读手记", exact: true })
@@ -129,6 +170,11 @@ try {
     .getByRole("button", { name: "打开 Notebook：日常与灵感", exact: true })
     .click();
   await expect(page.getByRole("textbox", { name: "笔记标题" })).toBeVisible();
+  await page.getByRole("button", { name: "切换侧栏", exact: true }).click();
+  await expect(page.locator(".sidebar")).toBeVisible();
+  await page.screenshot({ path: `${output}/contents-mobile-dark.png` });
+  await page.getByRole("button", { name: "切换侧栏", exact: true }).click();
+  await expect(page.locator(".sidebar")).toHaveCount(0);
   await page.getByRole("button", { name: "书橱", exact: true }).click();
   await expect(page.locator(".book-volume")).toHaveCount(5);
   expect(errors).toEqual([]);

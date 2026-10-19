@@ -1,3 +1,4 @@
+import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -44,7 +45,7 @@ try {
       .first()
       .evaluate((img) => img.complete && img.naturalWidth > 0),
   );
-  await page.getByRole("button", { name: "插入视频", exact: true }).click();
+  await appMenu(page, "insert.video");
   await page
     .getByPlaceholder("输入一个名称…")
     .fill("https://youtu.be/dQw4w9WgXcQ");
@@ -52,7 +53,7 @@ try {
   await page.locator(".video-block").waitFor();
   assert.equal(await page.locator("iframe").count(), 0);
   // A generic video URL is allowed as a plain link card without an embed action.
-  await page.getByRole("button", { name: "插入视频", exact: true }).click();
+  await appMenu(page, "insert.video");
   await page
     .getByPlaceholder("输入一个名称…")
     .fill("https://example.com/talks/local-first");
@@ -71,7 +72,7 @@ try {
   await page.locator(".video-block iframe").waitFor();
   await page.getByRole("button", { name: "关闭播放", exact: true }).click();
   assert.equal(await page.locator(".video-block iframe").count(), 0);
-  await page.getByRole("button", { name: "插入白板", exact: true }).click();
+  await appMenu(page, "insert.whiteboard");
   await page.locator(".excalidraw canvas").first().waitFor({ timeout: 45000 });
   // Draw through the canvas, then verify the persisted scene survives reopening.
   const canvas = page.locator(".excalidraw canvas").first(),
