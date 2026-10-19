@@ -1,3 +1,4 @@
+import { openNotebook } from "./open-notebook.mjs";
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -171,6 +172,7 @@ export async function launchDesktop(userData) {
   for (let i = 0; i < 100 && !context.pages().length; i++)
     await new Promise((resolve) => setTimeout(resolve, 100));
   page = context.pages()[0];
+  await openNotebook(page);
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 30000 });

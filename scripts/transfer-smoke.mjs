@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium, _electron } from "playwright";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -53,6 +54,7 @@ const rpc = (op, input = {}) =>
   );
 try {
   if (!desktop) await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   const suffix = Date.now(),
     a = await rpc("createNotebook", { title: "跨库源 " + suffix }),
@@ -74,6 +76,7 @@ try {
       title: "接收目录",
     });
   await page.reload();
+  await openNotebook(page);
   await page.locator(".notebook-switch").click();
   await page
     .locator(".book-popover")

@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import {
   mkdtempSync,
@@ -133,6 +134,7 @@ try {
     },
   });
   page = await electron.firstWindow();
+  await openNotebook(page);
   page.setDefaultTimeout(20000);
   await page.locator(".notebook-switch").waitFor({ timeout: 30000 });
   const navigateSource = async () => {

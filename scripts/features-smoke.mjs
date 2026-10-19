@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 const browser = await chromium.launch({
@@ -14,6 +15,7 @@ const png = Buffer.from(
 );
 try {
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.getByRole("button", { name: "新建笔记", exact: true }).click();
   await page

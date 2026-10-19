@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import { expect } from "@playwright/test";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
@@ -20,6 +21,7 @@ try {
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await openNotebook(page);
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 30000 });
@@ -92,6 +94,7 @@ try {
     { opaque },
   );
   await page.reload();
+  await openNotebook(page);
   await page
     .locator(".tree-main")
     .filter({ hasText: "统一文档验收" })

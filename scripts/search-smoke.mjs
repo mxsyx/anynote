@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 const browser = await chromium.launch({
@@ -11,6 +12,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 const marker = "全局检索" + Date.now();
 try {
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   const fixture = await page.evaluate(async (marker) => {
     const rpc = async (op, input = {}) => {
@@ -60,6 +62,7 @@ try {
     return { other, folder, target };
   }, marker);
   await page.reload();
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.getByRole("button", { name: "搜索笔记", exact: true }).click();
   await page.getByPlaceholder("寻找一个想法，或一篇笔记…").fill(marker);

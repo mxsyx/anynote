@@ -3324,3 +3324,371 @@ pre:focus-visible {
 .document.media-document {
   max-width: 1100px;
 }
+
+/* Library entrance: cloth covers, recessed spines, and a shelf below each row. */
+.library-mode .workspace {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+}
+
+.bookshelf {
+  max-width: 1400px;
+  margin: auto;
+  padding: 32px clamp(24px, 6vw, 88px) 40px;
+}
+
+.library-header,
+.library-actions,
+.library-catalog,
+.library-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.library-header {
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.library-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-book);
+  font-size: 27px;
+  font-weight: 600;
+}
+
+.library-intro {
+  padding: 64px 0 45px;
+}
+
+.library-intro h1 {
+  margin: 16px 0;
+  font-family: var(--font-book);
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.library-intro h1 span {
+  display: inline-block;
+  margin-left: 24px;
+  font-size: 15px;
+  color: var(--secondary);
+}
+
+.library-intro p,
+.library-footer,
+.book-caption > span {
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.library-catalog {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.library-catalog small {
+  margin-left: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 44px 32px;
+  padding: 36px 0 56px;
+}
+
+.book-volume {
+  --binding: #526352;
+  --foil: #f3e5bd;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 0 20px;
+  border: 0;
+  border-bottom: 5px solid var(--border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-volume[data-tone="1"] {
+  --binding: #8b5146;
+}
+.book-volume[data-tone="2"] {
+  --binding: #4e6270;
+}
+.book-volume[data-tone="3"] {
+  --binding: #766044;
+}
+
+.book-cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 285px;
+  aspect-ratio: 0.76;
+  padding: 26px 23px 24px 33px;
+  border-radius: 3px 9px 9px 3px;
+  color: var(--foil);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 2px, #ffffff05 2px 3px),
+    linear-gradient(
+      90deg,
+      #0003,
+      transparent 5%,
+      #0003 6%,
+      transparent 8%,
+      transparent 96%,
+      #0002
+    ),
+    var(--binding);
+  box-shadow:
+    5px 5px 0 -1px var(--surface),
+    7px 7px 0 -1px var(--border),
+    10px 16px 20px #29231a25;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.book-volume:hover .book-cover,
+.book-volume:focus-visible .book-cover {
+  transform: translateY(-7px) rotate(-1deg);
+  box-shadow:
+    5px 5px 0 -1px var(--surface),
+    7px 7px 0 -1px var(--border),
+    12px 22px 24px #29231a30;
+}
+
+.cover-edition {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f3e5bd60;
+}
+
+.cover-title {
+  margin-top: 28px;
+  font-family: var(--font-book);
+  font-size: clamp(22px, 2.5vw, 30px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.cover-ornament {
+  margin: auto 0;
+  padding: 22px 0;
+  font-size: 30px;
+}
+
+.cover-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #f3e5bd60;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.book-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 23px 4px 0;
+  max-width: 100%;
+}
+
+.book-caption strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.book-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  align-self: start;
+  min-height: 285px;
+  aspect-ratio: 0.76;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+}
+
+.book-new:hover {
+  background: var(--hover);
+}
+.book-new span {
+  font-family: var(--font-book);
+  font-size: 21px;
+}
+.book-new small {
+  font-size: 11px;
+}
+.library-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 22px;
+  letter-spacing: 0.08em;
+}
+
+/* Contents retain the 36px row pitch used by keyboard and virtual scrolling. */
+.sidebar .back-to-library {
+  justify-content: flex-start;
+  margin: 6px 0 12px;
+  padding-left: 0;
+  font-size: 12px;
+  color: var(--secondary);
+}
+
+.contents-title {
+  font-family: var(--font-book);
+  font-size: 21px;
+  letter-spacing: 0.12em;
+}
+
+.contents-title small {
+  display: block;
+  margin-top: 5px;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+}
+
+.sidebar .section-label:has(.contents-title) {
+  padding-top: 20px;
+  padding-bottom: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.tree-main {
+  font-family: var(--font-book);
+  gap: 5px;
+}
+.tree-main .chapter-number {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tree-main .chapter-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-main .chapter-leader {
+  flex: 1;
+  min-width: 8px;
+  border-bottom: 1px dotted var(--border);
+  align-self: center;
+}
+.tree-chapter .chapter-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.sidebar .tree-row {
+  border-radius: 0;
+}
+.sidebar .tree-row.active {
+  box-shadow: inset 2px 0 var(--highlight);
+}
+.library-breadcrumb {
+  padding: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .bookshelf {
+    padding: 20px;
+  }
+  .library-intro {
+    padding: 36px 0 24px;
+  }
+  .library-intro h1 span {
+    display: block;
+    margin: 16px 0 0;
+  }
+  .book-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 20px;
+  }
+  .book-cover {
+    min-height: 230px;
+    padding: 20px 15px 18px 23px;
+  }
+  .cover-title {
+    font-size: 22px;
+    margin-top: 18px;
+  }
+  .cover-edition {
+    font-size: 8px;
+    letter-spacing: 0.05em;
+  }
+  .cover-footer {
+    letter-spacing: 0;
+  }
+  .book-new {
+    min-height: 230px;
+  }
+  .library-footer {
+    align-items: flex-start;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-cover {
+    transition: none;
+  }
+}
+
+/* Inside a volume, the left page reads as a printed table of contents. */
+.sidebar,
+[data-theme="dark"] .sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: inset -8px 0 16px #00000005;
+}
+
+.sidebar .notebook-switch,
+[data-theme="dark"] .sidebar .notebook-switch {
+  min-height: 70px;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.sidebar .notebook-switch strong {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.sidebar .notebook-switch small,
+.sidebar .book-icon {
+  color: var(--secondary);
+}
+
+.sidebar .search-trigger {
+  margin-top: 12px;
+}

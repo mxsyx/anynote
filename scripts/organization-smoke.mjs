@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 const browser = await chromium.launch({
@@ -14,6 +15,7 @@ const suffix = Date.now(),
     '# 标题\n\n这是 **原始段落**。\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n:::anynote{type="future.node" version="9" id="opaque"}\n{"unknown":"原样保留"}\n:::\n\n```js\nconsole.log("代码保持原样");\n```\n';
 try {
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.getByRole("button", { name: "新建笔记", exact: true }).click();
   await page.getByPlaceholder("输入一个名称…").fill(name);

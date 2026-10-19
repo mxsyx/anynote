@@ -12,6 +12,7 @@
     "start": "node scripts/start.mjs",
     "package": "pnpm run build && node scripts/package-desktop.mjs --dir",
     "test:ui": "node scripts/ui-smoke.mjs",
+    "test:bookshelf": "node scripts/bookshelf-smoke.mjs",
     "test:desktop": "pnpm run build && node scripts/desktop-smoke.mjs",
     "prebuild": "node scripts/copy-excalidraw.mjs",
     "test:features": "node scripts/features-smoke.mjs",

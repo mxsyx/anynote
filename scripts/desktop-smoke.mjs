@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,6 +33,7 @@ try {
     },
   });
   const page = await electron.firstWindow();
+  await openNotebook(page);
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 30000 });

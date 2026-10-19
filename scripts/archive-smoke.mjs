@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import assert from "node:assert/strict";
 import {
@@ -78,6 +79,7 @@ try {
   const page = await app.firstWindow(),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await openNotebook(page);
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 30000 });

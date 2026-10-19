@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -12,6 +13,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 960 } }),
 page.on("pageerror", (e) => errors.push(e.message));
 try {
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await page
     .getByRole("textbox", { name: "笔记标题" })
     .waitFor({ timeout: 20000 });
@@ -38,6 +40,7 @@ try {
   await page.keyboard.press("Control+s");
   await page.getByText("已保存至本地", { exact: true }).waitFor();
   await page.reload();
+  await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.getByRole("button", { name: "搜索笔记" }).click();
   await page.getByPlaceholder("寻找一个想法，或一篇笔记…").fill(testName);

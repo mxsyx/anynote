@@ -68,6 +68,7 @@ import type {
 import { request, base64, download } from "./api";
 import { seed } from "./seed";
 import ImportReport from "./ImportReport";
+import Bookshelf from "./Bookshelf";
 import type { BoardBlock } from "./DocumentView";
 import ImportDialog from "./ImportDialog";
 import TaskCenter from "./TaskCenter";
@@ -149,6 +150,7 @@ function App() {
   const imageInput = useRef<HTMLInputElement>(null);
   const [books, setBooks] = useState<Notebook[]>([]),
     [book, setBook] = useState<Notebook | null>(null),
+    [shelf, setShelf] = useState(true),
     [nodes, setNodes] = useState<NoteNode[]>([]),
     [active, setActive] = useState<NoteNode | null>(null),
     [view, setView] = useState<View>("notes"),
@@ -250,7 +252,7 @@ function App() {
     const observer = new ResizeObserver(() => setTreeHeight(el.clientHeight));
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sidebar]);
+  }, [sidebar, shelf]);
   const current = useRef<NoteNode | null>(null),
     bookRef = useRef<Notebook | null>(null),
     dirty = useRef(false),
@@ -426,6 +428,7 @@ function App() {
         // stale PDF return position.
         setPdfAnchor(anchor ? { noteId: n.id, anchor } : null);
         setActive(note);
+        setShelf(false);
         setView("notes");
         setTagFilter(null);
         setMenu(false);
@@ -459,7 +462,7 @@ function App() {
    *
    * @param b Notebook to switch to.
    */
-  const switchBook = async (b: Notebook) => {
+  const switchBook = async (b: Notebook, enter = true) => {
     await flush();
     const items = await request<NoteNode[]>("listNodes", { notebookId: b.id });
     bookRef.current = b;
@@ -475,7 +478,13 @@ function App() {
       new Set(items.filter((n) => n.kind === "folder").map((n) => n.id)),
     );
     const first = items.find((n) => n.kind === "note" && !n.deleted_at);
-    if (first) await openNote(first, b);
+    if (enter) {
+      setShelf(false);
+      setSidebar(!window.matchMedia("(max-width: 760px)").matches);
+      setTreeScroll(0);
+      treeSelection.current = null;
+      if (first) await openNote(first, b);
+    }
   };
   /**
    * Accept a note created by a first-party hosted command: refresh the node tree and open it.
@@ -560,7 +569,7 @@ function App() {
           ) || list.find((b) => !b.unavailable);
         // When every Notebook is unavailable, open the recovery wizard instead of a failed switch.
         if (preferred) {
-          await switchBook(preferred);
+          await switchBook(preferred, false);
           // Startup consistency inspection: read-only, budgeted and cancellable,
           // so it never blocks opening the Notebook.
           void request("inspectIntegrity", {
@@ -738,7 +747,7 @@ function App() {
       ) {
         e.preventDefault();
         if (e.key === "s") void flush().catch(() => {});
-        else if (e.key === "n") showModal("note");
+        else if (e.key === "n") showModal(shelf ? "notebook" : "note");
         else {
           setQuery("");
           setSearchOpen(true);
@@ -756,7 +765,7 @@ function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [flush]);
+  }, [flush, shelf]);
   /**
    * Run a background action that flushes saves first, uniformly maintaining busy/error state.
    *
@@ -795,8 +804,18 @@ function App() {
   const parentId = active?.parent_id || null;
   /** Submit the modal dialog (create/rename/move/tag/video/Notebook). */
   const submit = async () => {
-    if (!modal || !book) return;
+    if (!modal) return;
     await task(async () => {
+      if (modal.type === "notebook") {
+        const b = await request<Notebook>("createNotebook", { title: field });
+        setBooks(await request("listNotebooks"));
+        setModal(null);
+        await switchBook(b);
+        return;
+      }
+
+      if (!book) return;
+
       if (modal.type === "video") {
         acceptSaved(
           await request<NoteNode>("insertVideo", {
@@ -818,13 +837,6 @@ function App() {
         bookRef.current = b;
         setBook(b);
         setModal(null);
-        return;
-      }
-      if (modal.type === "notebook") {
-        const b = await request<Notebook>("createNotebook", { title: field });
-        setBooks(await request("listNotebooks"));
-        setModal(null);
-        await switchBook(b);
         return;
       }
       if (modal.type === "move") {
@@ -1019,6 +1031,7 @@ function App() {
   const navigate = async (v: View) => {
     try {
       await flush();
+      setShelf(false);
       setView(v);
       setTagFilter(null);
       setMenu(false);
@@ -1026,6 +1039,14 @@ function App() {
       report(e);
     }
   };
+  /** Save the open page before returning to the library. */
+  const returnToShelf = () =>
+    task(async () => {
+      setShelf(true);
+      setMenu(false);
+      setSwitcher(false);
+    });
+
   /** Non-deleted nodes. */
   const visible = useMemo(() => nodes.filter((n) => !n.deleted_at), [nodes]),
     /** All tags in the current Notebook (deduplicated). */
@@ -1036,7 +1057,7 @@ function App() {
 
   /** Flatten nodes into a tree with depth according to their expanded state. */
   const tree = useMemo(() => {
-    const tree: { node: NoteNode; depth: number }[] = [],
+    const tree: { node: NoteNode; depth: number; chapter: string }[] = [],
       visited = new Set<string>();
     const children = new Map<string | null, NoteNode[]>();
     for (const n of visible) {
@@ -1045,16 +1066,26 @@ function App() {
       children.set(n.parent_id, list);
     }
     const stack = (children.get(null) || [])
-      .toReversed()
-      .map((node) => ({ node, depth: 0 }));
+      .map((node, index) => ({
+        node,
+        depth: 0,
+        chapter: String(index + 1).padStart(2, "0"),
+      }))
+      .toReversed();
     while (stack.length) {
       const item = stack.pop()!;
       if (visited.has(item.node.id)) continue;
       visited.add(item.node.id);
       tree.push(item);
       if (item.node.kind === "folder" && expanded.has(item.node.id))
-        for (const n of (children.get(item.node.id) || []).toReversed())
-          stack.push({ node: n, depth: item.depth + 1 });
+        for (const [index, n] of Array.from(
+          (children.get(item.node.id) || []).entries(),
+        ).toReversed())
+          stack.push({
+            node: n,
+            depth: item.depth + 1,
+            chapter: `${item.chapter}.${index + 1}`,
+          });
     }
     return tree;
   }, [visible, expanded]);
@@ -1118,7 +1149,13 @@ function App() {
       .filter((n): n is NoteNode => !!n);
   if (tagFilter) list = list.filter((n) => n.tags.includes(tagFilter));
   return (
-    <div className={"app " + (!sidebar ? "sidebar-hidden" : "")}>
+    <div
+      className={
+        "app " +
+        (shelf ? "library-mode " : "") +
+        (!sidebar ? "sidebar-hidden" : "")
+      }
+    >
       <input
         ref={imageInput}
         type="file"
@@ -1209,7 +1246,7 @@ function App() {
           e.target.value = "";
         }}
       />
-      {sidebar && (
+      {sidebar && !shelf && (
         <aside className="sidebar">
           <div className="brand">
             <div className="brand-mark">
@@ -1228,6 +1265,13 @@ function App() {
               <PanelLeft size={17} />
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            className="back-to-library"
+            onClick={() => void returnToShelf()}
+          >
+            ← 返回书橱
+          </Button>
           <div className="shelf-label">
             <span>私人藏书室</span>
             <span>EX LIBRIS</span>
@@ -1342,7 +1386,9 @@ function App() {
             </Button>
           </nav>
           <div className="section-label">
-            <span>本册目录</span>
+            <span className="contents-title">
+              目录 <small>CONTENTS</small>
+            </span>
             <div>
               <Button
                 variant="ghost"
@@ -1439,138 +1485,148 @@ function App() {
             }}
           >
             <div style={{ height: treeStart * 36 }} />
-            {tree.slice(treeStart, treeEnd).map(({ node: n, depth }) => (
-              <div
-                role="treeitem"
-                aria-label={n.title}
-                aria-level={depth + 1}
-                aria-selected={active?.id === n.id}
-                aria-expanded={
-                  n.kind === "folder" ? expanded.has(n.id) : undefined
-                }
-                className={
-                  "tree-row " +
-                  (active?.id === n.id && view === "notes" && !tagFilter
-                    ? "active"
-                    : "")
-                }
-                key={n.id}
-                draggable
-                onDragStart={(e) =>
-                  e.dataTransfer.setData("anynote-node", n.id)
-                }
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  const box = e.currentTarget.getBoundingClientRect(),
-                    ratio = (e.clientY - box.top) / box.height;
-                  setDropHint({
-                    id: n.id,
-                    position:
-                      ratio < 0.25
-                        ? "before"
-                        : ratio > 0.75 || n.kind !== "folder"
-                          ? "after"
-                          : "inside",
-                  });
-                }}
-                onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node))
-                    setDropHint(null);
-                }}
-                onDragEnd={() => setDropHint(null)}
-                data-drop={
-                  dropHint?.id === n.id ? dropHint.position : undefined
-                }
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const id = e.dataTransfer.getData("anynote-node"),
-                    source = nodes.find((x) => x.id === id),
-                    hint = dropHint;
-                  setDropHint(null);
-                  if (!source || id === n.id) return;
-                  void task(async () => {
-                    const siblings = nodes.filter(
-                        (x) =>
-                          !x.deleted_at &&
-                          x.parent_id === n.parent_id &&
-                          x.id !== id,
-                      ),
-                      next =
-                        siblings[siblings.findIndex((x) => x.id === n.id) + 1];
-                    const saved = await request<NoteNode>("placeNode", {
-                      notebookId: book?.id,
-                      id,
-                      parentId:
-                        hint?.position === "inside" ? n.id : n.parent_id,
-                      beforeId:
-                        hint?.position === "inside"
-                          ? null
-                          : hint?.position === "before"
-                            ? n.id
-                            : next?.id || null,
-                      expectedRevision:
-                        current.current?.id === id
-                          ? current.current.revision
-                          : source.revision,
-                    });
-                    if (active?.id === id) acceptSaved(saved);
-                    await reload(book!.id);
-                    if (hint?.position === "inside")
-                      setExpanded((prev) => new Set([...prev, n.id]));
-                  });
-                }}
-                title={[...ancestors.map((a) => a.title), n.title].join(" / ")}
-                style={{ paddingLeft: 12 + Math.min(depth, 4) * 12 }}
-              >
-                <Button
-                  variant="ghost"
-                  size="layout"
-                  className="tree-main"
-                  data-node-id={n.id}
+            {tree
+              .slice(treeStart, treeEnd)
+              .map(({ node: n, depth, chapter }) => (
+                <div
+                  role="treeitem"
+                  aria-label={n.title}
+                  aria-level={depth + 1}
+                  aria-selected={active?.id === n.id}
                   aria-expanded={
                     n.kind === "folder" ? expanded.has(n.id) : undefined
                   }
-                  onClick={() => {
-                    if (n.kind === "folder")
-                      setExpanded((prev) => {
-                        const next = new Set(prev);
-                        next.has(n.id) ? next.delete(n.id) : next.add(n.id);
-                        return next;
-                      });
-                    else void openNote(n);
+                  className={
+                    "tree-row " +
+                    (n.kind === "folder" ? "tree-chapter " : "") +
+                    (active?.id === n.id && view === "notes" && !tagFilter
+                      ? "active"
+                      : "")
+                  }
+                  key={n.id}
+                  draggable
+                  onDragStart={(e) =>
+                    e.dataTransfer.setData("anynote-node", n.id)
+                  }
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    const box = e.currentTarget.getBoundingClientRect(),
+                      ratio = (e.clientY - box.top) / box.height;
+                    setDropHint({
+                      id: n.id,
+                      position:
+                        ratio < 0.25
+                          ? "before"
+                          : ratio > 0.75 || n.kind !== "folder"
+                            ? "after"
+                            : "inside",
+                    });
                   }}
-                >
-                  {n.kind === "folder" ? (
-                    expanded.has(n.id) ? (
-                      <ChevronDown className="tree-chevron" size={12} />
-                    ) : (
-                      <ChevronRight className="tree-chevron" size={12} />
-                    )
-                  ) : (
-                    <span className="tree-spacer" />
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node))
+                      setDropHint(null);
+                  }}
+                  onDragEnd={() => setDropHint(null)}
+                  data-drop={
+                    dropHint?.id === n.id ? dropHint.position : undefined
+                  }
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = e.dataTransfer.getData("anynote-node"),
+                      source = nodes.find((x) => x.id === id),
+                      hint = dropHint;
+                    setDropHint(null);
+                    if (!source || id === n.id) return;
+                    void task(async () => {
+                      const siblings = nodes.filter(
+                          (x) =>
+                            !x.deleted_at &&
+                            x.parent_id === n.parent_id &&
+                            x.id !== id,
+                        ),
+                        next =
+                          siblings[
+                            siblings.findIndex((x) => x.id === n.id) + 1
+                          ];
+                      const saved = await request<NoteNode>("placeNode", {
+                        notebookId: book?.id,
+                        id,
+                        parentId:
+                          hint?.position === "inside" ? n.id : n.parent_id,
+                        beforeId:
+                          hint?.position === "inside"
+                            ? null
+                            : hint?.position === "before"
+                              ? n.id
+                              : next?.id || null,
+                        expectedRevision:
+                          current.current?.id === id
+                            ? current.current.revision
+                            : source.revision,
+                      });
+                      if (active?.id === id) acceptSaved(saved);
+                      await reload(book!.id);
+                      if (hint?.position === "inside")
+                        setExpanded((prev) => new Set([...prev, n.id]));
+                    });
+                  }}
+                  title={[...ancestors.map((a) => a.title), n.title].join(
+                    " / ",
                   )}
-                  {icon(n)}
-                  <span>
-                    {depth > 4 && (
-                      <small className="tree-depth" aria-hidden="true">
-                        {depth + 1}层 ·{" "}
-                      </small>
-                    )}
-                    {n.title}
-                  </span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="layout"
-                  className="tree-action"
-                  aria-label={n.title + "操作"}
-                  onClick={() => showModal("rename", n)}
+                  style={{ paddingLeft: 12 + Math.min(depth, 4) * 12 }}
                 >
-                  <MoreHorizontal size={14} />
-                </Button>
-              </div>
-            ))}
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    className="tree-main"
+                    data-node-id={n.id}
+                    aria-expanded={
+                      n.kind === "folder" ? expanded.has(n.id) : undefined
+                    }
+                    onClick={() => {
+                      if (n.kind === "folder")
+                        setExpanded((prev) => {
+                          const next = new Set(prev);
+                          next.has(n.id) ? next.delete(n.id) : next.add(n.id);
+                          return next;
+                        });
+                      else void openNote(n);
+                    }}
+                  >
+                    {n.kind === "folder" ? (
+                      expanded.has(n.id) ? (
+                        <ChevronDown className="tree-chevron" size={12} />
+                      ) : (
+                        <ChevronRight className="tree-chevron" size={12} />
+                      )
+                    ) : (
+                      <span className="tree-spacer" />
+                    )}
+                    <span className="chapter-number" aria-hidden="true">
+                      {chapter}
+                    </span>
+                    <span className="chapter-title">
+                      {depth > 4 && (
+                        <small className="tree-depth" aria-hidden="true">
+                          {depth + 1}层 ·{" "}
+                        </small>
+                      )}
+                      {n.title}
+                    </span>
+                    <span className="chapter-leader" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    className="tree-action"
+                    aria-label={n.title + "操作"}
+                    onClick={() => showModal("rename", n)}
+                  >
+                    <MoreHorizontal size={14} />
+                  </Button>
+                </div>
+              ))}
             <div style={{ height: (tree.length - treeEnd) * 36 }} />
             {!visible.length && (
               <p className="tree-empty">
@@ -1670,140 +1726,154 @@ function App() {
         </aside>
       )}
       <main className="workspace">
-        <header className="topbar">
-          <div className="breadcrumbs">
-            <Button
-              variant="ghost"
-              size="layout"
-              className="icon-button"
-              onClick={() => setSidebar(!sidebar)}
-              aria-label="切换侧栏"
-            >
-              <PanelLeft size={17} />
-            </Button>
-            <span className="breadcrumb-root">{book?.name || "Notebook"}</span>
-            {ancestors.slice(-2).map((n) => (
-              <React.Fragment key={n.id}>
-                <ChevronRight size={12} />
-                <span>{n.title}</span>
-              </React.Fragment>
-            ))}
-          </div>
-          <div className="topbar-right">
-            <span className="local-chip">
-              <span />
-              本地空间
-            </span>
-            <Button
-              variant="ghost"
-              size="layout"
-              className={"icon-button " + (panel ? "pressed" : "")}
-              onClick={() => setPanel(panel ? null : "outline")}
-              aria-label="切换辅助面板"
-            >
-              <PanelRight size={17} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="layout"
-              className="icon-button"
-              onClick={() => setMenu(!menu)}
-              aria-label="更多操作"
-            >
-              <MoreHorizontal size={20} />
-            </Button>
-            {menu && (
-              <div className="popover note-menu">
-                {active && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => showModal("rename", active)}
-                    >
-                      <FileText size={15} />
-                      重命名
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => showModal("move", active)}
-                    >
-                      <Move size={15} />
-                      移动到目录
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => void beginTransfer(active, "copy")}
-                    >
-                      复制到其他 Notebook
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => void beginTransfer(active, "move")}
-                    >
-                      移动到其他 Notebook
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => showModal("tags", active)}
-                    >
-                      <Hash size={15} />
-                      编辑标签
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => {
-                        setPanel("history");
-                        setMenu(false);
-                      }}
-                    >
-                      <History size={15} />
-                      版本历史
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      onClick={() => {
-                        download(
-                          btoa(unescape(encodeURIComponent(active.body || ""))),
-                          active.title + ".md",
-                          "text/markdown",
-                        );
-                        setMenu(false);
-                      }}
-                    >
-                      <Download size={15} />
-                      导出 Markdown
-                    </Button>
-                    <div className="divider" />
-                    <Button
-                      variant="ghost"
-                      size="layout"
-                      className="danger"
-                      onClick={() => void trash(active)}
-                    >
-                      <Trash2 size={15} />
-                      移入回收站
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="ghost"
-                  size="layout"
-                  onClick={() => void exportBook()}
-                >
-                  <Download size={15} />
-                  导出完整 Notebook
-                </Button>
-              </div>
-            )}
-          </div>
-        </header>
+        {!shelf && (
+          <header className="topbar">
+            <div className="breadcrumbs">
+              <Button
+                variant="ghost"
+                size="layout"
+                className="icon-button"
+                onClick={() => setSidebar(!sidebar)}
+                aria-label="切换侧栏"
+              >
+                <PanelLeft size={17} />
+              </Button>
+              <Button
+                variant="ghost"
+                className="library-breadcrumb"
+                onClick={() => void returnToShelf()}
+              >
+                书橱
+              </Button>
+              <ChevronRight size={12} />
+              <span className="breadcrumb-root">
+                {book?.name || "Notebook"}
+              </span>
+              {ancestors.slice(-2).map((n) => (
+                <React.Fragment key={n.id}>
+                  <ChevronRight size={12} />
+                  <span>{n.title}</span>
+                </React.Fragment>
+              ))}
+            </div>
+            <div className="topbar-right">
+              <span className="local-chip">
+                <span />
+                本地空间
+              </span>
+              <Button
+                variant="ghost"
+                size="layout"
+                className={"icon-button " + (panel ? "pressed" : "")}
+                onClick={() => setPanel(panel ? null : "outline")}
+                aria-label="切换辅助面板"
+              >
+                <PanelRight size={17} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="icon-button"
+                onClick={() => setMenu(!menu)}
+                aria-label="更多操作"
+              >
+                <MoreHorizontal size={20} />
+              </Button>
+              {menu && (
+                <div className="popover note-menu">
+                  {active && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => showModal("rename", active)}
+                      >
+                        <FileText size={15} />
+                        重命名
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => showModal("move", active)}
+                      >
+                        <Move size={15} />
+                        移动到目录
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => void beginTransfer(active, "copy")}
+                      >
+                        复制到其他 Notebook
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => void beginTransfer(active, "move")}
+                      >
+                        移动到其他 Notebook
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => showModal("tags", active)}
+                      >
+                        <Hash size={15} />
+                        编辑标签
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => {
+                          setPanel("history");
+                          setMenu(false);
+                        }}
+                      >
+                        <History size={15} />
+                        版本历史
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        onClick={() => {
+                          download(
+                            btoa(
+                              unescape(encodeURIComponent(active.body || "")),
+                            ),
+                            active.title + ".md",
+                            "text/markdown",
+                          );
+                          setMenu(false);
+                        }}
+                      >
+                        <Download size={15} />
+                        导出 Markdown
+                      </Button>
+                      <div className="divider" />
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="danger"
+                        onClick={() => void trash(active)}
+                      >
+                        <Trash2 size={15} />
+                        移入回收站
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    onClick={() => void exportBook()}
+                  >
+                    <Download size={15} />
+                    导出完整 Notebook
+                  </Button>
+                </div>
+              )}
+            </div>
+          </header>
+        )}
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
@@ -1847,7 +1917,20 @@ function App() {
         )}
         <div className="content-layout">
           <section className="main-content" ref={contentRef}>
-            {listView ? (
+            {shelf ? (
+              <Bookshelf
+                books={books}
+                busy={busy}
+                dark={dark}
+                onTheme={() => setDark(!dark)}
+                onCreate={() => showModal("notebook")}
+                onImport={chooseArchive}
+                onOpen={(b) => {
+                  if (b.unavailable) setRecovery(b);
+                  else void task(() => switchBook(b));
+                }}
+              />
+            ) : listView ? (
               <div className="collection page">
                 <span className="eyebrow">FROM YOUR BOOKSHELF</span>
                 <h1>
@@ -2609,7 +2692,7 @@ function App() {
               </div>
             )}
           </section>
-          {panel && view === "notes" && !tagFilter && active && (
+          {!shelf && panel && view === "notes" && !tagFilter && active && (
             <aside className="aux-panel">
               <div className="panel-heading">
                 <Button
@@ -2727,46 +2810,48 @@ function App() {
             </aside>
           )}
         </div>
-        <footer className="statusbar">
-          <div>
-            <span className="status-dot" />
-            {busy ? "正在处理…" : status}
-          </div>
-          <div>
-            <Button
-              variant="ghost"
-              size="layout"
-              onClick={() => fileInput.current?.click()}
-            >
-              <Upload size={12} />
-              导入资料
-            </Button>
-            <Button
-              variant="ghost"
-              size="layout"
-              onClick={() => setImportOpen(true)}
-            >
-              网页 / HTML 导入
-            </Button>
-            <Button
-              variant="ghost"
-              size="layout"
-              onClick={() => setTasksOpen(true)}
-            >
-              任务中心
-            </Button>
-            <span className="status-separator" />
-            <span>Markdown · UTF-8</span>
-            <Button
-              variant="ghost"
-              size="layout"
-              onClick={() => void navigate("backup")}
-              title="查看备份"
-            >
-              <HardDrive size={13} />
-            </Button>
-          </div>
-        </footer>
+        {!shelf && (
+          <footer className="statusbar">
+            <div>
+              <span className="status-dot" />
+              {busy ? "正在处理…" : status}
+            </div>
+            <div>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => fileInput.current?.click()}
+              >
+                <Upload size={12} />
+                导入资料
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setImportOpen(true)}
+              >
+                网页 / HTML 导入
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => setTasksOpen(true)}
+              >
+                任务中心
+              </Button>
+              <span className="status-separator" />
+              <span>Markdown · UTF-8</span>
+              <Button
+                variant="ghost"
+                size="layout"
+                onClick={() => void navigate("backup")}
+                title="查看备份"
+              >
+                <HardDrive size={13} />
+              </Button>
+            </div>
+          </footer>
+        )}
       </main>
       {toast && (
         <div className="toast" role="status">

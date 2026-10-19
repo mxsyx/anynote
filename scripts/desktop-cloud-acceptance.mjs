@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -253,6 +254,7 @@ async function acceptance() {
       await new Promise((resolve) => setTimeout(resolve, 100));
     page = context.pages()[0];
     await page.setViewportSize({ width: 1440, height: 900 });
+    await openNotebook(page);
     await page
       .getByRole("textbox", { name: "笔记标题" })
       .waitFor({ timeout: 30000 });
@@ -424,6 +426,7 @@ async function acceptance() {
       });
       await request("trashNode", { notebookId: book.id, id: trash.id });
       await page.reload();
+      await openNotebook(page);
       await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
     });
     await check("configure-through-UI-and-encrypt-token", async () => {

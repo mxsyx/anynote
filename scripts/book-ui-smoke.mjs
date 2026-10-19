@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { chromium } from "playwright";
 import { expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
@@ -18,6 +19,7 @@ mkdirSync(output, { recursive: true });
 
 try {
   await page.goto("http://127.0.0.1:5173");
+  await openNotebook(page);
   await expect(page.getByRole("textbox", { name: "笔记标题" })).toBeVisible();
   await expect(
     page.getByRole("textbox", { name: "文档内容", exact: true }),
@@ -45,6 +47,7 @@ try {
   await page.getByRole("textbox", { name: "笔记标题" }).click();
   await expect(page.getByText("已保存至本地", { exact: true })).toBeVisible();
   await page.reload();
+  await openNotebook(page);
   await page.locator(".tree-main").filter({ hasText: name }).click();
   await expect(editor).toContainText("这是写在新纸页上的一段文字。");
   const search = page.getByRole("button", { name: "搜索笔记", exact: true });
