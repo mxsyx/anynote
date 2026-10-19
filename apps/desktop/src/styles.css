@@ -9,7 +9,7 @@
   --color-background: var(--bg);
   --color-foreground: var(--text);
   --color-primary: var(--accent);
-  --color-primary-foreground: #fff9e5;
+  --color-primary-foreground: var(--accent-ink);
   --color-secondary: var(--select);
   --color-secondary-foreground: var(--text);
   --color-muted: var(--code);
@@ -35,53 +35,55 @@
     "PingFang SC",
     "Microsoft YaHei",
     sans-serif;
-  color: #453c2c;
-  background: #f5edcf;
+  color: var(--text);
+  background: var(--bg);
   font-synthesis: none;
   --font-book:
     "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC",
     Georgia, serif;
-  --highlight: #a34f3e;
-  --highlight-hover: #8c4133;
-  --highlight-ink: #fffaf2;
+  --highlight: #793f38;
+  --highlight-hover: #61312c;
+  --highlight-ink: #f6edde;
   --radius-control: 9px;
   --radius-card: 12px;
   --radius-panel: 18px;
-  --desk: #f5edcf;
-  --cover: #f0e3b9;
-  --cover-ink: #453c2c;
-  --paper-rule: #b09a592b;
-  --bg: #f5edcf;
-  --surface: #fff9e5;
-  --sidebar: #f5eaca;
-  --text: #453c2c;
-  --secondary: #796b4c;
-  --border: #e0d2a9;
-  --accent: #80653c;
-  --select: #f1e3b5;
-  --hover: #f8edcd;
-  --muted: #796b4c;
-  --code: #f7efd6;
-  --shadow: 0 18px 70px #5a472718;
+  --desk: #d9ccba;
+  --cover: #c7b598;
+  --cover-ink: #392e26;
+  --paper-rule: #8f74512b;
+  --bg: #d9ccba;
+  --surface: #eee5d5;
+  --sidebar: #e2d5bf;
+  --text: #392e26;
+  --secondary: #6c5c4d;
+  --border: #bfac91;
+  --accent: #70443c;
+  --accent-ink: #f6edde;
+  --select: #d7c4ad;
+  --hover: #e3d6c3;
+  --muted: #766451;
+  --code: #e5d9c6;
+  --shadow: 0 18px 70px #34241924;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --desk: #2a251d;
-  --cover: #30291f;
-  --cover-ink: #eee2c3;
-  --paper-rule: #c2a56c24;
-  --bg: #2a251d;
-  --surface: #383024;
-  --sidebar: #352c20;
-  --text: #f0e5ca;
-  --secondary: #c9b995;
-  --border: #5c4e35;
-  --accent: #dfc48b;
-  --select: #59492f;
-  --hover: #4c3e29;
-  --muted: #c9b995;
-  --code: #30291f;
-  --shadow: 0 18px 70px #0005;
+  --desk: #211d19;
+  --cover: #30271f;
+  --cover-ink: #e3d4bb;
+  --paper-rule: #b89a6e24;
+  --bg: #211d19;
+  --surface: #302922;
+  --sidebar: #29231d;
+  --text: #e3d4bb;
+  --secondary: #c1ad8e;
+  --border: #594a3a;
+  --accent: #c7a77b;
+  --accent-ink: #261e18;
+  --select: #514036;
+  --hover: #41362c;
+  --muted: #b5a083;
+  --code: #28221c;
+  --shadow: 0 18px 70px #0006;
 }
 /* Keep element defaults below shadcn utilities; feature classes retain layout ownership. */
 @layer base {
@@ -194,7 +196,7 @@
   width: 35px;
   height: 35px;
   border-radius: 10px;
-  background: #80653c;
+  background: var(--accent);
   color: #fff;
   display: flex;
   align-items: center;
@@ -2931,14 +2933,6 @@ pre:focus-visible {
 
 /* Bookbinding: material treatments stay separate from editor/content styles. */
 .sidebar {
-  --text: #453c2c;
-  --secondary: #746341;
-  --muted: #7b6946;
-  --border: #b49b6059;
-  --surface: #fff9e5;
-  --hover: #ffffff66;
-  --select: #ead7a2;
-  --accent: #80653c;
   color: var(--text);
   width: 268px;
   min-width: 268px;
@@ -2956,14 +2950,6 @@ pre:focus-visible {
 
 /* Keep the bamboo cover readable without carrying light surfaces into night mode. */
 [data-theme="dark"] .sidebar {
-  --text: #efe3c5;
-  --secondary: #d6c6a3;
-  --muted: #c7b68f;
-  --border: #b29a6540;
-  --surface: #453924;
-  --hover: #ffffff0d;
-  --select: #5c492d;
-  --accent: #dfc48b;
   border-right-color: #251e16;
 }
 
@@ -2973,12 +2959,12 @@ pre:focus-visible {
 }
 
 [data-theme="dark"] .tree-row.active {
-  background: #5c492d;
+  background: var(--select);
 }
 
 [data-theme="dark"] .tree-row.active .tree-main,
 [data-theme="dark"] .tree-row.active .tree-action {
-  color: #faedcd;
+  color: var(--text);
 }
 
 .brand {
@@ -3002,7 +2988,7 @@ pre:focus-visible {
   transform: none;
 }
 .brand-dot {
-  color: #a34f3e;
+  color: var(--highlight);
 }
 .sidebar-close {
   opacity: 0.8;
@@ -3065,18 +3051,18 @@ pre:focus-visible {
   padding-top: 9px;
 }
 .nav-main button.selected {
-  border-left: 2px solid #b89548;
+  border-left: 2px solid var(--accent);
   border-radius: var(--radius-control);
 }
 .tree-row.active {
-  background: #ffffff;
-  color: #80653c;
+  background: var(--select);
+  color: var(--accent);
   box-shadow: 0 2px 5px #59432512;
   border-radius: var(--radius-control);
 }
 .tree-row.active .tree-main,
 .tree-row.active .tree-action {
-  color: #80653c;
+  color: var(--accent);
 }
 .sidebar-bottom {
   border-top: 1px solid var(--border);
@@ -3087,8 +3073,8 @@ pre:focus-visible {
   border-radius: var(--radius-card);
 }
 .sidebar .popover {
-  background: #f0e3b9;
-  color: #453c2c;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .workspace {
@@ -3341,7 +3327,6 @@ pre:focus-visible {
 
 .library-header,
 .library-actions,
-.library-catalog,
 .library-footer {
   display: flex;
   align-items: center;
@@ -3363,158 +3348,141 @@ pre:focus-visible {
   font-weight: 600;
 }
 
-.library-intro {
-  padding: 64px 0 45px;
-}
-
-.library-intro h1 {
-  margin: 16px 0;
-  font-family: var(--font-book);
-  font-size: clamp(32px, 4vw, 48px);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-}
-
-.library-intro h1 span {
-  display: inline-block;
-  margin-left: 24px;
-  font-size: 15px;
-  color: var(--secondary);
-}
-
-.library-intro p,
-.library-footer,
-.book-caption > span {
+.library-footer {
   color: var(--secondary);
   font-size: 12px;
 }
 
-.library-catalog {
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-
-.library-catalog small {
-  margin-left: 12px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
+/* Spine-out volumes sit on continuous wooden boards at a fixed shelf pitch. */
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
-  gap: 44px 32px;
-  padding: 36px 0 56px;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-auto-rows: 300px;
+  align-items: end;
+  min-height: 600px;
+  padding: 0 24px;
+  margin: 26px 0 38px;
+  border: 12px solid #49301e;
+  border-top-width: 16px;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(
+      to bottom,
+      #100e0b 0,
+      #211912 32px,
+      #17120e 245px,
+      #080705 274px,
+      #b18a53 275px,
+      #69472a 279px,
+      #9c7040 282px,
+      #4f321d 289px,
+      #2c1b10 294px,
+      #090705 300px
+    );
+  box-shadow:
+    inset 9px 0 16px #0009,
+    inset -9px 0 16px #0009,
+    0 18px 35px #25190e30;
 }
 
 .book-volume {
-  --binding: #526352;
-  --foil: #f3e5bd;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 0 0 20px;
-  border: 0;
-  border-bottom: 5px solid var(--border);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.book-volume[data-tone="1"] {
-  --binding: #8b5146;
-}
-.book-volume[data-tone="2"] {
-  --binding: #4e6270;
-}
-.book-volume[data-tone="3"] {
-  --binding: #766044;
-}
-
-.book-cover {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  min-height: 285px;
-  aspect-ratio: 0.76;
-  padding: 26px 23px 24px 33px;
-  border-radius: 3px 9px 9px 3px;
-  color: var(--foil);
+  align-items: center;
+  justify-self: center;
+  width: var(--book-width);
+  height: var(--book-height);
+  min-width: 0;
+  margin: 0 0 25px;
+  padding: 10px 7px;
+  border: 1px solid #c9aa6a50;
+  border-radius: 5px 5px 2px 2px;
+  color: #f2dfac;
   background:
-    repeating-linear-gradient(0deg, transparent 0 2px, #ffffff05 2px 3px),
+    repeating-linear-gradient(0deg, #f7d4a00a 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(93deg, #00000008 0 2px, transparent 2px 5px),
     linear-gradient(
       90deg,
-      #0003,
-      transparent 5%,
-      #0003 6%,
-      transparent 8%,
-      transparent 96%,
-      #0002
+      #0009,
+      #ffffff15 13%,
+      transparent 26%,
+      #0002 75%,
+      #ffffff12 87%,
+      #000a
     ),
     var(--binding);
   box-shadow:
-    5px 5px 0 -1px var(--surface),
-    7px 7px 0 -1px var(--border),
-    10px 16px 20px #29231a25;
+    inset 0 2px 2px #eac68950,
+    inset 0 -3px 3px #0008,
+    4px 1px 5px #0009;
+  cursor: pointer;
+  transform-origin: bottom center;
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease;
+    filter 180ms ease;
 }
 
-.book-volume:hover .book-cover,
-.book-volume:focus-visible .book-cover {
-  transform: translateY(-7px) rotate(-1deg);
-  box-shadow:
-    5px 5px 0 -1px var(--surface),
-    7px 7px 0 -1px var(--border),
-    12px 22px 24px #29231a30;
+.book-volume:hover,
+.book-volume:focus-visible {
+  z-index: 1;
+  transform: translateY(-10px) rotate(-2deg);
+  filter: brightness(1.2);
 }
 
-.cover-edition {
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  padding-bottom: 18px;
-  border-bottom: 1px solid #f3e5bd60;
+.book-volume:focus-visible,
+.book-new:focus-visible {
+  outline: 2px solid #f2dfac;
+  outline-offset: 4px;
 }
 
-.cover-title {
-  margin-top: 28px;
+.book-volume:disabled,
+.book-new:disabled {
+  cursor: wait;
+}
+
+.spine-cap {
+  flex: 0 0 6px;
+  width: calc(100% + 10px);
+  border-top: 1px solid #d8b568b0;
+  border-bottom: 1px solid #d8b56880;
+  background: linear-gradient(#ffffff13, #0005);
+  box-shadow: 0 2px 2px #0004;
+}
+
+.spine-edition {
+  margin: 10px 0;
   font-family: var(--font-book);
-  font-size: clamp(22px, 2.5vw, 30px);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.cover-ornament {
-  margin: auto 0;
-  padding: 22px 0;
-  font-size: 30px;
-}
-
-.cover-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 15px;
-  border-top: 1px solid #f3e5bd60;
   font-size: 10px;
   letter-spacing: 0.12em;
 }
 
-.book-caption {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 23px 4px 0;
+.spine-title {
+  min-height: 0;
+  flex: 1;
   max-width: 100%;
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  overflow-wrap: anywhere;
+  font-family: var(--font-book);
+  font-size: 19px;
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 1px #000a;
 }
 
-.book-caption strong {
-  font-size: 13px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
+.spine-ornament {
+  padding: 8px 0 4px;
+  font-size: 20px;
+  color: #d5b572;
+}
+
+.spine-footer {
+  margin: 4px 0 10px;
+  font-size: 7px;
+  letter-spacing: 0.1em;
 }
 
 .book-new {
@@ -3522,28 +3490,34 @@ pre:focus-visible {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 16px;
-  align-self: start;
-  min-height: 285px;
-  aspect-ratio: 0.76;
-  width: 100%;
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--secondary);
+  gap: 18px;
+  justify-self: center;
+  width: 65px;
+  height: 218px;
+  margin-bottom: 25px;
+  padding: 12px 6px;
+  border: 1px dashed #c5a26a80;
+  border-radius: 3px;
+  background: #c5a26a08;
+  color: #d3b88c;
   cursor: pointer;
 }
 
 .book-new:hover {
-  background: var(--hover);
+  background: #c5a26a18;
 }
+
 .book-new span {
+  writing-mode: vertical-rl;
   font-family: var(--font-book);
-  font-size: 21px;
+  font-size: 18px;
+  letter-spacing: 0.2em;
 }
+
 .book-new small {
-  font-size: 11px;
+  font-size: 10px;
 }
+
 .library-footer {
   border-top: 1px solid var(--border);
   padding-top: 22px;
@@ -3619,34 +3593,18 @@ pre:focus-visible {
   .bookshelf {
     padding: 20px;
   }
-  .library-intro {
-    padding: 36px 0 24px;
+  .library-header {
+    flex-wrap: wrap;
+    padding-bottom: 18px;
   }
-  .library-intro h1 span {
-    display: block;
-    margin: 16px 0 0;
+  .library-actions {
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .book-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 28px 20px;
-  }
-  .book-cover {
-    min-height: 230px;
-    padding: 20px 15px 18px 23px;
-  }
-  .cover-title {
-    font-size: 22px;
-    margin-top: 18px;
-  }
-  .cover-edition {
-    font-size: 8px;
-    letter-spacing: 0.05em;
-  }
-  .cover-footer {
-    letter-spacing: 0;
-  }
-  .book-new {
-    min-height: 230px;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    padding: 0 8px;
+    border-width: 8px;
   }
   .library-footer {
     align-items: flex-start;
@@ -3655,7 +3613,7 @@ pre:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .book-cover {
+  .book-volume {
     transition: none;
   }
 }

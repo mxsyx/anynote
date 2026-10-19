@@ -62,6 +62,15 @@ try {
   await page.goto("http://127.0.0.1:5173");
   await expect(page.locator(".book-volume")).toHaveCount(4);
   await expect(page.locator(".sidebar")).toHaveCount(0);
+  const bindings = await page.locator(".book-volume").evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+
+      return { width: box.width, height: box.height, bottom: box.bottom };
+    }),
+  );
+  expect(bindings.every((box) => box.height > box.width * 2)).toBe(true);
+  expect(new Set(bindings.map((box) => Math.round(box.bottom))).size).toBe(1);
   await page.screenshot({ path: `${output}/bookshelf.png` });
   await page
     .getByRole("button", { name: "打开 Notebook：日常与灵感", exact: true })
@@ -109,6 +118,12 @@ try {
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
   await page.screenshot({ path: `${output}/bookshelf-mobile.png` });
   await page
     .getByRole("button", { name: "打开 Notebook：日常与灵感", exact: true })
