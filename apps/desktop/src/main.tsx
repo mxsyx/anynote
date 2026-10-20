@@ -80,15 +80,7 @@ import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
 import RecoveryWizard from "./RecoveryWizard";
 import NotebookTransferDialog from "./NotebookTransferDialog";
-import {
-  appearanceKey,
-  palettes,
-  papers,
-  readAppearance,
-  selectPalette,
-  selectPaper,
-  toggleAppearance,
-} from "./appearance";
+import { appearanceKey, readAppearance, toggleAppearance } from "./appearance";
 import "./styles.css";
 const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
@@ -268,14 +260,11 @@ function App() {
       JSON.parse(localStorage.getItem("anynote-recent") || "[]"),
     );
   const dark = appearance.mode === "dark";
-  const palette = appearance[appearance.mode];
 
   useLayoutEffect(() => {
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    document.documentElement.dataset.palette = palette;
-    document.documentElement.dataset.paper = appearance.paper;
+    document.documentElement.dataset.theme = appearance.mode;
     localStorage.setItem(appearanceKey, JSON.stringify(appearance));
-  }, [appearance, dark, palette]);
+  }, [appearance]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3500);
@@ -2169,55 +2158,6 @@ function App() {
                 </p>
                 <CloudRecovery onStarted={() => setTasksOpen(true)} />
                 <Diagnostics />
-                <div className="setting-row">
-                  <div>
-                    <h3>配色方案</h3>
-                    <p>选择适合阅读的纸张与界面配色。</p>
-                  </div>
-                  <NativeSelect
-                    aria-label="配色方案"
-                    value={palette}
-                    onChange={(event) =>
-                      setAppearance(
-                        selectPalette(event.target.value, appearance),
-                      )
-                    }
-                  >
-                    {[false, true].map((isDark) => (
-                      <optgroup
-                        key={String(isDark)}
-                        label={isDark ? "暗模式" : "亮模式"}
-                      >
-                        {palettes
-                          .filter((item) => item.dark === isDark)
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="setting-row">
-                  <div>
-                    <h3>纸张背景</h3>
-                    <p>柔和的材质纹理，仅用于笔记纸张，随配色适应明暗。</p>
-                  </div>
-                  <NativeSelect
-                    aria-label="纸张背景"
-                    value={appearance.paper}
-                    onChange={(event) =>
-                      setAppearance(selectPaper(event.target.value, appearance))
-                    }
-                  >
-                    {papers.map((paper) => (
-                      <option key={paper.id} value={paper.id}>
-                        {paper.name}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </div>
                 <div className="setting-row">
                   <div>
                     <h3>Notebook</h3>

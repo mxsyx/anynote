@@ -18,7 +18,7 @@ pnpm run build
 pnpm start
 ```
 
-界面采用书籍与笔记本主题：采用浅竹黄、米黄色纸页、深褐墨色与朱砂色配色，搭配淡黄色书脊、页边线和朱砂书签，保留统一的圆角与柔和阴影，支持浅色、深色和窄屏布局。共享控件使用 [shadcn/ui](https://ui.shadcn.com/docs/installation/vite) 的源码组件方式，位于 `apps/desktop/src/components/ui/`；`components.json` 配置生成路径，Tailwind v4 通过 Vite 编译。按钮、文本输入、多行输入和原生选择框在渲染器中统一复用；新建/重命名及搜索弹窗使用 Radix Dialog 管理焦点和键盘关闭。复选框、文件选择器与第三方编辑器保留原生交互。
+界面采用书籍与笔记本设计，保留书脊、页边线、书签、统一的圆角与柔和阴影，支持窄屏布局。外观仅提供亮、暗两种模式：亮模式采用 `#FAFAF8` 编辑器背景、`#F4F4F2` 侧栏、`#242424` 主文字、`#737373` 次级文字、`#E8E8E5` 分隔线与 `#638675` 柔和绿强调色；暗模式采用 [VS Code Dark Modern](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json)。通过顶部栏或原生菜单切换明暗模式，重启后恢复。纸张使用当前模式的底色。共享控件使用 [shadcn/ui](https://ui.shadcn.com/docs/installation/vite) 的源码组件方式，位于 `apps/desktop/src/components/ui/`；`components.json` 配置生成路径，Tailwind v4 通过 Vite 编译。按钮、文本输入、多行输入和原生选择框在渲染器中统一复用；新建/重命名及搜索弹窗使用 Radix Dialog 管理焦点和键盘关闭。复选框、文件选择器与第三方编辑器保留原生交互。
 
 主题变量与装订材质样式位于 `apps/desktop/src/styles.css`，不依赖外部字体或图片。已有布局类通过 Button 的 `layout` 尺寸保留工具栏和树行的几何尺寸；新增独立按钮可直接使用标准 variant/size。Tailwind 仅加载 theme/utilities，避免全局 preflight 重置富文本、PDF 和白板内容。
 

@@ -38,141 +38,57 @@
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
+  color-scheme: light;
   --font-book:
     "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC",
     Georgia, serif;
   --highlight: var(--accent);
-  --highlight-hover: #748b74;
+  --highlight-hover: #729381;
   --highlight-ink: var(--accent-ink);
   --radius-control: 9px;
   --radius-card: 12px;
   --radius-panel: 18px;
   --page-max-width: 900px;
   --desk: var(--bg);
-  --cover: #d5dbce;
+  --cover: var(--sidebar);
   --cover-ink: var(--text);
-  --paper-rule: #7f967f24;
-  --bg: #f3f0e8;
+  --paper-rule: var(--border);
+  --paper-edge: #cecec6;
+  --paper-shadow: 0 3px 8px #00000012, 0 16px 32px #0000001a;
+  --bg: #fafaf8;
   --surface: var(--bg);
-  --sidebar: #e9e9df;
-  --text: #484a45;
-  --secondary: #62665d;
-  --border: #c9cec1;
-  --accent: #7f967f;
-  --accent-ink: #202820;
-  --select: #dce3d7;
-  --hover: #e5e9df;
-  --muted: #6c7066;
-  --code: #e7e9df;
-  --shadow: 0 18px 70px #484a451c;
+  --sidebar: #f4f4f2;
+  --text: #242424;
+  --secondary: #737373;
+  --border: #e8e8e5;
+  --accent: #638675;
+  --accent-ink: #101810;
+  --link: var(--accent);
+  --select: #e1e9e3;
+  --hover: #edeeeb;
+  --muted: var(--secondary);
+  --code: var(--sidebar);
+  --shadow: 0 18px 70px #0000001c;
 }
+
+/* VS Code Dark Modern: https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --highlight-hover: #adbbb1;
-  --cover: #353f3c;
-  --paper-rule: #9eaea324;
-  --bg: #292e32;
-  --surface: #30363a;
-  --sidebar: #2c3235;
-  --text: #d4d9d3;
-  --secondary: #b0b9b1;
-  --border: #4b5753;
-  --accent: #9eaea3;
-  --accent-ink: #292e32;
-  --select: #414d47;
-  --hover: #39433f;
-  --muted: #a0aaa2;
-  --code: #272d30;
+  --highlight-hover: #026ec1;
+  --paper-edge: #454545;
+  --paper-shadow: 0 4px 10px #0008, 0 16px 32px #0008;
+  --bg: #1f1f1f;
+  --sidebar: #181818;
+  --text: #cccccc;
+  --secondary: #9d9d9d;
+  --border: #2b2b2b;
+  --accent: #0078d4;
+  --accent-ink: #ffffff;
+  --link: #4daafc;
+  --select: #37373d;
+  --hover: #2b2b2b;
+  --code: #2b2b2b;
   --shadow: 0 18px 70px #0006;
-}
-:root[data-palette="linen-stone"] {
-  --bg: #f1efea;
-  --surface: #dfddd6;
-  --sidebar: #dfddd6;
-  --cover: #d2d2c9;
-  --text: #454944;
-  --accent: #92958e;
-  --accent-ink: #252923;
-  --highlight-hover: #858980;
-  --secondary: #5b6057;
-  --muted: #61665d;
-  --border: #b9bcb1;
-  --select: #c7ccc0;
-  --hover: #d2d5cb;
-  --code: #d3d3ca;
-  --paper-rule: #92958e30;
-}
-
-:root[data-palette="midnight-sand"] {
-  --bg: #302f2d;
-  --surface: #3e3c38;
-  --sidebar: #3e3c38;
-  --cover: #49443c;
-  --text: #ddd7cc;
-  --accent: #b5a48b;
-  --accent-ink: #302f2d;
-  --highlight-hover: #c2b29a;
-  --secondary: #bfb6a8;
-  --muted: #b2a999;
-  --border: #60594e;
-  --select: #565044;
-  --hover: #4b473f;
-  --code: #34322f;
-  --paper-rule: #b5a48b26;
-}
-
-:root[data-palette="parchment-yellow"] {
-  --bg: #f0ecd9;
-  --surface: #e3dfc8;
-  --sidebar: #e3dfc8;
-  --cover: #d5cfb5;
-  --text: #514e3d;
-  --accent: #a79b73;
-  --accent-ink: #2e2b20;
-  --highlight-hover: #998c64;
-  --secondary: #65604b;
-  --muted: #6e6851;
-  --border: #c1b99a;
-  --select: #d3ccb0;
-  --hover: #dad4bb;
-  --code: #d9d3b9;
-  --paper-rule: #a79b7330;
-}
-
-:root[data-palette="deep-pine"] {
-  --bg: #282f2c;
-  --surface: #37413b;
-  --sidebar: #37413b;
-  --cover: #3d4b41;
-  --text: #d6ddd5;
-  --accent: #97af9b;
-  --accent-ink: #282f2c;
-  --highlight-hover: #a7bdaa;
-  --secondary: #b3c1b4;
-  --muted: #a3b4a5;
-  --border: #506253;
-  --select: #485b4b;
-  --hover: #405146;
-  --code: #2d3730;
-  --paper-rule: #97af9b26;
-}
-
-:root[data-palette="sea-mist"] {
-  --bg: #29343b;
-  --surface: #35454d;
-  --sidebar: #35454d;
-  --cover: #3d5059;
-  --text: #d7e0e0;
-  --accent: #96b0b6;
-  --accent-ink: #29343b;
-  --highlight-hover: #a7bfc4;
-  --secondary: #b4c5c8;
-  --muted: #a4b9be;
-  --border: #506872;
-  --select: #465e68;
-  --hover: #3e535d;
-  --code: #2c3b43;
-  --paper-rule: #96b0b626;
 }
 
 /* Keep element defaults below shadcn utilities; feature classes retain layout ownership. */
@@ -239,7 +155,7 @@
     padding: 2px 5px;
   }
   a {
-    color: var(--accent);
+    color: var(--link);
     text-underline-offset: 4px;
   }
   h1,
@@ -917,7 +833,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0 24px;
-  background: var(--bg);
+  background: var(--sidebar);
   font-size: 9px;
   color: var(--muted);
 }
@@ -1064,7 +980,7 @@
 .primary {
   background: var(--highlight);
   color: var(--highlight-ink);
-  border-color: #8e4939;
+  border-color: var(--accent);
 }
 .primary:hover {
   background: var(--highlight-hover);
@@ -3081,7 +2997,7 @@ pre:focus-visible {
 .book-icon {
   background: none;
   color: #705b34;
-  border: 1px solid #af8c4f66;
+  border: 1px solid var(--border);
   border-radius: var(--radius-control);
 }
 .search-trigger {
@@ -3124,11 +3040,11 @@ pre:focus-visible {
   background: var(--desk);
 }
 .topbar {
-  background: var(--surface);
+  background: var(--sidebar);
   border-bottom: 1px solid var(--border);
 }
 .main-content {
-  background-image: radial-gradient(#a08a4e08 0.6px, transparent 0.6px);
+  background-image: radial-gradient(#00000008 0.6px, transparent 0.6px);
   background-size: 5px 5px;
   padding-bottom: 28px;
 }
@@ -3139,15 +3055,13 @@ pre:focus-visible {
   padding: 48px 62px 0 72px;
   min-height: calc(100% - 80px);
   background-color: var(--surface);
-  background-image: linear-gradient(90deg, #96773f0a, transparent 24px);
-  border: 1px solid var(--border);
+  background-image: linear-gradient(90deg, #00000005, transparent 24px);
+  border: 1px solid var(--paper-edge);
   border-radius: var(--radius-panel);
   box-shadow:
-    2px 3px 0 -1px var(--surface),
-    2px 3px 0 var(--border),
-    4px 6px 0 -1px var(--surface),
-    4px 6px 0 var(--border),
-    0 10px 30px #5a47270d;
+    2px 3px 0 var(--surface),
+    3px 4px 0 var(--paper-edge),
+    var(--paper-shadow);
 }
 .document::before {
   content: "";
@@ -3771,7 +3685,7 @@ pre:focus-visible {
 /* Inside a volume, the left page reads as a printed table of contents. */
 .sidebar,
 [data-theme="dark"] .sidebar {
-  background: var(--surface);
+  background: var(--sidebar);
   border-right: 1px solid var(--border);
   box-shadow: inset -8px 0 16px #00000005;
 }
@@ -3808,14 +3722,13 @@ pre:focus-visible {
   min-height: 0;
   margin: 24px 0 24px 24px;
   padding: 16px 24px 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--paper-edge);
   border-radius: 4px 8px 8px 4px;
-  background:
-    linear-gradient(90deg, transparent 88%, #00000009), var(--surface);
+  background: var(--sidebar);
   box-shadow:
-    -3px 3px 0 var(--surface),
-    -4px 4px 0 var(--border),
-    0 8px 24px #00000008;
+    -3px 3px 0 var(--sidebar),
+    -4px 4px 0 var(--paper-edge),
+    var(--paper-shadow);
 }
 
 .content-layout > .sidebar .section-label:has(.contents-title) {
@@ -3877,52 +3790,10 @@ pre:focus-visible {
   margin: 0 auto;
   padding-left: var(--page-inset);
   padding-right: var(--page-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background-color: var(--surface);
-  box-shadow:
-    2px 3px 0 var(--surface),
-    3px 4px 0 var(--border),
-    0 12px 32px #00000012;
 }
 
 .notebook-layout .document::before {
   left: calc(var(--page-inset) / 2);
-}
-
-:root[data-paper="parchment"] {
-  --paper-image: url("./assets/paper/parchment.png");
-}
-
-:root[data-paper="stone"] {
-  --paper-image: url("./assets/paper/stone.png");
-}
-
-:root[data-paper="bamboo"] {
-  --paper-image: url("./assets/paper/bamboo.png");
-}
-
-/* Tint the texture with the active paper color so text keeps its visual priority. */
-:root {
-  --paper-tint: 78%;
-}
-
-:root[data-theme="dark"] {
-  --paper-tint: 96%;
-}
-
-:root:is([data-paper="parchment"], [data-paper="stone"], [data-paper="bamboo"])
-  .document {
-  background-image:
-    linear-gradient(
-      color-mix(in srgb, var(--surface) var(--paper-tint), transparent),
-      color-mix(in srgb, var(--surface) var(--paper-tint), transparent)
-    ),
-    var(--paper-image);
-  background-size:
-    100% 100%,
-    100% auto;
-  background-repeat: no-repeat, repeat-y;
 }
 
 @media (max-width: 760px) {
@@ -3935,7 +3806,7 @@ pre:focus-visible {
   }
 
   .notebook-layout > .sidebar {
-    background: var(--surface);
+    background: var(--sidebar);
     box-shadow: 8px 0 24px #0003;
   }
 }

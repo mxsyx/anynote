@@ -331,7 +331,7 @@ else {
         minWidth: 800,
         minHeight: 600,
         title: "Anynote",
-        backgroundColor: "#F7F7F4",
+        backgroundColor: "#FAFAF8",
         autoHideMenuBar: false,
         webPreferences: {
           preload: path.join(__dirname, "preload.cjs"),
