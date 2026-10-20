@@ -3890,6 +3890,41 @@ pre:focus-visible {
   left: calc(var(--page-inset) / 2);
 }
 
+:root[data-paper="parchment"] {
+  --paper-image: url("./assets/paper/parchment.png");
+}
+
+:root[data-paper="stone"] {
+  --paper-image: url("./assets/paper/stone.png");
+}
+
+:root[data-paper="bamboo"] {
+  --paper-image: url("./assets/paper/bamboo.png");
+}
+
+/* Tint the texture with the active paper color so text keeps its visual priority. */
+:root {
+  --paper-tint: 78%;
+}
+
+:root[data-theme="dark"] {
+  --paper-tint: 96%;
+}
+
+:root:is([data-paper="parchment"], [data-paper="stone"], [data-paper="bamboo"])
+  .document {
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--surface) var(--paper-tint), transparent),
+      color-mix(in srgb, var(--surface) var(--paper-tint), transparent)
+    ),
+    var(--paper-image);
+  background-size:
+    100% 100%,
+    100% auto;
+  background-repeat: no-repeat, repeat-y;
+}
+
 @media (max-width: 760px) {
   .notebook-layout {
     margin: 8px;

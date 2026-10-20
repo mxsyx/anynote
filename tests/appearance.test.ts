@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   appearanceKey,
   palettes,
+  papers,
+  selectPaper,
   readAppearance,
   selectPalette,
   toggleAppearance,
@@ -41,6 +43,7 @@ describe("appearance preferences", () => {
       mode: "light",
       light: "parchment-yellow",
       dark: "sea-mist",
+      paper: "plain",
     });
     expect(toggleAppearance(toggleAppearance(restored))).toEqual(night);
     expect(selectPalette("deep-pine", restored).light).toBe("parchment-yellow");
@@ -53,12 +56,35 @@ describe("appearance preferences", () => {
         getItem: () =>
           '{"mode":"dark","light":"deep-pine","dark":"linen-stone"}',
       }),
-    ).toEqual({ mode: "dark", light: "cream-sage", dark: "slate-blue-green" });
+    ).toEqual({
+      mode: "dark",
+      light: "cream-sage",
+      dark: "slate-blue-green",
+      paper: "plain",
+    });
   });
 
   it("leaves the selection unchanged for an unknown palette", () => {
     const appearance = selectPalette("midnight-sand");
 
     expect(selectPalette("unknown", appearance)).toEqual(appearance);
+  });
+  it.each(papers)(
+    "persists $name independently of palette and mode",
+    (paper) => {
+      const selected = selectPaper(paper.id, selectPalette("linen-stone"));
+      const changed = toggleAppearance(selectPalette("sea-mist", selected));
+
+      expect(changed.paper).toBe(paper.id);
+      expect(
+        readAppearance({ getItem: () => JSON.stringify(changed) }),
+      ).toEqual(changed);
+    },
+  );
+
+  it("falls back to plain paper for invalid saved textures", () => {
+    expect(readAppearance({ getItem: () => '{"paper":"unknown"}' }).paper).toBe(
+      "plain",
+    );
   });
 });

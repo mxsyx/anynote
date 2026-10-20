@@ -83,8 +83,10 @@ import NotebookTransferDialog from "./NotebookTransferDialog";
 import {
   appearanceKey,
   palettes,
+  papers,
   readAppearance,
   selectPalette,
+  selectPaper,
   toggleAppearance,
 } from "./appearance";
 import "./styles.css";
@@ -271,6 +273,7 @@ function App() {
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     document.documentElement.dataset.palette = palette;
+    document.documentElement.dataset.paper = appearance.paper;
     localStorage.setItem(appearanceKey, JSON.stringify(appearance));
   }, [appearance, dark, palette]);
   useEffect(() => {
@@ -2193,6 +2196,25 @@ function App() {
                             </option>
                           ))}
                       </optgroup>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <div className="setting-row">
+                  <div>
+                    <h3>纸张背景</h3>
+                    <p>柔和的材质纹理，仅用于笔记纸张，随配色适应明暗。</p>
+                  </div>
+                  <NativeSelect
+                    aria-label="纸张背景"
+                    value={appearance.paper}
+                    onChange={(event) =>
+                      setAppearance(selectPaper(event.target.value, appearance))
+                    }
+                  >
+                    {papers.map((paper) => (
+                      <option key={paper.id} value={paper.id}>
+                        {paper.name}
+                      </option>
                     ))}
                   </NativeSelect>
                 </div>

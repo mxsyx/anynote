@@ -8,11 +8,19 @@ export const palettes = [
   { id: "sea-mist", name: "深海雾蓝", dark: true },
 ] as const;
 
+export const papers = [
+  { id: "plain", name: "纯色纸张" },
+  { id: "parchment", name: "羊皮纸" },
+  { id: "stone", name: "岩石" },
+  { id: "bamboo", name: "竹简" },
+] as const;
+
 type Preset = (typeof palettes)[number];
 export type Appearance = {
   mode: "light" | "dark";
   light: Extract<Preset, { dark: false }>["id"];
   dark: Extract<Preset, { dark: true }>["id"];
+  paper: (typeof papers)[number]["id"];
 };
 
 export const appearanceKey = "anynote.appearance";
@@ -21,7 +29,14 @@ const defaultAppearance: Appearance = {
   mode: "light",
   light: "cream-sage",
   dark: "slate-blue-green",
+  paper: "plain",
 };
+
+export function selectPaper(id: string, appearance: Appearance): Appearance {
+  const paper = papers.find((item) => item.id === id);
+
+  return paper ? { ...appearance, paper: paper.id } : { ...appearance };
+}
 
 export function selectPalette(
   id: string,
@@ -48,6 +63,9 @@ export function readAppearance(storage: Pick<Storage, "getItem">): Appearance {
       mode: saved?.mode === "dark" ? "dark" : "light",
       light: light && !light.dark ? light.id : defaultAppearance.light,
       dark: dark?.dark ? dark.id : defaultAppearance.dark,
+      paper:
+        papers.find((item) => item.id === saved?.paper)?.id ??
+        defaultAppearance.paper,
     };
   } catch {
     return { ...defaultAppearance };
