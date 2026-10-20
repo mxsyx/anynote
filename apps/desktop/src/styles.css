@@ -41,50 +41,140 @@
   --font-book:
     "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC",
     Georgia, serif;
-  --highlight: #793f38;
-  --highlight-hover: #61312c;
-  --highlight-ink: #f6edde;
+  --highlight: var(--accent);
+  --highlight-hover: #748b74;
+  --highlight-ink: var(--accent-ink);
   --radius-control: 9px;
   --radius-card: 12px;
   --radius-panel: 18px;
-  --desk: #d9ccba;
-  --cover: #c7b598;
-  --cover-ink: #392e26;
-  --paper-rule: #8f74512b;
-  --bg: #d9ccba;
-  --surface: #eee5d5;
-  --sidebar: #e2d5bf;
-  --text: #392e26;
-  --secondary: #6c5c4d;
-  --border: #bfac91;
-  --accent: #70443c;
-  --accent-ink: #f6edde;
-  --select: #d7c4ad;
-  --hover: #e3d6c3;
-  --muted: #766451;
-  --code: #e5d9c6;
-  --shadow: 0 18px 70px #34241924;
+  --page-max-width: 900px;
+  --desk: var(--bg);
+  --cover: #d5dbce;
+  --cover-ink: var(--text);
+  --paper-rule: #7f967f24;
+  --bg: #f3f0e8;
+  --surface: var(--bg);
+  --sidebar: #e9e9df;
+  --text: #484a45;
+  --secondary: #62665d;
+  --border: #c9cec1;
+  --accent: #7f967f;
+  --accent-ink: #202820;
+  --select: #dce3d7;
+  --hover: #e5e9df;
+  --muted: #6c7066;
+  --code: #e7e9df;
+  --shadow: 0 18px 70px #484a451c;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --desk: #211d19;
-  --cover: #30271f;
-  --cover-ink: #e3d4bb;
-  --paper-rule: #b89a6e24;
-  --bg: #211d19;
-  --surface: #302922;
-  --sidebar: #29231d;
-  --text: #e3d4bb;
-  --secondary: #c1ad8e;
-  --border: #594a3a;
-  --accent: #c7a77b;
-  --accent-ink: #261e18;
-  --select: #514036;
-  --hover: #41362c;
-  --muted: #b5a083;
-  --code: #28221c;
+  --highlight-hover: #adbbb1;
+  --cover: #353f3c;
+  --paper-rule: #9eaea324;
+  --bg: #292e32;
+  --surface: #30363a;
+  --sidebar: #2c3235;
+  --text: #d4d9d3;
+  --secondary: #b0b9b1;
+  --border: #4b5753;
+  --accent: #9eaea3;
+  --accent-ink: #292e32;
+  --select: #414d47;
+  --hover: #39433f;
+  --muted: #a0aaa2;
+  --code: #272d30;
   --shadow: 0 18px 70px #0006;
 }
+:root[data-palette="linen-stone"] {
+  --bg: #f1efea;
+  --surface: #dfddd6;
+  --sidebar: #dfddd6;
+  --cover: #d2d2c9;
+  --text: #454944;
+  --accent: #92958e;
+  --accent-ink: #252923;
+  --highlight-hover: #858980;
+  --secondary: #5b6057;
+  --muted: #61665d;
+  --border: #b9bcb1;
+  --select: #c7ccc0;
+  --hover: #d2d5cb;
+  --code: #d3d3ca;
+  --paper-rule: #92958e30;
+}
+
+:root[data-palette="midnight-sand"] {
+  --bg: #302f2d;
+  --surface: #3e3c38;
+  --sidebar: #3e3c38;
+  --cover: #49443c;
+  --text: #ddd7cc;
+  --accent: #b5a48b;
+  --accent-ink: #302f2d;
+  --highlight-hover: #c2b29a;
+  --secondary: #bfb6a8;
+  --muted: #b2a999;
+  --border: #60594e;
+  --select: #565044;
+  --hover: #4b473f;
+  --code: #34322f;
+  --paper-rule: #b5a48b26;
+}
+
+:root[data-palette="parchment-yellow"] {
+  --bg: #f0ecd9;
+  --surface: #e3dfc8;
+  --sidebar: #e3dfc8;
+  --cover: #d5cfb5;
+  --text: #514e3d;
+  --accent: #a79b73;
+  --accent-ink: #2e2b20;
+  --highlight-hover: #998c64;
+  --secondary: #65604b;
+  --muted: #6e6851;
+  --border: #c1b99a;
+  --select: #d3ccb0;
+  --hover: #dad4bb;
+  --code: #d9d3b9;
+  --paper-rule: #a79b7330;
+}
+
+:root[data-palette="deep-pine"] {
+  --bg: #282f2c;
+  --surface: #37413b;
+  --sidebar: #37413b;
+  --cover: #3d4b41;
+  --text: #d6ddd5;
+  --accent: #97af9b;
+  --accent-ink: #282f2c;
+  --highlight-hover: #a7bdaa;
+  --secondary: #b3c1b4;
+  --muted: #a3b4a5;
+  --border: #506253;
+  --select: #485b4b;
+  --hover: #405146;
+  --code: #2d3730;
+  --paper-rule: #97af9b26;
+}
+
+:root[data-palette="sea-mist"] {
+  --bg: #29343b;
+  --surface: #35454d;
+  --sidebar: #35454d;
+  --cover: #3d5059;
+  --text: #d7e0e0;
+  --accent: #96b0b6;
+  --accent-ink: #29343b;
+  --highlight-hover: #a7bfc4;
+  --secondary: #b4c5c8;
+  --muted: #a4b9be;
+  --border: #506872;
+  --select: #465e68;
+  --hover: #3e535d;
+  --code: #2c3b43;
+  --paper-rule: #96b0b626;
+}
+
 /* Keep element defaults below shadcn utilities; feature classes retain layout ownership. */
 @layer base {
   * {
@@ -2931,9 +3021,10 @@ pre:focus-visible {
 .brand-mark {
   border-radius: 9px 12px 12px 9px;
   background: var(--highlight);
+  color: var(--highlight-ink);
   box-shadow:
     inset 3px 0 #0003,
-    2px 2px 0 #dcc48a;
+    2px 2px 0 var(--border);
   transform: none;
 }
 .brand-mark svg {
@@ -3043,14 +3134,14 @@ pre:focus-visible {
 }
 .document {
   position: relative;
-  max-width: 840px;
+  max-width: var(--page-max-width);
   margin: 0 auto 12px;
   padding: 48px 62px 0 72px;
   min-height: calc(100% - 80px);
   background-color: var(--surface);
   background-image: linear-gradient(90deg, #96773f0a, transparent 24px);
   border: 1px solid var(--border);
-  border-radius: 9px 18px 18px 9px;
+  border-radius: var(--radius-panel);
   box-shadow:
     2px 3px 0 -1px var(--surface),
     2px 3px 0 var(--border),
@@ -3124,7 +3215,7 @@ pre:focus-visible {
   margin: 30px auto;
   border-radius: var(--radius-panel);
   box-shadow: 0 5px 22px #26384908;
-  max-width: 900px;
+  max-width: var(--page-max-width);
 }
 .page h1,
 .welcome-empty h1,
@@ -3252,7 +3343,7 @@ pre:focus-visible {
 }
 
 .document.media-document {
-  max-width: 1100px;
+  max-width: var(--page-max-width);
 }
 
 /* Library entrance: cloth covers, recessed spines, and a shelf below each row. */
@@ -3781,13 +3872,13 @@ pre:focus-visible {
 }
 
 .notebook-layout .document {
-  max-width: 960px;
+  max-width: var(--page-max-width);
   min-height: 100%;
   margin: 0 auto;
   padding-left: var(--page-inset);
   padding-right: var(--page-inset);
   border: 1px solid var(--border);
-  border-radius: 4px 12px 12px 4px;
+  border-radius: var(--radius-panel);
   background-color: var(--surface);
   box-shadow:
     2px 3px 0 var(--surface),

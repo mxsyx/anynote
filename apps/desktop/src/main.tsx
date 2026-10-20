@@ -80,6 +80,13 @@ import LocalBackup from "./LocalBackup";
 import CloudRecovery from "./CloudRecovery";
 import RecoveryWizard from "./RecoveryWizard";
 import NotebookTransferDialog from "./NotebookTransferDialog";
+import {
+  appearanceKey,
+  palettes,
+  readAppearance,
+  selectPalette,
+  toggleAppearance,
+} from "./appearance";
 import "./styles.css";
 const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
@@ -180,9 +187,7 @@ function App() {
     [menu, setMenu] = useState(false),
     [switcher, setSwitcher] = useState(false),
     [sidebar, setSidebar] = useState(true),
-    [dark, setDark] = useState(
-      localStorage.getItem("anynote-theme") === "dark",
-    ),
+    [appearance, setAppearance] = useState(() => readAppearance(localStorage)),
     [tagFilter, setTagFilter] = useState<string | null>(null),
     [asset, setAsset] = useState<{
       data: string;
@@ -260,10 +265,14 @@ function App() {
     recent = useRef<string[]>(
       JSON.parse(localStorage.getItem("anynote-recent") || "[]"),
     );
-  useEffect(() => {
+  const dark = appearance.mode === "dark";
+  const palette = appearance[appearance.mode];
+
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
-    localStorage.setItem("anynote-theme", dark ? "dark" : "light");
-  }, [dark]);
+    document.documentElement.dataset.palette = palette;
+    localStorage.setItem(appearanceKey, JSON.stringify(appearance));
+  }, [appearance, dark, palette]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3500);
@@ -1045,7 +1054,7 @@ function App() {
   useEffect(() =>
     window.anynote?.onMenuCommand?.((command) => {
       if (command.startsWith("insert.")) return;
-      if (command === "theme") setDark((value) => !value);
+      if (command === "theme") setAppearance(toggleAppearance);
       else if (
         command === "settings" ||
         command === "extensions" ||
@@ -1333,7 +1342,7 @@ function App() {
                 aria-label="切换主题"
                 title={dark ? "切换为浅色模式" : "切换为深色模式"}
                 aria-pressed={dark}
-                onClick={() => setDark((value) => !value)}
+                onClick={() => setAppearance(toggleAppearance)}
               >
                 {dark ? <Sun size={17} /> : <Moon size={17} />}
               </Button>
@@ -1883,7 +1892,7 @@ function App() {
                 books={books}
                 busy={busy}
                 dark={dark}
-                onTheme={() => setDark(!dark)}
+                onTheme={() => setAppearance(toggleAppearance)}
                 onCreate={() => showModal("notebook")}
                 onImport={chooseArchive}
                 onOpen={(b) => {
@@ -2159,18 +2168,33 @@ function App() {
                 <Diagnostics />
                 <div className="setting-row">
                   <div>
-                    <h3>外观</h3>
-                    <p>温暖浅色，或安静深色。</p>
+                    <h3>配色方案</h3>
+                    <p>选择适合阅读的纸张与界面配色。</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={() => setDark(!dark)}
+                  <NativeSelect
+                    aria-label="配色方案"
+                    value={palette}
+                    onChange={(event) =>
+                      setAppearance(
+                        selectPalette(event.target.value, appearance),
+                      )
+                    }
                   >
-                    {dark ? <Sun size={16} /> : <Moon size={16} />}切换为
-                    {dark ? "浅色" : "深色"}
-                  </Button>
+                    {[false, true].map((isDark) => (
+                      <optgroup
+                        key={String(isDark)}
+                        label={isDark ? "暗模式" : "亮模式"}
+                      >
+                        {palettes
+                          .filter((item) => item.dark === isDark)
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </NativeSelect>
                 </div>
                 <div className="setting-row">
                   <div>
