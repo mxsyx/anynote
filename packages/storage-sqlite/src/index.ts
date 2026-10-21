@@ -1,3 +1,8 @@
+import type {
+  ServiceOperation,
+  StorageOptions,
+  OperationResult,
+} from "./services.js";
 import { contentRequirements } from "./archive-content.js";
 import { entryLimits } from "@anynote/protocol/import-limits.js";
 import { closeImports } from "./import-state.js";
@@ -207,10 +212,17 @@ export class Storage {
   /** Uncommitted web-import previews kept between the preview and confirm steps. */
   importPreviews: Map<string, ImportPreview>;
 
+  private readonly services: ReadonlyMap<string, ServiceOperation>;
+
   constructor(
     root: string,
-    { maxWriteConnections = 8, maxReadConnections = 4 } = {},
+    {
+      maxWriteConnections = 8,
+      maxReadConnections = 4,
+      services = {},
+    }: StorageOptions = {},
   ) {
+    this.services = new Map(Object.entries(services));
     this.maxWriteConnections = z
       .number()
       .int()
@@ -320,15 +332,6 @@ export class Storage {
         // Task observation/cancellation must not wait behind the capture barrier.
         "listTasks",
         "cancelTask",
-        "previewLocalBackup",
-        "discoverCloudBackups",
-        "listRemoteBackups",
-        "testBackupConnection",
-        "remoteWriter",
-        "takeoverRemoteWriter",
-        "previewRemoteRetention",
-        "applyRemoteRetention",
-        "remoteRetentionState",
         // The consistency scan runs off the serial queue so it can be cancelled
         // and never blocks editing; it stays read-only.
         "inspectIntegrity",
@@ -339,9 +342,13 @@ export class Storage {
         // Media retry also starts off the queue: its downloads are async and
         // the resulting rewrite commits back through the queue.
         "retryImportMedia",
-      ].includes(op)
+      ].includes(op) ||
+      this.services.get(op)?.concurrent
     )
-      return advancedOperations(this, op, input).then((r) => r.result);
+      return advancedOperations(this, op, input).then((r) => {
+        if (!r.handled) throw Error(`未处理的操作: ${op}`);
+        return r.result;
+      });
     const next = this.queue.then(() => {
       // Time spent waiting behind earlier writes is the queue latency; it is
       // recorded separately from the operation's own execution time.
@@ -354,6 +361,13 @@ export class Storage {
     });
     this.queue = next.catch(() => {});
     return next;
+  }
+
+  /** Dispatch an injected service directly, preserving the caller's queue context. */
+  async serviceOperation(op: string, raw: unknown): Promise<OperationResult> {
+    const service = this.services.get(op);
+    if (!service) return { handled: false };
+    return { handled: true, result: await service.run(this, raw) };
   }
 
   /**
@@ -969,35 +983,6 @@ export class Storage {
           code: "SOURCE_CHANGED",
         });
       return this.localBackupRevision(id);
-    }
-
-    if (op === "createLocalBackupCapture") {
-      const dir = assertLocalPath(
-        this.root,
-        "_local/backup-jobs/" + raw.dir.split(/[\\/]/).pop(),
-      );
-      if (dir !== raw.dir) throw Error("本地备份暂存目录无效");
-      const { captureLocalNotebook } = await import(
-        "@anynote/backup/local-capture.js"
-      );
-      return captureLocalNotebook(
-        this,
-        uuid.parse(raw.notebookId),
-        dir,
-        raw.signal,
-      );
-    }
-
-    if (op === "createBackupSnapshot") {
-      const dir = assertLocalPath(
-        this.root,
-        "_local/backup-jobs/" + raw.dir.split(/[\\/]/).pop(),
-      );
-      if (dir !== raw.dir) throw Error("备份暂存目录无效");
-      const { createFileSnapshot } = await import(
-        "@anynote/backup/file-snapshot.js"
-      );
-      return createFileSnapshot(this, uuid.parse(raw.notebookId), dir);
     }
 
     if (op === "registerNotebookDirectory")

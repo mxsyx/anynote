@@ -28,7 +28,7 @@ flowchart LR
   Protocol --> Types
 ```
 
-图只展示本批接口。Storage 与 backup / backup-core / backup-local 的循环仍存在，不表示全仓构建图已无循环。
+图只展示首批接口。当时保留的 Storage 与 backup / backup-core / backup-local 循环已在同日第二批由 [ADR-012](012-backup-service-composition.md) 的装配层拆解；依赖检查也随之扩展为全仓。
 
 ## 取舍与后续
 

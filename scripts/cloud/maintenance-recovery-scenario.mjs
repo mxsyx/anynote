@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 import {
   uploadSnapshot,
   listBackups,

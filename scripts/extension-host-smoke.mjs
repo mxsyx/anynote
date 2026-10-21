@@ -1,6 +1,6 @@
 import { appMenu } from "./acceptance/app-menu.mjs";
 import { launchDesktop } from "./acceptance/electron-driver.mjs";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert/strict";

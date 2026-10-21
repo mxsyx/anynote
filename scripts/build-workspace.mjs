@@ -11,9 +11,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const scope = process.argv[2];
-if (!/^(packages|apps)\/[a-z-]+$/.test(scope || ""))
+if (!/^(packages|apps|extensions)\/[a-z-]+$/.test(scope || ""))
   throw Error("无效 workspace");
-const owners = ["apps", "packages"]
+const owners = ["apps", "packages", "extensions"]
   .flatMap((dir) =>
     readdirSync(join(root, dir)).map((name) => `${dir}/${name}`),
   )

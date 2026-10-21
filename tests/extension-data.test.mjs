@@ -2,7 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { installableManifestSchema } from "../.build/packages/storage-sqlite/extension-catalog.js";
 import { settingsChecksum } from "../.build/packages/storage-sqlite/extension-settings.js";
 const session = JSON.parse(

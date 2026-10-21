@@ -1,3 +1,4 @@
+import { snapshotMetadata, databaseBytes } from "./snapshot-metadata.js";
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
 import {
   readBackupRevision,
@@ -29,9 +30,7 @@ export async function captureLocalNotebook(
 ): Promise<Capture> {
   const db = s.open(notebookId),
     databasePath = join(dir, "notebook.sqlite");
-  const bytes =
-    db.prepare("PRAGMA page_count").get()!.page_count *
-    db.prepare("PRAGMA page_size").get()!.page_size;
+  const bytes = databaseBytes(db);
   const space = await statfs(dir);
   if (space.bavail * space.bsize < bytes * 1.1 + 1024 ** 2)
     throw Error("本机临时空间不足，无法生成一致性数据库副本");
@@ -46,15 +45,10 @@ export async function captureLocalNotebook(
       throw Object.assign(Error("源备份版本标记不完整，已保留目标副本"), {
         code: "BACKUP_INCONSISTENT",
       });
-    const meta = captured
-      .prepare(
-        "SELECT id,name,schema_version,CAST(content_seq AS TEXT) AS content_seq FROM notebook_meta",
-      )
-      .get()!;
-    if (meta.schema_version !== 4)
-      throw Error("本地资源闭包不支持此数据库版本");
+    const meta = snapshotMetadata(captured, notebookId);
     if (
-      captured.prepare("PRAGMA quick_check").get()!.quick_check !== "ok" ||
+      captured.prepare("PRAGMA quick_check").get<{ quick_check: string }>()
+        ?.quick_check !== "ok" ||
       captured.prepare("PRAGMA foreign_key_check").all().length
     )
       throw Error("源数据库完整性检查失败");

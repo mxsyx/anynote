@@ -12,7 +12,7 @@ import {
 import { join, resolve } from "node:path";
 import { hostname, platform, arch } from "node:os";
 import assert from "node:assert/strict";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { hashFile } from "../.build/packages/storage-sqlite/archive-stream.js";
 const args = process.argv.slice(2),
   mode = args.shift(),

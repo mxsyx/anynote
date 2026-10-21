@@ -1,4 +1,4 @@
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 import { CloudflareClient } from "../../.build/packages/backup/providers.js";
 process.once(
   "message",

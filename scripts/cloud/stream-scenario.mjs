@@ -14,7 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 
 export async function streamScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cloud-stream-"));

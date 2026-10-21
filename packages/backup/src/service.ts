@@ -1,4 +1,10 @@
-import { localBackupOperation, localOperations } from "./local.js";
+import {
+  backupOperations,
+  localOperations,
+  managementOperations,
+  policyOperations,
+} from "./operation-names.js";
+import { localBackupOperation } from "./local.js";
 import { configSchema } from "./connection.js";
 import { recoveryOperation } from "./recovery.js";
 import { startCloudRestore } from "./restore-task.js";
@@ -20,18 +26,16 @@ import {
   errorMessage,
   type BackupTarget,
   type Credentials,
-  type SqlRow,
   type Task,
 } from "@anynote/types/runtime.js";
 import { uploadSnapshotFiles } from "./cloud-snapshot.js";
 import type { FileSnapshot } from "./file-snapshot.js";
 import { listBackups } from "./cloud-archive.js";
-import { manage, managementOperations } from "./manage.js";
+import { manage } from "./manage.js";
 import {
   clearFailureState,
   failureState,
   policyOperation,
-  policyOperations,
   readPolicy,
   scheduleInterval,
 } from "./policy.js";
@@ -139,7 +143,7 @@ async function readCommittedGeneration(
  * @param p Payload carrying notebookId and targetId.
  * @returns The matching backup target.
  */
-function find(s: Storage, p: SqlRow) {
+function find(s: Storage, p: { notebookId: string; targetId?: string }) {
   const target = read(s).find(
     (t) => t.id === p.targetId && t.notebookId === p.notebookId,
   );
@@ -167,21 +171,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   if (policyOperations.includes(op)) return policyOperation(s, op, raw);
   const recovery = await recoveryOperation(s, op, raw, secret);
   if (recovery.handled) return recovery;
-  if (
-    ![
-      ...managementOperations,
-      "configureBackup",
-      "listBackupTargets",
-      "startBackup",
-      "queryPendingGeneration",
-      "listRemoteBackups",
-      "restoreRemoteBackup",
-      "testBackupConnection",
-      "commitBackupCursor",
-      "setBackupSchedule",
-    ].includes(op)
-  )
-    return { handled: false };
+  if (!backupOperations.includes(op)) return { handled: false };
 
   if (managementOperations.includes(op))
     return {

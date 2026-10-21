@@ -5,7 +5,7 @@ import {
   setCloudOpenExternal,
   startCloudBackupScheduler,
 } from "@anynote/backup-core";
-import { Storage } from "@anynote/storage-sqlite/index.js";
+import { Storage } from "@anynote/backend";
 import type { Credentials } from "@anynote/types/runtime.js";
 import type {
   EnvironmentReport,

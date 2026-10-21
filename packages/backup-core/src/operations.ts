@@ -1,3 +1,5 @@
+import { cloudBackupOperations } from "./operation-names.js";
+export { cloudBackupOperations } from "./operation-names.js";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { z } from "zod";
@@ -49,31 +51,6 @@ import {
 } from "./state.js";
 import { startCloudBackup, startCloudRestore } from "./tasks.js";
 import { prepareRestore, previewRestoreBudget } from "./restore-budget.js";
-
-/** Cloud backup core operations; one-to-one with the `Operation` union / `operations.json`. */
-export const cloudBackupOperations = [
-  "getCloudSettings",
-  "setCloudClientId",
-  "openCloudFolder",
-  "listCloudProviders",
-  "listCloudAccounts",
-  "beginCloudAuthorization",
-  "completeCloudAuthorization",
-  "cancelCloudAuthorization",
-  "disconnectCloudAccount",
-  "listCloudTargets",
-  "probeCloudTarget",
-  "configureCloudTarget",
-  "setCloudSchedule",
-  "removeCloudTarget",
-  "testCloudConnection",
-  "startCloudBackup",
-  "listCloudDevices",
-  "listCloudRestorePoints",
-  "previewCloudRestore",
-  "restoreCloudTargetBackup",
-  "deleteCloudBackup",
-] as const;
 
 const uuid = z.string().uuid(),
   providerIdSchema = z.enum(["google-drive", "dropbox", "onedrive"]);
@@ -192,7 +169,7 @@ function targetView(
  * Cloud backup core operation dispatch entry point (design §3.1).
  *
  * Like the existing `backupOperation`, returns `{handled, result}`, wired into `Storage.run` by
- * `packages/storage-sqlite/src/operations.ts`.
+ * `packages/backend/src/backup.ts`.
  * The core has no vendor branches: all concrete cloud behavior is delegated to the registered official extensions.
  *
  * @param s Storage。

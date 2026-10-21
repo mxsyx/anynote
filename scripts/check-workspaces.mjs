@@ -58,13 +58,8 @@ for (const [owner, manifest] of manifests) {
   graph.set(manifest.name, dependencies);
 }
 
-// G17 expands this boundary batch by batch; backup/storage cycles remain tracked there.
-for (const name of [
-  "@anynote/plugin-sdk",
-  "@anynote/extension-tools",
-  "@anynote/protocol",
-  "@anynote/types",
-]) {
+// Guard every workspace, including explicit TypeScript references and transitive edges.
+for (const name of graph.keys()) {
   const cycle = dependencyCycle(graph, name);
   if (cycle)
     errors.push(`G17 包依赖/TypeScript references 循环: ${cycle.join(" -> ")}`);
@@ -172,5 +167,5 @@ for (const owner of owners) {
 }
 if (errors.length) throw Error(errors.join("\n"));
 console.log(
-  `${owners.length - 1} workspaces: isolated 布局、包引用、直接依赖及 G17 SDK/tools 无循环边界检查通过 (${relative(root, root) || "root"})`,
+  `${owners.length - 1} workspaces: isolated 布局、包引用、直接依赖及 全仓无循环边界检查通过 (${relative(root, root) || "root"})`,
 );

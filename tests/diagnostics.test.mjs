@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { redact } from "../.build/packages/storage-sqlite/diagnostics.js";
 
 const png =

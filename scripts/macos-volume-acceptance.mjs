@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { captureLocalNotebook } from "../.build/packages/backup/local-capture.js";
 import {
   LocalBackupService,

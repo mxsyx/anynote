@@ -26,12 +26,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@anynote/backup": "workspace:*",
     "@anynote/extension-tools": "workspace:*",
     "@anynote/importer": "workspace:*",
     "@anynote/plugin-sdk": "workspace:*",
     "@anynote/protocol": "workspace:*",
-    "@anynote/backup-core": "workspace:*",
     "@anynote/types": "workspace:*",
     "fflate": "0.8.2",
     "yauzl": "3.4.0",

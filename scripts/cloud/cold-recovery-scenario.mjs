@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 
 export async function coldRecoveryScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cold-device-")),

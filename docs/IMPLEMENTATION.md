@@ -9,6 +9,7 @@
 ## 架构与新增模块
 
 - `apps/desktop/electron/`：安全窗口、IPC 允许列表、SQLite Utility Process、系统加密凭据代理；知识库服务与窗口生命周期分离。
+- `packages/backend/`：Electron、预览 API 与验收工具共用的服务装配入口；向基础 Storage 注入备份操作，保持快照串行与远端并发策略，包依赖全仓无循环，见 [ADR-012](adr/012-backup-service-composition.md)。
 - `packages/storage-sqlite/`：schema v4（SQLite 元数据与不可变附件文件）、事务、资源版本引用闭包、批注、反链、导入报告、扩展状态、归档与开放格式导出。
 - `packages/protocol/`：扩展块原文与位置、代码围栏保护、资源引用、YouTube 地址、HTML 编码识别及公共操作允许列表。
 - `packages/importer/`：独立 Worker Thread 执行 Readability、DOMPurify、Turndown 和受控下载；完成后排入单个知识事务。

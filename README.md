@@ -143,9 +143,9 @@ pnpm run package
 
 开发检查、提交钩子和 GitHub CI/CD 见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
-各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 用于在干净离线项目中校验声明的契约窗口。当前 SDK tarball 云盘模块遗漏导致独立消费失败，见 [G18 核对报告](docs/G18-documentation-review.md)；历史成功记录不代表当前发布链通过。
+各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 用于在干净离线项目中校验声明的契约窗口。SDK tarball 云盘模块闭包已由 G17 修复，独立消费证据见 [G17 交接](docs/todo/17-module-boundaries.md)；最终发行矩阵仍待验收。
 
-仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册；`googleapis` 懒加载，Dropbox/OneDrive 直连厂商 HTTP 端点、不引入厂商 SDK。
+仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、无循环检查与筛选构建说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册；`googleapis` 懒加载，Dropbox/OneDrive 直连厂商 HTTP 端点、不引入厂商 SDK。
 
 首方扩展的独立进程运行、Notebook 会话授权、命令惰性激活与故障回收见 [扩展宿主](./docs/EXTENSION-HOST.md)。使用 `pnpm run test:extension-host` 验证宿主及真实桌面流程。
 

@@ -7,7 +7,7 @@ const allowed = new Set(
     ),
   ),
 );
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { startBackupScheduler } from "../.build/packages/backup/scheduler.js";
 import {
   registerOfficialProviders,

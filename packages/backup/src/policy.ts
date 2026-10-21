@@ -437,13 +437,6 @@ function writePolicy(
   renameSync(p + ".tmp", p);
 }
 
-/** Operation names related to the unified retry/pause policy. */
-export const policyOperations = [
-  "getBackupPolicy",
-  "setBackupPolicy",
-  "reportBackupEnvironment",
-];
-
 /**
  * Handle policy read/update and host environment reporting.
  *

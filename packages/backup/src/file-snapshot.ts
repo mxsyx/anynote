@@ -1,3 +1,8 @@
+import {
+  snapshotMetadata,
+  snapshotSequence,
+  databaseBytes,
+} from "./snapshot-metadata.js";
 import type { AssetDescriptor } from "@anynote/protocol/assets.js";
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
 import {
@@ -77,17 +82,11 @@ export async function createFileSnapshot(
 ): Promise<FileSnapshot> {
   const db = s.open(notebookId);
   const file = join(dir, "notebook.sqlite");
-  diskBudget(
-    dir,
-    db.prepare("PRAGMA page_count").get()!.page_count *
-      db.prepare("PRAGMA page_size").get()!.page_size *
-      3 +
-      transferChunkBytes,
-  );
+  diskBudget(dir, databaseBytes(db) * 3 + transferChunkBytes);
   const assets = await snapshotDatabase(db, file);
   const snapshot = new DatabaseSync(file, { readOnly: true });
   try {
-    const meta = snapshot.prepare("SELECT * FROM notebook_meta").get()!;
+    const meta = snapshotMetadata(snapshot, notebookId);
     assertAssetClosure(snapshot, assets);
     const database = {
       path: "notebook.sqlite",
@@ -103,7 +102,7 @@ export async function createFileSnapshot(
       notebookName: meta.name,
       generationId: "",
       createdAt: new Date().toISOString(),
-      snapshotSeq: meta.content_seq,
+      snapshotSeq: snapshotSequence(meta),
       database,
       assets,
       includesHistory: true,

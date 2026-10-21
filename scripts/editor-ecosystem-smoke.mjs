@@ -7,7 +7,7 @@ import { installableManifestSchema } from "../.build/packages/storage-sqlite/ext
 import { generateKeyPairSync } from "node:crypto";
 import { signExtensionPackage } from "../.build/packages/storage-sqlite/extension-signature.js";
 import { launchDesktop } from "./acceptance/electron-driver.mjs";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import {
   mkdtempSync,
   rmSync,

@@ -1,3 +1,4 @@
+import { localOperations } from "./operation-names.js";
 import { rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import {
@@ -226,22 +227,6 @@ function errorCode(error: any) {
   if (/源.*缺失|源.*不存在/.test(error.message)) return "SOURCE_ASSET_MISSING";
   return "BACKUP_FAILED";
 }
-
-/** Operation names related to local backup. */
-export const localOperations = [
-  "configureLocalBackup",
-  "setLocalBackupScope",
-  "startLocalBackupGroup",
-  "previewLocalBackup",
-  "getLocalBackupInfo",
-  "listLocalBackupTargets",
-  "setLocalBackupSchedule",
-  "startLocalBackup",
-  "verifyLocalBackup",
-  "restoreLocalBackup",
-  "removeLocalBackupTarget",
-  "deleteLocalNotebookBackup",
-];
 
 /**
  * Single entry point for local backup operations.

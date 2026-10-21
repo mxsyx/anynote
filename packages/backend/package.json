@@ -1,0 +1,31 @@
+{
+  "name": "@anynote/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-workspace.mjs packages/backend",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anynote/backup": "workspace:*",
+    "@anynote/backup-core": "workspace:*",
+    "@anynote/storage-sqlite": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

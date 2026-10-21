@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { prepareImport } from "../.build/packages/importer/html.js";
 import { ImportResources } from "../.build/packages/importer/resources.js";
 import { loadMedia } from "../.build/packages/importer/media.js";

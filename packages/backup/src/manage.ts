@@ -9,15 +9,6 @@ import { CloudflareClient } from "./providers.js";
 
 const uuid = z.string().uuid();
 
-/** Operation names related to remote maintenance. */
-export const managementOperations = [
-  "remoteWriter",
-  "takeoverRemoteWriter",
-  "previewRemoteRetention",
-  "applyRemoteRetention",
-  "remoteRetentionState",
-];
-
 /**
  * Handle remote maintenance operations: device takeover, retention preview, and cleanup.
  *

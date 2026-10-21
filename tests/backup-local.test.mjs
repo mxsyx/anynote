@@ -22,7 +22,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { captureLocalNotebook } from "../.build/packages/backup/local-capture.js";
 import {
   LocalBackupService,

@@ -277,14 +277,11 @@ export async function retryTask(s: Storage, raw: unknown) {
     payload = payloads[retry.op as keyof typeof payloads].parse(retry.payload);
   // Dispatched directly instead of through `s.run`: the retry itself may be
   // served from inside the serial queue, where enqueuing again would wait on it.
-  if (retry.op === "retryImportMedia") {
-    const { advancedOperations } = await import("./operations.js");
-    const handled = await advancedOperations(s, retry.op, payload);
-    if (!handled.handled) throw Error("此任务不支持重试，请重新发起");
-    return handled.result;
-  }
-  const { backupOperation } = await import("@anynote/backup/service.js");
-  const handled = await backupOperation(s, retry.op, payload);
-  if (!handled) throw Error("此任务不支持重试，请重新发起");
-  return handled.result;
+  const { advancedOperations } = await import("./operations.js");
+  const handled = await advancedOperations(s, retry.op, payload);
+  if (!handled.handled) throw Error("此任务不支持重试，请重新发起");
+  return z
+    .object({ id: uuid, status: schema.element.shape.status.optional() })
+    .strict()
+    .parse(handled.result);
 }

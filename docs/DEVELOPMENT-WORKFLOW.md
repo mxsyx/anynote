@@ -24,9 +24,11 @@ pnpm run workspace:check
 
 共享包与官方扩展以 `pnpm -r list --depth -1` 和各包清单为准，不在此复制易漂移的包数量。首方进程生命周期和授权代理见 [EXTENSION-HOST.md](EXTENSION-HOST.md)。
 
-现有 backup/storage 与 extension-tools/plugin-sdk 的循环依赖仍明确记录，pnpm 会提示。整仓后端使用统一 TypeScript 编译处理这些循环，再把产物放到各包 `dist/`；`.build` 为已有测试与 Electron 入口保留镜像，共享包镜像指向同一产物，避免加载两份模块。按包构建会编译其源依赖闭包。构建会写共享输出，使用根 `pnpm run build` 编排，不并行运行多个构建命令；尚未改造为无循环的 TypeScript project references 图。
+G17 已拆解扩展与备份两组包循环，`workspace:check` 检查所有 workspace 的依赖和显式 TypeScript references。Electron、预览 API 和备份验收工具从 `@anynote/backend` 创建完整 Storage；基础 `@anynote/storage-sqlite` 不依赖备份包，可独立使用。服务装配与队列约束见 [ADR-012](adr/012-backup-service-composition.md)。
 
-桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；当前 SDK 独立消费失败，见 [G18 核对报告](G18-documentation-review.md)，发布前必须修复并重验。
+整仓后端继续使用统一 TypeScript 编译，再把产物放到各包 `dist/`；`.build` 为测试与 Electron 入口保留镜像，共享包镜像指向同一产物，避免加载两份模块。按包构建编译 `apps/*`、`packages/*`、`extensions/*` 中的源依赖闭包。构建会写共享输出，使用根 `pnpm run build` 编排，不并行运行多个构建命令；没有另建 composite/project references 编译流水线。
+
+桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；SDK 云盘产物闭包已由 G17 首批修复，独立消费证据与当前限制见 [G17 交接](todo/17-module-boundaries.md)；最终发行矩阵仍需 G05 验收。
 
 各发布单元的独立版本、兼容窗口、许可证与变更日志集中在 [公共包发布矩阵](RELEASE-MATRIX.md) 与 `packages/protocol/src/release.ts`；`pnpm run build:release` 生成 `artifacts/release/` 与发布清单，`pnpm run test:release:matrix` 校验兼容窗口与旧消费者。
 

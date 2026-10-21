@@ -391,6 +391,9 @@ importers:
       tailwind-merge:
         specifier: 3.7.0
         version: 3.7.0
+      "@anynote/backend":
+        specifier: workspace:*
+        version: link:../../packages/backend
     devDependencies:
       "@types/node":
         specifier: 24.19.0
@@ -472,6 +475,25 @@ importers:
       "@anynote/types":
         specifier: workspace:*
         version: link:../../packages/types
+    devDependencies:
+      "@types/node":
+        specifier: 24.19.0
+        version: 24.19.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/backend:
+    dependencies:
+      "@anynote/backup":
+        specifier: workspace:*
+        version: link:../backup
+      "@anynote/backup-core":
+        specifier: workspace:*
+        version: link:../backup-core
+      "@anynote/storage-sqlite":
+        specifier: workspace:*
+        version: link:../storage-sqlite
     devDependencies:
       "@types/node":
         specifier: 24.19.0
@@ -736,12 +758,6 @@ importers:
 
   packages/storage-sqlite:
     dependencies:
-      "@anynote/backup":
-        specifier: workspace:*
-        version: link:../backup
-      "@anynote/backup-core":
-        specifier: workspace:*
-        version: link:../backup-core
       "@anynote/extension-tools":
         specifier: workspace:*
         version: link:../extension-tools

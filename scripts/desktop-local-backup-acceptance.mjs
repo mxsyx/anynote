@@ -17,7 +17,7 @@ import { join, resolve } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { inspectFilesystem } from "../.build/packages/backup-local/index.js";
 const args = process.argv.slice(2);
 if (args.includes("--scale")) {

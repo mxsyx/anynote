@@ -1,3 +1,4 @@
+import { recoveryOperations } from "./operation-names.js";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -22,14 +23,6 @@ const uuid = z.string().uuid(),
 type Connection = Omit<z.infer<typeof connectionSchema>, "token"> & {
   id: string;
 };
-
-/** Operation names related to cloud recovery on a brand-new device. */
-export const recoveryOperations = [
-  "configureCloudRecovery",
-  "listCloudRecoveryConnections",
-  "discoverCloudBackups",
-  "restoreCloudBackup",
-];
 
 /**
  * Managed path of the recovery connections config file.

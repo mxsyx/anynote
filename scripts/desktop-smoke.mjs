@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { DatabaseSync } from "node:sqlite";
 const root = mkdtempSync(join(tmpdir(), "anynote-desktop-"));
 let electron;

@@ -1,3 +1,4 @@
+import type { OperationResult } from "./services.js";
 import { putAsset, putAssetFile } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -665,89 +666,14 @@ export async function advancedOperations(
   s: Storage,
   op: string,
   raw: unknown,
-): Promise<{ handled: boolean; result?: any }> {
+): Promise<OperationResult> {
   if (op === "transferNode") {
     const { transferNode } = await import("./transfer.js");
     return { handled: true, result: transferNode(s, raw) };
   }
 
-  if (
-    [
-      "remoteWriter",
-      "takeoverRemoteWriter",
-      "previewRemoteRetention",
-      "applyRemoteRetention",
-      "remoteRetentionState",
-      "configureCloudRecovery",
-      "listCloudRecoveryConnections",
-      "discoverCloudBackups",
-      "restoreCloudBackup",
-      "previewLocalBackup",
-      "getLocalBackupInfo",
-      "setLocalBackupScope",
-      "startLocalBackupGroup",
-      "configureLocalBackup",
-      "listLocalBackupTargets",
-      "setLocalBackupSchedule",
-      "startLocalBackup",
-      "verifyLocalBackup",
-      "restoreLocalBackup",
-      "removeLocalBackupTarget",
-      "deleteLocalNotebookBackup",
-      "configureBackup",
-      "listBackupTargets",
-      "startBackup",
-      "queryPendingGeneration",
-      "listRemoteBackups",
-      "restoreRemoteBackup",
-      "testBackupConnection",
-      "commitBackupCursor",
-      "setBackupSchedule",
-      "getBackupPolicy",
-      "setBackupPolicy",
-      "reportBackupEnvironment",
-    ].includes(op)
-  ) {
-    const { backupOperation } = await import("@anynote/backup/service.js");
-    return backupOperation(s, op, raw);
-  }
-
-  // Cloud backup (design §3.1): a third backup target family alongside Cloudflare and local targets.
-  if (
-    [
-      "getCloudSettings",
-      "setCloudClientId",
-      "openCloudFolder",
-      "listCloudProviders",
-      "listCloudAccounts",
-      "beginCloudAuthorization",
-      "completeCloudAuthorization",
-      "cancelCloudAuthorization",
-      "disconnectCloudAccount",
-      "listCloudTargets",
-      "probeCloudTarget",
-      "configureCloudTarget",
-      "setCloudSchedule",
-      "removeCloudTarget",
-      "testCloudConnection",
-      "startCloudBackup",
-      "listCloudDevices",
-      "listCloudRestorePoints",
-      "previewCloudRestore",
-      "restoreCloudTargetBackup",
-      "deleteCloudBackup",
-    ].includes(op)
-  ) {
-    const { cloudBackupOperation } = await import(
-      "@anynote/backup-core/operations.js"
-    );
-    // Official extensions ship with the app build; registered lazily before the first cloud operation, idempotent and without affecting startup.
-    const { registerOfficialProviders } = await import(
-      "@anynote/backup-core/official.js"
-    );
-    await registerOfficialProviders();
-    return cloudBackupOperation(s, op, raw);
-  }
+  const service = await s.serviceOperation(op, raw);
+  if (service.handled) return service;
 
   if (["previewCleanup", "applyCleanup"].includes(op)) {
     const { cleanupOperation } = await import("./cleanup.js");
@@ -1085,6 +1011,7 @@ export async function advancedOperations(
       notebookId: p.notebookId,
       parentId: p.parentId,
     });
+    if (!committed.handled) throw Error("导入操作未处理");
     discardImportPreview(s, p.previewId);
     return { handled: true, result: committed.result };
   }

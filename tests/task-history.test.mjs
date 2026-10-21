@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
 async function setup(t) {

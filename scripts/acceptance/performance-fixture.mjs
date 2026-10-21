@@ -1,6 +1,6 @@
 import { deflateSync, crc32 } from "node:zlib";
 import { putAssetFile } from "../../.build/packages/storage-sqlite/assets.js";
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 import { randomUUID } from "node:crypto";
 import {
   openSync,

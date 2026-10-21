@@ -12,7 +12,7 @@ import { join, resolve, dirname, basename } from "node:path";
 import { tmpdir, cpus, totalmem } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 import { _electron } from "playwright";
-import { Storage } from "../../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../../.build/packages/backend/index.js";
 import { assetPath } from "../../.build/packages/protocol/assets.js";
 import { openNotebook } from "./open-notebook.mjs";
 

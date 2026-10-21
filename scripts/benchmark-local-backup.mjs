@@ -23,7 +23,7 @@ import { tmpdir, cpus, totalmem } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import assert from "node:assert/strict";
-import { Storage } from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/backend/index.js";
 import { captureLocalNotebook } from "../.build/packages/backup/local-capture.js";
 import {
   LocalBackupService,
