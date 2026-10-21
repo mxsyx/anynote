@@ -1,3 +1,4 @@
+import { Button } from "./components/ui/button";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import { prepareImage } from "./imagePreview";
@@ -25,6 +26,7 @@ export default function ResourceImage({
   width?: number;
   title?: string;
 }) {
+  const [attempt, setAttempt] = useState(0);
   const [url, setUrl] = useState(""),
     [error, setError] = useState("");
   useEffect(() => {
@@ -55,10 +57,27 @@ export default function ResourceImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [notebookId, noteId, resourceId, revisionId, width]);
+  }, [notebookId, noteId, resourceId, revisionId, width, attempt]);
   if (error)
-    return <span className="missing-image">资源无法读取：{error}</span>;
-  if (!url) return <span className="missing-image">正在读取本地图片…</span>;
+    return (
+      <span className="missing-image" role="alert">
+        <span>资源无法读取：{error}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setAttempt((value) => value + 1)}
+          aria-label={`重新读取图片：${alt || "本地图片"}`}
+        >
+          重新读取
+        </Button>
+      </span>
+    );
+  if (!url)
+    return (
+      <span className="missing-image" role="status" aria-busy="true">
+        正在读取本地图片…
+      </span>
+    );
   return (
     <img
       className="inline-resource"

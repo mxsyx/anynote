@@ -153,11 +153,24 @@ try {
   await expect.poll(async () => (await read()).body).toContain("core.video");
   await expect.poll(async () => (await read()).body).not.toContain("/video");
 
-  const chooser = page.waitForEvent("filechooser");
+  // Native menu dispatch has no browser user activation. Observe its file-input
+  // click, then supply the fixture without opening an OS dialog in automation.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("正在处理…", { exact: true })).toHaveCount(0);
+  const imageInput = page.locator('input[accept=".png,.jpg,.jpeg,.webp,.svg"]');
+  await imageInput.evaluate((input) => {
+    input.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        input.dataset.requested = "true";
+      },
+      { once: true },
+    );
+  });
   await appMenu(page, "insert.image", app);
-  await (
-    await chooser
-  ).setFiles({
+  await expect(imageInput).toHaveAttribute("data-requested", "true");
+  await imageInput.setInputFiles({
     name: "menu.png",
     mimeType: "image/png",
     buffer: Buffer.from(

@@ -1,3 +1,4 @@
+import { ViewState } from "./components/ui/view-state";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import ExtensionCleanupPanel from "./ExtensionCleanupPanel";
@@ -55,6 +56,9 @@ export default function ExtensionPage({
   onCreated: (note: NoteNode) => Promise<void>;
 }) {
   const generation = useRef(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [cleanupEpoch, setCleanupEpoch] = useState<Record<string, number>>({});
   const [dataEpoch, setDataEpoch] = useState<Record<string, number>>({});
   const [downloading, setDownloading] = useState(false);
@@ -85,15 +89,32 @@ export default function ExtensionPage({
     extensionsChanged();
   };
   useEffect(() => {
+    let active = true;
     generation.current++;
     setCandidate(null);
-    request<typeof publishers>("listPublishers")
-      .then(setPublishers)
-      .catch((e) => setError(e.message));
-    request<InstalledExtension[]>("listExtensions", { notebookId })
-      .then(setInstalled)
-      .catch((e) => setError(e.message));
-  }, [notebookId]);
+    setInstalled([]);
+    setPublishers([]);
+    setLoading(true);
+    setLoadError("");
+    Promise.all([
+      request<typeof publishers>("listPublishers"),
+      request<InstalledExtension[]>("listExtensions", { notebookId }),
+    ])
+      .then(([publishers, installed]) => {
+        if (!active) return;
+        setPublishers(publishers);
+        setInstalled(installed);
+      })
+      .catch((e) => {
+        if (active) setLoadError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [notebookId, loadAttempt]);
 
   /**
    * Run an extension action uniformly; refresh the list when done.
@@ -597,7 +618,9 @@ export default function ExtensionPage({
           </Button>
         </div>
       ))}
-      {!publishers.length && <p>尚未信任任何签名发布者。</p>}
+      {!loading && !loadError && !publishers.length && (
+        <p>尚未信任任何签名发布者。</p>
+      )}
       <h2>已安装的扩展</h2>
       {installed.map((e) => (
         <article
@@ -757,7 +780,30 @@ export default function ExtensionPage({
           setCleanupEpoch((old) => ({ ...old, [id]: (old[id] ?? 0) + 1 }))
         }
       />
-      {!installed.length && <p>尚未安装外部扩展。</p>}
+      {loading ? (
+        <ViewState kind="loading" title="正在读取扩展…" />
+      ) : loadError ? (
+        <ViewState
+          kind="error"
+          title="扩展列表未能读取"
+          action={
+            <Button
+              variant="outline"
+              onClick={() => setLoadAttempt((value) => value + 1)}
+            >
+              重新读取扩展
+            </Button>
+          }
+        >
+          {loadError}
+        </ViewState>
+      ) : (
+        !installed.length && (
+          <ViewState title="尚未安装外部扩展">
+            可以先使用上方的首方扩展，或查看扩展目录。
+          </ViewState>
+        )
+      )}
       <div className="feature-card">
         <div className="feature-icon">
           <Sparkles />

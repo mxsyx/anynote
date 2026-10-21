@@ -16,10 +16,11 @@
   --color-muted-foreground: var(--muted);
   --color-accent: var(--hover);
   --color-accent-foreground: var(--text);
-  --color-destructive: #a23d30;
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--danger-ink);
   --color-border: var(--border);
   --color-input: var(--border);
-  --color-ring: var(--accent);
+  --color-ring: var(--focus);
   --radius-sm: var(--radius-control);
   --radius-md: var(--radius-control);
   --radius-lg: var(--radius-card);
@@ -27,14 +28,10 @@
 }
 
 :root {
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "PingFang SC",
-    "Microsoft YaHei",
-    sans-serif;
+  font-family: var(--font-ui);
+  --font-ui:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -42,6 +39,18 @@
   --font-book:
     "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC",
     Georgia, serif;
+  --font-code: "SFMono-Regular", Consolas, "Microsoft YaHei", monospace;
+  --focus: #496c59;
+  --danger: #a23d30;
+  --danger-ink: #ffffff;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --text-ui: 13px;
+  --text-caption: 12px;
+  --text-body: 16px;
   --highlight: var(--accent);
   --highlight-hover: #729381;
   --highlight-ink: var(--accent-ink);
@@ -74,6 +83,9 @@
 /* VS Code Dark Modern: https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json */
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --focus: #4daafc;
+  --danger: #f48771;
+  --danger-ink: #1f1f1f;
   --highlight-hover: #026ec1;
   --paper-edge: #454545;
   --paper-shadow: 0 4px 10px #0008, 0 16px 32px #0008;
@@ -101,6 +113,7 @@
   }
   button,
   input,
+  textarea,
   select {
     font: inherit;
   }
@@ -129,7 +142,7 @@
   input:focus-visible,
   select:focus-visible,
   a:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus);
     outline-offset: 3px;
   }
   input,
@@ -729,7 +742,7 @@
   margin: 31px 0;
 }
 .markdown-body code {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-code);
   background: var(--code);
   border: 1px solid var(--border);
   padding: 2px 5px;
@@ -812,7 +825,7 @@
   min-height: 240px;
 }
 .source-editor .cm-scroller {
-  font-family: "SFMono-Regular", Consolas, "Microsoft YaHei", monospace;
+  font-family: var(--font-code);
 }
 .source-editor .cm-gutters {
   background: var(--bg);
@@ -1238,9 +1251,9 @@
   max-width: 90vw;
 }
 .error-banner {
-  background: #b9424210;
-  color: #b94242;
-  border-bottom: 1px solid #b9424220;
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  color: var(--danger);
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 15%, transparent);
   font-size: 12px;
   line-height: 1.7;
   padding: 11px 24px;
@@ -1826,7 +1839,7 @@
   accent-color: var(--accent);
 }
 .form-error {
-  color: #b94242;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.8;
   margin: 15px 0;
@@ -2488,7 +2501,7 @@
 textarea:focus-visible,
 summary:focus-visible,
 pre:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 .large-document-notice {
@@ -2506,7 +2519,7 @@ pre:focus-visible {
 
 .pdf-scroll:focus-visible,
 .cm-scroller:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -2914,7 +2927,7 @@ pre:focus-visible {
   margin: 16px 0;
 }
 .document-preserved.ProseMirror-selectednode {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   border-radius: var(--radius-control);
 }
 .document-insert-menu {
@@ -3999,4 +4012,78 @@ pre:focus-visible {
 }
 .annotation-card.search-hit {
   border: 2px solid #bc7432;
+}
+
+/* Shared page states inherit the same paper, type and focus tokens as the workspace. */
+.view-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-6) auto;
+  padding: var(--space-6);
+  width: min(100%, 520px);
+  min-width: 0;
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+  text-align: center;
+  overflow-wrap: anywhere;
+  font-size: var(--text-ui);
+  line-height: 1.6;
+}
+.view-state > svg {
+  color: var(--secondary);
+}
+.view-state > strong {
+  font-size: var(--text-body);
+  font-family: var(--font-book);
+}
+.view-state > p {
+  margin: 0;
+  color: var(--secondary);
+}
+.view-state[data-kind="error"] > svg {
+  color: var(--danger);
+}
+.view-state[data-kind="loading"] > svg {
+  animation: state-turn 1.2s linear infinite;
+}
+.view-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+@keyframes state-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view-state[data-kind="loading"] > svg {
+    animation: none;
+  }
+}
+.recent-notebooks strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.error-banner > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.extension-commands button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the keyboard ring inside clipped/virtualized directory rows. */
+.tree-main:focus-visible {
+  outline-offset: -2px;
+}
+
+.missing-image > button {
+  margin-left: var(--space-3);
 }

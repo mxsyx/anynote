@@ -88,7 +88,9 @@
     "test:macos:volume": "node scripts/macos-volume-acceptance.mjs",
     "pretest:macos:volume": "pnpm run build:backend",
     "benchmark:local-backup": "pnpm run build:backend && node scripts/benchmark-local-backup.mjs",
-    "test:document": "pnpm run build && node scripts/document-editor-smoke.mjs"
+    "test:document": "pnpm run build && node scripts/document-editor-smoke.mjs",
+    "pretest:ui": "pnpm run build",
+    "test:visual": "node scripts/visual-ui-smoke.mjs"
   },
   "devDependencies": {
     "@anynote/extension-host": "workspace:*",

@@ -1,3 +1,4 @@
+import { ViewState } from "./components/ui/view-state";
 import { loadWhiteboard } from "./whiteboard-assets";
 import { observeBackupEnvironment } from "./backup-environment";
 import {
@@ -97,11 +98,7 @@ const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(loadWhiteboard);
 const PdfReader = lazy(() => import("./PdfReader"));
 const ImageReader = lazy(() => import("./ImageReader"));
-const featureFallback = (
-  <p className="muted" role="status">
-    正在加载…
-  </p>
-);
+const featureFallback = <ViewState kind="loading" title="正在加载…" />;
 
 /** Main workspace view. */
 type View =
@@ -155,6 +152,11 @@ const icon = (n: NoteNode, size = 16) =>
   );
 /** App root component: Notebook/note navigation, editing, search, backup, and extension entry points. */
 function App() {
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryError, setLibraryError] = useState("");
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
+  const [searchError, setSearchError] = useState("");
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [importOpen, setImportOpen] = useState(false),
     [tasksOpen, setTasksOpen] = useState(false),
     [board, setBoard] = useState<BoardBlock | null>(null),
@@ -750,6 +752,8 @@ function App() {
   };
   useEffect(() => {
     let cancelled = false;
+    setLibraryLoading(true);
+    setLibraryError("");
     (async () => {
       try {
         let list = await request<Notebook[]>("listNotebooks");
@@ -774,19 +778,23 @@ function App() {
           }).catch(() => {});
         } else if (list[0]) setRecovery(list[0]);
       } catch (e) {
-        report(e);
+        if (!cancelled)
+          setLibraryError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLibraryLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [libraryAttempt]);
   useEffect(() => {
     if (!searchOpen || !book) return;
     let cancelled = false,
       requestId: string | undefined;
     setResults([]);
     setSearchInfo(null);
+    setSearchError("");
     setSearching(true);
     const timer = setTimeout(async () => {
       requestId = crypto.randomUUID();
@@ -815,7 +823,8 @@ function App() {
           setSearchIndex(0);
         }
       } catch (e) {
-        if (!cancelled) report(e);
+        if (!cancelled)
+          setSearchError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -836,6 +845,7 @@ function App() {
     searchTag,
     searchFolder,
     searchAge,
+    searchAttempt,
   ]);
   useEffect(() => {
     if (panel !== "history" || !active || !book) return;
@@ -2200,7 +2210,10 @@ function App() {
             {shelf ? (
               <Bookshelf
                 books={books}
-                busy={busy}
+                busy={busy || libraryLoading}
+                loading={libraryLoading}
+                error={libraryError}
+                onRetry={() => setLibraryAttempt((value) => value + 1)}
                 dark={dark}
                 onTheme={() => setAppearance(toggleAppearance)}
                 onCreate={() => showModal("notebook")}
@@ -2302,13 +2315,13 @@ function App() {
                   </div>
                 ))}
                 {!list.length && (
-                  <div className="empty">
-                    <Leaf size={36} />
-                    <h2>
-                      {view === "trash" ? "这里干干净净" : "这里，等待新的想法"}
-                    </h2>
-                    <p>从左侧打开一篇笔记，或记录新的灵感。</p>
-                  </div>
+                  <ViewState
+                    title={
+                      view === "trash" ? "这里干干净净" : "这里，等待新的想法"
+                    }
+                  >
+                    从左侧打开一篇笔记，或记录新的灵感。
+                  </ViewState>
                 )}
               </div>
             ) : view === "backup" ? (
@@ -2741,7 +2754,11 @@ function App() {
                   )}
                   <div className="doc-divider" />
                   {active.note_type === "markdown" ? (
-                    <Suspense fallback={<p className="muted">正在打开文档…</p>}>
+                    <Suspense
+                      fallback={
+                        <ViewState kind="loading" title="正在打开文档…" />
+                      }
+                    >
                       <DocumentEditor
                         key={book!.id + active.id}
                         notebookId={book!.id}
@@ -2793,7 +2810,10 @@ function App() {
                     active.note_type === "image" ? (
                       <Suspense
                         fallback={
-                          <div className="empty">正在加载图片阅读器…</div>
+                          <ViewState
+                            kind="loading"
+                            title="正在加载图片阅读器…"
+                          />
                         }
                       >
                         <ImageReader
@@ -2836,7 +2856,7 @@ function App() {
                         </div>
                         <Suspense
                           fallback={
-                            <div className="empty">正在加载阅读器…</div>
+                            <ViewState kind="loading" title="正在加载阅读器…" />
                           }
                         >
                           <PdfReader
@@ -3271,11 +3291,27 @@ function App() {
                   <ArrowUpRight size={15} />
                 </Button>
               ))}
-              {!searching && !results.length && (
-                <div className="empty">
-                  <Search size={28} />
-                  <p>没有找到这个想法。换一个关键词试试。</p>
-                </div>
+              {searching && <ViewState kind="loading" title="正在搜索…" />}
+              {searchError && (
+                <ViewState
+                  kind="error"
+                  title="搜索未完成"
+                  action={
+                    <Button
+                      variant="outline"
+                      onClick={() => setSearchAttempt((value) => value + 1)}
+                    >
+                      重试搜索
+                    </Button>
+                  }
+                >
+                  {searchError}
+                </ViewState>
+              )}
+              {!searching && !searchError && !results.length && (
+                <ViewState title="没有找到这个想法">
+                  换一个关键词或缩小筛选范围试试。
+                </ViewState>
               )}
             </div>
             <Suspense fallback={null}>

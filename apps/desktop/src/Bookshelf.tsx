@@ -1,3 +1,4 @@
+import { ViewState } from "./components/ui/view-state";
 import { useEffect, useState, type CSSProperties } from "react";
 import { request } from "./api";
 import type { Snapshot } from "@anynote/types";
@@ -9,6 +10,9 @@ type Props = {
   books: Notebook[];
   busy: boolean;
   dark: boolean;
+  loading: boolean;
+  error: string;
+  onRetry: () => void;
   onOpen: (book: Notebook) => void;
   onCreate: () => void;
   onImport: () => void;
@@ -41,6 +45,9 @@ export default function Bookshelf({
   books,
   busy,
   dark,
+  loading,
+  error,
+  onRetry,
   onOpen,
   onCreate,
   onImport,
@@ -111,43 +118,72 @@ export default function Bookshelf({
           </Button>
         </div>
       </header>
-      <div className="book-grid" aria-label="所有 Notebook">
-        {books.map((book, index) => (
-          <button
-            key={book.id}
-            className="book-volume"
-            style={
-              {
-                ...binding(book.id),
-                ...(book.cover_color ? { "--binding": book.cover_color } : {}),
-              } as CSSProperties
-            }
-            title={`${book.name}${book.unavailable ? " · 目录不可用，点击恢复" : book.external ? " · 外部藏书" : ""}`}
-            disabled={busy}
-            onClick={() => onOpen(book)}
-            aria-label={`${book.unavailable ? "恢复" : "打开"} Notebook：${book.name}`}
-          >
-            <span className="spine-cap" aria-hidden="true" />
-            <span className="spine-edition" aria-hidden="true">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <span className="spine-title">{book.name}</span>
-            <span className="spine-ornament" aria-hidden="true">
-              {book.icon || "❦"}
-            </span>
-            <span className="spine-footer">
-              {book.unavailable ? "待恢复" : book.external ? "外部" : "ANYNOTE"}
-            </span>
-            <span className="spine-cap" aria-hidden="true" />
+      {loading ? (
+        <ViewState kind="loading" title="正在整理书橱…">
+          正在读取 Notebook 与目录。
+        </ViewState>
+      ) : error ? (
+        <ViewState
+          kind="error"
+          title="书橱暂时无法打开"
+          action={
+            <Button variant="outline" onClick={onRetry}>
+              重新读取书橱
+            </Button>
+          }
+        >
+          {error}
+        </ViewState>
+      ) : !books.length ? (
+        <ViewState title="书橱里还没有藏书">
+          创建一本 Notebook，或导入已有藏书。
+        </ViewState>
+      ) : null}
+      {!loading && !error && (
+        <div className="book-grid" aria-label="所有 Notebook">
+          {books.map((book, index) => (
+            <button
+              key={book.id}
+              className="book-volume"
+              style={
+                {
+                  ...binding(book.id),
+                  ...(book.cover_color
+                    ? { "--binding": book.cover_color }
+                    : {}),
+                } as CSSProperties
+              }
+              title={`${book.name}${book.unavailable ? " · 目录不可用，点击恢复" : book.external ? " · 外部藏书" : ""}`}
+              disabled={busy}
+              onClick={() => onOpen(book)}
+              aria-label={`${book.unavailable ? "恢复" : "打开"} Notebook：${book.name}`}
+            >
+              <span className="spine-cap" aria-hidden="true" />
+              <span className="spine-edition" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="spine-title">{book.name}</span>
+              <span className="spine-ornament" aria-hidden="true">
+                {book.icon || "❦"}
+              </span>
+              <span className="spine-footer">
+                {book.unavailable
+                  ? "待恢复"
+                  : book.external
+                    ? "外部"
+                    : "ANYNOTE"}
+              </span>
+              <span className="spine-cap" aria-hidden="true" />
+            </button>
+          ))}
+          <button className="book-new" onClick={onCreate} disabled={busy}>
+            <Plus size={28} strokeWidth={1} />
+            <span>新的一本</span>
+            <small>待续</small>
           </button>
-        ))}
-        <button className="book-new" onClick={onCreate} disabled={busy}>
-          <Plus size={28} strokeWidth={1} />
-          <span>新的一本</span>
-          <small>待续</small>
-        </button>
-      </div>
-      {!!recent.length && (
+        </div>
+      )}
+      {!loading && !error && !!recent.length && (
         <section className="recent-notebooks" aria-label="最近 Notebook">
           <h2>最近翻阅</h2>
           {recent.map((book) => (
