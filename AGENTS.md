@@ -1,33 +1,41 @@
-## 基本原则
+## Core Principles
 
-- 保持简单、简洁、清晰、明确
-- 避免重复代码, 对重复的代码进行抽象设计, 使其可被共享
-- 不要简单的堆砌代码, 应做抽象设计, 保持代码的可维护性和可扩展性
-- 完成目标时不要仅做表面上的工作, 关联的逻辑、测试、文档也应一并修改，移除时询问关联的内容是否也应一并移除
+- Keep things simple, concise, clear, and unambiguous.
+- Avoid code duplication. Abstract repeated logic to enable code reuse.
+- Avoid simply piling up code. Use appropriate abstractions to maintain code maintainability and extensibility.
+- When implementing changes, do not make only superficial modifications. Update related logic, tests, and documentation accordingly. When removing something, ask whether related content should also be removed.
 
-## 风格规范
+## Code Style
 
-- 符号命名应结合上下文在保证语义清晰的基础上尽可能的简洁
-- 代码块之间应至少空一行
-- 注释应与上方代码之间空一行
-- 存储 key 的命名格式为 a.b.c
+- Keep symbol names as concise as possible while preserving semantic clarity within their context.
+- Leave at least one blank line between code blocks.
+- Leave at least one blank line between comments and the code above them.
+- Use the `a.b.c` naming convention for storage keys.
 
-## UI 设计
+## UI Design
 
-- 采用拟物化设计
-- 看起来像原生应用而非网页
+- Use skeuomorphic design.
+- Make the UI look like a native application rather than a website.
 
-## 测试
+## Testing
 
-- 补充必要的单元测试、集成测试
+- Add necessary unit tests, integration tests, browser automation tests, and performance tests.
 
-## 注释
+## Comments
 
-- 对不容易理解的地方加详细的注释
-- 不要删除原有代码注释
-- 使用英文注释
+- Add detailed comments to code that is difficult to understand.
+- Do not add comments for self-explanatory code.
 
-## 历史兼容
+## Component Usage
 
-- 这是一个仍在开发中的项目, 你不需要考虑历史数据/逻辑的兼容性
-- 不需要为移除的内容添加测试
+- Reuse existing component libraries whenever possible.
+
+## Performance
+
+- Performance is a top priority for this project. Always use the most efficient implementation that satisfies the functional requirements.
+- Always create modal and dialog components dynamically rather than injecting them statically.
+
+## Backward Compatibility
+
+- This project is still under development, so backward compatibility with historical data and legacy logic is not required.
+- Do not add tests for removed functionality.
