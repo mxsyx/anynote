@@ -31,7 +31,7 @@ export type ReleaseUnitId =
 export type FormatId =
   | "notebook-schema"
   | "notebook-archive"
-  | "logical-protocol"
+  | "sqlite-backup"
   | "local-backup"
   | "cloud-backup-head"
   | "cloud-backup-manifest"
@@ -146,7 +146,7 @@ const unitList: readonly ReleaseUnit[] = [
     channel: "cloudflare-deploy",
     publishable: false,
     entrypoints: [],
-    description: "Cloudflare Worker + D1 + R2 逻辑备份服务",
+    description: "Cloudflare Worker + D1 + R2 SQLite 分块备份服务",
   },
   {
     id: "sdk",
@@ -213,7 +213,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "notebook-schema",
     tag: "notebook.sqlite",
-    version: 2,
+    version: 3,
     owner: "format",
   },
   {
@@ -223,15 +223,15 @@ const formatList: readonly ReleaseFormat[] = [
     owner: "format",
   },
   {
-    id: "logical-protocol",
-    tag: "anynote.logical",
+    id: "sqlite-backup",
+    tag: "anynote.sqlite",
     version: 1,
     owner: "format",
   },
   {
     id: "local-backup",
     tag: "anynote.local-backup",
-    version: 1,
+    version: 2,
     owner: "format",
   },
   {
@@ -243,7 +243,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "cloud-backup-manifest",
     tag: "anynote.cloud-backup-manifest",
-    version: 1,
+    version: 2,
     owner: "format",
   },
   {
@@ -278,8 +278,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "notebook-schema",
-    accepts: "<=2",
-    note: "桌面可读写 schema 1（先迁移）与 2；更高 schema 明确拒绝",
+    accepts: "3",
+    note: "桌面仅接受包含资源 BLOB 的 schema 3",
   },
   {
     consumer: "desktop",
@@ -289,15 +289,15 @@ const windowList: readonly CompatibilityWindow[] = [
   },
   {
     consumer: "desktop",
-    provider: "logical-protocol",
+    provider: "sqlite-backup",
     accepts: "1",
-    note: "与 Worker 仅在同一逻辑备份协议版本内互操作",
+    note: "与 Worker 仅在同一 SQLite 分块备份协议版本内互操作",
   },
   {
     consumer: "worker",
-    provider: "logical-protocol",
+    provider: "sqlite-backup",
     accepts: "1",
-    note: "Worker 只接受 anynote.logical v1 请求",
+    note: "Worker 只接受 anynote.sqlite v1 请求",
   },
   {
     consumer: "desktop",
@@ -332,8 +332,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "local-backup",
-    accepts: "1",
-    note: "本地磁盘备份清单 anynote.local-backup v1",
+    accepts: "2",
+    note: "本地磁盘备份清单 anynote.local-backup v2",
   },
   {
     consumer: "desktop",
@@ -344,8 +344,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "cloud-backup-manifest",
-    accepts: "1",
-    note: "云盘备份完整清单 anynote.cloud-backup-manifest v1",
+    accepts: "2",
+    note: "云盘备份完整清单 anynote.cloud-backup-manifest v2",
   },
 ];
 export const compatibilityWindows: readonly CompatibilityWindow[] =

@@ -1,3 +1,4 @@
+import { putAsset } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
@@ -5,12 +6,11 @@ import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
-  utimesSync,
   rmSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 
 const png =
@@ -58,14 +58,6 @@ async function finish(s, id) {
  * @param hash Asset hash.
  * @returns Absolute asset path.
  */
-function assetPath(s, notebookId, hash) {
-  return join(
-    s.directory(notebookId),
-    "assets/sha256",
-    hash.slice(0, 2),
-    hash + ".bin",
-  );
-}
 
 test("inspection reports a healthy Notebook and persists the report without deleting", async (t) => {
   const f = await fixture(t),
@@ -84,7 +76,12 @@ test("inspection reports a healthy Notebook and persists the report without dele
   assert.equal(job.report.findings.length, 0);
   assert.ok(job.report.counts.assets >= 1);
   assert.ok(job.report.counts.referenced >= 1);
-  assert.ok(existsSync(assetPath(f.s, f.book.id, asset.hash)));
+  assert.ok(
+    f.s
+      .open(f.book.id)
+      .prepare("SELECT 1 FROM asset_chunks WHERE asset_hash=?")
+      .get(asset.hash),
+  );
 
   // The latest report survives in device data and is readable through its own operation.
   const stored = await f.call("getIntegrityReport");
@@ -101,30 +98,38 @@ test("inspection reports temp files, orphan resources and missing references wit
     }),
     asset = await f.call("getAsset", { id: image.primary_resource_id }),
     dir = f.s.directory(f.book.id);
-  // An orphan resource object aged past the grace window.
-  const orphan = createHash("sha256").update("orphan").digest("hex"),
-    orphanPath = assetPath(f.s, f.book.id, orphan);
-  mkdirSync(join(orphanPath, ".."), { recursive: true });
-  writeFileSync(orphanPath, "orphan");
-  utimesSync(orphanPath, new Date(0), new Date(0));
+  // Unreferenced BLOBs remain registered and are reported without deleting them.
+  const orphan = putAsset(
+    f.s.open(f.book.id),
+    Buffer.from("orphan"),
+    "application/octet-stream",
+  );
   // Leftover temp files and a missing referenced asset.
   writeFileSync(join(dir, "notebook.json.tmp"), "{}");
   mkdirSync(join(dir, "temp"), { recursive: true });
   writeFileSync(join(dir, "temp", "scratch.bin"), "x");
-  rmSync(assetPath(f.s, f.book.id, asset.hash));
+  f.s
+    .open(f.book.id)
+    .prepare("DELETE FROM asset_chunks WHERE asset_hash=?")
+    .run(asset.hash);
 
   const started = await f.call("inspectIntegrity");
   const job = await finish(f.s, started.id);
   assert.equal(job.status, "completed");
   const kinds = job.report.findings.map((x) => x.kind);
-  assert.ok(kinds.includes("orphan-resource"));
+  assert.ok(kinds.includes("unreferenced-asset"));
   assert.ok(kinds.includes("temp-file"));
   assert.ok(kinds.includes("missing-resource"));
-  assert.equal(job.report.counts.orphanResources, 1);
+  assert.equal(job.report.counts.unreferencedAssets, 1);
   assert.ok(job.report.counts.tempFiles >= 2);
   assert.ok(job.report.counts.missingResources >= 1);
   // The scan is advisory only: nothing on disk is removed.
-  assert.ok(existsSync(orphanPath));
+  assert.ok(
+    f.s
+      .open(f.book.id)
+      .prepare("SELECT 1 FROM assets WHERE hash=?")
+      .get(orphan),
+  );
   assert.ok(existsSync(join(dir, "temp", "scratch.bin")));
   assert.ok(existsSync(join(dir, "notebook.json.tmp")));
 });
@@ -159,19 +164,11 @@ test("inspection protects staging under an active lease and flags stale staging"
 
 test("inspection is cancellable and returns a partial report", async (t) => {
   const f = await fixture(t),
-    db = f.s.open(f.book.id),
-    insert = db.prepare("INSERT INTO assets VALUES(?,?,?,?)");
-  for (let i = 0; i < 1200; i++) {
-    const h = createHash("sha256")
-      .update("synthetic-" + i)
-      .digest("hex");
-    insert.run(
-      h,
-      1,
-      "application/octet-stream",
-      `assets/sha256/${h.slice(0, 2)}/${h}.bin`,
-    );
-  }
+    db = f.s.open(f.book.id);
+  db.exec("BEGIN");
+  for (let i = 0; i < 1200; i++)
+    putAsset(db, Buffer.from("synthetic-" + i), "application/octet-stream");
+  db.exec("COMMIT");
   const started = await f.call("inspectIntegrity");
   await f.s.run("cancelTask", { id: started.id });
   const job = await finish(f.s, started.id);

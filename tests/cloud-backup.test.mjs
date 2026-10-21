@@ -14,7 +14,7 @@ import {
   planCleanup,
   publishHead,
   resolveVerificationLevel,
-  runFileLevelBackup,
+  runChunkedBackup,
   safeRelativePath,
 } from "../.build/packages/cloud-backup-common/index.js";
 import {
@@ -38,33 +38,30 @@ function manifestFor({
   commitId = randomUUID(),
   databaseSha = sha("db"),
   databaseSize = 10,
-  assets = [],
-  assetRef = () => ({
-    sha256: sha("asset"),
-    size: 5,
-    locator: { kind: "test", ref: "asset-1" },
-  }),
 } = {}) {
   return {
     format: "anynote.cloud-backup-manifest",
-    formatVersion: 1,
+    formatVersion: 2,
     notebookId,
     deviceSlotId,
     commitId,
     createdAt: new Date().toISOString(),
-    schemaVersion: 2,
+    schemaVersion: 3,
     contentSeq: 7,
     database: {
       sha256: databaseSha,
       size: databaseSize,
-      locator: { kind: "test", ref: "db-1" },
-      schemaVersion: 2,
+      chunks: [
+        {
+          sha256: databaseSha,
+          size: databaseSize,
+          locator: { kind: "test", ref: "db-1" },
+        },
+      ],
+      schemaVersion: 3,
       contentSeq: 7,
     },
-    assets: assets.map((path, index) => ({
-      ...assetRef(index),
-      path,
-    })),
+    assets: [],
   };
 }
 
@@ -216,21 +213,14 @@ test("账号标识从 id_token 或响应字段读取", () => {
   );
 });
 
-test("差异计划：无变化跳过上传，新增附件只上传新对象", async () => {
-  const assetA = sha("a"),
-    previous = manifestFor({
-      assets: ["assets/sha256/aa/a.bin"],
-      assetRef: () => ({
-        sha256: assetA,
-        size: 5,
-        locator: { kind: "test", ref: "a" },
-      }),
-    });
+test("差异计划：无变化跳过上传，修改只上传变化分块", async () => {
+  const previous = manifestFor();
   const unchanged = await buildUploadPlan({
     commitId: randomUUID(),
     databaseSha256: previous.database.sha256,
     databaseSize: previous.database.size,
-    assets: [{ path: "assets/sha256/aa/a.bin", sha256: assetA, size: 5 }],
+    databaseChunks: previous.database.chunks,
+    assets: [],
     previous,
   });
   assert.equal(unchanged.unchanged, true);
@@ -241,16 +231,14 @@ test("差异计划：无变化跳过上传，新增附件只上传新对象", as
       commitId: randomUUID(),
       databaseSha256: previous.database.sha256,
       databaseSize: previous.database.size,
-      assets: [
-        { path: "assets/sha256/aa/a.bin", sha256: assetA, size: 5 },
-        { path: "assets/sha256/bb/b.bin", sha256: assetB, size: 9 },
-      ],
+      assets: [],
+      databaseChunks: [{ sha256: assetB, size: previous.database.size }],
       previous,
     });
   assert.equal(added.unchanged, false);
   assert.deepEqual(
     added.items.map((item) => [item.kind, item.sha256]),
-    [["asset", assetB]],
+    [["database", assetB]],
   );
 
   // Re-upload when the remote object has been deleted, rather than relying solely on a stale local cursor.
@@ -258,14 +246,15 @@ test("差异计划：无变化跳过上传，新增附件只上传新对象", as
     commitId: randomUUID(),
     databaseSha256: previous.database.sha256,
     databaseSize: previous.database.size,
-    assets: [{ path: "assets/sha256/aa/a.bin", sha256: assetA, size: 5 }],
+    databaseChunks: previous.database.chunks,
+    assets: [],
     previous,
     exists: async () => false,
   });
   assert.equal(repaired.unchanged, false);
   assert.deepEqual(
     repaired.items.map((item) => item.kind),
-    ["database", "asset"],
+    ["database"],
   );
 });
 
@@ -284,7 +273,7 @@ test("空间不足时拒绝提交，而不是先清理旧副本", () => {
   );
 });
 
-test("清单完整性校验拒绝身份、哈希、数量与路径不符", () => {
+test("清单完整性校验拒绝身份、哈希、大小与分块不符", () => {
   const notebookId = randomUUID(),
     deviceSlotId = randomUUID(),
     commitId = randomUUID(),
@@ -292,19 +281,14 @@ test("清单完整性校验拒绝身份、哈希、数量与路径不符", () =>
       notebookId,
       deviceSlotId,
       commitId,
-      assets: ["assets/sha256/aa/a.bin"],
-      assetRef: () => ({
-        sha256: sha("a"),
-        size: 5,
-        locator: { kind: "t", ref: "a" },
-      }),
     });
   const expected = {
     notebookId,
     deviceSlotId,
     commitId,
     databaseSha256: manifest.database.sha256,
-    assets: [{ path: "assets/sha256/aa/a.bin", sha256: sha("a") }],
+    databaseSize: manifest.database.size,
+    databaseChunks: manifest.database.chunks,
   };
   assert.equal(assertManifestIntegrity(manifest, expected).commitId, commitId);
   assert.throws(
@@ -319,9 +303,11 @@ test("清单完整性校验拒绝身份、哈希、数量与路径不符", () =>
     () =>
       assertManifestIntegrity(manifest, {
         ...expected,
-        assets: [{ path: "assets/sha256/aa/other.bin", sha256: sha("a") }],
+        databaseChunks: [
+          { sha256: sha("other"), size: manifest.database.size },
+        ],
       }),
-    /资源/,
+    /分块/,
   );
   // Path escapes must be rejected at the schema layer.
   assert.throws(() =>
@@ -419,7 +405,7 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
       planCleanup({
         currentHead: null,
         currentManifest: null,
-        managed: [{ locator, kind: "asset" }],
+        managed: [{ locator, kind: "database" }],
       }),
     /禁止清理/,
   );
@@ -433,15 +419,23 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
     manifestSha256: sha("m"),
     completedAt: new Date().toISOString(),
   };
-  const manifest = manifestFor({ assets: ["assets/sha256/aa/a.bin"] });
+  const manifest = manifestFor({
+    notebookId: head.notebookId,
+    deviceSlotId: head.deviceSlotId,
+    commitId: head.commitId,
+  });
   const now = Date.now();
   const keepAll = planCleanup({
     currentHead: head,
     currentManifest: manifest,
     managed: [
-      { locator, kind: "asset", registeredAt: now - 1000 },
+      { locator, kind: "database", registeredAt: now - 1000 },
       // Objects referenced by the current manifest must be kept.
-      { locator: manifest.database.locator, kind: "database", registeredAt: 0 },
+      {
+        locator: manifest.database.chunks[0].locator,
+        kind: "database",
+        registeredAt: 0,
+      },
     ],
     graceMs: 60_000,
     now,
@@ -451,7 +445,7 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
   const aged = planCleanup({
     currentHead: head,
     currentManifest: manifest,
-    managed: [{ locator, kind: "asset", registeredAt: now - 120_000 }],
+    managed: [{ locator, kind: "database", registeredAt: now - 120_000 }],
     graceMs: 60_000,
     now,
   });
@@ -460,7 +454,7 @@ test("受管 GC：指针未确认不清理，宽限期内不清理旧对象", ()
   const pinned = planCleanup({
     currentHead: head,
     currentManifest: manifest,
-    managed: [{ locator, kind: "asset", registeredAt: 0 }],
+    managed: [{ locator, kind: "database", registeredAt: 0 }],
     protectedLocators: [locator],
     graceMs: 0,
     now,
@@ -492,7 +486,7 @@ test("head 与根标记 schema 拒绝未知字段与非法身份", () => {
   );
 });
 
-test("文件级流程：无变化跳过、发布失败不更新成功指针", async () => {
+test("分块流程：无变化跳过、发布失败不更新成功指针", async () => {
   const ctx = {
     tasks: {
       signal: new AbortController().signal,
@@ -505,10 +499,11 @@ test("文件级流程：无变化跳过、发布失败不更新成功指针", as
     notebookId: randomUUID(),
     notebookName: "n",
     contentSeq: 3,
-    schemaVersion: 2,
+    schemaVersion: 3,
     database: {
       sha256: sha("db"),
       size: 4,
+      chunks: [{ sha256: sha("db"), size: 4 }],
       read: async () => new Uint8Array(),
       stream: async function* () {},
     },
@@ -552,7 +547,7 @@ test("文件级流程：无变化跳过、发布失败不更新成功指针", as
       throw Error("无变化时不应执行上传");
     },
   };
-  const skipped = await runFileLevelBackup({
+  const skipped = await runChunkedBackup({
     provider: noChangeProvider,
     ctx,
     target: { rootRef: "r", notebookRef: "n", deviceSlotRef: "d" },
@@ -606,7 +601,7 @@ test("文件级流程：无变化跳过、发布失败不更新成功指针", as
     },
   };
   await assert.rejects(
-    runFileLevelBackup({
+    runChunkedBackup({
       provider: failingProvider,
       ctx,
       target: { rootRef: "r", notebookRef: "n", deviceSlotRef: "d" },

@@ -1,3 +1,4 @@
+import { snapshotDatabase } from "./database-snapshot.js";
 import { temporaryJob } from "./temporary-jobs.js";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
@@ -5,7 +6,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
 import type { Task } from "@anynote/types/runtime.js";
-import { backup, DatabaseSync } from "@anynote/types/runtime.js";
+import { DatabaseSync } from "@anynote/types/runtime.js";
 import {
   diskBudget,
   extractArchive,
@@ -32,24 +33,15 @@ export function archiveBudget(s: Storage, notebookId: string) {
   const databaseBytes =
     db.prepare("PRAGMA page_count").get()!.page_count *
     db.prepare("PRAGMA page_size").get()!.page_size;
-  const assets = db
-    .prepare(
-      "SELECT COALESCE(SUM(size),0) AS total,COUNT(*) AS count FROM assets",
-    )
-    .get()!;
-  const bytes = databaseBytes + assets.total;
-  if (
-    !Number.isSafeInteger(bytes) ||
-    bytes > limits.bytes ||
-    assets.count > limits.entries - 2
-  )
-    throw Error("归档超过 20GB 或 100000 文件预算");
+  const bytes = databaseBytes;
+  if (!Number.isSafeInteger(bytes) || bytes > limits.bytes)
+    throw Error("归档超过 20GiB 预算");
   return {
     bytes,
     databaseBytes,
-    files: assets.count + 2,
+    files: 2,
     temporaryBytes: databaseBytes,
-    estimatedDestinationBytes: outputBudget(bytes, assets.count + 2),
+    estimatedDestinationBytes: outputBudget(bytes, 2),
   };
 }
 
@@ -137,13 +129,12 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
         s.pins.set(p.notebookId!, (s.pins.get(p.notebookId!) || 0) + 1);
         pinned = true;
         const snapshot = join(temp, "notebook.sqlite");
-        await backup(s.open(p.notebookId!), snapshot);
+        await snapshotDatabase(s.open(p.notebookId!), snapshot);
         signal.throwIfAborted();
         const db = new DatabaseSync(snapshot, { readOnly: true });
-        let meta, assets;
+        let meta;
         try {
           meta = db.prepare("SELECT * FROM notebook_meta").get()!;
-          assets = db.prepare("SELECT * FROM assets").all();
         } finally {
           db.close();
         }
@@ -154,27 +145,21 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
         const manifest = {
           format: "anynote.notebook",
           formatVersion: 1,
-          schemaVersion: 2,
+          schemaVersion: 3,
           appVersion: "0.1.0",
           notebookId: p.notebookId!,
           generationId: randomUUID(),
           createdAt: new Date().toISOString(),
           snapshotSeq: meta.content_seq,
           database,
-          assets: assets.map((a) => ({
-            path: a.path,
-            size: a.size,
-            sha256: a.hash,
-            mimeType: a.mime,
-          })),
+          assets: [],
           includesHistory: true,
           includesTrash: true,
         };
-        const total = database.size + assets.reduce((n, a) => n + a.size, 0);
-        if (total > limits.bytes || assets.length > limits.entries - 2)
-          throw Error("快照超过归档预算");
+        const total = database.size;
+        if (total > limits.bytes) throw Error("快照超过归档预算");
         job.totalBytes = total;
-        diskBudget(dirname(p.path), outputBudget(total, assets.length + 2));
+        diskBudget(dirname(p.path), outputBudget(total, 2));
         const result = await writeArchive(
           p.path,
           manifest,

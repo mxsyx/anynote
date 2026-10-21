@@ -7,19 +7,20 @@ export const backupRevisionSchema = z.object({
   notebookId: z.string().uuid(),
   lineageId: z.string().uuid(),
   contentSeq: z.string().regex(/^\d+$/),
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   storageEpoch: z.string().regex(/^\d+$/),
 });
 
 /** Backup revision type. */
 export type BackupRevision = z.infer<typeof backupRevisionSchema>;
 
-// All persisted v2 tables. FTS and its shadow tables are rebuildable caches.
+// All persisted v3 tables. FTS and its shadow tables are rebuildable caches.
 /** Persisted tables that participate in the backup revision contract. */
 const tables = [
   "notebook_meta",
   "nodes",
   "assets",
+  "asset_chunks",
   "resources",
   "notes",
   "note_revisions",
@@ -113,7 +114,7 @@ export function assertRevisionSchema(db: SqlDatabase) {
 }
 
 /**
- * Optionally but strictly validated storage metadata; compatible with existing v2 archives.
+ * Optionally but strictly validated storage metadata; compatible with existing v3 archives.
  *
  * @param db Open database handle.
  * @param reference Reference database used to validate structure.

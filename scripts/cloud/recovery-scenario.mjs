@@ -1,3 +1,4 @@
+import { verifyAsset } from "../../.build/packages/storage-sqlite/assets.js";
 import assert from "node:assert/strict";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -12,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
-import { hashFile } from "../../.build/packages/storage-sqlite/archive-stream.js";
+
 export async function recoveryChild(message) {
   const env = { ...process.env };
   for (const key of [
@@ -229,10 +230,7 @@ export async function recoveryScenario({ settings, onStep = () => {} }) {
         .open(copyId)
         .prepare("SELECT * FROM assets")
         .all())
-        assert.equal(
-          (await hashFile(storage.notebookPath(copyId, asset.path))).sha256,
-          asset.hash,
-        );
+        assert.equal(verifyAsset(storage.open(copyId), asset.hash), asset.size);
 
       const matches = await storage.run("search", {
         notebookId: copyId,

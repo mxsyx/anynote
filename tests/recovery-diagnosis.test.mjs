@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DatabaseSync } from "node:sqlite";
+
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 
 const png =
@@ -56,18 +56,8 @@ async function fixture(t) {
  * @param notebookId Notebook ID.
  * @returns The Notebook-relative asset path.
  */
-function firstAssetPath(s, notebookId) {
-  const db = new DatabaseSync(
-    join(s.directory(notebookId), "notebook.sqlite"),
-    {
-      readOnly: true,
-    },
-  );
-  try {
-    return db.prepare("SELECT path FROM assets LIMIT 1").get().path;
-  } finally {
-    db.close();
-  }
+function firstAssetHash(s, id) {
+  return s.open(id).prepare("SELECT hash FROM assets LIMIT 1").get().hash;
 }
 
 test("diagnoseNotebook reports a healthy Notebook without modifying files", async (t) => {
@@ -80,20 +70,28 @@ test("diagnoseNotebook reports a healthy Notebook without modifying files", asyn
   assert.ok(report.counts.assets >= 1);
   assert.equal(report.counts.checkedAssets, report.counts.assets);
   assert.equal(report.meta.id, book.id);
-  assert.equal(report.meta.schemaVersion, 2);
+  assert.equal(report.meta.schemaVersion, 3);
 });
 
 test("diagnoseNotebook locates a missing asset and snapshot recovery restores it", async (t) => {
   const { s, book, image } = await fixture(t);
   await s.run("snapshot", { notebookId: book.id });
-  const assetPath = firstAssetPath(s, book.id);
-  rmSync(join(s.directory(book.id), assetPath));
+  const assetHash = firstAssetHash(s, book.id);
+  s.open(book.id)
+    .prepare("DELETE FROM asset_chunks WHERE asset_hash=?")
+    .run(assetHash);
 
   const report = await s.run("diagnoseNotebook", { notebookId: book.id });
   assert.equal(report.status, "issues");
-  assert.equal(report.counts.missingAssets, 1);
-  assert.ok(report.issues.some((i) => i.code === "ASSET_MISSING"));
-  assert.equal(existsSync(join(s.directory(book.id), assetPath)), false);
+  assert.equal(report.counts.corruptAssets, 1);
+  assert.ok(report.issues.some((i) => i.code === "ASSET_HASH_MISMATCH"));
+  assert.equal(
+    s
+      .open(book.id)
+      .prepare("SELECT COUNT(*) AS n FROM asset_chunks WHERE asset_hash=?")
+      .get(assetHash).n,
+    0,
+  );
 
   // Listing/restoring snapshots must work even though an asset is missing.
   const snapshots = await s.run("listSnapshots", { notebookId: book.id });
@@ -116,10 +114,17 @@ test("diagnoseNotebook locates a missing asset and snapshot recovery restores it
 
 test("diagnoseNotebook detects a corrupted asset hash", async (t) => {
   const { s, book } = await fixture(t);
-  const assetPath = firstAssetPath(s, book.id);
-  const bytes = readFileSync(join(s.directory(book.id), assetPath));
+  const hash = firstAssetHash(s, book.id),
+    db = s.open(book.id);
+  const bytes = Buffer.from(
+    db.prepare("SELECT data FROM asset_chunks WHERE asset_hash=?").get(hash)
+      .data,
+  );
   bytes[bytes.length - 1] ^= 1;
-  writeFileSync(join(s.directory(book.id), assetPath), bytes);
+  db.prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?").run(
+    bytes,
+    hash,
+  );
 
   const report = await s.run("diagnoseNotebook", { notebookId: book.id });
   assert.equal(report.status, "issues");

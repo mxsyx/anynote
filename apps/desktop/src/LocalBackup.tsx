@@ -233,7 +233,7 @@ export default function LocalBackup({
               />
             </label>
             <label>
-              附件复制并发
+              分块复制并发
               <NativeSelect
                 disabled={busy}
                 value={t.concurrency}
@@ -337,28 +337,7 @@ export default function LocalBackup({
             </Button>
             <details>
               <summary>更多操作</summary>
-              <Button
-                variant="ghost"
-                size="layout"
-                disabled={busy || !t.online}
-                onClick={() =>
-                  void act(async () => {
-                    if (
-                      window.confirm(
-                        "从现存数据库重建丢失的清单？这会校验 SQLite 与附件，但无法证明数据库与过去源状态逐字节一致。",
-                      )
-                    ) {
-                      await request("rebuildLocalBackupManifest", {
-                        notebookId,
-                        targetId: t.id,
-                      });
-                      onStarted();
-                    }
-                  })
-                }
-              >
-                重建丢失的清单
-              </Button>
+
               <Button
                 variant="ghost"
                 size="layout"
@@ -387,7 +366,7 @@ export default function LocalBackup({
                   void act(async () => {
                     if (
                       window.confirm(
-                        `删除此目标中当前 Notebook 的备份？\n${t.path}\n这会删除数据库与受管附件，无法撤销。`,
+                        `删除此目标中当前 Notebook 的备份？\n${t.path}\n这会删除备份清单与数据库分块，无法撤销。`,
                       )
                     )
                       await request("deleteLocalNotebookBackup", {
@@ -405,7 +384,7 @@ export default function LocalBackup({
       ))}
       {review && (
         <LocalBackupReview
-          key={`${review.target.id}:${review.preview?.approvalToken || "restore"}`}
+          key={`${review.target.id}:${review.preview ? "backup" : "restore"}`}
           path={review.target.path}
           preview={review.preview}
           info={review.info}
@@ -419,9 +398,6 @@ export default function LocalBackup({
                 {
                   notebookId,
                   targetId: review.target.id,
-                  ...(review.preview
-                    ? { approvalToken: review.preview.approvalToken }
-                    : {}),
                 },
               );
               setReview(null);

@@ -25,7 +25,6 @@ export function createLocalBackupAPI(transport: Transport): LocalBackupAPI {
     runGroup: (input) => task("startLocalBackupGroup", input),
     verify: (input) => task("verifyLocalBackup", input),
     restore: (input) => task("restoreLocalBackup", input),
-    rebuildManifest: (input) => task("rebuildLocalBackupManifest", input),
     removeTarget: (input) => call("removeLocalBackupTarget", input),
     deleteNotebookBackup: (input) => call("deleteLocalNotebookBackup", input),
     getTask: async (id) =>

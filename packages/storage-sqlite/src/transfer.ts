@@ -1,12 +1,6 @@
+import { putAsset, readAsset } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
+
 import { z } from "zod";
 import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
@@ -269,10 +263,10 @@ export function transferNode(s: Storage, raw: unknown) {
       const hashMap = new Map(),
         preparedAssets: SqlRow[] = [];
       let budget = 0;
-      // Assets are written to a staging location before the target transaction. Any failure leaves the source knowledge intact;
-      // unreferenced files can still be reclaimed by GC.
+      // Asset bytes are prepared before the target transaction. Any failure leaves the source knowledge intact;
+      // the target commits both bytes and references atomically.
       for (const asset of data.assets) {
-        let bytes = readFileSync(s.notebookPath(p.notebookId, asset.path));
+        let bytes = readAsset(source, asset.hash);
         if (bytes.length !== asset.size || digest(bytes) !== asset.hash)
           throw Error("源附件大小或 SHA-256 校验失败");
         if (asset.mime === "application/vnd.anynote.whiteboard+json")
@@ -280,24 +274,13 @@ export function transferNode(s: Storage, raw: unknown) {
         budget += bytes.length;
         if (budget > 100 * 1024 * 1024)
           throw Error("单次跨库附件超过 100MB 预算");
-        const hash = digest(bytes),
-          path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
-          file = s.notebookPath(p.targetNotebookId, path);
-        mkdirSync(join(file, ".."), { recursive: true });
-        if (existsSync(file)) {
-          if (digest(readFileSync(file)) !== hash)
-            throw Error("目标已有附件损坏");
-        } else {
-          const temp = s.notebookPath(p.targetNotebookId, path + ".tmp");
-          writeFileSync(temp, bytes, { flush: true });
-          renameSync(temp, file);
-        }
+        const hash = digest(bytes);
         hashMap.set(asset.hash, hash);
         preparedAssets.push({
           hash,
           size: bytes.length,
           mime: asset.mime,
-          path,
+          data: bytes,
         });
       }
       const rootId = nodeMap.get(p.id);
@@ -317,10 +300,7 @@ export function transferNode(s: Storage, raw: unknown) {
       s.tx(target, rootId!, "transfer-copy", () => {
         target.exec("PRAGMA defer_foreign_keys=ON");
         for (const asset of preparedAssets)
-          if (
-            !target.prepare("SELECT 1 FROM assets WHERE hash=?").get(asset.hash)
-          )
-            insert(target, "assets", asset);
+          putAsset(target, asset.data, asset.mime);
         const last = target
           .prepare(
             "SELECT COALESCE(MAX(sort_key),0) AS value FROM nodes WHERE parent_id IS ?",
@@ -416,9 +396,7 @@ export function transferNode(s: Storage, raw: unknown) {
       if (digest(JSON.stringify(destination)) !== copied.targetFingerprint)
         return { ...copied.result, status: "copied-target-changed" };
       for (const asset of destination.assets) {
-        const bytes = readFileSync(
-          s.notebookPath(p.targetNotebookId, asset.path),
-        );
+        const bytes = readAsset(target, asset.hash);
         if (bytes.length !== asset.size || digest(bytes) !== asset.hash)
           return { ...copied.result, status: "copied-target-changed" };
       }

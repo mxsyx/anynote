@@ -1,3 +1,5 @@
+import { chunkFile } from "@anynote/protocol/file-chunks.js";
+import { readAssetRange, verifyAsset } from "@anynote/storage-sqlite/assets.js";
 import { createHash } from "node:crypto";
 import { open } from "node:fs/promises";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
@@ -5,7 +7,6 @@ import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
 import type {
   BackupVerificationAPI,
   CloudCaptureHandle,
-  CloudCapturedAsset,
   NotebookCaptureAPI,
   ScopedReadSource,
   ScopedReadStreamAPI,
@@ -40,7 +41,11 @@ const streamChunkBytes = 1024 * 1024;
  * @param size File size.
  * @returns The read-only source.
  */
-export function fileSource(file: string, size: number): ScopedReadSource {
+export function fileSource(
+  file: string,
+  size: number,
+  base = 0,
+): ScopedReadSource {
   return {
     size,
     async read(offset: number, length: number) {
@@ -55,7 +60,7 @@ export function fileSource(file: string, size: number): ScopedReadSource {
             buffer,
             position,
             want - position,
-            offset + position,
+            base + offset + position,
           );
           if (!bytesRead) break;
           position += bytesRead;
@@ -74,7 +79,12 @@ export function fileSource(file: string, size: number): ScopedReadSource {
           const buffer = Buffer.alloc(
               Math.min(streamChunkBytes, size - offset),
             ),
-            { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
+            { bytesRead } = await handle.read(
+              buffer,
+              0,
+              buffer.length,
+              base + offset,
+            );
           if (!bytesRead) break;
           offset += bytesRead;
           yield buffer.subarray(0, bytesRead);
@@ -114,7 +124,6 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
     async capture(notebookId: string) {
       const workspace = temporaryJob(s.root, "backup-jobs");
       s.pins.set(notebookId, (s.pins.get(notebookId) ?? 0) + 1);
-      let dbHash: string;
       try {
         const snapshot = (await s.run("createBackupSnapshot", {
           notebookId,
@@ -122,22 +131,7 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
         })) as SnapshotShape;
         const databaseFile = snapshot.files.get("notebook.sqlite");
         if (!databaseFile) throw Error("一致性捕获缺少数据库副本");
-        dbHash = await hashFileSequential(databaseFile);
-        const assets: CloudCapturedAsset[] = snapshot.manifest.assets.map(
-          (asset) => {
-            const file = snapshot.files.get(asset.path);
-            if (!file) throw Error("一致性捕获缺少资源副本");
-            const source = fileSource(file, asset.size);
-            return {
-              path: asset.path,
-              sha256: asset.sha256,
-              size: source.size,
-              mimeType: asset.mimeType,
-              read: source.read,
-              stream: source.stream,
-            };
-          },
-        );
+        const chunked = await chunkFile(databaseFile);
         let released = false;
         const databaseSource = fileSource(
           databaseFile,
@@ -149,12 +143,16 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
           contentSeq: snapshot.manifest.snapshotSeq,
           schemaVersion: snapshot.manifest.schemaVersion,
           database: {
-            sha256: dbHash,
+            sha256: chunked.sha256,
+            chunks: chunked.chunks.map((c, i) => ({
+              sha256: c.sha256,
+              ...fileSource(databaseFile, c.size, i * 1024 ** 2),
+            })),
             size: databaseSource.size,
             read: databaseSource.read,
             stream: databaseSource.stream,
           },
-          assets,
+          assets: [],
           async release() {
             if (released) return;
             released = true;
@@ -170,30 +168,6 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
       }
     },
   };
-}
-
-/**
- * Compute the file SHA-256; used for the database hash after capture.
- *
- * @param file Absolute file path.
- * @returns Hex SHA-256.
- */
-async function hashFileSequential(file: string): Promise<string> {
-  const hash = createHash("sha256"),
-    handle = await open(file, "r");
-  try {
-    const buffer = Buffer.alloc(streamChunkBytes);
-    let offset = 0;
-    while (true) {
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
-      if (!bytesRead) break;
-      hash.update(buffer.subarray(0, bytesRead));
-      offset += bytesRead;
-    }
-  } finally {
-    await handle.close();
-  }
-  return hash.digest("hex");
 }
 
 /**
@@ -213,12 +187,30 @@ export function createResourcesAPI(
   return {
     async open(sha256: string) {
       if (!/^[a-f0-9]{64}$/.test(sha256)) throw Error("资源哈希不合法");
-      const relative = `assets/sha256/${sha256.slice(0, 2)}/${sha256}.bin`,
-        file = s.notebookPath(notebookId, relative),
-        handle = await open(file, "r");
-      const { size } = await handle.stat();
-      await handle.close();
-      return fileSource(file, size);
+      const db = s.open(notebookId),
+        size = verifyAsset(db, sha256);
+      return {
+        size,
+        async read(offset: number, length: number) {
+          return readAssetRange(
+            s.open(notebookId),
+            sha256,
+            offset,
+            Math.min(length, size - offset),
+          );
+        },
+        async *stream(signal?: AbortSignal) {
+          for (let offset = 0; offset < size; offset += streamChunkBytes) {
+            signal?.throwIfAborted();
+            yield readAssetRange(
+              s.open(notebookId),
+              sha256,
+              offset,
+              Math.min(streamChunkBytes, size - offset),
+            );
+          }
+        },
+      };
     },
   };
 }

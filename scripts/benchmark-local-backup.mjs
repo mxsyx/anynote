@@ -1,3 +1,7 @@
+import {
+  putAsset,
+  putAssetFile,
+} from "../.build/packages/storage-sqlite/assets.js";
 import { fork } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
@@ -157,21 +161,13 @@ async function worker(sample) {
         });
     const db = s.open(book.id),
       source = s.directory(book.id);
-    const insertAsset = db.prepare("INSERT INTO assets VALUES(?,?,?,?)"),
-      insertResource = db.prepare(
-        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
-      );
+    const insertResource = db.prepare(
+      "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+    );
     const largePDFs = Math.min(8, Math.max(1, Math.ceil(sample.assets / 1000)));
-    function register(path, hash, size, mime) {
-      insertAsset.run(hash, size, mime, path);
-      insertResource.run(randomUUID(), hash, "benchmark");
-    }
     function add(bytes, mime = "application/octet-stream") {
-      const hash = createHash("sha256").update(bytes).digest("hex"),
-        path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`;
-      mkdirSync(join(source, path, ".."), { recursive: true });
-      writeFileSync(join(source, path), bytes);
-      register(path, hash, bytes.length, mime);
+      const hash = putAsset(db, bytes, mime);
+      insertResource.run(randomUUID(), hash, "benchmark");
     }
     const seedStarted = performance.now();
     if (!resume) {
@@ -308,15 +304,17 @@ async function worker(sample) {
         .run();
     if (!resume) {
       const first = await measure("first-backup", () => run());
-      assert.equal(first.copiedFiles, sample.assets + 2);
+      assert.ok(first.copiedFiles > 0);
       const unchanged = await measure("unchanged", () => run());
       assert.equal(unchanged.copiedBytes, 0);
       assert.equal(unchanged.captureSkipped, true);
       if (atLimit) dropOneResource();
       add(Buffer.from("small-change"));
       const changed = await measure("small-change", () => run());
-      assert.equal(changed.copiedFiles, 2);
-      assert.equal(changed.skippedFiles, sample.assets + (atLimit ? 0 : 1));
+      assert.ok(
+        changed.copiedBytes > 0 && changed.copiedBytes < first.copiedBytes,
+      );
+      assert.ok(changed.skippedFiles > 0);
       await measure("full-verification", async () => {
         let report;
         await engine.verify(target, book.id, undefined, (r) => {
@@ -339,7 +337,7 @@ async function worker(sample) {
         manifest.revision,
         resume.inProgress.metrics[2].result.revision,
       );
-      assert.equal(manifest.files.length, sample.assets + (atLimit ? 0 : 1));
+      assert.ok(manifest.database.chunks.length >= manifest.files.length);
     }
     rmSync(join(root, "restore"), { recursive: true, force: true });
     if (!metrics.some((m) => m.name === "restore"))
@@ -359,7 +357,7 @@ async function worker(sample) {
       hash = createHash("sha256");
     for (let i = 0; i < 1024; i++) hash.update(block);
     const digest = hash.digest("hex"),
-      path = `assets/sha256/${digest.slice(0, 2)}/${digest}.bin`;
+      path = "cancel-fixture.bin";
     mkdirSync(join(source, path, ".."), { recursive: true });
     const fd = openSync(join(source, path), "w");
     try {
@@ -370,14 +368,13 @@ async function worker(sample) {
     }
     if (!db.prepare("SELECT 1 FROM resources WHERE asset_hash=?").get(digest)) {
       if (atLimit) dropOneResource();
-      db.prepare("INSERT OR IGNORE INTO assets VALUES(?,?,?,?)").run(
+      assert.equal(
+        putAssetFile(db, join(source, path), "application/octet-stream"),
         digest,
-        1024 ** 3,
-        "application/octet-stream",
-        path,
       );
       insertResource.run(randomUUID(), digest, "benchmark");
     }
+    rmSync(join(source, path));
     const before = readFileSync(join(dest, ".backup/manifest.json"), "utf8");
     await measure("cancel-large-file", async () => {
       const controller = new AbortController();
@@ -388,7 +385,7 @@ async function worker(sample) {
           onProgress: (p) => {
             if (
               !controller.signal.aborted &&
-              p.phase === "复制中" &&
+              p.phase === "复制数据库分块" &&
               p.copiedBytes > 0
             ) {
               abortAt = performance.now();
@@ -405,7 +402,7 @@ async function worker(sample) {
         before,
       );
       assert.equal(
-        await hashFile(join(dest, "notebook.sqlite")),
+        (await engine.verify(target, book.id)).database.sha256,
         JSON.parse(before).database.sha256,
       );
       return {

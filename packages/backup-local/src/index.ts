@@ -1,3 +1,15 @@
+import { verifyAssets } from "@anynote/storage-sqlite/assets.js";
+import { schema } from "@anynote/storage-sqlite/schema.js";
+import { assertNotebookSchema } from "@anynote/storage-sqlite/backup-revision.js";
+import {
+  chunkFile,
+  readChunk,
+  assembleFile,
+} from "@anynote/protocol/file-chunks.js";
+import {
+  assertDatabaseChunks,
+  transferChunkBytes,
+} from "@anynote/protocol/cloud-objects.js";
 import { inspectBackupFiles, LocalVerificationError } from "./verification.js";
 
 export { LocalVerificationError } from "./verification.js";
@@ -19,14 +31,23 @@ import {
 export { inspectFilesystem } from "./filesystem.js";
 
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, rmdir, stat, statfs, unlink } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  rm,
+  stat,
+  statfs,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
   atomicJSON,
   canonical,
-  copyVerified,
   digest,
   exists,
   hashFile,
@@ -53,15 +74,15 @@ const descriptor = z.object({
 
 /** Asset descriptor in a backup manifest (path must be content-addressed). */
 const asset = descriptor.refine(
-  (a) => a.path === `assets/sha256/${a.sha256.slice(0, 2)}/${a.sha256}.bin`,
-  "资源路径无效",
+  (a) => a.path === `chunks/${a.sha256}.bin`,
+  "分块路径无效",
 );
 
 /** Local backup manifest file schema (`anynote.local-backup`). */
 export const manifestSchema = z
   .object({
     format: z.literal("anynote.local-backup"),
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     targetId: uuid,
     notebookId: uuid,
     taskId: uuid,
@@ -72,19 +93,37 @@ export const manifestSchema = z
       lineageId: uuid,
       storageEpoch: z.string(),
     }),
-    database: descriptor.refine((d) => d.path === "notebook.sqlite"),
-    bootstrap: descriptor.refine((d) => d.path === "notebook.json"),
+    name: z.string().max(240),
+    database: descriptor
+      .extend({
+        chunks: z
+          .array(z.object({ sha256: sha, size: z.number().int().positive() }))
+          .max(20480),
+      })
+      .refine((d) => d.path === "notebook.sqlite"),
     verificationStatus: z
-      .enum(["verified-new-files", "rebuilt-needs-review"])
+      .literal("verified-new-files")
       .default("verified-new-files"),
     lastFullVerifiedAt: z.string().datetime().optional(),
     files: z.array(asset).max(100000),
     cleanup: z.array(asset).max(100000).default([]),
   })
   .superRefine((m, ctx) => {
+    try {
+      assertDatabaseChunks(m.database);
+    } catch {
+      ctx.addIssue({ code: "custom", message: "数据库分块清单无效" });
+    }
+    const chunks = new Map(m.database.chunks.map((c) => [c.sha256, c.size]));
+    if (
+      chunks.size !== m.files.length ||
+      m.files.some((f) => chunks.get(f.sha256) !== f.size)
+    )
+      ctx.addIssue({ code: "custom", message: "数据库分块集合不匹配" });
     const current = new Set(m.files.map((f) => f.path));
     if (
       current.size !== m.files.length ||
+      new Set(m.cleanup.map((f) => f.path)).size !== m.cleanup.length ||
       m.cleanup.some((f) => current.has(f.path))
     )
       ctx.addIssue({ code: "custom", message: "备份清单包含重复或冲突资源" });
@@ -117,7 +156,6 @@ export interface Capture {
   name: string;
   contentSeq: string;
   schemaVersion: number;
-  assets: { path: string; size: number; sha256: string; source: string }[];
   release(): Promise<void>;
 }
 
@@ -259,19 +297,8 @@ async function lock(target: LocalTarget) {
   return () => db.close();
 }
 
-/**
- * Verify the backup database's integrity, identity, and resource closure against the manifest.
- *
- * @param file Database file path.
- * @param m Manifest identity and file descriptors to check.
- */
-function checkDatabase(
-  file: string,
-  m: {
-    notebookId: string;
-    files: { path: string; size: number; sha256: string }[];
-  },
-) {
+/** Check the reconstructed SQLite snapshot before making it recoverable. */
+function checkDatabase(file: string, m: { notebookId: string }) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec("PRAGMA trusted_schema=OFF;");
@@ -280,63 +307,29 @@ function checkDatabase(
       db.prepare("PRAGMA foreign_key_check").all().length
     )
       throw Error("SQLite 完整性检查失败");
-    const metas = db.prepare("SELECT * FROM notebook_meta").all();
-    if (metas.length !== 1 || metas[0].id !== m.notebookId)
-      throw Error("数据库 Notebook 身份不匹配");
-    const rows = db
-      .prepare("SELECT path,size,hash FROM assets ORDER BY path")
+    const reference = new DatabaseSync(":memory:");
+    try {
+      reference.exec(schema);
+      assertNotebookSchema(db, reference);
+    } finally {
+      reference.close();
+    }
+    verifyAssets(db);
+    const metas = db
+      .prepare("SELECT id,schema_version FROM notebook_meta")
       .all();
-    const files = [...m.files].sort((a, b) => a.path.localeCompare(b.path));
     if (
-      rows.length !== files.length ||
-      rows.some(
-        (a, i) =>
-          a.path !== files[i].path ||
-          a.size !== files[i].size ||
-          a.hash !== files[i].sha256,
-      )
+      metas.length !== 1 ||
+      metas[0].id !== m.notebookId ||
+      metas[0].schema_version !== 3
     )
-      throw Error("数据库资源闭包与清单不匹配");
+      throw Error("数据库 Notebook 身份或版本不匹配");
   } finally {
     db.close();
   }
 }
 
-/**
- * Whether the target file matches the descriptor; `full` forces a hash recomputation.
- *
- * @param root Root directory.
- * @param d File descriptor.
- * @param full Force a full hash recomputation.
- * @param signal Optional abort signal.
- * @returns True when the file matches.
- */
-async function matches(
-  root: string,
-  d: z.infer<typeof descriptor>,
-  full: boolean,
-  signal?: AbortSignal,
-) {
-  try {
-    const path = await safePath(root, d.path),
-      t = await token(path);
-    if ((await lstat(path)).size !== d.size) return false;
-    return !full && d.token === t
-      ? true
-      : (await hashFile(path, signal)) === d.sha256;
-  } catch (e: any) {
-    if (e.code === "ENOENT") return false;
-    throw e;
-  }
-}
-
-/**
- * Read and validate the backup manifest of one Notebook.
- *
- * @param target Local backup target.
- * @param book Notebook ID.
- * @returns The manifest, or `null` when absent.
- */
+/** Read a strictly bounded and identity-checked manifest. */
 async function readManifest(target: LocalTarget, book: string) {
   const value = await optionalJSON(
     target.path,
@@ -349,27 +342,27 @@ async function readManifest(target: LocalTarget, book: string) {
   return m;
 }
 
-/** Incomplete-commit record schema. */
-const preparedSchema = z.object({
-  taskId: uuid,
-  oldHash: sha.nullable(),
-  manifestHash: sha,
-  manifest: manifestSchema,
-  bootstrap: z.object({
-    id: uuid,
-    name: z.string(),
-    schema_version: z.number().int(),
-  }),
-});
+/** Verify a chunk, reusing a filesystem identity token only for unchanged files. */
+async function matches(
+  root: string,
+  d: z.infer<typeof descriptor>,
+  full: boolean,
+  signal?: AbortSignal,
+) {
+  try {
+    const file = await safePath(root, d.path);
+    const t = await token(file);
+    if ((await lstat(file)).size !== d.size) return false;
+    return !full && d.token === t
+      ? true
+      : (await hashFile(file, signal)) === d.sha256;
+  } catch (e: any) {
+    if (e.code === "ENOENT") return false;
+    throw e;
+  }
+}
 
-/**
- * Clean up managed assets per the manifest and finish the commit (idempotent and retryable).
- *
- * @param target Local backup target.
- * @param m Manifest describing the cleanup.
- * @param signal Optional abort signal.
- * @param onDeleted Callback invoked after each deletion.
- */
+/** Delete only previously managed chunks after the new manifest is durably published. */
 async function cleanup(
   target: LocalTarget,
   m: Manifest,
@@ -377,14 +370,13 @@ async function cleanup(
   onDeleted?: () => void,
 ) {
   const root = join(target.path, "notebooks", m.notebookId);
-  // Keep `prepared` until all managed cleanup succeeds; retries are idempotent.
   for (const d of m.cleanup) {
     signal?.throwIfAborted();
     await guard(target);
-    const path = await safePath(root, d.path);
+    const file = await safePath(root, d.path);
     try {
-      await token(path);
-      await unlink(path);
+      await token(file);
+      await unlink(file);
       onDeleted?.();
     } catch (e: any) {
       if (e.code !== "ENOENT") throw e;
@@ -393,97 +385,47 @@ async function cleanup(
   await guard(target);
   const current = { ...m, cleanup: [] };
   await atomicJSON(root, ".backup/manifest.json", current);
-  const stage = `.backup/staging/${m.taskId}`;
-  for (const name of [
-    stage + "/notebook.sqlite",
-    ".backup/task.json",
-    ".backup/prepared.json",
-  ]) {
-    await unlink(await safePath(root, name)).catch((e) => {
-      if (e.code !== "ENOENT") throw e;
-    });
-  }
-  await rmdir(await safePath(root, stage)).catch((e) => {
-    if (!["ENOENT", "ENOTEMPTY"].includes(e.code)) throw e;
-  });
   return current;
 }
 
-/**
- * Reconcile one interrupted commit: verify the prepared record and finish publishing and cleanup.
- *
- * @param target Local backup target.
- * @param book Notebook ID.
- * @returns Whether there is still cleanup pending.
- */
-async function reconcile(
+/** Only journaled files belong to an interrupted write; never scan or delete unknown files. */
+const pendingSchema = z.object({
+  targetId: uuid,
+  notebookId: uuid,
+  taskId: uuid,
+  files: z.array(asset).max(20480),
+});
+
+async function recoverPending(
   target: LocalTarget,
   book: string,
-): Promise<{ pendingCleanup: boolean }> {
-  const root = join(target.path, "notebooks", book),
-    value = await optionalJSON(root, ".backup/prepared.json");
-  if (!value) return { pendingCleanup: false };
-  const p = preparedSchema.parse(value),
-    m = p.manifest;
-  if (
-    m.notebookId !== book ||
-    m.targetId !== target.id ||
-    p.taskId !== m.taskId ||
-    digest(JSON.stringify(m)) !== p.manifestHash ||
-    p.bootstrap.id !== book ||
-    digest(JSON.stringify(p.bootstrap)) !== m.bootstrap.sha256
-  )
-    throw Error("未完成提交记录校验失败");
-  await guard(target);
-  for (const d of m.files)
-    if (!(await matches(root, d, true)))
-      throw Error("未完成提交所需资源缺失或损坏");
-  const file = await safePath(root, "notebook.sqlite");
-  const currentHash = (await exists(root, "notebook.sqlite"))
-    ? await hashFile(file)
-    : null;
-  if (currentHash !== m.database.sha256) {
-    if (currentHash !== p.oldHash)
-      throw Error("数据库不匹配旧/新切点，已停止发布与清理");
-    const staged = await safePath(
-      root,
-      `.backup/staging/${p.taskId}/notebook.sqlite`,
-    );
-    if ((await hashFile(staged)) !== m.database.sha256)
-      throw Error("待发布数据库校验失败");
-    checkDatabase(staged, m);
+  current: Manifest | null,
+  signal?: AbortSignal,
+) {
+  const root = join(target.path, "notebooks", book);
+  const raw = await optionalJSON(root, ".backup/pending.json");
+  if (!raw) return;
+  const pending = pendingSchema.parse(raw);
+  if (pending.targetId !== target.id || pending.notebookId !== book)
+    throw Error("未完成备份的身份不匹配");
+  const keep = new Set(
+    [...(current?.files || []), ...(current?.cleanup || [])].map((f) => f.path),
+  );
+  for (const f of pending.files) {
+    signal?.throwIfAborted();
     await guard(target);
-    await replace(staged, file);
+    const temp = await safePath(root, `${f.path}.${pending.taskId}.tmp`);
+    await unlink(temp).catch((e) => {
+      if (e.code !== "ENOENT") throw e;
+    });
+    if (!keep.has(f.path) && (await matches(root, f, true, signal)))
+      await unlink(await safePath(root, f.path));
   }
-  checkDatabase(file, m);
   await guard(target);
-  await atomicJSON(root, "notebook.json", p.bootstrap);
-  m.database.token = await token(file);
-  m.bootstrap.token = await token(await safePath(root, "notebook.json"));
-  // `prepared` must also reflect the token so a later interrupted cleanup can be reconciled safely.
-  await atomicJSON(root, ".backup/prepared.json", {
-    ...p,
-    manifest: m,
-    manifestHash: digest(JSON.stringify(m)),
-  });
-  await atomicJSON(root, ".backup/manifest.json", m);
-  try {
-    await cleanup(target, m);
-    return { pendingCleanup: false };
-  } catch {
-    return { pendingCleanup: true };
-  }
+  await unlink(await safePath(root, ".backup/pending.json"));
 }
 
-/**
- * Plan one backup: compute the manifest, files to copy, space requirements, and an approval token.
- *
- * @param target Local backup target.
- * @param notebookId Notebook ID.
- * @param c Source capture.
- * @param signal Abort signal.
- * @returns The backup plan.
- */
+/** Build a chunk diff against the last committed manifest without touching the current copy. */
 async function planCapture(
   target: LocalTarget,
   notebookId: string,
@@ -495,159 +437,96 @@ async function planCapture(
     (c.revision && c.revision.notebookId !== notebookId)
   )
     throw Error("捕获 Notebook 身份不匹配");
-  const dbHash = await hashFile(c.databasePath, signal),
-    dbSize = (await lstat(c.databasePath)).size;
+  checkDatabase(c.databasePath, { notebookId });
+  const { sources, ...database } = await chunkFile(c.databasePath, signal);
   const root = join(target.path, "notebooks", notebookId),
     previous = await readManifest(target, notebookId);
-  if (
-    !previous &&
-    ((await exists(root, "notebook.sqlite")) ||
-      (await exists(root, "notebook.json")))
-  )
-    throw Error("目标存在未知数据库或引导文件，禁止覆盖");
-  const files = c.assets.map((a) => asset.parse(a));
-  const currentPaths = new Set(files.map((a) => a.path)),
-    oldFiles = new Map(previous?.files.map((a) => [a.path, a]) || []),
-    sourceFiles = new Map(c.assets.map((a) => [a.path, a.source]));
-  for (const a of c.assets) {
-    const s = await lstat(a.source);
-    await token(a.source);
-    if (s.size !== a.size) throw Error("源附件缺失或大小不匹配");
-  }
-  checkDatabase(c.databasePath, { notebookId, files });
-  const bootstrap = {
-      id: notebookId,
-      name: c.name,
-      schema_version: c.schemaVersion,
-    },
-    bytes = JSON.stringify(bootstrap);
-  const taskId = randomUUID();
-  const m: Manifest = manifestSchema.parse({
+  const files = [...sources].map(([sha256, source]) => ({
+    path: `chunks/${sha256}.bin`,
+    sha256,
+    size: source.size,
+  }));
+  const current = new Set(files.map((f) => f.path));
+  const old = new Map(previous?.files.map((f) => [f.path, f]) || []);
+  const m = manifestSchema.parse({
     format: "anynote.local-backup",
-    formatVersion: 1,
+    formatVersion: 2,
     targetId: target.id,
     notebookId,
-    taskId,
+    name: c.name,
+    taskId: randomUUID(),
     completedAt: new Date().toISOString(),
     revision: c.revision || {
       contentSeq: c.contentSeq,
       schemaVersion: c.schemaVersion,
-      lineageId: previous?.revision.lineageId || randomUUID(),
+      lineageId: randomUUID(),
       storageEpoch: "capture-every-run",
     },
-    database: { path: "notebook.sqlite", size: dbSize, sha256: dbHash },
-    bootstrap: {
-      path: "notebook.json",
-      size: Buffer.byteLength(bytes),
-      sha256: digest(bytes),
-    },
+    database: { path: "notebook.sqlite", ...database },
     files,
     cleanup: [
-      ...(previous?.cleanup || []),
-      ...(previous?.files || []).filter((a) => !currentPaths.has(a.path)),
+      ...new Map(
+        [...(previous?.cleanup || []), ...(previous?.files || [])]
+          .filter((f) => !current.has(f.path))
+          .map((f) => [f.path, f]),
+      ).values(),
     ],
   });
-  const stats = { checkedFiles: 2, skippedFiles: 0, totalBytes: 0 };
   const missing: Manifest["files"] = [];
-  for (const a of m.files) {
+  for (const f of m.files) {
     signal.throwIfAborted();
-    stats.checkedFiles++;
-    const old = oldFiles.get(a.path);
-    if (await matches(root, { ...a, token: old?.token }, false, signal)) {
-      a.token = await token(await safePath(root, a.path));
-      stats.skippedFiles++;
-    } else {
-      if (!old && (await exists(root, a.path)))
-        throw Error("目标资源路径存在未知文件冲突，禁止覆盖");
-      missing.push(a);
+    if (
+      await matches(
+        root,
+        { ...f, token: old.get(f.path)?.token },
+        false,
+        signal,
+      )
+    )
+      f.token = await token(await safePath(root, f.path));
+    else {
+      if (!old.has(f.path) && (await exists(root, f.path)))
+        throw Error("分块路径存在未知文件冲突，禁止覆盖");
+      missing.push(f);
     }
   }
-  const dbSame =
-    previous?.database.sha256 === dbHash &&
-    (await matches(root, previous.database, false, signal));
-  const bootstrapSame =
-    previous?.bootstrap.sha256 === m.bootstrap.sha256 &&
-    (await matches(root, previous.bootstrap, false, signal));
-  if (dbSame) stats.skippedFiles++;
-  if (bootstrapSame) stats.skippedFiles++;
-  await guard(target);
   const space = await statfs(target.path);
   requireLocalFilesystem(
     await inspectFilesystem(target.path),
-    files.reduce((max, a) => Math.max(max, a.size), dbSize),
+    transferChunkBytes,
   );
-  stats.totalBytes =
-    (dbSame ? 0 : dbSize) +
-    missing.reduce((sum, a) => sum + a.size, 0) +
-    (bootstrapSame ? 0 : m.bootstrap.size);
+  const copyBytes = missing.reduce((n, f) => n + f.size, 0);
   const needed =
-    (dbSame ? 0 : dbSize) +
-    missing.reduce((sum, a) => sum + a.size, 0) +
-    Math.max(
-      1024 * 1024,
-      Buffer.byteLength(JSON.stringify(m)) * 3 + m.bootstrap.size + 65536,
-    );
-
-  const requiresReview =
-    !!previous &&
-    m.cleanup.length >= 20 &&
-    m.cleanup.length / Math.max(previous.files.length, 1) >= 0.5;
-  const approvalToken = digest(
-    JSON.stringify({
-      targetId: target.id,
-      notebookId,
-      previousTask: previous?.taskId,
-      database: m.database.sha256,
-      bootstrap: m.bootstrap.sha256,
-      files: m.files.map((a) => [a.path, a.size, a.sha256]),
-    }),
-  );
+    copyBytes + transferChunkBytes + Buffer.byteLength(JSON.stringify(m)) * 3;
   return {
     root,
     previous,
     m,
     missing,
-    dbSame,
-    bootstrapSame,
-    bootstrap,
-    sourceFiles,
-    stage: `.backup/staging/${taskId}`,
-    stats,
+    sources,
+    copyBytes,
     needed,
     availableBytes: space.bavail * space.bsize,
-    requiresReview,
-    approvalToken,
   };
 }
 
 /** Backup space and change estimate. */
 export interface BackupEstimate {
   notebookId: string;
-  copyAssets: number;
-  skipAssets: number;
-  replaceDatabase: boolean;
+  copyChunks: number;
+  skipChunks: number;
+  databaseChanged: boolean;
   deleteFiles: number;
   deleteBytes: number;
   copyBytes: number;
   temporaryBytes: number;
   availableBytes: number;
   enoughSpace: boolean;
-  requiresReview: boolean;
-  approvalToken: string;
   revision: Manifest["revision"];
 }
 
-/** Local disk backup service: preview, backup, rebuild, verify, restore, and delete. */
+/** Local backups publish immutable database chunks with one atomic manifest replacement. */
 export class LocalBackupService {
-  /**
-   * Preview one backup's copy/delete/space estimate without modifying the target.
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @param capture Capture provider.
-   * @param signal Abort signal.
-   * @returns The backup estimate.
-   */
   async preview(
     target: LocalTarget,
     notebookId: string,
@@ -660,32 +539,19 @@ export class LocalBackupService {
     const release = await lock(target);
     let c: Capture | undefined;
     try {
-      if (
-        await exists(
-          target.path,
-          `notebooks/${notebookId}/.backup/prepared.json`,
-        )
-      )
-        throw Object.assign(
-          Error("请先校验备份以协调未完成的提交，再重新预览"),
-          { code: "BACKUP_INCONSISTENT" },
-        );
-      signal.throwIfAborted();
       c = await capture();
       const p = await planCapture(target, notebookId, c, signal);
       return {
         notebookId,
-        copyAssets: p.missing.length,
-        skipAssets: p.m.files.length - p.missing.length,
-        replaceDatabase: !p.dbSame,
+        copyChunks: p.missing.length,
+        skipChunks: p.m.files.length - p.missing.length,
+        databaseChanged: p.previous?.database.sha256 !== p.m.database.sha256,
         deleteFiles: p.m.cleanup.length,
-        deleteBytes: p.m.cleanup.reduce((n, a) => n + a.size, 0),
-        copyBytes: p.stats.totalBytes,
+        deleteBytes: p.m.cleanup.reduce((n, f) => n + f.size, 0),
+        copyBytes: p.copyBytes,
         temporaryBytes: p.needed,
         availableBytes: p.availableBytes,
         enoughSpace: p.availableBytes >= p.needed,
-        requiresReview: p.requiresReview,
-        approvalToken: p.approvalToken,
         revision: p.m.revision,
       };
     } finally {
@@ -697,39 +563,21 @@ export class LocalBackupService {
     }
   }
 
-  /**
-   * Read the current manifest info of one Notebook on the target.
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @returns Manifest summary info.
-   */
   async info(target: LocalTarget, notebookId: string) {
     uuid.parse(notebookId);
     await guard(target);
-    const m = await readManifest(target, notebookId);
+    const manifest = await readManifest(target, notebookId);
     return {
-      manifest: m,
-      needsReconcile: await exists(
-        target.path,
-        `notebooks/${notebookId}/.backup/prepared.json`,
-      ),
+      manifest,
+      needsReconcile:
+        !!manifest?.cleanup.length ||
+        !!(await optionalJSON(
+          target.path,
+          `notebooks/${notebookId}/.backup/pending.json`,
+        )),
     };
   }
 
-  /**
-   * Run one local backup.
-   *
-   * It first reconciles interrupted commits, can quickly skip capture when the
-   * source revision is unchanged; otherwise it copies missing assets and the
-   * database snapshot, verifies, writes the prepared record and publishes
-   * atomically, then cleans up managed old assets.
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @param capture Capture provider.
-   * @param options Backup options (revision reader, progress callback, abort signal).
-   */
   async backup(
     target: LocalTarget,
     notebookId: string,
@@ -740,7 +588,6 @@ export class LocalBackupService {
       sources?: string[];
       onProgress?: (p: Progress) => void;
       fault?: (point: string) => void;
-      approvalToken?: string;
       readRevision?: () => Promise<BackupRevision | undefined>;
     } = {},
   ) {
@@ -762,308 +609,157 @@ export class LocalBackupService {
       checkingMs: 0,
       verificationMs: 0,
     };
-    let lastProgressAt = 0;
-
-    /**
-     * Emit progress at the throttled rate (or on phase change).
-     *
-     * @param phase Progress phase.
-     */
-    const emit = (phase = p.phase) => {
-      const now = Date.now();
-      if (phase === p.phase && now - lastProgressAt < 150) return;
-      lastProgressAt = now;
+    const emit = (phase: string) => {
       p.phase = phase;
       options.onProgress?.({ ...p });
     };
-    emit();
-    const checkingStarted = performance.now();
+    const started = performance.now();
     await guard(target, options.sources);
     target = { ...target, deviceId: String((await stat(target.path)).dev) };
     const release = await lock(target);
     let c: Capture | undefined;
     try {
-      if ((await reconcile(target, notebookId)).pendingCleanup) {
-        emit("备份已更新但清理待重试");
-        return { ...p, pendingCleanup: true };
-      }
-      signal.throwIfAborted();
-      const abandonedRoot = join(target.path, "notebooks", notebookId);
-      const abandoned = await optionalJSON(abandonedRoot, ".backup/task.json");
-      if (abandoned) {
-        const record = z
-          .object({
-            taskId: uuid,
-            notebookId: uuid,
-            targetId: uuid,
-            temporaryFiles: z.array(z.string()).max(100001).default([]),
-          })
-          .parse(abandoned);
-        if (record.notebookId !== notebookId || record.targetId !== target.id)
-          throw Error("临时任务身份不匹配");
-        await guard(target);
-        const stage = `.backup/staging/${record.taskId}`;
-        for (const temporary of record.temporaryFiles) {
-          if (
-            !new RegExp(
-              `^${stage.replaceAll(".", "\\.")}/(?:[a-f0-9]{64}|notebook\\.sqlite)\\.tmp$`,
-            ).test(temporary)
-          )
-            throw Error("临时文件清单路径无效");
-          await unlink(await safePath(abandonedRoot, temporary)).catch((e) => {
-            if (e.code !== "ENOENT") throw e;
-          });
-        }
-        await unlink(
-          await safePath(abandonedRoot, stage + "/notebook.sqlite"),
-        ).catch((e) => {
-          if (e.code !== "ENOENT") throw e;
-        });
-        await rmdir(await safePath(abandonedRoot, stage)).catch((e) => {
-          if (!["ENOENT", "ENOTEMPTY"].includes(e.code)) throw e;
-        });
-        await unlink(await safePath(abandonedRoot, ".backup/task.json"));
-      }
+      let previous = await readManifest(target, notebookId);
+      await recoverPending(target, notebookId, previous, signal);
+      if (previous?.cleanup.length)
+        previous = await cleanup(target, previous, signal);
       const revision = await options.readRevision?.();
-      if (revision && revision.notebookId === notebookId) {
-        const previous = await readManifest(target, notebookId);
-        const keys = [
-          "lineageId",
-          "contentSeq",
-          "schemaVersion",
-          "storageEpoch",
-        ] as const;
+      const keys = [
+        "lineageId",
+        "contentSeq",
+        "schemaVersion",
+        "storageEpoch",
+      ] as const;
+      if (
+        previous &&
+        revision?.notebookId === notebookId &&
+        keys.every((k) => previous.revision[k] === revision[k])
+      ) {
+        const root = join(target.path, "notebooks", notebookId);
+        let intact = true;
+        for (const f of previous.files) {
+          signal.throwIfAborted();
+          p.checkedFiles++;
+          if (!(await matches(root, f, false, signal))) {
+            intact = false;
+            break;
+          }
+        }
+        const current = await options.readRevision!();
         if (
-          previous &&
-          !previous.cleanup.length &&
-          previous.verificationStatus !== "rebuilt-needs-review" &&
-          keys.every((key) => previous.revision[key] === revision[key])
+          intact &&
+          current?.notebookId === notebookId &&
+          keys.every((k) => current[k] === revision[k])
         ) {
-          const root = join(target.path, "notebooks", notebookId);
-          let intact = true;
-          for (const d of [
-            previous.database,
-            previous.bootstrap,
-            ...previous.files,
-          ]) {
-            signal.throwIfAborted();
-            p.checkedFiles++;
-            try {
-              if (
-                !d.token ||
-                (await token(await safePath(root, d.path))) !== d.token
-              ) {
-                intact = false;
-                break;
-              }
-            } catch (e: any) {
-              if (e.code !== "ENOENT") throw e;
-              intact = false;
-              break;
-            }
-          }
-          // After the async target checks, confirm the source revision has not changed again.
-          const current = await options.readRevision!();
-          if (
-            intact &&
-            current?.notebookId === notebookId &&
-            keys.every((key) => current[key] === revision[key])
-          ) {
-            await guard(target, options.sources);
-            p.revision = previous.revision;
-            p.checkingMs = performance.now() - checkingStarted;
-            p.skippedFiles = previous.files.length + 2;
-            p.totalBytes = 0;
-            emit("已完成");
-            return {
-              ...p,
-              pendingCleanup: false,
-              unchanged: true,
-              captureSkipped: true,
-            };
-          }
+          await guard(target, options.sources);
+          Object.assign(p, {
+            revision: previous.revision,
+            skippedFiles: previous.files.length,
+            totalBytes: 0,
+            checkingMs: performance.now() - started,
+          });
+          emit("已完成");
+          return {
+            ...p,
+            pendingCleanup: false,
+            unchanged: true,
+            captureSkipped: true,
+          };
         }
       }
       emit("准备数据库");
       c = await capture();
-      const plan = await planCapture(target, notebookId, c, signal);
-      const {
-        root,
-        previous,
-        m,
-        missing,
-        dbSame,
-        bootstrapSame,
-        bootstrap,
-        sourceFiles,
-        stage,
-        needed,
-      } = plan;
-      Object.assign(p, plan.stats);
-      p.revision = m.revision;
-      p.checkingMs = performance.now() - checkingStarted;
-      if (plan.requiresReview && options.approvalToken !== plan.approvalToken)
-        throw Object.assign(
-          Error(
-            "异常删除量：本次将删除至少一半受管附件，请预览并确认后重新运行",
-          ),
-          { code: "DELETION_REVIEW_REQUIRED" },
-        );
-      if (plan.availableBytes < needed)
-        throw Object.assign(
-          Error(`目标空间不足，需额外 ${Math.ceil(needed / 1024 ** 2)} MB`),
-          { code: "NO_SPACE" },
-        );
-      if (
-        dbSame &&
-        bootstrapSame &&
-        !missing.length &&
-        !m.cleanup.length &&
-        previous?.verificationStatus !== "rebuilt-needs-review"
-      ) {
-        // Re-bind a writer that was reopened and refresh the token verified by the planner.
-        // The database and assets are unchanged, so only the current manifest needs to be published.
-        if (previous) {
-          const refreshed: Manifest = {
-            ...previous,
-            revision: m.revision,
-            files: m.files,
-            database: {
-              ...previous.database,
-              token: await token(await safePath(root, "notebook.sqlite")),
-            },
-            bootstrap: {
-              ...previous.bootstrap,
-              token: await token(await safePath(root, "notebook.json")),
-            },
-          };
-          if (JSON.stringify(previous) !== JSON.stringify(refreshed)) {
-            await guard(target);
-            await atomicJSON(root, ".backup/manifest.json", refreshed);
-          }
-        }
-        emit("已完成");
-        return { ...p, pendingCleanup: false, unchanged: true };
-      }
-      await probeReplacement(target.path, () => guard(target));
-      const taskId = m.taskId;
-      await mkdir(await safePath(root, stage), { recursive: true });
-      await atomicJSON(root, ".backup/task.json", {
-        taskId,
-        notebookId,
-        targetId: target.id,
-        temporaryFiles: [
-          ...missing.map((a) => `${stage}/${a.sha256}.tmp`),
-          `${stage}/notebook.sqlite.tmp`,
-        ],
+      const plan = await planCapture(target, notebookId, c, signal),
+        m = plan.m;
+      if (plan.availableBytes < plan.needed) throw Error("备份磁盘空间不足");
+      Object.assign(p, {
+        revision: m.revision,
+        totalBytes: plan.copyBytes,
+        checkedFiles: m.files.length,
+        skippedFiles: m.files.length - plan.missing.length,
+        checkingMs: performance.now() - started,
       });
-      emit("复制中");
-      let index = 0;
-      const workers = await Promise.allSettled(
-        Array.from({ length: concurrency }, async () => {
-          while (index < missing.length) {
-            const a = missing[index++];
+      await mkdir(await safePath(plan.root, ".backup"), { recursive: true });
+      await probeReplacement(target.path, () => guard(target));
+      emit("复制数据库分块");
+      await atomicJSON(plan.root, ".backup/pending.json", {
+        targetId: target.id,
+        notebookId,
+        taskId: m.taskId,
+        files: plan.missing,
+      });
+      let next = 0,
+        failed = false;
+      const worker = async () => {
+        while (!failed && next < plan.missing.length) {
+          const f = plan.missing[next++];
+          try {
             signal.throwIfAborted();
             await guard(target);
-            const source = sourceFiles.get(a.path)!;
-            await copyVerified(
-              source,
-              root,
-              a.path,
-              a,
-              signal,
-              (n) => {
-                p.copiedBytes += n;
-                emit();
-              },
-              () => guard(target),
-              `${stage}/${a.sha256}.tmp`,
-              (ms) => {
-                p.verificationMs += ms;
-              },
-            );
-            a.token = await token(await safePath(root, a.path));
+            const source = plan.sources.get(f.sha256)!;
+            const bytes = await readChunk(source, signal);
+            if (digest(bytes) !== f.sha256)
+              throw Error("备份源分块在复制前改变");
+            const file = await safePath(plan.root, f.path);
+            const temp = await safePath(plan.root, `${f.path}.${m.taskId}.tmp`);
+            await mkdir(join(file, ".."), { recursive: true });
+            try {
+              await writeFile(temp, bytes, {
+                flag: "wx",
+                mode: 0o600,
+                flush: true,
+              });
+              const verifying = performance.now();
+              if ((await hashFile(temp, signal)) !== f.sha256)
+                throw Error("分块写后 SHA-256 校验失败");
+              p.verificationMs += performance.now() - verifying;
+              signal.throwIfAborted();
+              await guard(target);
+              await replace(temp, file);
+            } finally {
+              await unlink(temp).catch((e) => {
+                if (e.code !== "ENOENT") throw e;
+              });
+            }
+            f.token = await token(file);
             p.copiedFiles++;
-            emit();
+            p.copiedBytes += f.size;
+            emit("复制数据库分块");
+          } catch (error) {
+            failed = true;
+            throw error;
           }
-        }),
+        }
+      };
+      // Join every worker before releasing the snapshot or target lease, including on failure.
+      const workers = await Promise.allSettled(
+        Array.from({ length: concurrency }, worker),
       );
-      const failed = workers.find((r) => r.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
-      if (!dbSame) {
-        await guard(target);
-        await copyVerified(
-          c.databasePath,
-          root,
-          stage + "/notebook.sqlite",
-          m.database,
-          signal,
-          (n) => {
-            p.copiedBytes += n;
-            emit();
-          },
-          () => guard(target),
-          `${stage}/notebook.sqlite.tmp`,
-          (ms) => {
-            p.verificationMs += ms;
-          },
-        );
-        p.copiedFiles++;
-      }
-      emit("校验中");
+      const failure = workers.find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") throw failure.reason;
+      // Uncommitted chunks never replace the manifest; cancellation preserves the previous recoverable snapshot.
+      options.fault?.("chunks-written");
       signal.throwIfAborted();
-      await guard(target);
-      const verificationStarted = performance.now();
-      const oldHash = (await exists(root, "notebook.sqlite"))
-        ? await hashFile(await safePath(root, "notebook.sqlite"), signal)
-        : null;
-      await atomicJSON(root, ".backup/prepared.json", {
-        taskId,
-        oldHash,
-        manifestHash: digest(JSON.stringify(m)),
-        manifest: m,
-        bootstrap,
-      });
-      p.verificationMs += performance.now() - verificationStarted;
-      options.fault?.("prepared");
-      // From this point until a determinate commit completes, cancellation is deferred.
+      await guard(target, options.sources);
       emit("提交中");
-      if (!dbSame) {
-        await guard(target);
-        await replace(
-          await safePath(root, stage + "/notebook.sqlite"),
-          await safePath(root, "notebook.sqlite"),
-        );
-      }
-      options.fault?.("database-published");
-      await guard(target);
-      if (!bootstrapSame) {
-        await atomicJSON(root, "notebook.json", bootstrap);
-        p.copiedFiles++;
-        p.copiedBytes += m.bootstrap.size;
-      }
-      m.database.token = await token(await safePath(root, "notebook.sqlite"));
-      m.bootstrap.token = await token(await safePath(root, "notebook.json"));
-      await atomicJSON(root, ".backup/prepared.json", {
-        taskId,
-        oldHash,
-        manifestHash: digest(JSON.stringify(m)),
-        manifest: m,
-        bootstrap,
-      });
-      await atomicJSON(root, ".backup/manifest.json", m);
+      signal.throwIfAborted();
+      await atomicJSON(plan.root, ".backup/manifest.json", m);
       options.fault?.("manifest-published");
-      emit("清理中");
       try {
         await cleanup(target, m, signal, () => {
           p.deletedFiles++;
         });
+        await recoverPending(target, notebookId, m, signal);
       } catch {
         emit("备份已更新但清理待重试");
         return { ...p, pendingCleanup: true };
       }
       emit("已完成");
-      return { ...p, pendingCleanup: false };
+      return {
+        ...p,
+        pendingCleanup: false,
+        unchanged: plan.previous?.database.sha256 === m.database.sha256,
+      };
     } finally {
       try {
         await c?.release();
@@ -1073,110 +769,17 @@ export class LocalBackupService {
     }
   }
 
-  /**
-   * Rebuild a missing backup manifest from the existing database on the target (marked for manual review).
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @param signal Abort signal.
-   * @returns The rebuilt manifest.
-   */
-  async rebuildManifest(
-    target: LocalTarget,
-    notebookId: string,
-    signal = new AbortController().signal,
-  ) {
-    uuid.parse(notebookId);
-    const release = await lock(target);
-    try {
-      await reconcile(target, notebookId);
-      if (await readManifest(target, notebookId))
-        throw Error("已有清单，无需重建；请执行完整校验");
-      const root = join(target.path, "notebooks", notebookId),
-        file = await safePath(root, "notebook.sqlite");
-      await token(file);
-      const db = new DatabaseSync(file, { readOnly: true });
-      let meta, files;
-      try {
-        db.exec("PRAGMA trusted_schema=OFF;");
-        meta = db.prepare("SELECT * FROM notebook_meta").get()!;
-        files = db
-          .prepare("SELECT path,size,hash FROM assets ORDER BY path")
-          .all()
-          .map((a) =>
-            asset.parse({ path: a.path, size: a.size, sha256: a.hash }),
-          );
-      } finally {
-        db.close();
-      }
-      if (meta.id !== notebookId) throw Error("数据库身份不匹配");
-      checkDatabase(file, { notebookId, files });
-      for (const a of files) {
-        signal.throwIfAborted();
-        if (!(await matches(root, a, true, signal)))
-          throw Error("重建时发现资源缺失或损坏：" + a.path);
-        a.token = await token(await safePath(root, a.path));
-      }
-      const bootstrap = {
-          id: notebookId,
-          name: String(meta.name),
-          schema_version: Number(meta.schema_version),
-        },
-        bytes = JSON.stringify(bootstrap);
-      const m = manifestSchema.parse({
-        format: "anynote.local-backup",
-        formatVersion: 1,
-        targetId: target.id,
-        notebookId,
-        taskId: randomUUID(),
-        completedAt: new Date().toISOString(),
-        revision: {
-          contentSeq: String(meta.content_seq),
-          schemaVersion: Number(meta.schema_version),
-          lineageId: randomUUID(),
-          storageEpoch: "rebuilt",
-        },
-        database: {
-          path: "notebook.sqlite",
-          size: (await lstat(file)).size,
-          sha256: await hashFile(file, signal),
-          token: await token(file),
-        },
-        bootstrap: {
-          path: "notebook.json",
-          size: Buffer.byteLength(bytes),
-          sha256: digest(bytes),
-        },
-        files,
-        verificationStatus: "rebuilt-needs-review",
-      });
-      await guard(target);
-      await atomicJSON(root, "notebook.json", bootstrap);
-      m.bootstrap.token = await token(await safePath(root, "notebook.json"));
-      await atomicJSON(root, ".backup/manifest.json", m);
-      return m;
-    } finally {
-      release();
-    }
-  }
-
-  /**
-   * Delete all managed files of one Notebook on the target (unknown/user files are preserved).
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   */
   async deleteNotebook(target: LocalTarget, notebookId: string) {
     uuid.parse(notebookId);
     const release = await lock(target);
     try {
-      await reconcile(target, notebookId);
       const m = await readManifest(target, notebookId);
       if (!m) throw Error("没有受管清单，禁止删除未知文件");
+      await recoverPending(target, notebookId, m);
       const root = join(target.path, "notebooks", notebookId);
-      for (const d of [...m.files, ...m.cleanup, m.database, m.bootstrap]) {
+      for (const f of [...m.files, ...m.cleanup]) {
         await guard(target);
-        const file = await safePath(root, d.path);
+        const file = await safePath(root, f.path);
         try {
           await token(file);
           await unlink(file);
@@ -1192,14 +795,66 @@ export class LocalBackupService {
     }
   }
 
-  /**
-   * Run a full verification of one Notebook's backup and update the verification timestamp.
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @param signal Abort signal.
-   * @param onReport Optional report callback.
-   */
+  private async verifyLocked(
+    target: LocalTarget,
+    book: string,
+    signal: AbortSignal,
+    onReport?: (report: LocalVerificationReport) => void,
+    destination?: string,
+    onBytes: (n: number) => void = () => {},
+  ) {
+    const m = await readManifest(target, book);
+    if (!m) throw Error("没有当前备份清单；请使用源仓库重新备份并核验");
+    const root = join(target.path, "notebooks", book);
+    const temp =
+      destination || (await mkdtemp(join(tmpdir(), "anynote-verify-")));
+    const file = await safePath(temp, "notebook.sqlite");
+    let success = false;
+    try {
+      const space = await statfs(temp);
+      if (space.bavail * space.bsize < m.database.size + transferChunkBytes)
+        throw Error("恢复目录空间不足");
+      const report = await inspectBackupFiles({
+        root,
+        notebookId: book,
+        targetId: target.id,
+        files: m.files,
+        signal,
+        guard: () => guard(target),
+        onReport,
+        checkDatabase: async () => {
+          await assembleFile(
+            file,
+            m.database,
+            async (c) => {
+              await guard(target);
+              return readChunk(
+                {
+                  file: await safePath(root, `chunks/${c.sha256}.bin`),
+                  offset: 0,
+                  size: c.size,
+                },
+                signal,
+              );
+            },
+            signal,
+            onBytes,
+          );
+          checkDatabase(file, m);
+        },
+      });
+      if (report.status !== "passed") throw new LocalVerificationError(report);
+      success = true;
+      return m;
+    } finally {
+      if (!destination) await rm(temp, { recursive: true, force: true });
+      else if (!success)
+        await unlink(file).catch((e) => {
+          if (e.code !== "ENOENT") throw e;
+        });
+    }
+  }
+
   async verify(
     target: LocalTarget,
     notebookId: string,
@@ -1209,70 +864,21 @@ export class LocalBackupService {
     uuid.parse(notebookId);
     const release = await lock(target);
     try {
-      await reconcile(target, notebookId);
       const m = await this.verifyLocked(target, notebookId, signal, onReport);
       signal.throwIfAborted();
       await guard(target);
       m.lastFullVerifiedAt = new Date().toISOString();
-      // The pending prepared record is still authoritative: do not let its manifest hash become stale.
-      if (
-        !(await exists(
-          target.path,
-          `notebooks/${notebookId}/.backup/prepared.json`,
-        ))
-      )
-        await atomicJSON(
-          join(target.path, "notebooks", notebookId),
-          ".backup/manifest.json",
-          m,
-        );
+      await atomicJSON(
+        join(target.path, "notebooks", notebookId),
+        ".backup/manifest.json",
+        m,
+      );
       return m;
     } finally {
       release();
     }
   }
 
-  /**
-   * Run a full verification while holding the lock.
-   *
-   * @param target Local backup target.
-   * @param book Notebook ID.
-   * @param signal Abort signal.
-   * @param onReport Optional report callback.
-   */
-  private async verifyLocked(
-    target: LocalTarget,
-    book: string,
-    signal: AbortSignal,
-    onReport?: (report: LocalVerificationReport) => void,
-  ) {
-    const m = await readManifest(target, book);
-    if (!m) throw Error("没有当前备份清单；请使用源仓库重新备份并核验");
-    const root = join(target.path, "notebooks", book);
-    const report = await inspectBackupFiles({
-      root,
-      notebookId: book,
-      targetId: target.id,
-      files: [m.database, m.bootstrap, ...m.files],
-      signal,
-      guard: () => guard(target),
-      checkDatabase: async () =>
-        checkDatabase(await safePath(root, "notebook.sqlite"), m),
-      onReport,
-    });
-    if (report.status !== "passed") throw new LocalVerificationError(report);
-    return m;
-  }
-
-  /**
-   * Verify the backup and then copy it to the destination directory (rejecting overlap and same-name overwrite).
-   *
-   * @param target Local backup target.
-   * @param notebookId Notebook ID.
-   * @param destination Destination directory.
-   * @param signal Abort signal.
-   * @returns The restored destination path.
-   */
   async restore(
     target: LocalTarget,
     notebookId: string,
@@ -1284,34 +890,18 @@ export class LocalBackupService {
     uuid.parse(notebookId);
     const release = await lock(target);
     try {
-      await reconcile(target, notebookId);
-      const m = await this.verifyLocked(target, notebookId, signal, onReport);
       const dir = await canonical(destination);
       if (overlaps(dir, target.path)) throw Error("恢复目录不能位于备份目录内");
-      for (const d of [m.database, m.bootstrap, ...m.files])
-        if (await exists(dir, d.path))
-          throw Error("恢复目录包含同名文件，禁止覆盖");
-      const space = await statfs(dir),
-        needed = [m.database, m.bootstrap, ...m.files].reduce(
-          (n, d) => n + d.size,
-          0,
-        );
-      if (space.bavail * space.bsize < needed + 1024 ** 2)
-        throw Error("恢复目录空间不足");
-      const root = join(target.path, "notebooks", notebookId);
-      for (const d of [m.database, m.bootstrap, ...m.files]) {
-        await guard(target);
-        await copyVerified(
-          await safePath(root, d.path),
-          dir,
-          d.path,
-          d,
-          signal,
-          onBytes,
-          () => guard(target),
-        );
-      }
-      return m;
+      if (await exists(dir, "notebook.sqlite"))
+        throw Error("恢复目录包含同名文件，禁止覆盖");
+      return await this.verifyLocked(
+        target,
+        notebookId,
+        signal,
+        onReport,
+        dir,
+        onBytes,
+      );
     } finally {
       release();
     }

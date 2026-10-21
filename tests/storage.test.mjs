@@ -157,11 +157,11 @@ test("rejects traversal, hash tampering, incompatible schemas and invalid file s
   );
 });
 test("local snapshot is independently importable", async (t) => {
-  const { s, b, call, root } = await fixture(t);
+  const { s, b, call } = await fixture(t);
   await call("createNode", { title: "要保护的想法", body: "可靠恢复" });
   const snap = await call("snapshot");
   const file = readFileSync(
-    join(root, b.id, "snapshots", snap.createdAt + ".anynote"),
+    s.auxiliaryPath(b.id, "snapshots/" + snap.createdAt + ".anynote"),
   );
   const result = await s.run("importArchive", {
     data: file.toString("base64"),

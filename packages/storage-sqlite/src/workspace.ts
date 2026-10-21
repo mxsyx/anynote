@@ -1,13 +1,11 @@
+import { verifyAssets } from "./assets.js";
 import { assertNotebookSchema } from "./backup-revision.js";
-import { createHash } from "node:crypto";
+
 import {
-  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
-  openSync,
   readFileSync,
-  readSync,
   realpathSync,
   renameSync,
   writeFileSync,
@@ -100,29 +98,37 @@ export function assertLocalPath(root: string, relative: string) {
  * @returns Function releasing the lock.
  */
 export function acquireWriteLock(root: string) {
-  // An independent SQLite connection holds an OS-backed exclusive lease. It is released automatically on process exit,
-  // so there is no PID-reuse or time-based stale-lock race. The lease file is kept to maintain the same lock inode.
-  const file = assertLocalPath(root, ".anynote-lease.sqlite");
+  // The main SQLite connection holds the OS-backed lease. Exclusive locking mode
+  // retains the lock between transactions and releases it on process exit.
+  const file = assertLocalPath(root, "notebook.sqlite");
   for (const suffix of ["-journal", "-wal", "-shm"])
-    assertLocalPath(root, ".anynote-lease.sqlite" + suffix);
-  const lease = new DatabaseSync(file);
+    assertLocalPath(root, "notebook.sqlite" + suffix);
+  const db = new DatabaseSync(file);
   try {
-    lease.exec(
-      "PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=0; BEGIN EXCLUSIVE;",
+    db.exec(
+      "PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=0; PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=DELETE; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; BEGIN EXCLUSIVE; COMMIT;",
     );
   } catch (e: any) {
-    lease.close();
+    db.close();
     if (e.errcode === 5 || /locked|busy/i.test(e.message))
       throw Error("Notebook 已被其他存储实例打开，请先关闭原实例");
     throw e;
   }
-  let closed = false;
-  return () => {
-    if (!closed) {
-      closed = true;
-      lease.close();
-    }
-  };
+  return Object.assign(
+    () => {
+      if (!db.isOpen) return;
+      // Checkpoint while the exclusive lease still holds, so a closed Notebook
+      // remains portable without leaving read-only WAL shared-memory artifacts.
+      try {
+        db.exec("PRAGMA journal_mode=DELETE;");
+      } catch {
+        /* A removed or damaged source can leave recovery sidecars; always release its handle. */
+      } finally {
+        db.close();
+      }
+    },
+    { db },
+  );
 }
 
 /**
@@ -150,8 +156,7 @@ export function validateDirectory(
     const meta = metas[0];
     uuid.parse(meta.id);
     z.string().trim().min(1).max(240).parse(meta.name);
-    if (![1, 2].includes(meta.schema_version))
-      throw Error("不支持的数据库版本");
+    if (meta.schema_version !== 3) throw Error("不支持的数据库版本");
     const reference = new DatabaseSync(":memory:");
     try {
       reference.exec(schemas[meta.schema_version]);
@@ -164,32 +169,7 @@ export function validateDirectory(
       db.prepare("PRAGMA foreign_key_check").all().length
     )
       throw Error("数据库完整性检查失败");
-    const buffer = Buffer.alloc(1024 * 1024);
-    for (const a of db.prepare("SELECT * FROM assets").all()) {
-      if (
-        !/^[a-f0-9]{64}$/.test(a.hash) ||
-        a.path !== `assets/sha256/${a.hash.slice(0, 2)}/${a.hash}.bin`
-      )
-        throw Error("资源路径无效");
-      const path = assertLocalPath(root, a.path);
-      if (
-        !existsSync(path) ||
-        !lstatSync(path).isFile() ||
-        lstatSync(path).size !== a.size
-      )
-        throw Error("Notebook 资源缺失或大小不匹配");
-      const file = openSync(path, "r"),
-        hash = createHash("sha256");
-      try {
-        let size;
-        while ((size = readSync(file, buffer, 0, buffer.length, null)))
-          hash.update(buffer.subarray(0, size));
-      } finally {
-        closeSync(file);
-      }
-      if (hash.digest("hex") !== a.hash)
-        throw Error("Notebook 资源哈希校验失败");
-    }
+    verifyAssets(db);
     const nodes = new Map(
       db
         .prepare("SELECT id,parent_id,kind FROM nodes")
@@ -210,10 +190,11 @@ export function validateDirectory(
       }
       for (const id of chain) done.add(id);
     }
-    assertLocalPath(root, "notebook.json");
-    assertLocalPath(root, "notebook.json.tmp");
-    assertLocalPath(root, "snapshots");
     return meta;
+  } catch (e: any) {
+    if (e.errcode === 5 || /locked|busy/i.test(e.message))
+      throw Error("Notebook 已被其他存储实例打开，请先关闭原实例");
+    throw e;
   } finally {
     db.close();
   }
@@ -252,42 +233,35 @@ export function registerDirectory(
         ...s.open(entry.id).prepare("SELECT * FROM notebook_meta").get(),
         external: true,
       };
-  const release = acquireWriteLock(root);
-  let id;
-  try {
-    const meta = validateDirectory(root, schemas);
-    id = meta.id;
-    const managed = resolve(s.root, id);
-    if (existsSync(managed)) {
-      if (realpathSync(managed) !== root)
-        throw Error("此 Notebook 身份已对应另一个目录，请使用归档导入创建副本");
-      release();
-      return s.open(id).prepare("SELECT * FROM notebook_meta").get();
-    }
-    const previous = s.externalDirectories.get(id);
-    if (!previous && s.externalDirectories.size >= 1000)
-      throw Error("已登记 Notebook 数量超过预算");
-    if (previous && previous.path !== root)
+
+  const meta = validateDirectory(root, schemas);
+  const id = meta.id;
+  const managed = resolve(s.root, id);
+  if (existsSync(managed)) {
+    if (realpathSync(managed) !== root)
       throw Error("此 Notebook 身份已对应另一个目录，请使用归档导入创建副本");
-    s.externalDirectories.set(id, { id, path: root, name: meta.name });
-    s.writeLocks.set(id, release);
-    try {
-      const db = s.open(id);
-      persistDirectories(s);
-      return {
-        ...db.prepare("SELECT * FROM notebook_meta").get(),
-        external: true,
-      };
-    } catch (e: any) {
-      s.dbs.get(id)?.close();
-      s.dbs.delete(id);
-      s.writeLocks.delete(id);
-      if (previous) s.externalDirectories.set(id, previous);
-      else s.externalDirectories.delete(id);
-      throw e;
-    }
+    return s.open(id).prepare("SELECT * FROM notebook_meta").get();
+  }
+  const previous = s.externalDirectories.get(id);
+  if (!previous && s.externalDirectories.size >= 1000)
+    throw Error("已登记 Notebook 数量超过预算");
+  if (previous && previous.path !== root)
+    throw Error("此 Notebook 身份已对应另一个目录，请使用归档导入创建副本");
+  s.externalDirectories.set(id, { id, path: root, name: meta.name });
+  try {
+    const db = s.open(id);
+    persistDirectories(s);
+    return {
+      ...db.prepare("SELECT * FROM notebook_meta").get(),
+      external: true,
+    };
   } catch (e: any) {
-    release();
+    s.writeLocks.get(id)?.();
+    if (s.dbs.get(id)?.isOpen) s.dbs.get(id)!.close();
+    s.dbs.delete(id);
+    s.writeLocks.delete(id);
+    if (previous) s.externalDirectories.set(id, previous);
+    else s.externalDirectories.delete(id);
     throw e;
   }
 }
@@ -316,7 +290,8 @@ export function detachDirectory(s: Storage, raw: unknown) {
     s.externalDirectories.set(notebookId, entry);
     throw e;
   }
-  s.dbs.get(notebookId)?.close();
+  s.writeLocks.get(notebookId)?.();
+  if (s.dbs.get(notebookId)?.isOpen) s.dbs.get(notebookId)!.close();
   s.dbs.delete(notebookId);
   s.readDbs.get(notebookId)?.close();
   s.readDbs.delete(notebookId);

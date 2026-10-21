@@ -11,7 +11,6 @@ interface Slot {
   commitId?: string;
   completedAt?: string;
   databaseBytes?: number;
-  assetCount?: number;
   verification?: string;
   local?: boolean;
 }
@@ -143,8 +142,7 @@ export default function CloudRestoreWizard({
                   {slot.completedAt
                     ? new Date(slot.completedAt).toLocaleString("zh-CN")
                     : "未知时间"}{" "}
-                  · {formatBytes(slot.databaseBytes)} · {slot.assetCount ?? 0}{" "}
-                  个资源
+                  · {formatBytes(slot.databaseBytes)}
                 </small>
               </span>
               <Button
@@ -167,8 +165,7 @@ export default function CloudRestoreWizard({
                 ? new Date(selected.completedAt).toLocaleString("zh-CN")
                 : "所选时间"}{" "}
               的副本：
-              {formatBytes(selected.databaseBytes)} 数据库 ·{" "}
-              {selected.assetCount ?? 0} 个资源。
+              {formatBytes(selected.databaseBytes)}（包含正文、附件和历史）。
             </p>
             <p className="small-note">
               校验状态：

@@ -1,19 +1,21 @@
+import {
+  putAssetFile,
+  verifyAsset,
+} from "../../.build/packages/storage-sqlite/assets.js";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
-  mkdirSync,
   openSync,
   writeSync,
   closeSync,
-  renameSync,
   rmSync,
   readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
-import { hashFile } from "../../.build/packages/storage-sqlite/archive-stream.js";
+
 export async function streamScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cloud-stream-"));
   const storage = new Storage(join(root, "data"));
@@ -48,18 +50,13 @@ export async function streamScenario({ settings, onStep = () => {} }) {
     } finally {
       closeSync(fd);
     }
-    const hash = digest.digest("hex"),
-      path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
-      dest = storage.notebookPath(book.id, path);
-    mkdirSync(dirname(dest), { recursive: true });
-    renameSync(temp, dest);
-    storage.tx(storage.open(book.id), note.id, "fixture", () => {
-      storage
-        .open(book.id)
-        .prepare("INSERT INTO assets VALUES(?,?,?,?)")
-        .run(hash, size, "application/octet-stream", path);
-      return { sha256: hash };
-    });
+    const hash = putAssetFile(
+      storage.open(book.id),
+      temp,
+      "application/octet-stream",
+    );
+    assert.equal(hash, digest.digest("hex"));
+    rmSync(temp);
     await call("saveNote", {
       id: note.id,
       expectedRevision: 1,
@@ -96,10 +93,7 @@ export async function streamScenario({ settings, onStep = () => {} }) {
         generationId: versions[0].id,
       }),
     );
-    assert.equal(
-      (await hashFile(storage.notebookPath(restored.restoredId, path))).sha256,
-      hash,
-    );
+    assert.equal(verifyAsset(storage.open(restored.restoredId), hash), size);
     const data = await storage.run("getNote", {
       notebookId: restored.restoredId,
       id: note.id,

@@ -1,3 +1,4 @@
+import { putAssetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
 import assert from "node:assert/strict";
@@ -11,7 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash, randomFillSync } from "node:crypto";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
@@ -53,14 +54,9 @@ try {
   } finally {
     closeSync(fd);
   }
-  const hash = digest.digest("hex"),
-    path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`;
-  mkdirSync(dirname(s.notebookPath(book.id, path)), { recursive: true });
-  const { renameSync } = await import("node:fs");
-  renameSync(temp, s.notebookPath(book.id, path));
-  s.open(book.id)
-    .prepare("INSERT INTO assets VALUES(?,?,?,?)")
-    .run(hash, size, "application/octet-stream", path);
+  const hash = putAssetFile(s.open(book.id), temp, "application/octet-stream");
+  assert.equal(hash, digest.digest("hex"));
+  rmSync(temp);
   s.close();
   app = await _electron.launch({
     executablePath: process.env.ANYNOTE_EXECUTABLE

@@ -132,15 +132,13 @@ export async function inspectBackupFiles(input: {
     }
     input.signal.throwIfAborted();
     await input.guard();
-    if (report.issues.some((i) => i.path === "notebook.sqlite"))
-      report.databaseCheck = "skipped";
+    if (report.issues.length) report.databaseCheck = "skipped";
     else {
       try {
         await input.checkDatabase();
         report.databaseCheck = "passed";
       } catch (e: any) {
         report.databaseCheck = "failed";
-        report.verifiedFiles--;
         report.issues.push({
           path: "notebook.sqlite",
           code: "SQLITE_INVALID",
@@ -154,9 +152,11 @@ export async function inspectBackupFiles(input: {
     report.status = report.issues.length ? "failed" : "passed";
     report.finishedAt = new Date().toISOString();
     emit(true);
+    input.signal.throwIfAborted();
     return report;
   } catch (e: any) {
     report.status = "interrupted";
+    report.complete = false;
     report.finishedAt = new Date().toISOString();
     emit(true);
     if (e && typeof e === "object")

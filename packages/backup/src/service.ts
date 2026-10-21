@@ -23,9 +23,9 @@ import {
   type SqlRow,
   type Task,
 } from "@anynote/types/runtime.js";
-import { uploadLogicalFiles } from "./file-logical.js";
+import { uploadSnapshotFiles } from "./cloud-snapshot.js";
 import type { FileSnapshot } from "./file-snapshot.js";
-import { listLogical } from "./logical.js";
+import { listBackups } from "./cloud-archive.js";
 import { manage, managementOperations } from "./manage.js";
 import {
   clearFailureState,
@@ -330,7 +330,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   }
 
   if (op === "listRemoteBackups")
-    return { handled: true, result: await listLogical(provider, target) };
+    return { handled: true, result: await listBackups(provider, target) };
 
   if (op === "restoreRemoteBackup") {
     if (!p.generationId) throw Error("请选择版本");
@@ -437,9 +437,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         notebookId: p.notebookId,
         dir,
       });
-      job.totalBytes =
-        snapshot.manifest.database.size +
-        snapshot.manifest.assets.reduce((n, a) => n + a.size, 0);
+      job.totalBytes = snapshot.manifest.database.size;
       job.processedBytes = 0;
       controller.signal.throwIfAborted();
 
@@ -466,7 +464,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
       };
-      const result = await uploadLogicalFiles(
+      const result = await uploadSnapshotFiles(
         provider,
         snapshot,
         target,

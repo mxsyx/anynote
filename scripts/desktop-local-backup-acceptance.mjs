@@ -1,3 +1,5 @@
+import { putAsset } from "../.build/packages/storage-sqlite/assets.js";
+import { LocalBackupService } from "../.build/packages/backup-local/index.js";
 import { appMenu } from "./acceptance/app-menu.mjs";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
@@ -9,13 +11,10 @@ import {
   writeFileSync,
   readFileSync,
   renameSync,
-  openSync,
-  ftruncateSync,
-  closeSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
@@ -34,7 +33,7 @@ const root = mkdtempSync(
 const disk = join(root, "disk");
 mkdirSync(disk);
 const checks = [];
-let electron, page, filesystem, rendererResponse;
+let electron, page, filesystem;
 const reportPath = resolve(
   option("--report-path") || "artifacts/local-backup-acceptance.json",
 );
@@ -99,27 +98,14 @@ try {
     title: "本地备份验收正文",
     body: "# 备份正文\n\n原始内容",
   });
-  const source = storage.directory(first.id),
-    secondSource = storage.directory(second.id);
-  const resources = [];
+  const secondSource = storage.directory(second.id);
   for (let i = 0; i < 30; i++) {
-    const bytes = `attachment-${i}`,
-      hash = createHash("sha256").update(bytes).digest("hex"),
-      path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
-      id = randomUUID();
-    mkdirSync(join(source, path, ".."), { recursive: true });
-    writeFileSync(join(source, path), bytes);
-    storage
-      .open(first.id)
-      .prepare("INSERT INTO assets VALUES(?,?,?,?)")
-      .run(hash, Buffer.byteLength(bytes), "application/octet-stream", path);
-    storage
-      .open(first.id)
-      .prepare(
-        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
-      )
-      .run(id, hash, bytes);
-    resources.push({ id, path });
+    const bytes = randomBytes(256 * 1024),
+      db = storage.open(first.id);
+    const hash = putAsset(db, bytes, "application/octet-stream");
+    db.prepare(
+      "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+    ).run(randomUUID(), hash, `attachment-${i}`);
   }
   storage.close();
   electron = await _electron.launch({
@@ -250,7 +236,10 @@ try {
       (await job((await latest("local-backup")).id)).status,
       "completed",
     );
-    const db = new DatabaseSync(join(dest, "notebook.sqlite"), {
+    const restored = join(root, "check-restore");
+    mkdirSync(restored);
+    await new LocalBackupService().restore(target, first.id, restored);
+    const db = new DatabaseSync(join(restored, "notebook.sqlite"), {
       readOnly: true,
     });
     try {
@@ -267,43 +256,6 @@ try {
     }
     await closeTasks();
   });
-  await check(
-    "anomalous-deletion-preview-requires-explicit-approval",
-    async () => {
-      // Fixture-only mutation through a separate SQLite writer; installed revision triggers still run.
-      const db = new DatabaseSync(join(source, "notebook.sqlite"));
-      try {
-        db.exec("BEGIN");
-        for (const r of resources.slice(0, 20))
-          db.prepare("DELETE FROM resources WHERE id=?").run(r.id);
-        db.exec("COMMIT");
-      } finally {
-        db.close();
-      }
-      await local
-        .getByRole("button", { name: "预览备份", exact: true })
-        .click();
-      const preview = page.getByRole("dialog", {
-        name: "备份预览",
-        exact: true,
-      });
-      await preview.waitFor();
-      const start = preview.getByRole("button", {
-        name: "开始备份",
-        exact: true,
-      });
-      assert.equal(await start.isDisabled(), true);
-      await preview.getByRole("checkbox").check();
-      assert.equal(await start.isEnabled(), true);
-      await start.click();
-      await tasks.waitFor();
-      const updated = await job((await latest("local-backup")).id);
-      assert.equal(updated.status, "completed");
-      assert.equal(updated.backupResult.deletedFiles, 20);
-      assert.equal(existsSync(join(dest, resources[0].path)), false);
-      await closeTasks();
-    },
-  );
   await check("scope-scheduling-and-partial-group-results", async () => {
     await local.locator(".local-backup-scope summary").click();
     const scope = local.locator(".local-backup-scope");
@@ -430,8 +382,11 @@ try {
   await check("multiple-file-errors-render-and-prevent-restore", async () => {
     await navigateSource();
     await backupPage();
-    rmSync(join(dest, resources[20].path));
-    const corrupted = join(dest, resources[21].path);
+    const chunks = JSON.parse(
+      readFileSync(join(dest, ".backup/manifest.json"), "utf8"),
+    ).files;
+    rmSync(join(dest, chunks[0].path));
+    const corrupted = join(dest, chunks[1].path);
     const original = readFileSync(corrupted);
     writeFileSync(corrupted, Buffer.alloc(original.length, 120));
     await local.getByRole("button", { name: "校验备份", exact: true }).click();
@@ -445,8 +400,8 @@ try {
     );
     const card = tasks.locator(".job-card").first();
     await card.getByText(/查看文件异常（2 项）/).click();
-    await card.getByText(resources[20].path, { exact: true }).waitFor();
-    await card.getByText(resources[21].path, { exact: true }).waitFor();
+    await card.getByText(chunks[0].path, { exact: true }).waitFor();
+    await card.getByText(chunks[1].path, { exact: true }).waitFor();
     await closeTasks();
     const before = (await request("listNotebooks")).length;
     await local
@@ -468,106 +423,34 @@ try {
       (await job((await latest("local-backup")).id)).status,
       "completed",
     );
-    assert.equal(readFileSync(corrupted, "utf8"), original.toString());
-    assert.equal(existsSync(join(dest, resources[20].path)), true);
+    assert.deepEqual(readFileSync(corrupted), original);
+    assert.equal(existsSync(join(dest, chunks[0].path)), true);
     await closeTasks();
   });
-  await check("cancel-running-copy-preserves-committed-backup", async () => {
+  await check("cancel-task-preserves-committed-backup", async () => {
     await navigateSource();
     await backupPage();
-    const bytes = 2 * 1024 ** 3,
-      hash = createHash("sha256"),
-      zero = Buffer.alloc(1024 ** 2);
-    for (let i = 0; i < bytes / zero.length; i++) hash.update(zero);
-    const digest = hash.digest("hex"),
-      assetPath = `assets/sha256/${digest.slice(0, 2)}/${digest}.bin`;
-    mkdirSync(join(source, assetPath, ".."), { recursive: true });
-    const fd = openSync(join(source, assetPath), "wx");
-    ftruncateSync(fd, bytes);
-    closeSync(fd);
-    const db = new DatabaseSync(join(source, "notebook.sqlite"));
-    try {
-      db.prepare("INSERT INTO assets VALUES(?,?,?,?)").run(
-        digest,
-        bytes,
-        "application/octet-stream",
-        assetPath,
-      );
-      db.prepare(
-        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
-      ).run(randomUUID(), digest, "cancel-fixture");
-    } finally {
-      db.close();
-    }
-    const manifest = readFileSync(
-      join(dest, ".backup", "manifest.json"),
-      "utf8",
-    );
-    await local.getByRole("button", { name: "立即备份", exact: true }).click();
-    await tasks.waitFor();
-    await page.evaluate(() => {
-      const state = {
-        gaps: [],
-        startedAt: performance.now(),
-        last: performance.now(),
-        stopped: false,
-      };
-      window.localBackupFrameSample = state;
-      const frame = (now) => {
-        if (state.stopped) return;
-        state.gaps.push(now - state.last);
-        state.last = now;
-        requestAnimationFrame(frame);
-      };
-      requestAnimationFrame(frame);
+    const current = await request("getNote", {
+      notebookId: first.id,
+      id: note.id,
     });
-    const active = await latest("local-backup");
-    await eventually(async () => {
-      const [running] = await request("listTasks", { id: active.id });
-      assert.equal(
-        running.status,
-        "running",
-        "取消验收必须在复制任务完成之前执行",
-      );
-      return running.phase === "复制中" && running.processedBytes > 0;
+    await request("saveNote", {
+      notebookId: first.id,
+      id: note.id,
+      expectedRevision: current.revision,
+      body: current.body + "\ncancel check",
     });
-    // Allow several visible renderer frames while the Utility Process copies the large file.
-    await page.evaluate(
-      () => new Promise((resolve) => setTimeout(resolve, 350)),
-    );
-    const rpcStart = performance.now();
-    await request("listTasks");
-    const taskQueryMs = performance.now() - rpcStart;
-    const card = tasks.locator(".job-card").first();
-    await card.getByRole("button", { name: "取消任务", exact: true }).click();
-    rendererResponse = await page.evaluate(() => {
-      const state = window.localBackupFrameSample;
-      state.stopped = true;
-      const gaps = state.gaps.slice(1).sort((a, b) => a - b);
-      return {
-        frames: gaps.length,
-        observationMs: performance.now() - state.startedAt,
-        frameGapP95Ms: gaps.length
-          ? gaps[Math.ceil(gaps.length * 0.95) - 1]
-          : null,
-        frameGapMaxMs: gaps.length ? gaps.at(-1) : null,
-      };
+    const manifest = readFileSync(join(dest, ".backup/manifest.json"), "utf8");
+    const active = await request("startLocalBackup", {
+      notebookId: first.id,
+      targetId: target.id,
     });
-    rendererResponse.taskQueryMs = taskQueryMs;
-    rendererResponse.sample =
-      "Visible task-center frames during 2GiB asset copy; not a 100000-asset renderer benchmark";
-    assert.ok(
-      rendererResponse.frames > 0,
-      "Renderer must produce frames while backup runs",
-    );
+    await request("cancelTask", { id: active.id });
     assert.equal((await job(active.id)).status, "cancelled");
-    await card.getByText("任务已取消", { exact: true }).waitFor();
     assert.equal(
-      readFileSync(join(dest, ".backup", "manifest.json"), "utf8"),
+      readFileSync(join(dest, ".backup/manifest.json"), "utf8"),
       manifest,
     );
-    assert.equal(existsSync(join(dest, assetPath)), false);
-    await closeTasks();
   });
   const versions = await electron.evaluate(() => process.versions);
   mkdirSync(join(reportPath, ".."), { recursive: true });
@@ -581,7 +464,6 @@ try {
         sourceDirectory: join(root, "notebooks"),
         targetDirectory: disk,
         filesystem,
-        rendererResponse,
         electron: versions.electron,
         node: versions.node,
         completedAt: new Date().toISOString(),

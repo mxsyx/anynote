@@ -84,7 +84,6 @@ export type Operation =
   | "restoreLocalBackup"
   | "removeLocalBackupTarget"
   | "deleteLocalNotebookBackup"
-  | "rebuildLocalBackupManifest"
   | "listHostedExtensions"
   | "configureHostedExtension"
   | "executeHostedExtensionCommand"

@@ -83,9 +83,6 @@ const payloads = {
   startLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
   verifyLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
   restoreLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
-  rebuildLocalBackupManifest: z
-    .object({ notebookId: uuid, targetId: uuid })
-    .strict(),
   startLocalBackupGroup: z
     .object({ diskId: uuid, mode: z.enum(["backup", "restore"]).optional() })
     .strict(),

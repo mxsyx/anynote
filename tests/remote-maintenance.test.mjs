@@ -8,11 +8,11 @@ import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import {
-  logicalBundle,
-  uploadLogical,
-  restoreLogical,
-  listLogical,
-} from "../.build/packages/backup/logical.js";
+  snapshotBundle,
+  uploadSnapshot,
+  restoreSnapshot,
+  listBackups,
+} from "../.build/packages/backup/cloud-archive.js";
 import { digest } from "../.build/packages/backup/providers.js";
 async function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "anynote-maintenance-")),
@@ -68,7 +68,7 @@ async function fixture(t) {
       "base64",
     );
   const upload = async (tgt = target) => {
-    const result = await uploadLogical(client, await bundle(), tgt, {
+    const result = await uploadSnapshot(client, await bundle(), tgt, {
       generationId: randomUUID(),
       progress: () => {},
       signal: new AbortController().signal,
@@ -113,7 +113,7 @@ test("writer takeover is CAS/idempotent and fences old staged uploads and commit
     expectedRevision: 1,
     body: "待上传",
   });
-  const data = logicalBundle(await bundle()),
+  const data = snapshotBundle(await bundle()),
     pending = randomUUID(),
     m = {
       ...data.manifest,
@@ -156,7 +156,7 @@ test("writer takeover is CAS/idempotent and fences old staged uploads and commit
     /WRITER_REVOKED/,
   );
   await assert.rejects(
-    uploadLogical(client, await bundle(), target, {
+    uploadSnapshot(client, await bundle(), target, {
       generationId: randomUUID(),
       progress: () => {},
       signal: new AbortController().signal,
@@ -213,12 +213,12 @@ test("retention protects other branches, staging and live restore pins and resto
   await apply(p);
   assert.equal(await env.BUCKET.head(key), null);
   assert.deepEqual(
-    (await listLogical(client, target)).map((x) => x.id),
+    (await listBackups(client, target)).map((x) => x.id),
     [latest],
   );
-  assert.equal((await listLogical(client, other)).length, 1);
+  assert.equal((await listBackups(client, other)).length, 1);
   const restored = await s.run("importArchive", {
-    data: (await restoreLogical(client, target, latest)).toString("base64"),
+    data: (await restoreSnapshot(client, target, latest)).toString("base64"),
   });
   assert.equal(
     (await s.run("getNote", { notebookId: restored.id, id: n.id })).body,
@@ -242,7 +242,7 @@ test("new restore pin or generation invalidates a preview before destructive wor
     body: { pinId: randomUUID() },
   });
   await assert.rejects(apply(p), /变化|PLAN_CHANGED/);
-  assert.equal((await listLogical(client, target)).length, 2);
+  assert.equal((await listBackups(client, target)).length, 2);
 });
 test("failed GC keeps the notebook gate and resumes the same plan without deleting retained data", async (t) => {
   const { env, b, target, client, upload, base, plan, apply } =
@@ -285,7 +285,7 @@ test("failed GC keeps the notebook gate and resumes the same plan without deleti
   await apply(p);
   assert.equal((await client.call(base + "/retention/state")).activePlan, null);
   assert.equal(await env.BUCKET.head(key), null);
-  assert.equal((await listLogical(client, target)).length, 1);
+  assert.equal((await listBackups(client, target)).length, 1);
 });
 test("takeover from a restored local UUID rebases remote identity and internal links without editing the local source", async (t) => {
   const { s, b, n, target, client, bundle, upload, base } = await fixture(t);
@@ -323,13 +323,13 @@ test("takeover from a restored local UUID rebases remote identity and internal l
       (await s.run("exportArchive", { notebookId: copy.id })).data,
       "base64",
     ),
-    result = await uploadLogical(client, bytes, next, {
+    result = await uploadSnapshot(client, bytes, next, {
       generationId: randomUUID(),
       progress: () => {},
       signal: new AbortController().signal,
     }),
     restored = await s.run("importArchive", {
-      data: (await restoreLogical(client, next, result.generationId)).toString(
+      data: (await restoreSnapshot(client, next, result.generationId)).toString(
         "base64",
       ),
     });
@@ -349,7 +349,7 @@ test("staging references stay protected even after the object grace period", asy
   const { env, b, target, client, bundle, upload, base, plan } =
     await fixture(t);
   await upload();
-  const data = logicalBundle(await bundle()),
+  const data = snapshotBundle(await bundle()),
     generationId = randomUUID();
   const staged = await client.call(base + "/backup/plan", {
     method: "POST",
@@ -362,16 +362,16 @@ test("staging references stay protected even after the object grace period", asy
       expectedHead: "",
     },
   });
-  // Add a distinct staging-only asset so protecting the current head cannot mask a bug.
+  // Add a distinct staging-only chunk so protecting the current head cannot mask a bug.
   const bytes = Buffer.from("staging-only-reference"),
     hash = digest(bytes);
   const manifestKey = `manifests/${b.id}/${generationId}.json`;
   const manifest = JSON.parse(env.BUCKET.objects.get(manifestKey));
-  manifest.assets.push({
-    path: `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
+  manifest.database = {
     sha256: hash,
     size: bytes.length,
-  });
+    chunks: [{ sha256: hash, size: bytes.length }],
+  };
   const encoded = Buffer.from(JSON.stringify(manifest));
   await env.BUCKET.put(manifestKey, encoded);
   env.DB.db
@@ -546,13 +546,13 @@ test("calendar preview pins its UTC time across midnight and protects sampled hi
   );
   clock = Date.parse("2026-02-01T00:00:01Z");
   await apply(p);
-  const versions = await listLogical(client, target);
+  const versions = await listBackups(client, target);
   assert.deepEqual(
     versions.map((g) => g.id),
     [head, monthly],
   );
   const copy = await s.run("importArchive", {
-    data: (await restoreLogical(client, target, monthly)).toString("base64"),
+    data: (await restoreSnapshot(client, target, monthly)).toString("base64"),
   });
   assert.notEqual(copy.id, b.id);
 });

@@ -240,7 +240,6 @@ export const localOperations = [
   "restoreLocalBackup",
   "removeLocalBackupTarget",
   "deleteLocalNotebookBackup",
-  "rebuildLocalBackupManifest",
 ];
 
 /**
@@ -550,10 +549,6 @@ export async function localBackupOperation(
       onMount: z.boolean().optional(),
       intervalMinutes: z.number().int().min(2).max(1440).optional(),
       concurrency: z.number().int().min(1).max(4).optional(),
-      approvalToken: z
-        .string()
-        .regex(/^[a-f0-9]{64}$/)
-        .optional(),
     })
     .strict()
     .parse(raw);
@@ -629,7 +624,7 @@ export async function localBackupOperation(
     type:
       op === "restoreLocalBackup"
         ? "local-restore"
-        : ["verifyLocalBackup", "rebuildLocalBackupManifest"].includes(op)
+        : op === "verifyLocalBackup"
           ? "local-verify"
           : "local-backup",
     notebookId: t.notebookId,
@@ -681,13 +676,7 @@ export async function localBackupOperation(
           }
         };
 
-        if (op === "rebuildLocalBackupManifest") {
-          job.progress = "正在从数据库重建备份清单";
-          await engines.rebuildManifest(target, t.notebookId, signal);
-          job.progress =
-            "清单已重建、需核验：无法证明数据库与过去源状态逐字节一致";
-          update(s, t.id, { lastError: null, lastProgress: job.progress });
-        } else if (op === "verifyLocalBackup") {
+        if (op === "verifyLocalBackup") {
           job.progress = "校验中 · 正在读取所有备份文件";
           await engines.verify(target, t.notebookId, signal, verification);
           update(s, t.id, { lastVerified: Date.now(), lastError: null });
@@ -714,7 +703,7 @@ export async function localBackupOperation(
               schemaVersion: m.revision.schemaVersion,
               notebookId: m.notebookId,
               database: m.database,
-              assets: m.files,
+              assets: [],
             },
             job,
             signal,
@@ -762,7 +751,6 @@ export async function localBackupOperation(
             {
               signal,
               concurrency: t.concurrency,
-              approvalToken: p.approvalToken,
               readRevision: () =>
                 s.run("readLocalBackupRevision", { notebookId: t.notebookId }),
               sources: [

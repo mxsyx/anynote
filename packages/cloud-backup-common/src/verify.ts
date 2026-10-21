@@ -4,7 +4,7 @@ import type {
   CloudVerificationLevel,
   CloudBackupObjectRef,
 } from "@anynote/types/cloud-backup.js";
-import { parseManifest, safeRelativePath } from "./layout.js";
+import { parseManifest } from "./layout.js";
 
 /** Strength ordering of verification levels; a higher value means stronger evidence (design §13.1). */
 const levelRank: Record<CloudVerificationLevel, number> = {
@@ -69,7 +69,7 @@ export function assertContentVerification(
  * Verify that the remote manifest is consistent with the local capture.
  *
  * The manifest is untrusted input: a strict schema check was already done on parse; here identity,
- * database hash, asset set, and paths are re-checked, preventing "upload complete" from being mistaken for "backup complete".
+ * database hash, size, and ordered chunks are re-checked, preventing "upload complete" from being mistaken for "backup complete".
  *
  * @param raw The raw remote manifest value.
  * @param expected The expected value from the local capture.
@@ -82,7 +82,8 @@ export function assertManifestIntegrity(
     deviceSlotId: string;
     commitId: string;
     databaseSha256: string;
-    assets: readonly { path: string; sha256: string }[];
+    databaseSize: number;
+    databaseChunks: readonly { sha256: string; size: number }[];
   },
 ): CloudBackupManifest {
   const manifest = parseManifest(raw);
@@ -94,16 +95,15 @@ export function assertManifestIntegrity(
     throw Error("远端清单的提交身份不匹配");
   if (manifest.database.sha256 !== expected.databaseSha256)
     throw Error("远端清单的数据库哈希与本地捕获不一致");
-  const expectedAssets = new Map(
-    expected.assets.map((asset) => [asset.path, asset.sha256]),
-  );
-  if (manifest.assets.length !== expectedAssets.size)
-    throw Error("远端清单的资源数量与本地捕获不一致");
-  for (const asset of manifest.assets) {
-    const normalized = safeRelativePath(asset.path);
-    if (normalized !== asset.path) throw Error("远端清单包含不安全的资源路径");
-    if (expectedAssets.get(asset.path) !== asset.sha256)
-      throw Error(`远端清单的资源哈希不匹配：${asset.path}`);
-  }
+  if (
+    manifest.database.size !== expected.databaseSize ||
+    manifest.database.chunks.length !== expected.databaseChunks.length ||
+    manifest.database.chunks.some(
+      (chunk, i) =>
+        chunk.sha256 !== expected.databaseChunks[i].sha256 ||
+        chunk.size !== expected.databaseChunks[i].size,
+    )
+  )
+    throw Error("远端清单的数据库分块与本地捕获不一致");
   return manifest;
 }

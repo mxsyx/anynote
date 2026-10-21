@@ -18,7 +18,7 @@ interface Version {
   name: string;
   createdAt: string;
   snapshotSeq: number;
-  assets: number;
+  databaseBytes: number;
 }
 
 /** Paginated result of one cloud version query. */
@@ -220,8 +220,8 @@ export default function CloudRecovery({
               <div>
                 <h3>{v.name}</h3>
                 <p>
-                  {new Date(v.createdAt).toLocaleString("zh-CN")} · {v.assets}{" "}
-                  个附件
+                  {new Date(v.createdAt).toLocaleString("zh-CN")} ·{" "}
+                  {(v.databaseBytes / 1024 ** 2).toFixed(1)} MB
                 </p>
                 <small>
                   Notebook {v.notebookId} · 版本 {v.id}

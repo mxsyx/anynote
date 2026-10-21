@@ -24,14 +24,8 @@ const uuid = z.string().uuid();
 function candidates(s: Storage, p: SqlRow) {
   if (s.pins.get(p.notebookId))
     throw Error("Notebook 正在备份或导出，请稍后清理");
-  const db = s.open(p.notebookId),
-    root = s.notebookPath(p.notebookId, ""),
-    known = new Set(
-      db
-        .prepare("SELECT hash FROM assets")
-        .all()
-        .map((a) => a.hash),
-    ),
+  s.open(p.notebookId);
+  const root = s.auxiliaryPath(p.notebookId, ""),
     items: SqlRow[] = [];
 
   /**
@@ -52,22 +46,6 @@ function candidates(s: Storage, p: SqlRow) {
       ino: stat.ino,
     });
   };
-  const assets = join(root, "assets", "sha256");
-  if (existsSync(assets) && !lstatSync(assets).isSymbolicLink())
-    for (const prefix of readdirSync(assets)) {
-      if (!/^[a-f0-9]{2}$/.test(prefix)) continue;
-      const dir = join(assets, prefix);
-      if (!lstatSync(dir).isDirectory() || lstatSync(dir).isSymbolicLink())
-        continue;
-      for (const name of readdirSync(dir)) {
-        const match = name.match(/^([a-f0-9]{64})\.bin(?:\.tmp)?$/);
-        if (!match || !match[1].startsWith(prefix) || known.has(match[1]))
-          continue;
-        const stat = lstatSync(join(dir, name));
-        if (stat.mtimeMs > Date.now() - 300000) continue;
-        add("assets/sha256/" + prefix + "/" + name, "orphan");
-      }
-    }
   const snapshots = join(root, "snapshots");
   if (existsSync(snapshots) && !lstatSync(snapshots).isSymbolicLink()) {
     const names = readdirSync(snapshots)
@@ -134,8 +112,8 @@ export function cleanupOperation(s: Storage, op: string, raw: unknown) {
     if (!now || ["size", "mtime", "ctime", "ino"].some((k) => f[k] !== now[k]))
       throw Error("文件或引用已改变，请重新预览");
   }
-  const root = s.notebookPath(p.notebookId, ""),
-    quarantine = s.notebookPath(
+  const root = s.auxiliaryPath(p.notebookId, ""),
+    quarantine = s.auxiliaryPath(
       p.notebookId,
       "_local/cleanup-quarantine/" + p.planId,
     ),

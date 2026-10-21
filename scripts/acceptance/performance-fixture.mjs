@@ -1,13 +1,7 @@
+import { putAssetFile } from "../../.build/packages/storage-sqlite/assets.js";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
-import { randomUUID, createHash } from "node:crypto";
-import {
-  mkdirSync,
-  openSync,
-  writeSync,
-  closeSync,
-  createReadStream,
-  statSync,
-} from "node:fs";
+import { randomUUID } from "node:crypto";
+import { openSync, writeSync, closeSync, statSync } from "node:fs";
 import { join } from "node:path";
 export async function fixture(root) {
   const s = new Storage(join(root, "notebooks"));
@@ -143,15 +137,6 @@ export async function fixture(root) {
     `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`,
   );
   closeSync(fd);
-  const digest = createHash("sha256");
-  for await (const chunk of createReadStream(temp)) digest.update(chunk);
-  const hash = digest.digest("hex"),
-    size = statSync(temp).size,
-    path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`;
-  const asset = join(s.directory(book.id), path);
-  mkdirSync(join(asset, ".."), { recursive: true });
-  const { copyFileSync } = await import("node:fs");
-  copyFileSync(temp, asset);
   const pdf = await s.run("createNode", {
       notebookId: book.id,
       kind: "note",
@@ -159,12 +144,8 @@ export async function fixture(root) {
     }),
     resourceId = randomUUID();
   db.exec("BEGIN");
-  db.prepare("INSERT INTO assets VALUES(?,?,?,?)").run(
-    hash,
-    size,
-    "application/pdf",
-    path,
-  );
+  const size = statSync(temp).size;
+  const hash = putAssetFile(db, temp, "application/pdf");
   db.prepare(
     "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
   ).run(resourceId, hash, "sample.pdf");

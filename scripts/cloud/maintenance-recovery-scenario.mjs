@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import {
-  uploadLogical,
-  listLogical,
-  restoreLogical,
-} from "../../.build/packages/backup/logical.js";
+  uploadSnapshot,
+  listBackups,
+  restoreSnapshot,
+} from "../../.build/packages/backup/cloud-archive.js";
 export async function maintenanceRecoveryScenario({
   client,
   interruptDuringApply,
@@ -45,7 +45,7 @@ export async function maintenanceRecoveryScenario({
         (await s.run("exportArchive", { notebookId: book.id })).data,
         "base64",
       );
-      const result = await uploadLogical(client, bundle, target, {
+      const result = await uploadSnapshot(client, bundle, target, {
         generationId: randomUUID(),
         signal: new AbortController().signal,
         progress: () => {},
@@ -91,11 +91,11 @@ export async function maintenanceRecoveryScenario({
     }
     assert.ok(finished, "重启后的持久化闹钟未自动完成原清理计划");
     record("durable-alarm-resumes-confirmed-plan-without-client-reapply");
-    const kept = await listLogical(client, target);
+    const kept = await listBackups(client, target);
     assert.equal(kept.length, 1);
     assert.equal(kept[0].id, target.lastGeneration);
     const restored = await s.run("importArchive", {
-      data: (await restoreLogical(client, target, kept[0].id)).toString(
+      data: (await restoreSnapshot(client, target, kept[0].id)).toString(
         "base64",
       ),
     });

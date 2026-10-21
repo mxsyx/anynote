@@ -4,8 +4,7 @@ import {
   mkdtempSync,
   rmSync,
   existsSync,
-  readFileSync,
-  writeFileSync,
+  readdirSync,
   mkdirSync,
   realpathSync,
   renameSync,
@@ -16,10 +15,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import {
-  Storage,
-  legacySchema,
-} from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { acquireWriteLock } from "../.build/packages/storage-sqlite/workspace.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -88,7 +84,7 @@ test("external Notebook keeps identity, original storage, assets, history and ex
     title: "重命名外部库",
   });
   assert.equal(
-    JSON.parse(readFileSync(join(path, "notebook.json"))).name,
+    host.open(book.id).prepare("SELECT name FROM notebook_meta").get().name,
     "重命名外部库",
   );
   assert.equal(
@@ -105,7 +101,7 @@ test("external Notebook keeps identity, original storage, assets, history and ex
     (await host.run("listSnapshots", { notebookId: book.id })).length,
     1,
   );
-  assert.equal(existsSync(join(path, "snapshots")), true);
+  assert.equal(existsSync(host.auxiliaryPath(book.id, "snapshots")), true);
   const zip = await host.exportArchive(book.id);
   assert.ok(zip.length > 0);
   const copy = await host.run("importArchive", {
@@ -119,7 +115,7 @@ test("external Notebook keeps identity, original storage, assets, history and ex
   const openZip = await host.run("exportMarkdown", { notebookId: book.id });
   assert.ok(openZip.data.length > 0);
   host.close();
-  assert.equal(existsSync(join(path, ".anynote-lease.sqlite")), true);
+  assert.deepEqual(readdirSync(path), ["notebook.sqlite"]);
   const restarted = make("host");
   assert.equal(
     restarted.registry().find((b) => b.id === book.id).name,
@@ -192,7 +188,7 @@ test("write lease rejects competing instances and releases on detach", async (t)
   await a.run("detachNotebookDirectory", { notebookId: book.id });
   assert.ok(existsSync(join(path, "notebook.sqlite")));
   assert.equal(a.registry().length, 0);
-  assert.equal(existsSync(join(path, ".anynote-lease.sqlite")), true);
+  assert.deepEqual(readdirSync(path), ["notebook.sqlite"]);
   await b.run("registerNotebookDirectory", { path });
   b.close();
   const release = acquireWriteLock(path);
@@ -250,62 +246,23 @@ test("external directory rejects schemas, missing assets and symlinks before reg
   );
   const missing = join(root, "missing");
   cpSync(path, missing, { recursive: true });
-  rmSync(join(missing, "assets"), { recursive: true });
+  const missingDb = new DatabaseSync(join(missing, "notebook.sqlite"));
+  missingDb.exec("DELETE FROM asset_chunks");
+  missingDb.close();
   await assert.rejects(
     host.run("registerNotebookDirectory", { path: missing }),
-    /资源缺失/,
+    /资源|SHA-256/,
   );
   const corrupt = join(root, "corrupt");
   cpSync(path, corrupt, { recursive: true });
-  const checkDb = new DatabaseSync(join(corrupt, "notebook.sqlite"), {
-    readOnly: true,
-  });
-  const assetPath = checkDb
-    .prepare("SELECT path FROM assets LIMIT 1")
-    .get().path;
+  const checkDb = new DatabaseSync(join(corrupt, "notebook.sqlite"));
+  checkDb.prepare("UPDATE asset_chunks SET data=?").run(Buffer.from("corrupt"));
   checkDb.close();
-  const bytes = readFileSync(join(corrupt, assetPath));
-  bytes[bytes.length - 1] ^= 1;
-  writeFileSync(join(corrupt, assetPath), bytes);
   await assert.rejects(
     host.run("registerNotebookDirectory", { path: corrupt }),
-    /哈希校验失败/,
+    /校验失败|分块缺失/,
   );
   assert.equal(host.registry().length, 0);
-});
-test("old external Notebook migrates in place after a preserved pre-migration snapshot", async (t) => {
-  const { root, make } = await fixture(t),
-    host = make("host"),
-    path = join(root, "legacy"),
-    id = randomUUID();
-  mkdirSync(path);
-  const db = new DatabaseSync(join(path, "notebook.sqlite"));
-  db.exec(legacySchema);
-  db.prepare("INSERT INTO notebook_meta(id,name,created_at) VALUES(?,?,?)").run(
-    id,
-    "旧库",
-    Date.now(),
-  );
-  db.close();
-  await host.run("registerNotebookDirectory", { path });
-  assert.equal(
-    host.open(id).prepare("SELECT schema_version FROM notebook_meta").get()
-      .schema_version,
-    2,
-  );
-  const { readdirSync } = await import("node:fs");
-  const snapshot = readdirSync(join(path, "snapshots")).find((n) =>
-    n.startsWith("before-v2-"),
-  );
-  const old = new DatabaseSync(join(path, "snapshots", snapshot), {
-    readOnly: true,
-  });
-  assert.equal(
-    old.prepare("SELECT schema_version FROM notebook_meta").get()
-      .schema_version,
-    1,
-  );
-  old.close();
 });
 test("unavailable registered directory stays listed and refuses stale identity when reconnected", async (t) => {
   const { root, make, book, note, path } = await fixture(t),

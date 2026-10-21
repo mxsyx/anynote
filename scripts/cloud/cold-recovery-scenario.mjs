@@ -1,9 +1,10 @@
+import { verifyAsset } from "../../.build/packages/storage-sqlite/assets.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
-import { hashFile } from "../../.build/packages/storage-sqlite/archive-stream.js";
+
 export async function coldRecoveryScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cold-device-")),
     source = new Storage(join(root, "source")),
@@ -142,10 +143,7 @@ export async function coldRecoveryScenario({ settings, onStep = () => {} }) {
         ).deleted_at,
       );
       for (const asset of fresh.open(id).prepare("SELECT * FROM assets").all())
-        assert.equal(
-          (await hashFile(fresh.notebookPath(id, asset.path))).sha256,
-          asset.hash,
-        );
+        assert.equal(verifyAsset(fresh.open(id), asset.hash), asset.size);
       assert.deepEqual(
         await fresh.run("listBackupTargets", { notebookId: id }),
         [],

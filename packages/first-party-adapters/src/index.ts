@@ -58,7 +58,6 @@ export const firstPartyAdapterCapabilities: readonly string[] = Object.freeze([
   "backup.runGroup",
   "backup.verify",
   "backup.restore",
-  "backup.rebuildManifest",
   "backup.removeTarget",
   "backup.deleteNotebookBackup",
   "backup.getTask",

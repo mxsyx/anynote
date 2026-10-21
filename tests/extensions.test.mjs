@@ -1,20 +1,11 @@
 import { test, vi } from "vitest";
 import assert from "node:assert/strict";
-import {
-  mkdtempSync,
-  rmSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-} from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import {
-  Storage,
-  legacySchema,
-} from "../.build/packages/storage-sqlite/index.js";
+import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { prepareImport } from "../.build/packages/importer/html.js";
 import { loadMedia } from "../.build/packages/importer/media.js";
 import {
@@ -26,9 +17,9 @@ import {
   resourceIds,
 } from "../.build/packages/protocol/markdown.js";
 import {
-  logicalBundle,
-  restoreLogical,
-} from "../.build/packages/backup/logical.js";
+  snapshotBundle,
+  restoreSnapshot,
+} from "../.build/packages/backup/cloud-archive.js";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
 import { unzipSync } from "fflate";
 const png =
@@ -61,29 +52,6 @@ async function waitTask(call, id) {
   }
   throw Error("任务未在预期时间内结束");
 }
-test("schema v1 migration preserves content and captures a consistent original snapshot", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "anynote-v1-")),
-    id = randomUUID(),
-    dir = join(root, id);
-  mkdirSync(dir);
-  const db = new DatabaseSync(join(dir, "notebook.sqlite"));
-  db.exec(legacySchema);
-  db.prepare("INSERT INTO notebook_meta(id,name,created_at) VALUES(?,?,?)").run(
-    id,
-    "旧库",
-    Date.now(),
-  );
-  db.close();
-  const s = new Storage(root);
-  t.onTestFinished(() => {
-    s.close();
-    rmSync(root, { recursive: true, force: true });
-  });
-  assert.equal((await s.run("listNotebooks"))[0].schema_version, 2);
-  assert.ok(
-    readdirSync(join(dir, "snapshots")).some((p) => p.endsWith(".sqlite")),
-  );
-});
 test("inline images have frozen revision references, backlinks survive rename, open export uses relative paths", async (t) => {
   const { s, book, call } = await fixture(t);
   const n = await call("createNode", { title: "图片笔记", body: "第一版" }),
@@ -665,7 +633,7 @@ test("Cloudflare Worker stages/validates/CAS-commits logical backups and rejects
   const { s, book, call } = await fixture(t),
     n = await call("createNode", { title: "Cloudflare", body: "逻辑恢复" }),
     env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: "test-token" },
-    bundle = logicalBundle(
+    bundle = snapshotBundle(
       Buffer.from((await call("exportArchive")).data, "base64"),
     );
   t.onTestFinished(() => env.DB.db.close());
@@ -755,7 +723,7 @@ test("Cloudflare Worker stages/validates/CAS-commits logical backups and rejects
       return Buffer.from(await r.arrayBuffer());
     },
   };
-  const restored = await restoreLogical(
+  const restored = await restoreSnapshot(
       client,
       { notebookId: book.id, lineageId: manifest.lineageId },
       manifest.generationId,

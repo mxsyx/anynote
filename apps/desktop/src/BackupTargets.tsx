@@ -69,7 +69,6 @@ interface Version {
   id: string;
   createdAt: string;
   snapshotSeq: number;
-  assets: number;
 }
 
 /** Remote backup target panel: configure Cloudflare, test connections, view history, and restore. */
@@ -424,10 +423,7 @@ export default function BackupTargets({
                 <Check size={14} />
                 <span>
                   {new Date(v.createdAt).toLocaleString("zh-CN")}
-                  <small>
-                    {" "}
-                    · seq {v.snapshotSeq} · {v.assets} 个资源
-                  </small>
+                  <small> · seq {v.snapshotSeq}</small>
                 </span>
                 <Button
                   variant="ghost"

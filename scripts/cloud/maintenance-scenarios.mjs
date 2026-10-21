@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import {
-  logicalBundle,
-  uploadLogical,
-  listLogical,
-  restoreLogical,
-} from "../../.build/packages/backup/logical.js";
+  snapshotBundle,
+  uploadSnapshot,
+  listBackups,
+  restoreSnapshot,
+} from "../../.build/packages/backup/cloud-archive.js";
 
 // All destructive checks are confined to a freshly created acceptance notebook.
 export async function maintenanceScenario({
@@ -59,7 +59,7 @@ export async function maintenanceScenario({
         "base64",
       );
     const upload = async (tgt = target) => {
-      const r = await uploadLogical(client, await bundle(), tgt, {
+      const r = await uploadSnapshot(client, await bundle(), tgt, {
         generationId: randomUUID(),
         progress: () => {},
         signal: new AbortController().signal,
@@ -98,7 +98,7 @@ export async function maintenanceScenario({
       );
       assert.equal(p.objects.length, 0, "新上传对象必须仍在 24 小时宽限期内");
       assert.equal(
-        (await listLogical(client, target)).length,
+        (await listBackups(client, target)).length,
         2,
         "预览不得删除",
       );
@@ -116,7 +116,7 @@ export async function maintenanceScenario({
             confirmed: true,
           }),
         );
-        assert.equal((await listLogical(client, target)).length, 2);
+        assert.equal((await listBackups(client, target)).length, 2);
         await client.call(base + `/backups/${first}/pin`, {
           method: "DELETE",
           body: { pinId },
@@ -139,7 +139,7 @@ export async function maintenanceScenario({
           });
         } while (!r.completed);
         assert.deepEqual(
-          (await listLogical(client, target)).map((x) => x.id),
+          (await listBackups(client, target)).map((x) => x.id),
           [latest],
         );
         await assert.rejects(
@@ -147,7 +147,7 @@ export async function maintenanceScenario({
           (e) => e.status === 404,
         );
         const restored = await s.run("importArchive", {
-          data: (await restoreLogical(client, target, latest)).toString(
+          data: (await restoreSnapshot(client, target, latest)).toString(
             "base64",
           ),
         });
@@ -195,7 +195,7 @@ export async function maintenanceScenario({
         });
         const head = await upload(next);
         const restored = await s.run("importArchive", {
-          data: (await restoreLogical(client, next, head)).toString("base64"),
+          data: (await restoreSnapshot(client, next, head)).toString("base64"),
         });
         assert.equal(
           (await s.run("getNote", { notebookId: restored.id, id: n.id })).body,
@@ -214,7 +214,7 @@ export async function maintenanceScenario({
           lastGeneration: "",
           writerEpoch: 1,
         };
-        const data = logicalBundle(await bundle());
+        const data = snapshotBundle(await bundle());
         const now = new Date(),
           previousMonth = new Date(
             Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 12),
@@ -275,11 +275,11 @@ export async function maintenanceScenario({
           });
         } while (!result.completed);
         assert.deepEqual(
-          (await listLogical(client, history)).map((g) => g.id),
+          (await listBackups(client, history)).map((g) => g.id),
           [ids[3], ids[2]],
         );
         const copy = await s.run("importArchive", {
-          data: (await restoreLogical(client, history, ids[2])).toString(
+          data: (await restoreSnapshot(client, history, ids[2])).toString(
             "base64",
           ),
         });

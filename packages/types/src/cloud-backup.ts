@@ -79,7 +79,7 @@ export interface CloudBackupTarget {
   /** Identity of the last successfully published head, used for no-change checks and commit confirmation. */
   lastHeadCommitId?: string | null;
   lastHeadManifestSha256?: string | null;
-  /** Full pointer of the last successful publish; the Provider uses it to read the previous manifest and reuse assets. */
+  /** Full pointer of the last successful publish; the Provider uses it to read the previous manifest and reuse chunks. */
   lastHead?: CloudBackupHead | null;
   /** SHA-256 of the last uploaded database; comparing it with the capture result gives a file-level incremental decision. */
   lastDatabaseSha256?: string | null;
@@ -98,7 +98,6 @@ export interface CloudBackupDeviceSlot {
   commitId?: string;
   completedAt?: string;
   databaseBytes?: number;
-  assetCount?: number;
   verification?: CloudVerificationLevel;
   /** Whether this slot was written by this device; cross-device slots are read-only candidates. */
   local?: boolean;
@@ -115,9 +114,7 @@ export const cloudBackupLayout = {
   current: "current.json",
   manifestsDir: "manifests",
   databasesDir: "databases",
-  assetsDir: "assets",
   pendingDir: "pending",
-  assetsPrefix: "sha256",
 } as const;
 
 /** Backup root identity marker, to avoid writing managed objects into a foreign directory. */
@@ -154,10 +151,17 @@ export interface CloudBackupObjectRef {
   mimeType?: string;
 }
 
-/** Full manifest; all asset references must be resolvable. */
+/** Content-addressed ordered database chunks; the whole-file hash is verified on restore. */
+export interface CloudDatabaseRef {
+  sha256: string;
+  size: number;
+  chunks: CloudBackupObjectRef[];
+}
+
+/** Full manifest; all database chunk references must be resolvable. */
 export interface CloudBackupManifest {
   format: "anynote.cloud-backup-manifest";
-  formatVersion: 1;
+  formatVersion: 2;
   notebookId: string;
   notebookName?: string;
   deviceSlotId: string;
@@ -166,11 +170,11 @@ export interface CloudBackupManifest {
   createdAt: string;
   schemaVersion: number;
   contentSeq: number;
-  database: CloudBackupObjectRef & {
+  database: CloudDatabaseRef & {
     schemaVersion: number;
     contentSeq: number;
   };
-  assets: (CloudBackupObjectRef & { path: string })[];
+  assets: [];
   /** Source device of this manifest; for diagnostics only, not used as identity. */
   sourceDevice?: string;
 }
@@ -239,22 +243,17 @@ export interface ScopedReadSource {
   stream(signal?: AbortSignal): AsyncIterable<Uint8Array>;
 }
 
-/** A captured asset closure item. */
-export interface CloudCapturedAsset extends ScopedReadSource {
-  /** Relative path (already validated on the core side; escaping is forbidden). */
-  path: string;
-  sha256: string;
-  mimeType?: string;
-}
-
 /** Consistent capture result handle; the temporary copy may be reclaimed after `release`. */
 export interface CloudCaptureHandle {
   notebookId: string;
   notebookName: string;
   contentSeq: number;
   schemaVersion: number;
-  database: ScopedReadSource & { sha256: string };
-  assets: CloudCapturedAsset[];
+  database: ScopedReadSource & {
+    sha256: string;
+    chunks: (ScopedReadSource & { sha256: string })[];
+  };
+  assets: [];
   release(): Promise<void>;
 }
 
@@ -413,7 +412,7 @@ export interface BackupTargetHandle {
 export interface CapturedBackupInput {
   capture: CloudCaptureHandle;
   target: BackupTargetHandle;
-  /** Manifest of the last successful commit; used to reuse assets and compare databases. */
+  /** Manifest of the last successful commit; used to reuse chunks and compare databases. */
   previous?: CloudBackupManifest | null;
   /** The last successfully published head. */
   previousHead?: CloudBackupHead | null;
@@ -423,12 +422,11 @@ export interface CapturedBackupInput {
 
 /** An item in the upload plan. */
 export interface CloudUploadItem {
-  kind: "database" | "asset" | "manifest";
+  kind: "database" | "manifest";
   sha256: string;
   size: number;
   /** Remote locator to reuse; if absent, the object needs uploading. */
   reuse?: CloudObjectLocator;
-  assetPath?: string;
 }
 
 /** Diff plan and space budget. */
@@ -436,7 +434,7 @@ export interface CloudBackupPlan {
   commitId: string;
   items: CloudUploadItem[];
   uploadBytes: number;
-  /** Nothing to upload (both the database and all assets can be reused). */
+  /** Nothing to upload (both the database and all chunks can be reused). */
   unchanged: boolean;
   requiredBytes: number;
   availableBytes?: number | null;
@@ -444,7 +442,7 @@ export interface CloudBackupPlan {
   cleanupCandidates?: number;
   /**
    * The capture result of this plan; attached by the core after `plan` so that `execute`
-   * can obtain a read-only database and asset sources without the extension holding temporary paths.
+   * can obtain a read-only database chunk sources without the extension holding temporary paths.
    */
   capture?: CloudCaptureHandle;
 }
@@ -452,8 +450,8 @@ export interface CloudBackupPlan {
 /** A set of remote objects that have been uploaded but not yet published. */
 export interface PreparedRemoteBackup {
   commitId: string;
-  database: CloudBackupObjectRef;
-  assets: (CloudBackupObjectRef & { path: string })[];
+  database: CloudDatabaseRef;
+  assets: [];
   /** Bytes actually transferred this time. */
   transferredBytes: number;
   /** Whether all objects have been uploaded (true when unchanged). */
@@ -514,10 +512,9 @@ export interface RestoreSelection {
 export interface RestoreBundle {
   manifest: CloudBackupManifest;
   /** Temporary database file (inside the core-private temp directory). */
-  databasePath: string;
-  databaseSha256: string;
+  databaseChunks: { sha256: string; size: number; filePath: string }[];
   /** Temporary asset files; `path` is the relative path in the manifest. */
-  assets: { path: string; sha256: string; size: number; filePath: string }[];
+  assets: [];
   /** Verification level during download. */
   verification: CloudVerificationLevel;
 }
@@ -617,7 +614,7 @@ export interface CloudRestoreResult {
   notebookId: string;
   name: string;
   databaseSha256: string;
-  assets: number;
+  databaseBytes: number;
   verification: CloudVerificationLevel;
 }
 

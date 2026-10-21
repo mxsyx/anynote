@@ -56,7 +56,7 @@ pnpm run dev
 - 图片原件（PNG/JPEG/WebP/SVG）、SHA-256 内容寻址、不可变正文及标题/标签/收藏历史、本地一致性快照；写入时校验像素/边长预算，大图按分辨率分级有界解码，SVG 预览先清洗再栅格化，原文件照常保存。
 - 快照保留数量/天数与本地孤立资源清理：先预览、再确认，保护历史及回收站引用，执行前复查候选文件。
 - 桌面完整 `.anynote` 流式 ZIP/ZIP64 导入/导出，支持磁盘预算、后台进度和取消；包含历史、回收站、批注、资源和扩展状态；开放 Markdown 文件夹 ZIP 导出，白板导出可携带图片的 Excalidraw 场景，批注为 JSON sidecar。
-- Cloudflare Worker + D1 + R2 自托管逻辑备份：实体对象去重、staging/committed、分支 CAS、幂等提交、完整 checkpoint 与实体 delta，恢复后创建新 Notebook。
+- Cloudflare Worker + D1 + R2 自托管分块备份：SQLite 块去重、staging/committed、分支 CAS、幂等提交与完整快照清单，恢复后创建新 Notebook。
 - 云盘备份（官方扩展）：Google Drive、Dropbox 与 OneDrive 均已完成备份与恢复闭环（Dropbox 使用 App Folder、分块 `content_hash`、`upload session` 与 rev 冲突处理；OneDrive 使用应用目录 `Files.ReadWrite.AppFolder`、`driveId`+`itemId` 定位与 `createUploadSession` 分片上传）。核心提供备份中心、账号授权、任务调度、一致性捕获、凭据保护与恢复验证；厂商 API 适配下沉到独立官方扩展。连接账号使用系统浏览器 Authorization Code + PKCE，凭据经系统安全存储保存；每设备独立备份槽，只保留当前完整副本。
 - Cloudflare 远端维护：按版本数及 UTC 日/周/月采样预览并确认清理，保护全部分支、上传中版本与恢复 pin；设备接管撤销旧 epoch，支持恢复副本接续远端分支。详见 [远端维护](./docs/REMOTE-MAINTENANCE.md)。
 - 统一任务中心，备份目标独立游标，失败重试与提交响应丢失后的游标确认；用户可为每个目标启用约每分钟检查变更的自动备份。
@@ -72,7 +72,7 @@ pnpm run dev
 
 侧栏「本地优先，安心记录」进入备份页面，添加 Cloudflare 目标：填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
 
-同一页面还可添加云盘目标：选择 Google Drive、Dropbox 或 OneDrive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；文件级增量上传后未变化的附件会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可通过 `ANYNOTE_OAUTH_APPS`（按 `ANYNOTE_OAUTH_STAGE` 区分开发/生产）或 `ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID` 提供自己的 Client ID。注册、注入与授权验收见 [官方 OAuth 应用注册](./docs/OAUTH-REGISTRATION.md)。
+同一页面还可添加云盘目标：选择 Google Drive、Dropbox 或 OneDrive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；数据库按 1MiB 分块增量上传，未变化块会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可通过 `ANYNOTE_OAUTH_APPS`（按 `ANYNOTE_OAUTH_STAGE` 区分开发/生产）或 `ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID` 提供自己的 Client ID。注册、注入与授权验收见 [官方 OAuth 应用注册](./docs/OAUTH-REGISTRATION.md)。
 
 Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。Wrangler 自动部署及真实 Cloudflare 验收已通过，结果见云验收报告。
 
@@ -86,9 +86,9 @@ Cloudflare 生产页面及 Linux 打包应用均通过 9 项真实桌面检查�
 
 桌面设置页的「打开 Notebook 目录」可打开含 `notebook.sqlite` 的现有目录，保留 UUID 并在原处读写。目录登记只保存在本机；同一 UUID 不允许对应多个目录，需要副本时使用归档导入。目录内符号链接及不兼容数据库会被拒绝；「移出工作区」释放连接和写锁，保留原文件。可写连接被 LRU 回收时释放写锁，之后的写入会重新获取锁。浏览器预览不提供系统目录访问。
 
-每库包含 `notebook.json`、`notebook.sqlite`、`assets/sha256/`、`snapshots/`。SQLite 使用 WAL、外键和 FULL 同步，知识修改串行事务提交。数据库连接采用 LRU 回收，默认最多 8 个可写连接、4 个只读连接；快照期间固定连接，可暂时超出可写缓存上限，完成后回收。schema v1 自动迁移到 v2 前保存独立 SQLite 快照。
+每库仅以 `notebook.sqlite` 保存正文、附件 BLOB、历史及元数据（schema v3）。SQLite 使用 WAL、外键、FULL 同步及独占写连接；运行中可能存在 SQLite 自身的 WAL 文件，关闭后主文件独立可携带。设备快照和恢复证据放在 `_local/notebooks/<UUID>/`。已移除旧目录格式、旧 schema 迁移与旧备份兼容；详细格式与恢复规则见 [单 SQLite 设计](./docs/SQLITE-STORAGE.md)。
 
-单文件导入上限 50MB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB、最多 100000 条目；浏览器/旧归档 API和本地快照仍为 100MB；正式云备份恢复采用 16MiB 分块、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 上限 10MB、最多 200 张图片。Cloudflare 单对象上限 20MB。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。尚未实现第三方插件沙箱、任意 Markdown 的完整富文本往返、签名更新及跨平台发行验证。富文本仅规范化用户编辑的块，普通表格与任务项支持富文本编辑，独立本地图片支持尺寸编辑，复杂表格、HTML、混排/远程图片和未知扩展使用源码编辑。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
+单文件导入上限 50MB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB、仅含清单和数据库两个条目；浏览器/base64 归档 API和本地快照仍为 100MB；正式云备份恢复采用 1MiB 数据库分块、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 上限 10MB、最多 200 张图片。Cloudflare 单对象上限 20MB。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。尚未实现第三方插件沙箱、任意 Markdown 的完整富文本往返、签名更新及跨平台发行验证。富文本仅规范化用户编辑的块，普通表格与任务项支持富文本编辑，独立本地图片支持尺寸编辑，复杂表格、HTML、混排/远程图片和未知扩展使用源码编辑。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
 
 ## 验证与打包
 

@@ -15,7 +15,7 @@ void api.setSchedule({
   concurrency: 2,
 });
 void api.preview({ notebookId: "id", targetId: "target" });
-void api.run({ notebookId: "id", targetId: "target", approvalToken: "hash" });
+void api.run({ notebookId: "id", targetId: "target" });
 void api.restore({ notebookId: "id", targetId: "target" });
 // @ts-expect-error SDK must not accept renderer-controlled target paths.
 void api.configure({ notebookId: "id", path: "/untrusted" });

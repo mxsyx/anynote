@@ -8,7 +8,7 @@ import type {
 /** A managed object registered by this app. */
 export interface ManagedObject {
   locator: CloudObjectLocator;
-  kind: "database" | "asset" | "manifest" | "pending";
+  kind: "database" | "manifest" | "pending";
   sha256?: string;
   /** Registration time; used for the commit grace-period check. */
   registeredAt?: number;
@@ -40,15 +40,19 @@ const locatorKey = (locator: CloudObjectLocator) =>
  * @returns The plan of objects to clean up.
  */
 export function planCleanup(input: CleanupInput): CleanupPlan {
-  if (!input.currentHead) throw Error("当前指针未确认，禁止清理受管对象");
+  if (
+    !input.currentHead ||
+    !input.currentManifest ||
+    input.currentManifest.commitId !== input.currentHead.commitId
+  )
+    throw Error("当前指针或清单未确认，禁止清理受管对象");
   const graceMs = input.graceMs ?? 24 * 60 * 60 * 1000,
     now = input.now ?? Date.now(),
     keep = new Set<string>();
   keep.add(`manifest\u0000${input.currentHead.manifestRef}`);
   if (input.currentManifest) {
-    keep.add(locatorKey(input.currentManifest.database.locator));
-    for (const asset of input.currentManifest.assets)
-      keep.add(locatorKey(asset.locator));
+    for (const chunk of input.currentManifest.database.chunks)
+      keep.add(locatorKey(chunk.locator));
   }
   for (const locator of input.protectedLocators ?? [])
     keep.add(locatorKey(locator));

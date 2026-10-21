@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
@@ -60,12 +60,10 @@ test("bounded asset reads enforce identity, ranges, revision reference and corru
       }),
       /未引用/,
     );
-    const asset = s
-      .open(b.id)
-      .prepare("SELECT path FROM assets WHERE hash=?")
-      .get(info.hash);
-    writeFileSync(s.notebookPath(b.id, asset.path), Buffer.alloc(png.length));
-    await assert.rejects(s.run("getAssetInfo", input), /损坏/);
+    s.open(b.id)
+      .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
+      .run(Buffer.alloc(png.length), info.hash);
+    await assert.rejects(s.run("getAssetInfo", input), /SHA-256/);
   } finally {
     s.close();
     rmSync(root, { recursive: true, force: true });

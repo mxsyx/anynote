@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import {
-  logicalBundle,
-  uploadLogical,
-  listLogical,
-  restoreLogical,
-} from "../../.build/packages/backup/logical.js";
+  snapshotBundle,
+  uploadSnapshot,
+  listBackups,
+  restoreSnapshot,
+} from "../../.build/packages/backup/cloud-archive.js";
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=";
 export async function acceptanceScenario({
@@ -130,7 +130,7 @@ export async function acceptanceScenario({
       );
     };
     const base = `/v1/notebooks/${book.id}/backup`,
-      logical = logicalBundle(bundle);
+      logical = snapshotBundle(bundle);
     const manifest = (id, head = "") => ({
       ...logical.manifest,
       ...target,
@@ -152,7 +152,7 @@ export async function acceptanceScenario({
         body: manifest(ids.first),
       });
       assert.ok(plan.missing.length > 0);
-      assert.equal((await listLogical(client, target)).length, 0);
+      assert.equal((await listBackups(client, target)).length, 0);
     });
     await check("missing-and-tampered-objects-cannot-commit", async () => {
       await assert.rejects(
@@ -185,10 +185,10 @@ export async function acceptanceScenario({
         "committed",
       );
       await commit(ids.first);
-      assert.equal((await listLogical(client, target)).length, 1);
+      assert.equal((await listBackups(client, target)).length, 1);
     });
     await check("restore-content-history-trash-and-assets", async () =>
-      verify(await restoreLogical(client, target, ids.first), originalBody),
+      verify(await restoreSnapshot(client, target, ids.first), originalBody),
     );
     await check("unchanged-objects-and-idempotency-conflict", async () => {
       const next = await client.call(base + "/plan", {
@@ -232,10 +232,10 @@ export async function acceptanceScenario({
       scope.casWinner = winningHead;
       onPrepared(scope);
       assert.ok(
-        !(await listLogical(client, target)).some((g) => g.id === losingHead),
+        !(await listBackups(client, target)).some((g) => g.id === losingHead),
       );
       await verify(
-        await restoreLogical(client, target, ids.first),
+        await restoreSnapshot(client, target, ids.first),
         originalBody,
       );
     });
@@ -254,7 +254,7 @@ export async function acceptanceScenario({
           generationId = randomUUID();
         scope.generations.changed = generationId;
         onPrepared(scope);
-        await uploadLogical(
+        await uploadSnapshot(
           client,
           nextBundle,
           { ...target, lastGeneration: winningHead },
@@ -265,7 +265,7 @@ export async function acceptanceScenario({
           },
         );
         await verify(
-          await restoreLogical(client, target, generationId),
+          await restoreSnapshot(client, target, generationId),
           changed.body,
         );
       },

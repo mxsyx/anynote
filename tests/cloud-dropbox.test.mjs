@@ -1,10 +1,11 @@
+import { databaseCapture } from "./helpers/database-capture.mjs";
 import { test, afterAll } from "vitest";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runFileLevelBackup } from "../.build/packages/cloud-backup-common/index.js";
+import { runChunkedBackup } from "../.build/packages/cloud-backup-common/index.js";
 import {
   cloudBackupExtension,
   contentHashBlockBytes,
@@ -50,23 +51,17 @@ function sourceOf(bytes) {
 
 /** Minimal capture result handle. */
 function captureOf({ notebookId, database, assets = [] }) {
+  const bytes = Buffer.concat([
+    database,
+    ...assets.map((a) => Buffer.from(a.content)),
+  ]);
   return {
     notebookId,
     notebookName: "测试笔记库",
     contentSeq: 3,
-    schemaVersion: 2,
-    database: { ...sourceOf(database), sha256: sha256(database) },
-    assets: assets.map((asset) => {
-      const bytes = Buffer.from(asset.content),
-        digest = sha256(bytes);
-      return {
-        path: `assets/sha256/${digest.slice(0, 2)}/${digest}.bin`,
-        sha256: digest,
-        size: bytes.length,
-        mimeType: asset.mimeType,
-        ...sourceOf(bytes),
-      };
-    }),
+    schemaVersion: 3,
+    database: databaseCapture(bytes),
+    assets: [],
     release: async () => {},
   };
 }
@@ -443,7 +438,7 @@ test("App Folder 根目录身份标记校验并拒绝陌生目录", async () => 
   );
 });
 
-test("文件级流程：首次上传、无变化跳过、新增附件只传新对象", async () => {
+test("文件级流程：首次上传、无变化跳过、数据库分块去重与恢复", async () => {
   const notebookId = randomUUID(),
     deviceSlotId = randomUUID(),
     server = createDropboxStub(),
@@ -460,7 +455,7 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
     database,
     assets: [{ content: assetA }],
   });
-  const first = await runFileLevelBackup({
+  const first = await runChunkedBackup({
     provider: dropboxProvider,
     ctx,
     target,
@@ -469,13 +464,15 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
   });
   assert.equal(first.unchanged, false);
   assert.equal(first.uploadedBytes, database.length + assetA.length);
-  assert.equal(first.manifest.database.verification, "provider-checksum");
-  assert.equal(first.manifest.assets[0].verification, "provider-checksum");
-  assert.equal(first.manifest.assets[0].sha256, sha256(assetA));
+  assert.equal(
+    first.manifest.database.chunks[0].verification,
+    "provider-checksum",
+  );
+  assert.equal(first.manifest.assets.length, 0);
   assert.equal(first.head.deviceSlotId, deviceSlotId);
 
   // Unchanged: only confirm the pointer and object state, without re-uploading the database/assets.
-  const second = await runFileLevelBackup({
+  const second = await runChunkedBackup({
     provider: dropboxProvider,
     ctx,
     target,
@@ -487,14 +484,14 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
   assert.equal(second.unchanged, true);
   assert.equal(second.uploadedBytes, 0);
 
-  // New asset: reuse the database and old assets, uploading only the new object.
+  // Embedded asset edits change their containing database chunk.
   const assetB = Buffer.from("asset-b-content"),
     captureB = captureOf({
       notebookId,
       database,
       assets: [{ content: assetA }, { content: assetB }],
     });
-  const third = await runFileLevelBackup({
+  const third = await runChunkedBackup({
     provider: dropboxProvider,
     ctx,
     target,
@@ -504,8 +501,11 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
     previousHead: first.head,
   });
   assert.equal(third.unchanged, false);
-  assert.equal(third.uploadedBytes, assetB.length);
-  assert.equal(third.manifest.assets.length, 2);
+  assert.equal(
+    third.uploadedBytes,
+    database.length + assetA.length + assetB.length,
+  );
+  assert.equal(third.manifest.assets.length, 0);
 
   // Restore: list device slots and read the database and assets back from the current copy.
   const page = await dropboxProvider.listCurrentBackups(ctx);
@@ -514,8 +514,8 @@ test("文件级流程：首次上传、无变化跳过、新增附件只传新�
     [deviceSlotId],
   );
   const bundle = await dropboxProvider.download({ deviceSlotId }, ctx);
-  assert.equal(bundle.databaseSha256, sha256(database));
-  assert.equal(bundle.assets.length, 2);
+  assert.equal(bundle.manifest.database.sha256, captureB.database.sha256);
+  assert.equal(bundle.assets.length, 0);
   assert.equal(bundle.verification, "download-sha256");
 });
 
@@ -620,7 +620,7 @@ test("路径不存在与时序保护：缺失元数据返回 null，清理与删
     database: Buffer.from("db"),
     assets: [{ content: Buffer.from("a") }],
   });
-  const result = await runFileLevelBackup({
+  const result = await runChunkedBackup({
     provider: dropboxProvider,
     ctx,
     target,
@@ -633,8 +633,10 @@ test("路径不存在与时序保护：缺失元数据返回 null，清理与删
   const remaining = await client.listFolder(target.deviceSlotRef, {
     recursive: true,
   });
-  assert.ok(remaining.some((entry) => entry.name.endsWith(".sqlite")));
-  assert.ok(result.manifest.database.locator.ref.includes("/databases/"));
+  assert.ok(remaining.some((entry) => entry.name.endsWith(".bin")));
+  assert.ok(
+    result.manifest.database.chunks[0].locator.ref.includes("/databases/"),
+  );
 
   const deleted = await dropboxProvider.deleteSlot({ deviceSlotId }, ctx);
   assert.ok(deleted.deleted >= 2);

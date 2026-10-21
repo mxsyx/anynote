@@ -1,12 +1,10 @@
-import { createHash } from "node:crypto";
+import { verifyAsset } from "./assets.js";
+
 import {
-  closeSync,
   copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
-  openSync,
-  readSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -32,7 +30,6 @@ const evidenceFiles = [
   "notebook.sqlite-wal",
   "notebook.sqlite-shm",
   "notebook.sqlite-journal",
-  "notebook.json",
 ];
 
 /** Issues that prevent a normal writable open (asset issues are recoverable in place). */
@@ -99,26 +96,6 @@ function safePath(
     issues.push(issue("SYMLINK", e.message, { path: relative }));
     return undefined;
   }
-}
-
-/**
- * Hash a file by streaming fixed-size chunks to avoid loading large assets into memory.
- *
- * @param path File path.
- * @param buffer Reusable read buffer.
- * @returns Lowercase SHA-256 hex digest.
- */
-function hashFile(path: string, buffer: Buffer) {
-  const file = openSync(path, "r"),
-    hash = createHash("sha256");
-  try {
-    let size;
-    while ((size = readSync(file, buffer, 0, buffer.length, null)))
-      hash.update(buffer.subarray(0, size));
-  } finally {
-    closeSync(file);
-  }
-  return hash.digest("hex");
 }
 
 /**
@@ -196,7 +173,7 @@ export function diagnoseNotebook(
 
   let db;
   try {
-    db = new DatabaseSync(file, { readOnly: true });
+    db = s.dbs.get(notebookId) || new DatabaseSync(file, { readOnly: true });
   } catch (e: any) {
     issues.push(
       issue("DATABASE_UNREADABLE", "数据库无法打开：" + e.message, {
@@ -288,7 +265,7 @@ export function diagnoseNotebook(
               path: "notebook.sqlite",
             }),
           );
-        if (![1, 2].includes(meta.schema_version))
+        if (meta.schema_version !== 3)
           issues.push(issue("SCHEMA_UNSUPPORTED", "不支持的数据库版本"));
         else {
           const reference = new DatabaseSync(":memory:");
@@ -315,8 +292,7 @@ export function diagnoseNotebook(
     }
 
     try {
-      const assets = db.prepare("SELECT * FROM assets").all(),
-        buffer = Buffer.alloc(1024 * 1024);
+      const assets = db.prepare("SELECT * FROM assets").all();
       counts.assets = assets.length;
       for (const a of assets) {
         if (counts.checkedAssets >= assetHashBudget) {
@@ -330,52 +306,13 @@ export function diagnoseNotebook(
           break;
         }
         counts.checkedAssets++;
-        if (
-          !/^[a-f0-9]{64}$/.test(a.hash) ||
-          a.path !== `assets/sha256/${a.hash.slice(0, 2)}/${a.hash}.bin`
-        ) {
+        try {
+          verifyAsset(db, a.hash);
+        } catch (e: any) {
           issues.push(
-            issue("ASSET_PATH_UNSAFE", "资源路径无效", { path: a.path }),
-          );
-          counts.corruptAssets++;
-          continue;
-        }
-        const path = safePath(directory, a.path, issues);
-        if (!path) {
-          counts.corruptAssets++;
-          continue;
-        }
-        const expected = { size: a.size, sha256: a.hash };
-        if (!existsSync(path) || !lstatSync(path).isFile()) {
-          issues.push(
-            issue("ASSET_MISSING", "资源缺失，需要从备份修复", {
-              path: a.path,
-              expected,
-            }),
-          );
-          counts.missingAssets++;
-          continue;
-        }
-        const actualSize = lstatSync(path).size;
-        if (actualSize !== a.size) {
-          issues.push(
-            issue("ASSET_SIZE_MISMATCH", "资源大小不匹配", {
-              path: a.path,
-              expected,
-              actualSize,
-            }),
-          );
-          counts.corruptAssets++;
-          continue;
-        }
-        const actualSha256 = hashFile(path, buffer);
-        if (actualSha256 !== a.hash) {
-          issues.push(
-            issue("ASSET_HASH_MISMATCH", "资源哈希校验失败，需要从备份修复", {
-              path: a.path,
-              expected,
-              actualSize,
-              actualSha256,
+            issue("ASSET_HASH_MISMATCH", e.message, {
+              path: `sqlite:assets/${a.hash}`,
+              expected: { size: a.size, sha256: a.hash },
             }),
           );
           counts.corruptAssets++;
@@ -435,15 +372,13 @@ export function diagnoseNotebook(
       ),
     );
   } finally {
-    db.close();
+    if (db !== s.dbs.get(notebookId)) db.close();
   }
 
   for (const relative of [
     "notebook.sqlite-wal",
     "notebook.sqlite-shm",
     "notebook.sqlite-journal",
-    "notebook.json",
-    "snapshots",
   ]) {
     try {
       assertLocalPath(directory, relative);
@@ -497,7 +432,7 @@ export function preserveNotebookEvidence(
   // Diagnose first so the originals are untouched by the copy pass.
   const report = diagnoseNotebook(s, { notebookId }, schemas);
   const createdAt = Date.now(),
-    target = assertLocalPath(directory, "recovery/" + createdAt),
+    target = s.auxiliaryPath(notebookId, "recovery/" + createdAt),
     original = join(target, "original");
   mkdirSync(original, { recursive: true });
   const files: string[] = [];

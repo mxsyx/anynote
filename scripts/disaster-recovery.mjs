@@ -1,3 +1,4 @@
+import { verifyAsset } from "../.build/packages/storage-sqlite/assets.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   mkdtempSync,
@@ -12,7 +13,6 @@ import { join, resolve } from "node:path";
 import { hostname, platform, arch } from "node:os";
 import assert from "node:assert/strict";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
-import { logicalTables } from "../.build/packages/protocol/cloud-objects.js";
 import { hashFile } from "../.build/packages/storage-sqlite/archive-stream.js";
 const args = process.argv.slice(2),
   mode = args.shift(),
@@ -52,7 +52,22 @@ async function snapshot(s, book, sourceBook = book) {
   const db = s.open(book),
     tables = {},
     assets = [];
-  for (const table of [...logicalTables, "note_text"]) {
+  for (const table of [
+    "notebook_meta",
+    "nodes",
+    "notes",
+    "note_revisions",
+    "assets",
+    "asset_chunks",
+    "resources",
+    "revision_resources",
+    "changes",
+    "annotations",
+    "note_links",
+    "note_text",
+    "extension_data",
+    "import_reports",
+  ]) {
     let rows = db.prepare(`SELECT * FROM ${table}`).all();
     if (table === "notebook_meta")
       rows = rows.map((r) => ({
@@ -67,9 +82,7 @@ async function snapshot(s, book, sourceBook = book) {
       .sort();
   }
   for (const a of db.prepare("SELECT * FROM assets ORDER BY hash").all()) {
-    const hash = await hashFile(s.notebookPath(book, a.path));
-    assert.equal(hash.sha256, a.hash);
-    assert.equal(hash.size, a.size);
+    assert.equal(verifyAsset(db, a.hash), a.size);
     assets.push({ hash: a.hash, size: a.size, mime: a.mime });
   }
   return { tables, assets };

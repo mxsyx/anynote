@@ -4,7 +4,7 @@ import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
 import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { BackupTarget } from "@anynote/types/runtime.js";
-import { restoreLogicalFiles } from "./file-logical.js";
+import { restoreSnapshotFiles } from "./cloud-snapshot.js";
 import { CloudflareClient } from "./providers.js";
 import type { Task } from "@anynote/types/runtime.js";
 
@@ -46,7 +46,7 @@ export function startCloudRestore(
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
       };
-      const manifest = await restoreLogicalFiles(
+      const manifest = await restoreSnapshotFiles(
         provider,
         target,
         generationId,

@@ -133,7 +133,6 @@
   "restoreLocalBackup",
   "removeLocalBackupTarget",
   "deleteLocalNotebookBackup",
-  "rebuildLocalBackupManifest",
   "previewLocalBackup",
   "getLocalBackupInfo",
   "setLocalBackupScope",

@@ -1,3 +1,4 @@
+import { verifyAsset } from "./assets.js";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -15,9 +16,6 @@ import type { SqlDatabase, Task } from "@anynote/types/runtime.js";
 import type { Storage } from "./index.js";
 
 const uuid = z.string().uuid();
-
-/** Leftovers must be older than this to avoid reporting an in-progress write. */
-const graceMs = 5 * 60 * 1000;
 
 /** Maximum entries inspected in one scan (references plus disk files). */
 const scanBudget = 20000;
@@ -218,21 +216,6 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
     if (!existsSync(dir) || lstatSync(dir).isSymbolicLink()) continue;
     walk(dir, sub + "/");
   }
-  const assetDir = join(root, "assets", "sha256");
-  if (existsSync(assetDir) && !lstatSync(assetDir).isSymbolicLink())
-    for (const prefix of readdirSync(assetDir)) {
-      if (!/^[a-f0-9]{2}$/.test(prefix)) continue;
-      const pd = join(assetDir, prefix);
-      if (!lstatSync(pd).isDirectory() || lstatSync(pd).isSymbolicLink())
-        continue;
-      for (const name of readdirSync(pd))
-        if (/^[a-f0-9]{64}\.bin\.tmp$/.test(name))
-          leftover(
-            `assets/sha256/${prefix}/${name}`,
-            lstatSync(join(pd, name)).size,
-          );
-    }
-
   // 2. Device-level staging directories: keep the ones an active lease still protects.
   const localRoot = join(s.root, "_local"),
     leaseDir = join(localRoot, "job-leases"),
@@ -287,8 +270,7 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
         .map((r) => r.asset_hash as string),
     );
   report.counts.referenced = referenced.size;
-  const assets = db.prepare("SELECT hash,path,size FROM assets").all(),
-    known = new Set(assets.map((a) => a.hash as string));
+  const assets = db.prepare("SELECT hash,size FROM assets").all();
   report.counts.assets = assets.length;
 
   // 4. Unreferenced asset records (no revision, annotation or PDF text uses them).
@@ -298,7 +280,7 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
       report.counts.unreferencedAssets++;
       add(report, {
         kind: "unreferenced-asset",
-        path: a.path,
+        path: `sqlite:assets/${a.hash}`,
         hash: a.hash,
         size: a.size,
         message: "资源记录未被任何版本、批注或 PDF 文本引用",
@@ -314,43 +296,16 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
   for (const a of assets) {
     if (!referenced.has(a.hash)) continue;
     await checkpoint();
-    if (
-      !/^[a-f0-9]{64}$/.test(a.hash) ||
-      a.path !== `assets/sha256/${a.hash.slice(0, 2)}/${a.hash}.bin`
-    ) {
-      report.counts.missingResources++;
-      add(report, {
-        kind: "missing-resource",
-        path: a.path,
-        hash: a.hash,
-        message: "资源路径无效",
-      });
-      continue;
-    }
-    let stat;
     try {
-      stat = lstatSync(join(root, a.path));
-    } catch {
+      verifyAsset(db, a.hash);
+    } catch (e: any) {
       report.counts.missingResources++;
       add(report, {
         kind: "missing-resource",
-        path: a.path,
+        path: `sqlite:assets/${a.hash}`,
         hash: a.hash,
         size: a.size,
-        message: "资源缺失，需要从备份修复",
-      });
-      continue;
-    }
-    if (!stat.isFile() || stat.size !== a.size) {
-      report.counts.missingResources++;
-      add(report, {
-        kind: "missing-resource",
-        path: a.path,
-        hash: a.hash,
-        size: a.size,
-        message: stat.isFile()
-          ? "资源大小不匹配，需要从备份核对"
-          : "资源不是普通文件",
+        message: e.message,
       });
     }
     if (overBudget()) {
@@ -359,34 +314,7 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
     }
   }
 
-  // 6. Orphan resource objects on disk (older than the grace window).
-  if (existsSync(assetDir) && !lstatSync(assetDir).isSymbolicLink())
-    for (const prefix of readdirSync(assetDir)) {
-      if (!/^[a-f0-9]{2}$/.test(prefix)) continue;
-      const pd = join(assetDir, prefix);
-      if (!lstatSync(pd).isDirectory() || lstatSync(pd).isSymbolicLink())
-        continue;
-      for (const name of readdirSync(pd)) {
-        const match = name.match(/^([a-f0-9]{64})\.bin$/);
-        if (!match || !match[1].startsWith(prefix)) continue;
-        await checkpoint();
-        if (known.has(match[1])) continue;
-        const stat = lstatSync(join(pd, name));
-        if (stat.mtimeMs > Date.now() - graceMs) continue;
-        report.counts.orphanResources++;
-        add(report, {
-          kind: "orphan-resource",
-          path: `assets/sha256/${prefix}/${name}`,
-          hash: match[1],
-          size: stat.size,
-          message: "磁盘上的资源未被数据库引用，确认无引用后可清理",
-        });
-        if (overBudget()) {
-          report.truncated = true;
-          return;
-        }
-      }
-    }
+  // Asset bytes are transactional SQLite rows; there are no separate orphan files.
 }
 
 /**

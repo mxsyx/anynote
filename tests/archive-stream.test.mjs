@@ -1,3 +1,7 @@
+import {
+  putAssetFile,
+  verifyAsset,
+} from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
@@ -132,15 +136,12 @@ test(
     } finally {
       closeSync(fd);
     }
-    const hash = digest.digest("hex"),
-      path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
-      asset = s.notebookPath(book.id, path);
-    mkdirSync(dirname(asset), { recursive: true });
-    const { renameSync } = await import("node:fs");
-    renameSync(temporary, asset);
-    s.open(book.id)
-      .prepare("INSERT INTO assets VALUES(?,?,?,?)")
-      .run(hash, size, "application/octet-stream", path);
+    const hash = digest.digest("hex");
+    assert.equal(
+      putAssetFile(s.open(book.id), temporary, "application/octet-stream"),
+      hash,
+    );
+    rmSync(temporary);
     const file = join(root, "large.anynote"),
       result = await s.run("startExportArchiveFile", {
         notebookId: book.id,
@@ -159,10 +160,7 @@ test(
       await s.run("startImportArchiveFile", { path: file }),
     );
     assert.notEqual(job.restoredId, book.id);
-    assert.deepEqual(await hashFile(s.notebookPath(job.restoredId, path)), {
-      size,
-      sha256: hash,
-    });
+    assert.equal(verifyAsset(s.open(job.restoredId), hash), size);
     assert.equal((await call("getNote", { id: n.id })).body, "打包时仍可编辑");
     assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
   },

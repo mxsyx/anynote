@@ -7,7 +7,6 @@
  */
 
 export {
-  assetObjectPath,
   databaseObjectPath,
   deviceDir,
   headSchema,
@@ -24,8 +23,8 @@ export {
   sha256Schema,
 } from "./layout.js";
 
-export { assertPlanBudget, buildUploadPlan, reusedLocator } from "./plan.js";
-export type { PlanAsset, PlanInput } from "./plan.js";
+export { assertPlanBudget, buildUploadPlan } from "./plan.js";
+export type { PlanInput } from "./plan.js";
 
 export {
   assertContentVerification,
@@ -40,8 +39,8 @@ export type { HeadWriteResult, PublishHeadOptions } from "./publish.js";
 export { isCleanupEmpty, planCleanup } from "./gc.js";
 export type { CleanupInput, ManagedObject } from "./gc.js";
 
-export { runFileLevelBackup } from "./flow.js";
-export type { CloudBackupFlowResult, FileLevelBackupArgs } from "./flow.js";
+export { runChunkedBackup } from "./flow.js";
+export type { CloudBackupFlowResult, ChunkedBackupArgs } from "./flow.js";
 
 export {
   delay,
@@ -53,3 +52,5 @@ export type { RetryableError } from "./upload.js";
 
 export { createPlaceholderProvider } from "./placeholder.js";
 export type { PlaceholderProviderOptions } from "./placeholder.js";
+
+export { mapDatabaseChunks } from "./chunks.js";

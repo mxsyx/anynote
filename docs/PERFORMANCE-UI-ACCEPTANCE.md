@@ -1,6 +1,7 @@
 # 性能与界面验收
 
-依据设计文档 18.6、21 的性能与界面目标，验收运行真实 Electron 生产页面和 Linux 打包程序，使用正式 Preload、IPC、独立 SQLite 进程、PDF.js 阅读器和后台备份任务。每次生成临时工作区，测试结束后删除数据；不读取 `.env.cloud`，不修改日常 Notebook。
+> 存储与备份格式已改为单 SQLite + 1MiB 分块，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
+> 依据设计文档 18.6、21 的性能与界面目标，验收运行真实 Electron 生产页面和 Linux 打包程序，使用正式 Preload、IPC、独立 SQLite 进程、PDF.js 阅读器和后台备份任务。每次生成临时工作区，测试结束后删除数据；不读取 `.env.cloud`，不修改日常 Notebook。
 
 ## 运行
 

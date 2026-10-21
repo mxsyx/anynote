@@ -153,14 +153,14 @@ test("发布格式版本与真实 schema / 表结构一致", () => {
   assert.match(
     schemaSource,
     new RegExp(
-      `UPDATE notebook_meta SET schema_version=${format("notebook-schema").version}`,
+      `schema_version INTEGER NOT NULL DEFAULT ${format("notebook-schema").version}`,
     ),
   );
   // The logical backup protocol is validated by literals at runtime and has no standalone schema.
-  const logical = readFileSync("packages/backup/src/logical.ts", "utf8");
-  assert.ok(logical.includes(`format: "${format("logical-protocol").tag}"`));
+  const logical = readFileSync("packages/backup/src/cloud-snapshot.ts", "utf8");
+  assert.ok(logical.includes(`format: "${format("sqlite-backup").tag}"`));
   assert.ok(
-    logical.includes(`protocolVersion: ${format("logical-protocol").version}`),
+    logical.includes(`protocolVersion: ${format("sqlite-backup").version}`),
   );
 });
 
@@ -188,15 +188,15 @@ test("兼容窗口内部自洽且可解析", () => {
 
 test("兼容判定在窗口内接受、越界明确拒绝", () => {
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 2).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", 3).compatible,
     true,
   );
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 3).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", 4).compatible,
     false,
   );
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 3).reason.includes(
+    checkReleaseCompatibility("desktop", "notebook-schema", 4).reason.includes(
       "超出兼容窗口",
     ),
     true,
@@ -214,10 +214,10 @@ test("兼容判定在窗口内接受、越界明确拒绝", () => {
   assert.equal(unknown.compatible, false);
   assert.ok(unknown.reason.includes("未声明"));
   assert.throws(
-    () => assertReleaseCompatibility("worker", "logical-protocol", 9),
+    () => assertReleaseCompatibility("worker", "sqlite-backup", 9),
     /超出兼容窗口/,
   );
-  assert.equal(releaseVersion("notebook-schema"), "2");
+  assert.equal(releaseVersion("notebook-schema"), "3");
   assert.equal(releaseVersion("sdk"), "0.1.0");
 });
 

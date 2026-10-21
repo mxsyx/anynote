@@ -1,10 +1,9 @@
 import {
   cloudObjectLimit,
   objectDescriptors as descriptors,
-  logicalTables,
 } from "@anynote/protocol/cloud-objects.js";
 import type {
-  LogicalManifest,
+  SnapshotManifest,
   SqlRow,
   WorkerEnv,
 } from "@anynote/types/runtime.js";
@@ -14,9 +13,6 @@ export { MaintenanceCoordinator } from "./maintenance-coordinator.js";
 
 /** UUID format for version/lineage/device IDs. */
 const uuid = /^[a-f0-9-]{36}$/i;
-
-/** Set of allowed entity tables. */
-const tables = new Set<string>(logicalTables);
 
 /** Maximum size of a single object. */
 const objectLimit = cloudObjectLimit;
@@ -58,7 +54,7 @@ async function json(request: Request) {
 }
 
 /**
- * Read and verify the logical manifest of one generation from R2.
+ * Read and verify the SQLite snapshot manifest of one generation from R2.
  *
  * @param env Worker environment bindings.
  * @param generation Generation row whose manifest is loaded.
@@ -67,7 +63,7 @@ async function json(request: Request) {
 async function loadManifest(
   env: WorkerEnv,
   generation: SqlRow,
-): Promise<LogicalManifest> {
+): Promise<SnapshotManifest> {
   const object = await env.BUCKET.get(
     `manifests/${generation.notebook_id}/${generation.id}.json`,
   );
@@ -78,7 +74,7 @@ async function loadManifest(
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-// Cloudflare Worker: single-user self-hosted logical backup service (D1 metadata + R2 objects).
+// Cloudflare Worker: single-user self-hosted SQLite chunk backup service (D1 metadata + R2 objects).
 export default {
   async fetch(request: Request, env: WorkerEnv) {
     try {
@@ -100,9 +96,8 @@ export default {
       if (path === "/v1/capabilities" && request.method === "GET")
         return response({
           protocolVersion: 1,
-          schemaVersions: [2],
+          schemaVersions: [3],
           capabilities: [
-            "logical-incremental",
             "conditional-head",
             "writer-takeover",
             "retention-gc",
@@ -110,7 +105,7 @@ export default {
             ...(env.MAINTENANCE ? ["maintenance-recovery-v1"] : []),
             "maintenance-admin-v1",
             "restore-pin",
-            "chunked-assets-v1",
+            "sqlite-chunks-v1",
             "backup-discovery-v1",
           ],
           objectMaxBytes: objectLimit,
@@ -152,7 +147,7 @@ export default {
               m.notebookId !== row.notebook_id ||
               m.generationId !== row.id ||
               m.lineageId !== row.lineage_id ||
-              !Array.isArray(m.assets)
+              !Array.isArray(m.database?.chunks)
             )
               throw Error("版本身份不匹配");
             backups.push({
@@ -165,7 +160,7 @@ export default {
                   : "Notebook " + row.notebook_id.slice(0, 8),
               createdAt: row.created_at,
               snapshotSeq: row.snapshot_seq,
-              assets: m.assets.length,
+              databaseBytes: m.database.size,
             });
           } catch {
             warnings.push("一个已提交版本无法读取或校验，已跳过：" + row.id);
@@ -213,9 +208,9 @@ export default {
       if (tail === "/backup/plan" && request.method === "POST") {
         const m = await json(request);
         if (
-          m.format !== "anynote.logical" ||
+          m.format !== "anynote.sqlite" ||
           m.protocolVersion !== 1 ||
-          m.schemaVersion !== 2 ||
+          m.schemaVersion !== 3 ||
           m.notebookId !== notebookId ||
           !uuid.test(m.generationId) ||
           !uuid.test(m.lineageId) ||
@@ -225,23 +220,9 @@ export default {
           m.writerEpoch < 1 ||
           !Number.isInteger(m.snapshotSeq) ||
           m.snapshotSeq < 0 ||
-          !Array.isArray(m.entities) ||
-          m.entities.length > 200000 ||
-          !Array.isArray(m.assets) ||
-          m.assets.length > 10000
+          !uuid.test(m.sourceNotebookId)
         )
           throw Error("备份协议无效");
-        const entityKeys = new Set();
-        for (const e of m.entities) {
-          if (
-            !tables.has(e.table) ||
-            typeof e.key !== "string" ||
-            e.key.length > 1000 ||
-            entityKeys.has(e.key)
-          )
-            throw Error("逻辑实体无效或重复");
-          entityKeys.add(e.key);
-        }
         const objects = descriptors(m);
         await env.DB.prepare(
           "INSERT OR IGNORE INTO branches(notebook_id,lineage_id,writer_id) VALUES(?,?,?)",
@@ -419,50 +400,7 @@ export default {
           if (!head || head.size !== d.size || !catalog?.verified)
             return response({ error: "ASSET_MISSING" }, 409);
         }
-        let previous: import("@anynote/types/runtime.js").Entity[] = [];
-        if (generation.expected_head) {
-          const base = await env.DB.prepare(
-            "SELECT * FROM generations WHERE id=? AND notebook_id=? AND status='committed'",
-          )
-            .bind(generation.expected_head, notebookId)
-            .first();
-          if (!base) throw Error("base generation 不存在");
-          previous = (await loadManifest(env, base)).entities;
-        }
-        const previousMap = new Map(previous.map((e) => [e.key, e.hash])),
-          current = new Set(m.entities.map((e) => e.key));
-        const changes: {
-          key: string;
-          table: string;
-          hash: string | null;
-          operation: string;
-        }[] = m.entities
-          .filter((e) => previousMap.get(e.key) !== e.hash)
-          .map((e) => ({
-            key: e.key,
-            table: e.table,
-            hash: e.hash,
-            operation: "upsert",
-          }));
-        for (const e of previous)
-          if (!current.has(e.key))
-            changes.push({
-              key: e.key,
-              table: e.table,
-              hash: null,
-              operation: "delete",
-            });
-        for (let start = 0; start < changes.length; start += 80) {
-          await env.DB.batch(
-            changes
-              .slice(start, start + 80)
-              .map((e) =>
-                env.DB.prepare(
-                  "INSERT OR REPLACE INTO generation_deltas VALUES(?,?,?,?,?)",
-                ).bind(generation.id, e.key, e.table, e.hash, e.operation),
-              ),
-          );
-        }
+        // Each committed manifest describes the complete ordered database; no entity delta replay is needed.
         try {
           await env.DB.batch([
             env.DB.prepare(

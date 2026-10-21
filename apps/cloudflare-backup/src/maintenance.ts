@@ -707,9 +707,6 @@ export async function maintenance(
         await env.BUCKET.delete(`manifests/${book}/${entry.id}.json`);
         generationCursor++;
         await env.DB.batch([
-          env.DB.prepare(
-            "DELETE FROM generation_deltas WHERE generation_id=?",
-          ).bind(entry.id),
           env.DB.prepare("DELETE FROM generations WHERE id=?").bind(entry.id),
           env.DB.prepare(
             "UPDATE retention_plans SET generation_cursor=? WHERE id=?",

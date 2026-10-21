@@ -1,8 +1,11 @@
+import {
+  putAssetFile,
+  verifyAsset,
+} from "../.build/packages/storage-sqlite/assets.js";
 import { test, vi } from "vitest";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
-  mkdirSync,
   openSync,
   closeSync,
   writeSync,
@@ -10,12 +13,11 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
-import { hashFile } from "../.build/packages/storage-sqlite/archive-stream.js";
+
 import {
-  cloudObjectLimit,
   transferChunkBytes,
   objectDescriptors,
 } from "../.build/packages/protocol/cloud-objects.js";
@@ -55,17 +57,14 @@ async function fixture(t, large = true) {
       closeSync(fd);
     }
     hash = digest.digest("hex");
-    path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`;
-    const dest = s.notebookPath(book.id, path);
-    mkdirSync(dirname(dest), { recursive: true });
-    const { renameSync } = await import("node:fs");
-    renameSync(temp, dest);
     s.tx(s.open(book.id), note.id, "fixture", () => {
-      s.open(book.id)
-        .prepare("INSERT INTO assets VALUES(?,?,?,?)")
-        .run(hash, size, "application/octet-stream", path);
+      assert.equal(
+        putAssetFile(s.open(book.id), temp, "application/octet-stream"),
+        hash,
+      );
       return { sha256: hash };
     });
+    rmSync(temp);
   }
   const body =
     ':::anynote{type="future.keep" version="9"}\n{"keep":true}\n:::\n' +
@@ -115,8 +114,7 @@ async function verifyRestore(s, id, f) {
     2,
   );
   assert.ok(nodes.find((n) => n.title === "已删除").deleted_at);
-  if (f.hash)
-    assert.equal((await hashFile(s.notebookPath(id, f.path))).sha256, f.hash);
+  if (f.hash) assert.equal(verifyAsset(s.open(id), f.hash), size);
 }
 test("Cloudflare public tasks split 112MiB, protect chunk references during GC and reject a damaged restore", async (t) => {
   const f = await fixture(t),
@@ -141,9 +139,9 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
   const manifest = JSON.parse(
     env.BUCKET.objects.get(`manifests/${f.book.id}/${version.id}.json`),
   );
-  const asset = manifest.assets.find((a) => a.sha256 === f.hash);
-  assert.equal(asset.chunks.length, 7);
-  assert.equal(asset.size, size);
+  const asset = manifest.database;
+  assert.ok(asset.chunks.length > size / transferChunkBytes);
+  assert.ok(asset.size > size);
   for (const info of env.BUCKET.metadata.values())
     info.uploaded = new Date(Date.now() - 48 * 3600000);
   const client = new CloudflareClient(target, { token: "fixture" });
@@ -187,51 +185,32 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
     0,
   );
 });
-test("chunk metadata rejects inconsistent sizes, paths and hash conflicts before staging", () => {
+test("chunk metadata rejects inconsistent sizes, empty lists and hash conflicts before staging", () => {
   const hash = "a".repeat(64),
     base = {
-      entities: [],
-      assets: [
-        {
-          path: `assets/sha256/aa/${hash}.bin`,
-          sha256: hash,
-          size: 21 * 1024 ** 2,
-          chunks: [
-            { sha256: hash, size: cloudObjectLimit },
-            { sha256: "b".repeat(64), size: 1024 ** 2 },
-          ],
-        },
-      ],
+      database: {
+        sha256: hash,
+        size: transferChunkBytes + 1,
+        chunks: [
+          { sha256: hash, size: transferChunkBytes },
+          { sha256: "b".repeat(64), size: 1 },
+        ],
+      },
     };
   assert.equal(objectDescriptors(base).size, 2);
-  assert.throws(
-    () =>
-      objectDescriptors({
-        ...base,
-        assets: [{ ...base.assets[0], size: 22 * 1024 ** 2 }],
-      }),
-    /总大小/,
-  );
-  assert.throws(
-    () =>
-      objectDescriptors({
-        ...base,
-        assets: [{ ...base.assets[0], path: "../escape" }],
-      }),
-    /路径/,
-  );
-  assert.throws(
-    () => objectDescriptors({ ...base, entities: [{ hash, size: 1 }] }),
-    /冲突/,
-  );
-  assert.throws(
-    () =>
-      objectDescriptors({
-        ...base,
-        assets: [{ ...base.assets[0], chunks: [] }],
-      }),
-    /分块/,
-  );
+  for (const database of [
+    { ...base.database, size: base.database.size + 1 },
+    { ...base.database, chunks: [] },
+    {
+      ...base.database,
+      chunks: [...base.database.chunks, base.database.chunks[0]],
+    },
+    {
+      ...base.database,
+      chunks: [base.database.chunks[0], { sha256: hash, size: 1 }],
+    },
+  ])
+    assert.throws(() => objectDescriptors({ database }), /分块|冲突/);
 });
 test("cancelled cloud uploads and restores release temporary files and pins without publishing", async (t) => {
   const f = await fixture(t),
@@ -302,34 +281,31 @@ test("Cloudflare refuses to commit when an asset chunk is missing", async (t) =>
     ),
     book = randomUUID(),
     generationId = randomUUID();
-  const a = Buffer.from("first"),
+  const a = Buffer.alloc(transferChunkBytes, 1),
     b = Buffer.from("second"),
     hash = (x) => createHash("sha256").update(x).digest("hex"),
     full = hash(Buffer.concat([a, b]));
   const manifest = {
-    format: "anynote.logical",
+    format: "anynote.sqlite",
     createdAt: new Date().toISOString(),
     protocolVersion: 1,
-    schemaVersion: 2,
+    schemaVersion: 3,
     notebookId: book,
+    sourceNotebookId: book,
     lineageId: randomUUID(),
     deviceId: randomUUID(),
     generationId,
     snapshotSeq: 1,
     expectedHead: "",
     writerEpoch: 1,
-    entities: [],
-    assets: [
-      {
-        path: `assets/sha256/${full.slice(0, 2)}/${full}.bin`,
-        sha256: full,
-        size: a.length + b.length,
-        chunks: [
-          { sha256: hash(a), size: a.length },
-          { sha256: hash(b), size: b.length },
-        ],
-      },
-    ],
+    database: {
+      sha256: full,
+      size: a.length + b.length,
+      chunks: [
+        { sha256: hash(a), size: a.length },
+        { sha256: hash(b), size: b.length },
+      ],
+    },
   };
   const base = `/v1/notebooks/${book}/backup`;
   const plan = await client.call(base + "/plan", {
@@ -377,7 +353,7 @@ test("Cloudflare download budgets apply even when Content-Length is absent", asy
   );
   assert.equal(cancelled, true);
 });
-test("file-based Cloudflare restore also accepts legacy manifests without chunks", async (t) => {
+test("archive convenience API uses the same physical database chunk protocol", async (t) => {
   const f = await fixture(t, false),
     env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: "fixture" };
   t.onTestFinished(() => env.DB.db.close());
@@ -390,11 +366,11 @@ test("file-based Cloudflare restore also accepts legacy manifests without chunks
       token: "fixture",
     }),
     client = new CloudflareClient(target, { token: "fixture" });
-  const { uploadLogical } = await import(
-      "../.build/packages/backup/logical.js"
+  const { uploadSnapshot } = await import(
+      "../.build/packages/backup/cloud-archive.js"
     ),
     generationId = randomUUID();
-  await uploadLogical(
+  await uploadSnapshot(
     client,
     Buffer.from((await f.call("exportArchive")).data, "base64"),
     target,
@@ -416,7 +392,7 @@ test("an old Worker rejects large-file backup before staging and releases the lo
     if (String(url).endsWith("/v1/capabilities")) {
       const body = await response.json();
       body.capabilities = body.capabilities.filter(
-        (c) => c !== "chunked-assets-v1",
+        (c) => c !== "sqlite-chunks-v1",
       );
       return Response.json(body);
     }

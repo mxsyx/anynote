@@ -158,14 +158,6 @@ export interface WorkerEnv {
   MAINTENANCE?: DurableObjectNamespace;
 }
 
-/** One entity object in a logical backup. */
-export interface Entity {
-  table: string;
-  key: string;
-  hash: string;
-  size: number;
-}
-
 /** One content chunk of a large file. */
 export interface FileChunk {
   sha256: string;
@@ -183,8 +175,8 @@ export interface Asset {
   key?: string;
 }
 
-/** Manifest description of a logical backup. */
-export interface LogicalManifest {
+/** Manifest of an ordered, self-contained SQLite snapshot. */
+export interface SnapshotManifest {
   notebookName?: string;
   format: string;
   protocolVersion: number;
@@ -192,8 +184,8 @@ export interface LogicalManifest {
   notebookId: string;
   snapshotSeq: number;
   createdAt: string;
-  entities: Entity[];
-  assets: Asset[];
+  sourceNotebookId: string;
+  database: { size: number; sha256: string; chunks: FileChunk[] };
   generationId?: string;
   lineageId?: string;
   deviceId?: string;

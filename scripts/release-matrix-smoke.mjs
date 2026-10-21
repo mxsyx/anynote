@@ -104,11 +104,11 @@ try {
     false,
   );
   assert.equal(
-    checkReleaseCompatibility("worker", "logical-protocol", 1).compatible,
+    checkReleaseCompatibility("worker", "sqlite-backup", 1).compatible,
     true,
   );
   assert.equal(
-    checkReleaseCompatibility("worker", "logical-protocol", 2).compatible,
+    checkReleaseCompatibility("worker", "sqlite-backup", 2).compatible,
     false,
   );
   assert.equal(

@@ -1,5 +1,6 @@
 # Anynote 产品与技术设计文档
 
+> 存储与备份格式已改为单 SQLite + 1MiB 分块，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
 > 版本：0.1 · 日期：2026-10-01 · 状态：建议设计基线，供产品、设计与研发评审。
 >
 > 产品定位：以 Notebook 为边界、本地优先、可扩展的个人知识库。支持 Markdown、PDF、图片，将日常记录、网页收藏、资料阅读和知识整理放在一个安静、美观、可靠的桌面空间里。
@@ -12,21 +13,21 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 
 ### 1.1 核心决策
 
-| 领域 | 建议方案 | 原因与边界 |
-| --- | --- | --- |
-| 桌面客户端 | Electron + React + TypeScript + Vite | 桌面文件能力完整，复用 Web 编辑生态；无需引入 Next.js |
-| Notebook 存储 | 一个 Notebook 一个 SQLite + 私有资源目录 | 可单独迁移、备份、导出和恢复 |
-| 笔记目录 | 逻辑无限层级目录；统一节点树 | 目录深度不绑定操作系统路径长度 |
-| Markdown | 扩展 Markdown 为持久化真源，编辑器模型为派生数据 | 保留可读性与开放导出能力 |
-| 文档编辑 | Tiptap/ProseMirror 连续文档编辑 | 编辑预览合一，支持斜杠菜单与 Markdown 输入快捷方式 |
-| 白板 | 首方 Excalidraw 插件 | 白板场景文件本地保存，静态预览可降级 |
-| PDF | PDF.js 阅读器，批注独立存储 | 原始 PDF 保持不可变；先做阅读、高亮与批注 |
-| 本地搜索 | SQLite FTS5 + 中文分词适配 | 基础全文检索不依赖远程服务 |
-| Cloudflare 备份 | Worker API + D1 元数据/结构化记录 + R2 正文对象/附件 | 采用逻辑增量，不把 D1 当本地 SQLite 文件镜像 |
-| 导入/导出 | `.anynote` 私有 ZIP 容器 | 包含一致性数据库、全部持久化资源与校验清单 |
-| 扩展系统 | 公共 SDK + 声明式扩展点 + 隔离运行时 | 核心可控，能力可选，插件不直接修改数据库 |
-| AI | 受权限控制的工具 API + 变更提案与撤销 | AI 通过与用户相同的领域服务操作笔记 |
-| UI | 温暖中性底色、低噪声侧栏、阅读优先、可收起辅助面板 | 美观来自排版、层次与一致性，避免后台管理台风格 |
+| 领域            | 建议方案                                             | 原因与边界                                            |
+| --------------- | ---------------------------------------------------- | ----------------------------------------------------- |
+| 桌面客户端      | Electron + React + TypeScript + Vite                 | 桌面文件能力完整，复用 Web 编辑生态；无需引入 Next.js |
+| Notebook 存储   | 一个 Notebook 一个 SQLite + 私有资源目录             | 可单独迁移、备份、导出和恢复                          |
+| 笔记目录        | 逻辑无限层级目录；统一节点树                         | 目录深度不绑定操作系统路径长度                        |
+| Markdown        | 扩展 Markdown 为持久化真源，编辑器模型为派生数据     | 保留可读性与开放导出能力                              |
+| 文档编辑        | Tiptap/ProseMirror 连续文档编辑                      | 编辑预览合一，支持斜杠菜单与 Markdown 输入快捷方式    |
+| 白板            | 首方 Excalidraw 插件                                 | 白板场景文件本地保存，静态预览可降级                  |
+| PDF             | PDF.js 阅读器，批注独立存储                          | 原始 PDF 保持不可变；先做阅读、高亮与批注             |
+| 本地搜索        | SQLite FTS5 + 中文分词适配                           | 基础全文检索不依赖远程服务                            |
+| Cloudflare 备份 | Worker API + D1 元数据/结构化记录 + R2 正文对象/附件 | 采用逻辑增量，不把 D1 当本地 SQLite 文件镜像          |
+| 导入/导出       | `.anynote` 私有 ZIP 容器                             | 包含一致性数据库、全部持久化资源与校验清单            |
+| 扩展系统        | 公共 SDK + 声明式扩展点 + 隔离运行时                 | 核心可控，能力可选，插件不直接修改数据库              |
+| AI              | 受权限控制的工具 API + 变更提案与撤销                | AI 通过与用户相同的领域服务操作笔记                   |
+| UI              | 温暖中性底色、低噪声侧栏、阅读优先、可收起辅助面板   | 美观来自排版、层次与一致性，避免后台管理台风格        |
 
 ### 1.2 必须明确的产品边界
 
@@ -40,16 +41,16 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 
 ### 2.1 核心用户任务
 
-| 场景 | 用户操作 | 期望结果 |
-| --- | --- | --- |
-| 整理主题知识 | 建 Notebook，按目录整理笔记 | 每个主题形成独立、可迁移的知识库 |
-| 自由记录 | 输入 Markdown、拖入图片、插入白板或视频 | 流畅编辑，不必反复切换工具 |
-| 收藏网页 | 粘贴网页链接或导入 HTML 文件 | 正文转为 Markdown，可下载媒体本地化 |
-| 阅读资料 | 导入 PDF、查看图片、做批注 | 原文件完整保存，批注与知识笔记关联 |
-| 离线工作 | 无网络启动、搜索、编辑 | 核心功能正常，待备份状态清晰 |
-| 数据保护 | 配置 Cloudflare 备份目标 | 自动增量备份，可验证和恢复历史版本 |
-| 扩展能力 | 安装编辑器、备份、AI 插件 | 按需增强，插件停用不破坏现有数据 |
-| AI 整理 | 让 AI 总结、分类、修改、建立关联 | 先展示修改方案，应用后可追溯和撤销 |
+| 场景         | 用户操作                                | 期望结果                            |
+| ------------ | --------------------------------------- | ----------------------------------- |
+| 整理主题知识 | 建 Notebook，按目录整理笔记             | 每个主题形成独立、可迁移的知识库    |
+| 自由记录     | 输入 Markdown、拖入图片、插入白板或视频 | 流畅编辑，不必反复切换工具          |
+| 收藏网页     | 粘贴网页链接或导入 HTML 文件            | 正文转为 Markdown，可下载媒体本地化 |
+| 阅读资料     | 导入 PDF、查看图片、做批注              | 原文件完整保存，批注与知识笔记关联  |
+| 离线工作     | 无网络启动、搜索、编辑                  | 核心功能正常，待备份状态清晰        |
+| 数据保护     | 配置 Cloudflare 备份目标                | 自动增量备份，可验证和恢复历史版本  |
+| 扩展能力     | 安装编辑器、备份、AI 插件               | 按需增强，插件停用不破坏现有数据    |
+| AI 整理      | 让 AI 总结、分类、修改、建立关联        | 先展示修改方案，应用后可追溯和撤销  |
 
 ### 2.2 范围划分
 
@@ -61,17 +62,17 @@ Anynote 使用 Electron 构建桌面客户端；每个 Notebook 独立持有一�
 
 ### 3.1 主要对象
 
-| 对象 | 定义 |
-| --- | --- |
-| Workspace | 本机应用工作空间，记录已打开 Notebook 与全局设置；不是知识数据容器 |
-| Notebook | 主题知识容器；拥有自己的 UUID、SQLite、资源、版本与备份配置引用 |
-| Folder | Notebook 内的逻辑目录，可无限嵌套 |
-| Note | Markdown、PDF 或图片笔记；有标题、目录、标签、版本和元信息 |
-| Asset | 本地不可变二进制对象，如图片、PDF、音视频、白板 JSON |
-| Resource | 一个逻辑资源身份，指向某个 Asset，可通过新版本换绑 |
-| Revision | 笔记或其他实体的一次不可变版本 |
-| Backup generation | 一个可恢复的备份版本，包含确定的数据库或逻辑状态及资源集合 |
-| Extension | 通过公共扩展点增加应用能力的插件 |
+| 对象              | 定义                                                               |
+| ----------------- | ------------------------------------------------------------------ |
+| Workspace         | 本机应用工作空间，记录已打开 Notebook 与全局设置；不是知识数据容器 |
+| Notebook          | 主题知识容器；拥有自己的 UUID、SQLite、资源、版本与备份配置引用    |
+| Folder            | Notebook 内的逻辑目录，可无限嵌套                                  |
+| Note              | Markdown、PDF 或图片笔记；有标题、目录、标签、版本和元信息         |
+| Asset             | 本地不可变二进制对象，如图片、PDF、音视频、白板 JSON               |
+| Resource          | 一个逻辑资源身份，指向某个 Asset，可通过新版本换绑                 |
+| Revision          | 笔记或其他实体的一次不可变版本                                     |
+| Backup generation | 一个可恢复的备份版本，包含确定的数据库或逻辑状态及资源集合         |
+| Extension         | 通过公共扩展点增加应用能力的插件                                   |
 
 ### 3.2 Notebook 与目录
 
@@ -107,14 +108,14 @@ flowchart TB
 
 ### 4.1 Electron 进程职责
 
-| 进程 | 职责 | 禁止事项 |
-| --- | --- | --- |
-| Main | 窗口、菜单、系统对话框、协议注册、凭据代理、进程调度 | 大批量解析、同步数据库操作阻塞 UI 生命周期 |
-| Renderer | React UI、文档编辑、阅读器、交互状态 | 直接文件读写、数据库连接、任意 Node 调用 |
-| Preload | 暴露精简类型化 API，转发经过校验的 IPC | 暴露整个 `ipcRenderer`、任意频道或 shell |
-| Storage Utility Process | 持有数据库连接，串行写入，快照、资源读写 | 接受未经校验的 SQL 或任意路径 |
-| Task Process/Worker | HTML 转换、PDF 文本抽取、资源哈希、索引、备份 | 与 UI 共用长任务线程 |
-| Extension Host | 执行扩展业务逻辑，调用能力 API | 默认为插件开放文件系统、网络或凭据 |
+| 进程                    | 职责                                                 | 禁止事项                                   |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| Main                    | 窗口、菜单、系统对话框、协议注册、凭据代理、进程调度 | 大批量解析、同步数据库操作阻塞 UI 生命周期 |
+| Renderer                | React UI、文档编辑、阅读器、交互状态                 | 直接文件读写、数据库连接、任意 Node 调用   |
+| Preload                 | 暴露精简类型化 API，转发经过校验的 IPC               | 暴露整个 `ipcRenderer`、任意频道或 shell   |
+| Storage Utility Process | 持有数据库连接，串行写入，快照、资源读写             | 接受未经校验的 SQL 或任意路径              |
+| Task Process/Worker     | HTML 转换、PDF 文本抽取、资源哈希、索引、备份        | 与 UI 共用长任务线程                       |
+| Extension Host          | 执行扩展业务逻辑，调用能力 API                       | 默认为插件开放文件系统、网络或凭据         |
 
 Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它不是不可信插件的权限沙箱。普通 Node 子进程同样不能阻止 `fs` 或网络访问。安全设计必须区分进程隔离与权限隔离。[S1][S2]
 
@@ -130,18 +131,18 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 
 ### 4.3 推荐依赖与使用原则
 
-| 模块 | 推荐 | 约束 |
-| --- | --- | --- |
-| UI | React、Tailwind、Radix/shadcn 基础组件、Lucide | 二次设计统一样式；不直接拼出默认组件展示页 |
-| UI 状态 | Jotai；异步查询可使用 TanStack Query | SQLite 是真源，前端缓存不另建业务状态真源 |
-| 本地数据库 | better-sqlite3，放在存储进程 | Electron ABI 与平台架构打包验证；对外仍暴露异步 API |
-| SQL/迁移 | Drizzle 或显式 SQL Repository | 选一套；本地和 D1 迁移独立，避免假设完全兼容 |
-| 校验 | Zod 或 JSON Schema | IPC、插件 manifest、导入格式、远程协议必须校验 |
-| 编辑器 | Tiptap/ProseMirror、CodeMirror 6 | 上层封装 EditorAdapter，固定版本并做回归 |
-| Markdown 编译 | 源码位置感知 AST 层，可评估 unified/remark | 负责扩展语法和未知节点保留，不依赖编辑器自动无损往返 |
-| HTML 导入 | Readability、Turndown、DOMPurify | 抽取、转换、清洗分工明确 |
-| PDF / 白板 | PDF.js / Excalidraw | 懒加载；白板数据协议由 Anynote 适配层版本化 |
-| Cloudflare API | Workers + Hono + D1 + R2 | API 使用稳定协议，避免暴露 Cloudflare 管理凭据 |
+| 模块           | 推荐                                           | 约束                                                 |
+| -------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| UI             | React、Tailwind、Radix/shadcn 基础组件、Lucide | 二次设计统一样式；不直接拼出默认组件展示页           |
+| UI 状态        | Jotai；异步查询可使用 TanStack Query           | SQLite 是真源，前端缓存不另建业务状态真源            |
+| 本地数据库     | better-sqlite3，放在存储进程                   | Electron ABI 与平台架构打包验证；对外仍暴露异步 API  |
+| SQL/迁移       | Drizzle 或显式 SQL Repository                  | 选一套；本地和 D1 迁移独立，避免假设完全兼容         |
+| 校验           | Zod 或 JSON Schema                             | IPC、插件 manifest、导入格式、远程协议必须校验       |
+| 编辑器         | Tiptap/ProseMirror、CodeMirror 6               | 上层封装 EditorAdapter，固定版本并做回归             |
+| Markdown 编译  | 源码位置感知 AST 层，可评估 unified/remark     | 负责扩展语法和未知节点保留，不依赖编辑器自动无损往返 |
+| HTML 导入      | Readability、Turndown、DOMPurify               | 抽取、转换、清洗分工明确                             |
+| PDF / 白板     | PDF.js / Excalidraw                            | 懒加载；白板数据协议由 Anynote 适配层版本化          |
+| Cloudflare API | Workers + Hono + D1 + R2                       | API 使用稳定协议，避免暴露 Cloudflare 管理凭据       |
 
 以上为技术推荐而非已完成兼容验证。立项时锁定依赖与许可证，尤其注意编辑器商业扩展、字体分发与插件再分发边界。
 
@@ -207,22 +208,22 @@ SQLite WAL 模式运行时会出现 `notebook.sqlite-wal` 与 `-shm`。这属于
 
 ### 6.1 核心表
 
-| 表 | 关键字段 | 说明 |
-| --- | --- | --- |
-| `notebook_meta` | id、name、schema_version、content_seq、created_at | 单行 Notebook 元信息 |
-| `nodes` | id、parent_id、kind、title、sort_key、revision、deleted_at、deleted_by | Folder/Note 统一树 |
-| `notes` | node_id、note_type、head_revision_id、primary_resource_id、source_uri | 三种笔记共有信息 |
-| `note_revisions` | id、note_id、parent_revision_id、format、body、content_hash、created_at、actor | 不可变笔记版本，正文或类型化状态 |
-| `assets` | hash、size、mime_type、relative_path、created_at | 物理不可变资源 |
-| `resources` | id、asset_hash、role、original_name、metadata_json、revision | 稳定逻辑资源身份 |
-| `revision_resources` | revision_id、resource_id、asset_hash | 固定某一版本实际使用的资源哈希 |
-| `annotations` | id、note_id、target_asset_hash、kind、selector_json、body、revision、deleted_at | PDF/图片批注 |
-| `tags` / `note_tags` | id、name / note_id、tag_id | 标签与绑定 |
-| `note_links` | source_note_id、target_notebook_id、target_note_id、anchor、revision_id | 可重建链接索引 |
-| `changes` | seq、entity_type、entity_id、entity_revision、operation、payload_json | 追加式业务变更日志，备份/事件依据 |
-| `extension_data` | extension_id、key、value_json、schema_version、revision | 持久化插件数据的命名空间 |
-| `history_pins` | scope、target_id、expires_at | 防止正在使用的历史资源被清理 |
-| `fts_notes` | note_id、title_tokens、body_tokens | 可重建全文索引 |
+| 表                   | 关键字段                                                                        | 说明                              |
+| -------------------- | ------------------------------------------------------------------------------- | --------------------------------- |
+| `notebook_meta`      | id、name、schema_version、content_seq、created_at                               | 单行 Notebook 元信息              |
+| `nodes`              | id、parent_id、kind、title、sort_key、revision、deleted_at、deleted_by          | Folder/Note 统一树                |
+| `notes`              | node_id、note_type、head_revision_id、primary_resource_id、source_uri           | 三种笔记共有信息                  |
+| `note_revisions`     | id、note_id、parent_revision_id、format、body、content_hash、created_at、actor  | 不可变笔记版本，正文或类型化状态  |
+| `assets`             | hash、size、mime_type、relative_path、created_at                                | 物理不可变资源                    |
+| `resources`          | id、asset_hash、role、original_name、metadata_json、revision                    | 稳定逻辑资源身份                  |
+| `revision_resources` | revision_id、resource_id、asset_hash                                            | 固定某一版本实际使用的资源哈希    |
+| `annotations`        | id、note_id、target_asset_hash、kind、selector_json、body、revision、deleted_at | PDF/图片批注                      |
+| `tags` / `note_tags` | id、name / note_id、tag_id                                                      | 标签与绑定                        |
+| `note_links`         | source_note_id、target_notebook_id、target_note_id、anchor、revision_id         | 可重建链接索引                    |
+| `changes`            | seq、entity_type、entity_id、entity_revision、operation、payload_json           | 追加式业务变更日志，备份/事件依据 |
+| `extension_data`     | extension_id、key、value_json、schema_version、revision                         | 持久化插件数据的命名空间          |
+| `history_pins`       | scope、target_id、expires_at                                                    | 防止正在使用的历史资源被清理      |
+| `fts_notes`          | note_id、title_tokens、body_tokens                                              | 可重建全文索引                    |
 
 所有知识数据的修改，包括标题、排序、标签、批注、插件持久化状态，都要更新版本并写 `changes`。只有编辑器缓存、阅读滚动位置等本机状态可以不参与备份。
 
@@ -342,15 +343,15 @@ Anynote 适配层承担以下职责：
 
 ### 7.4 扩展能力矩阵
 
-| 能力 | v1 | 持久化方式 | 无插件降级 |
-| --- | --- | --- | --- |
-| 标题、列表、引用、代码、链接 | 内置 | 标准 Markdown | 标准显示 |
-| GFM 表格、任务列表、删除线 | 内置 | GFM | 标准/简化显示 |
-| 图片 | 内置 | 逻辑资源引用 | 图片或缺失占位 |
-| 白板 | 首方插件，默认启用 | 指令块 + 场景 JSON + 资源 + 预览 | 静态预览与下载原数据 |
-| 视频链接 | 首方插件，默认启用 | 指令块 + URL/元信息 | 普通链接卡片 |
-| Callout、折叠、数学公式 | 下一批可选扩展 | 明确协议或约定 Markdown 语法 | 原始块/文本 |
-| 多列布局、复杂表格、评论 | 后续 | 新版本协议 | 只读保留 |
+| 能力                         | v1                 | 持久化方式                       | 无插件降级           |
+| ---------------------------- | ------------------ | -------------------------------- | -------------------- |
+| 标题、列表、引用、代码、链接 | 内置               | 标准 Markdown                    | 标准显示             |
+| GFM 表格、任务列表、删除线   | 内置               | GFM                              | 标准/简化显示        |
+| 图片                         | 内置               | 逻辑资源引用                     | 图片或缺失占位       |
+| 白板                         | 首方插件，默认启用 | 指令块 + 场景 JSON + 资源 + 预览 | 静态预览与下载原数据 |
+| 视频链接                     | 首方插件，默认启用 | 指令块 + URL/元信息              | 普通链接卡片         |
+| Callout、折叠、数学公式      | 下一批可选扩展     | 明确协议或约定 Markdown 语法     | 原始块/文本          |
+| 多列布局、复杂表格、评论     | 后续               | 新版本协议                       | 只读保留             |
 
 ### 7.5 白板
 
@@ -420,18 +421,18 @@ flowchart TB
 
 ### 9.3 媒体同步规则
 
-| 来源 | 处理方式 |
-| --- | --- |
-| `img src` | 下载并重写 |
-| `srcset` / `picture` | 根据尺寸与策略选择合适资源；保存来源信息 |
-| `data-src` 等懒加载属性 | 已知模式适配，无法识别则报告 |
-| 内嵌 `data:` 图片 | 解码后入库，限制解码体积 |
-| 本地相对路径 | 在用户授权目录内解析；禁止逃逸与符号链接越界 |
-| 可直接获取的音视频文件 | 在配额内下载；大文件明确展示大小与下载状态 |
-| 页面 CSS 背景图 | v1 不全面恢复；语义内容中的背景图可由站点适配器提取 |
-| YouTube 等平台视频 | 保留安全视频块与可下载缩略图；不保证离线播放 |
-| PDF/附件链接 | 默认保留链接，用户选择后作为资源下载；不抓整站 |
-| `blob:`、流媒体、DRM、需登录资源 | 报告无法直接本地化，保留来源与失败状态 |
+| 来源                             | 处理方式                                            |
+| -------------------------------- | --------------------------------------------------- |
+| `img src`                        | 下载并重写                                          |
+| `srcset` / `picture`             | 根据尺寸与策略选择合适资源；保存来源信息            |
+| `data-src` 等懒加载属性          | 已知模式适配，无法识别则报告                        |
+| 内嵌 `data:` 图片                | 解码后入库，限制解码体积                            |
+| 本地相对路径                     | 在用户授权目录内解析；禁止逃逸与符号链接越界        |
+| 可直接获取的音视频文件           | 在配额内下载；大文件明确展示大小与下载状态          |
+| 页面 CSS 背景图                  | v1 不全面恢复；语义内容中的背景图可由站点适配器提取 |
+| YouTube 等平台视频               | 保留安全视频块与可下载缩略图；不保证离线播放        |
+| PDF/附件链接                     | 默认保留链接，用户选择后作为资源下载；不抓整站      |
+| `blob:`、流媒体、DRM、需登录资源 | 报告无法直接本地化，保留来源与失败状态              |
 
 “媒体已本地化”只对成功下载的项目成立。存在失败时笔记显示“导入完成，部分资源未下载”，不能假装全部离线可用。资源重试成功后生成新笔记版本。
 
@@ -503,11 +504,11 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 
 ### 12.1 职责分配
 
-| 组件 | 职责 |
-| --- | --- |
-| Worker | 鉴权、Notebook 授权、协议校验、备份协调、预签名、恢复接口 |
-| D1 | 结构化备份记录、实体版本与 delta、目录/标签/批注元信息、generation 状态、当前 head、资源目录 |
-| R2 | 图片/PDF/白板等资源、不可变正文对象、大型结构化 payload、完整恢复清单、可选 SQLite checkpoint |
+| 组件   | 职责                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------- |
+| Worker | 鉴权、Notebook 授权、协议校验、备份协调、预签名、恢复接口                                     |
+| D1     | 结构化备份记录、实体版本与 delta、目录/标签/批注元信息、generation 状态、当前 head、资源目录  |
+| R2     | 图片/PDF/白板等资源、不可变正文对象、大型结构化 payload、完整恢复清单、可选 SQLite checkpoint |
 
 本地一个 Notebook 一个数据库是强约束；远端初版不强制一个 Notebook 一个 D1。建议个人自托管使用一个 D1，通过 `(owner_id, notebook_id, lineage_id)` 隔离多个 Notebook。远端按租户/Notebook 分片是扩容策略，不是本地数据库布局的复制。
 
@@ -554,19 +555,19 @@ D1 `batch()` 支持 SQL 批次的事务回滚，但 D1 与 R2 之间不存在跨
 
 ### 12.5 API 草案
 
-| 接口 | 用途 |
-| --- | --- |
-| `GET /v1/capabilities` | 协议、对象大小、批次和加密能力 |
-| `POST /v1/notebooks/register` | 注册 Notebook/设备/lineage |
-| `POST /v1/notebooks/:id/backup/plan` | 计划 generation，识别缺失对象 |
-| `POST /v1/notebooks/:id/backup/:generation/batches` | 幂等提交 delta 批次 |
-| `POST /v1/notebooks/:id/backup/:generation/commit` | 校验并发布 |
-| `GET /v1/notebooks/:id/backup/:generation` | 查询状态，处理提交响应丢失 |
-| `GET /v1/notebooks/:id/backups` | 分页历史版本 |
-| `GET /v1/notebooks/:id/backups/:generation/manifest` | 固定版本恢复清单 |
-| `POST /v1/notebooks/:id/assets/download-grants` | 批量授权下载 |
-| `POST /v1/notebooks/:id/writer/takeover` | 显式设备接管 |
-| `POST /v1/notebooks/:id/retention/plan` | 生成版本删除/GC 计划 |
+| 接口                                                 | 用途                           |
+| ---------------------------------------------------- | ------------------------------ |
+| `GET /v1/capabilities`                               | 协议、对象大小、批次和加密能力 |
+| `POST /v1/notebooks/register`                        | 注册 Notebook/设备/lineage     |
+| `POST /v1/notebooks/:id/backup/plan`                 | 计划 generation，识别缺失对象  |
+| `POST /v1/notebooks/:id/backup/:generation/batches`  | 幂等提交 delta 批次            |
+| `POST /v1/notebooks/:id/backup/:generation/commit`   | 校验并发布                     |
+| `GET /v1/notebooks/:id/backup/:generation`           | 查询状态，处理提交响应丢失     |
+| `GET /v1/notebooks/:id/backups`                      | 分页历史版本                   |
+| `GET /v1/notebooks/:id/backups/:generation/manifest` | 固定版本恢复清单               |
+| `POST /v1/notebooks/:id/assets/download-grants`      | 批量授权下载                   |
+| `POST /v1/notebooks/:id/writer/takeover`             | 显式设备接管                   |
+| `POST /v1/notebooks/:id/retention/plan`              | 生成版本删除/GC 计划           |
 
 协议使用 `protocolVersion`、`requestId`、`idempotencyKey`、`expectedHead`、`writerEpoch`、`snapshotSeq`。错误码包括 `HEAD_CONFLICT`、`WRITER_REVOKED`、`ASSET_MISSING`、`SCHEMA_UNSUPPORTED`、`QUOTA_EXCEEDED` 等。
 
@@ -596,11 +597,11 @@ D1 `batch()` 支持 SQL 批次的事务回滚，但 D1 与 R2 之间不存在跨
 
 ```typescript
 type BackupCapability =
-  | 'logical-incremental'
-  | 'sqlite-snapshot'
-  | 'multipart'
-  | 'conditional-head'
-  | 'client-encryption';
+  | "logical-incremental"
+  | "sqlite-snapshot"
+  | "multipart"
+  | "conditional-head"
+  | "client-encryption";
 
 interface BackupProvider {
   id: string;
@@ -652,9 +653,7 @@ manifest 示例：
     "size": 1048576,
     "sha256": "<64位SHA-256>"
   },
-  "requiredExtensions": [
-    {"id": "anynote.whiteboard", "dataVersion": 1}
-  ],
+  "requiredExtensions": [{ "id": "anynote.whiteboard", "dataVersion": 1 }],
   "assets": [
     {
       "path": "assets/sha256/ab/<hash>.bin",
@@ -702,18 +701,18 @@ PDF/图片原件按原始字节输出，批注可附加 JSON/Markdown sidecar。
 
 ### 16.1 扩展点
 
-| 扩展点 | 典型能力 |
-| --- | --- |
-| `commands` | 命令面板、快捷键、菜单 |
-| `editor.nodes/marks` | 白板、视频、公式、Callout |
-| `noteTypeViews` | 新笔记类型查看器，后续能力 |
+| 扩展点                | 典型能力                     |
+| --------------------- | ---------------------------- |
+| `commands`            | 命令面板、快捷键、菜单       |
+| `editor.nodes/marks`  | 白板、视频、公式、Callout    |
+| `noteTypeViews`       | 新笔记类型查看器，后续能力   |
 | `importers/exporters` | 网页导入、站点适配、格式转换 |
-| `backupProviders` | Cloudflare、其他对象存储 |
-| `searchProviders` | OCR/语义检索 |
-| `aiProviders/tools` | 模型接入、知识操作 |
-| `panels` | AI、大纲、知识关联 |
-| `themes` | 主题 token 与排版 |
-| `settings` | 声明式设置表单 |
+| `backupProviders`     | Cloudflare、其他对象存储     |
+| `searchProviders`     | OCR/语义检索                 |
+| `aiProviders/tools`   | 模型接入、知识操作           |
+| `panels`              | AI、大纲、知识关联           |
+| `themes`              | 主题 token 与排版            |
+| `settings`            | 声明式设置表单               |
 
 ### 16.2 插件分级与安全执行
 
@@ -734,13 +733,13 @@ PDF/图片原件按原始字节输出，批注可附加 JSON/Markdown sidecar。
   "id": "anynote.whiteboard",
   "name": "Whiteboard",
   "version": "0.1.0",
-  "engines": {"anynote": "^0.1.0"},
+  "engines": { "anynote": "^0.1.0" },
   "runtime": "trusted-first-party",
   "activationEvents": ["onNodeType:core.whiteboard"],
   "permissions": ["notes:read", "notes:write", "assets:read", "assets:write"],
   "contributes": {
-    "editorNodes": [{"type": "core.whiteboard", "dataVersion": 1}],
-    "commands": [{"id": "whiteboard.insert", "title": "插入白板"}]
+    "editorNodes": [{ "type": "core.whiteboard", "dataVersion": 1 }],
+    "commands": [{ "id": "whiteboard.insert", "title": "插入白板" }]
   }
 }
 ```
@@ -804,17 +803,17 @@ interface NoteAPI {
 
 ### 17.2 初始工具集合
 
-| 工具 | 作用 | 默认策略 |
-| --- | --- | --- |
-| `search_notes` / `read_note` | 检索与阅读 | 当前授权 Notebook 内可执行 |
-| `list_tree` | 查看目录与笔记元信息 | 按范围分页 |
-| `create_note` | 创建总结、学习笔记 | 创建前预览标题与目录 |
-| `propose_note_patch` | 润色、补充、提取结构 | 返回 diff，不直接写 |
-| `apply_note_patch` | 应用提案 | 用户批准或已授权的窄范围策略 |
-| `move_nodes` / `set_tags` | 归类、整理 | 展示批量操作清单，可撤销 |
-| `create_links` | 建立关联 | 展示目标与理由 |
-| `import_webpage` | 收集网页 | 使用同一导入服务与网络规则 |
-| `trash_notes` | 删除到回收站 | 显式确认；禁止默认永久删除 |
+| 工具                         | 作用                 | 默认策略                     |
+| ---------------------------- | -------------------- | ---------------------------- |
+| `search_notes` / `read_note` | 检索与阅读           | 当前授权 Notebook 内可执行   |
+| `list_tree`                  | 查看目录与笔记元信息 | 按范围分页                   |
+| `create_note`                | 创建总结、学习笔记   | 创建前预览标题与目录         |
+| `propose_note_patch`         | 润色、补充、提取结构 | 返回 diff，不直接写          |
+| `apply_note_patch`           | 应用提案             | 用户批准或已授权的窄范围策略 |
+| `move_nodes` / `set_tags`    | 归类、整理           | 展示批量操作清单，可撤销     |
+| `create_links`               | 建立关联             | 展示目标与理由               |
+| `import_webpage`             | 收集网页             | 使用同一导入服务与网络规则   |
+| `trash_notes`                | 删除到回收站         | 显式确认；禁止默认永久删除   |
 
 ### 17.3 变更提案
 
@@ -846,16 +845,16 @@ Anynote 应表现为“安静、有质感的个人书桌”：主体是内容，
 
 ### 18.2 布局与尺寸
 
-| 区域 | 默认建议 | 交互 |
-| --- | --- | --- |
-| Notebook/目录侧栏 | 248px，可拖动 200–360px | 可收起、深层树横向定位、选中项完整路径 tooltip |
-| 顶部标题区域 | 48px；标签栏额外 36px，默认可隐藏 | 系统窗口按钮留出安全区，避免误触拖拽 |
-| 文档主区 | 正文最大 760–860px，居中 | 宽屏可开“全宽”；专注模式隐藏导航 |
-| 右侧辅助面板 | 304px，可拖动 260–420px | 默认关闭，开启时尽量保留正文最小宽度 |
-| 内容边距 | 横向 48px；小窗口 24px | PDF/白板使用更多可用空间 |
-| 列表行高 | 32px 舒适模式，28px 紧凑模式 | 树项、搜索结果、标签有统一节奏 |
-| 正文 | 16px，中文行高 1.75–1.85 | 用户可调字号/行高，阅读模式即时预览 |
-| 文档标题 | 30–34px，字重 600 | 标题下元信息轻量排列，不做大卡片 |
+| 区域              | 默认建议                          | 交互                                           |
+| ----------------- | --------------------------------- | ---------------------------------------------- |
+| Notebook/目录侧栏 | 248px，可拖动 200–360px           | 可收起、深层树横向定位、选中项完整路径 tooltip |
+| 顶部标题区域      | 48px；标签栏额外 36px，默认可隐藏 | 系统窗口按钮留出安全区，避免误触拖拽           |
+| 文档主区          | 正文最大 760–860px，居中          | 宽屏可开“全宽”；专注模式隐藏导航               |
+| 右侧辅助面板      | 304px，可拖动 260–420px           | 默认关闭，开启时尽量保留正文最小宽度           |
+| 内容边距          | 横向 48px；小窗口 24px            | PDF/白板使用更多可用空间                       |
+| 列表行高          | 32px 舒适模式，28px 紧凑模式      | 树项、搜索结果、标签有统一节奏                 |
+| 正文              | 16px，中文行高 1.75–1.85          | 用户可调字号/行高，阅读模式即时预览            |
+| 文档标题          | 30–34px，字重 600                 | 标题下元信息轻量排列，不做大卡片               |
 
 默认采用“左侧目录 + 文档”两栏；可选笔记列表形成三栏，但不在窄窗口同时塞入目录、列表、正文和 AI。窗口不足时辅助面板转为覆盖式抽屉。
 
@@ -863,16 +862,16 @@ Anynote 应表现为“安静、有质感的个人书桌”：主体是内容，
 
 外观采用固定的亮、暗两种模式，通过顶部栏或原生菜单切换后立即应用，并保存到 `anynote.appearance`：
 
-| 界面元素 | 亮模式 | 暗模式（VS Code Dark Modern） |
-| --- | --- | --- |
-| 编辑器背景 | `#FAFAF8` | `#1F1F1F` |
-| 纸张外部桌面 | `#FAFAF8` | `#1F1F1F` |
-| 纸张与目录边缘 | `#CECEC6` | `#454545` |
-| 侧边栏背景 | `#F4F4F2` | `#181818` |
-| 主文字 | `#242424` | `#CCCCCC` |
-| 次级文字 | `#737373` | `#9D9D9D` |
-| 分隔线 | `#E8E8E5` | `#2B2B2B` |
-| 强调色 | `#638675`（柔和绿） | `#0078D4` |
+| 界面元素       | 亮模式              | 暗模式（VS Code Dark Modern） |
+| -------------- | ------------------- | ----------------------------- |
+| 编辑器背景     | `#FAFAF8`           | `#1F1F1F`                     |
+| 纸张外部桌面   | `#FAFAF8`           | `#1F1F1F`                     |
+| 纸张与目录边缘 | `#CECEC6`           | `#454545`                     |
+| 侧边栏背景     | `#F4F4F2`           | `#181818`                     |
+| 主文字         | `#242424`           | `#CCCCCC`                     |
+| 次级文字       | `#737373`           | `#9D9D9D`                     |
+| 分隔线         | `#E8E8E5`           | `#2B2B2B`                     |
+| 强调色         | `#638675`（柔和绿） | `#0078D4`                     |
 
 暗模式的颜色以 [VS Code 官方 Dark Modern 主题](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json) 为准，链接使用 `#4DAAFC`。顶部栏与原生菜单的明暗切换使用同一个模式状态；默认亮模式，重启后恢复当前模式。外观偏好仅包含 `mode`。纸张使用当前模式的底色。
 
@@ -928,17 +927,17 @@ Anynote 应表现为“安静、有质感的个人书桌”：主体是内容，
 
 ### 18.5 关键状态与交互细节
 
-| 状态 | 展示与行动 |
-| --- | --- |
-| 空 Notebook | 一段简短说明 + 新建笔记/导入，提供可关闭示例 |
-| 本地保存中 | 低干扰文本，不持续 toast |
-| 本地保存失败 | 持续可见错误 + 重试/另存，保留草稿 |
-| 无网络 | 本地正常工作；备份显示等待网络 |
-| 资源缺失 | 保留尺寸占位、来源、重试/从备份恢复 |
-| 插件未安装 | 预览或 opaque 块 + 安装入口，内容可导出 |
-| 大任务 | 顶部小进度入口，任务中心显示细节，可取消 |
-| 数据损坏 | 打开只读恢复向导，不循环崩溃 |
-| 目录很深 | 折叠祖先、滚动到选中项、面包屑定位；不限制模型层级 |
+| 状态         | 展示与行动                                         |
+| ------------ | -------------------------------------------------- |
+| 空 Notebook  | 一段简短说明 + 新建笔记/导入，提供可关闭示例       |
+| 本地保存中   | 低干扰文本，不持续 toast                           |
+| 本地保存失败 | 持续可见错误 + 重试/另存，保留草稿                 |
+| 无网络       | 本地正常工作；备份显示等待网络                     |
+| 资源缺失     | 保留尺寸占位、来源、重试/从备份恢复                |
+| 插件未安装   | 预览或 opaque 块 + 安装入口，内容可导出            |
+| 大任务       | 顶部小进度入口，任务中心显示细节，可取消           |
+| 数据损坏     | 打开只读恢复向导，不循环崩溃                       |
+| 目录很深     | 折叠祖先、滚动到选中项、面包屑定位；不限制模型层级 |
 
 动画建议 120–180ms，主要用于面板、菜单与小范围状态；遵循减少动态效果设置。所有主要操作支持键盘、屏幕阅读器与 200% 缩放，正文与 UI 文本对比度按 WCAG AA 验证。
 
@@ -1030,16 +1029,16 @@ anynote/
 
 以下为验收目标，需指定机器与测试语料后测量，不是现阶段承诺：
 
-| 项目 | 建议目标与样本 |
-| --- | --- |
-| 冷启动 | 中等桌面设备 3s 内可操作，优先显示 Shell |
-| 打开普通 Markdown | 50KB 文档 300ms 内显示可编辑内容 |
-| 本地保存 | 普通文档提交 p95 <150ms；防抖等待单独计算 |
-| 树操作 | 10,000 节点，展开/定位不全量渲染，交互无明显卡顿 |
-| 搜索 | 10,000 笔记、已索引条件下首批结果 p95 <500ms |
-| PDF | 100MB 样本按页加载，不一次渲染全部页 |
-| 超大 Markdown | 1MB 以上自动进入性能策略/源码模式提示 |
-| 备份 | 流式哈希/上传，无完整大文件读入内存；UI 保持可操作 |
+| 项目              | 建议目标与样本                                     |
+| ----------------- | -------------------------------------------------- |
+| 冷启动            | 中等桌面设备 3s 内可操作，优先显示 Shell           |
+| 打开普通 Markdown | 50KB 文档 300ms 内显示可编辑内容                   |
+| 本地保存          | 普通文档提交 p95 <150ms；防抖等待单独计算          |
+| 树操作            | 10,000 节点，展开/定位不全量渲染，交互无明显卡顿   |
+| 搜索              | 10,000 笔记、已索引条件下首批结果 p95 <500ms       |
+| PDF               | 100MB 样本按页加载，不一次渲染全部页               |
+| 超大 Markdown     | 1MB 以上自动进入性能策略/源码模式提示              |
+| 备份              | 流式哈希/上传，无完整大文件读入内存；UI 保持可操作 |
 
 记录本地 SQLite 提交时间、任务队列、资源吞吐、备份成功率、恢复验证结果、插件启动/崩溃、编辑器模式转换耗时。日志支持导出且默认脱敏。
 
@@ -1058,18 +1057,18 @@ anynote/
 
 ### 22.2 重点故障注入
 
-| 故障 | 必须保证 |
-| --- | --- |
-| 资源写完后 DB 提交失败 | 无悬空引用，孤儿资源可回收 |
-| 备份上传一半掉线 | 旧 committed 版本仍可恢复，新版本不可见 |
-| commit 已成功但响应丢失 | 重试/查询同一 generation，不能重复逻辑变更 |
-| 上传后对象损坏/被删除 | 校验失败，不显示备份成功；可重新上传 |
-| 第二设备使用旧 epoch 写入 | 拒绝或新分支，不覆盖现有 head |
-| 备份期间继续编辑/GC | 恢复状态与 snapshotSeq 一致，资源完整 |
-| Cloudflare 提交记录损坏 | 列举已完成版本仍可恢复，未提交版本不可见 |
-| 插件停用/卸载 | 文档数据不丢，预览/原始块仍存在 |
-| 导入恶意 ZIP/SQLite | 无路径逃逸、代码执行或覆盖现有 Notebook |
-| AI patch 基于旧版本 | 拒绝或重新提案，保留用户修改 |
+| 故障                      | 必须保证                                   |
+| ------------------------- | ------------------------------------------ |
+| 资源写完后 DB 提交失败    | 无悬空引用，孤儿资源可回收                 |
+| 备份上传一半掉线          | 旧 committed 版本仍可恢复，新版本不可见    |
+| commit 已成功但响应丢失   | 重试/查询同一 generation，不能重复逻辑变更 |
+| 上传后对象损坏/被删除     | 校验失败，不显示备份成功；可重新上传       |
+| 第二设备使用旧 epoch 写入 | 拒绝或新分支，不覆盖现有 head              |
+| 备份期间继续编辑/GC       | 恢复状态与 snapshotSeq 一致，资源完整      |
+| Cloudflare 提交记录损坏   | 列举已完成版本仍可恢复，未提交版本不可见   |
+| 插件停用/卸载             | 文档数据不丢，预览/原始块仍存在            |
+| 导入恶意 ZIP/SQLite       | 无路径逃逸、代码执行或覆盖现有 Notebook    |
+| AI patch 基于旧版本       | 拒绝或重新提案，保留用户修改               |
 
 ### 22.3 v1 发布门槛
 
@@ -1088,14 +1087,14 @@ anynote/
 
 不建议同时做完整文档平台、插件市场、实时同步和 AI Agent。先建立可恢复的数据闭环，再扩大能力。
 
-| 阶段 | 主要交付 | 完成依据 |
-| --- | --- | --- |
-| P0：设计与技术验证 | UI 样张、SQLite 快照、Markdown round-trip、白板/资源闭包、D1 CAS 验证 | 关键风险有可运行实验与 ADR |
-| P1：本地知识库 | Desktop Shell、Notebook、目录树、源码编辑/渲染、PDF/图片、资源、搜索、完整导入导出 | 离线闭环与导出恢复通过 |
-| P2：文档与扩展 | 富文本 Beta、SDK/宿主、白板、视频、HTML 导入、统一任务中心 | 未知内容保留与权限测试通过 |
-| P3：备份闭环 | 本地快照、Cloudflare、历史与恢复向导、保留/GC | 故障注入与灾难恢复通过 |
-| P4：v1 打磨 | 富文本稳定化、视觉/无障碍、打包签名、更新、性能 | 达到第 22 节发布门槛 |
-| P5：AI 与扩展生态 | AI 提案/应用/撤销、OCR、语义检索、外部插件开发体验 | 权限、隐私、版本与回归指标可控 |
+| 阶段               | 主要交付                                                                           | 完成依据                       |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------ |
+| P0：设计与技术验证 | UI 样张、SQLite 快照、Markdown round-trip、白板/资源闭包、D1 CAS 验证              | 关键风险有可运行实验与 ADR     |
+| P1：本地知识库     | Desktop Shell、Notebook、目录树、源码编辑/渲染、PDF/图片、资源、搜索、完整导入导出 | 离线闭环与导出恢复通过         |
+| P2：文档与扩展     | 富文本 Beta、SDK/宿主、白板、视频、HTML 导入、统一任务中心                         | 未知内容保留与权限测试通过     |
+| P3：备份闭环       | 本地快照、Cloudflare、历史与恢复向导、保留/GC                                      | 故障注入与灾难恢复通过         |
+| P4：v1 打磨        | 富文本稳定化、视觉/无障碍、打包签名、更新、性能                                    | 达到第 22 节发布门槛           |
+| P5：AI 与扩展生态  | AI 提案/应用/撤销、OCR、语义检索、外部插件开发体验                                 | 权限、隐私、版本与回归指标可控 |
 
 可调整阶段并行程度，但 P0 的 Markdown 与恢复验证必须先完成。每阶段都应交付可用产品，而不是先做一套长期没有用户界面的抽象框架。
 
@@ -1103,17 +1102,17 @@ anynote/
 
 ### 24.1 主要风险
 
-| 风险 | 应对 |
-| --- | --- |
+| 风险                             | 应对                                                      |
+| -------------------------------- | --------------------------------------------------------- |
 | 富文本和 Markdown 两种表达不等价 | 私有协议、opaque 节点、源码真源、语料验证、富文本渐进上线 |
-| 插件系统过度设计 | 先支持首方插件与有限扩展点，SDK 边界从真实能力验证 |
-| 大数据库频繁整库上传 | 调度间隔、历史策略、数据库体积观测，后续分块格式 |
-| D1/R2 不具备跨服务事务 | 不可变对象、staging generation、CAS 发布、GC 宽限 |
-| 附件遗漏导致备份不可恢复 | 版本资源闭包、pin、哈希校验、恢复演练 |
-| 多设备误以为已经同步 | 单写设备/显式分支、清晰 UI 文案、接管 epoch |
-| 无限目录或大文件拖垮界面 | 虚拟列表、迭代遍历、懒加载、任务预算、取消 |
-| AI 内容泄露或误修改 | 授权上下文、提案 diff、版本锁、审计与撤销 |
-| 插件 UI 破坏美观/安全 | 设计 token、声明式扩展、受信与受限分级 |
+| 插件系统过度设计                 | 先支持首方插件与有限扩展点，SDK 边界从真实能力验证        |
+| 大数据库频繁整库上传             | 调度间隔、历史策略、数据库体积观测，后续分块格式          |
+| D1/R2 不具备跨服务事务           | 不可变对象、staging generation、CAS 发布、GC 宽限         |
+| 附件遗漏导致备份不可恢复         | 版本资源闭包、pin、哈希校验、恢复演练                     |
+| 多设备误以为已经同步             | 单写设备/显式分支、清晰 UI 文案、接管 epoch               |
+| 无限目录或大文件拖垮界面         | 虚拟列表、迭代遍历、懒加载、任务预算、取消                |
+| AI 内容泄露或误修改              | 授权上下文、提案 diff、版本锁、审计与撤销                 |
+| 插件 UI 破坏美观/安全            | 设计 token、声明式扩展、受信与受限分级                    |
 
 ### 24.2 当前建议假设
 
@@ -1145,19 +1144,18 @@ anynote/
 
 技术资料核实日期：2026-10-01。限制、API 状态与软件版本可能变化，实施时应锁定版本并重新检查。本文中架构、协议、UI 数值和产品默认策略属于 Anynote 的设计建议，官方资料用于验证底层能力与限制。
 
-| 编号 | 官方资料 | 主要用途 |
-| --- | --- | --- |
-| S1 | [Electron utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process) | 后台进程模型 |
-| S2 | [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security) | Renderer、IPC、CSP、远程内容安全 |
-| S3 | [SQLite Online Backup API](https://www.sqlite.org/backup.html) | 活跃数据库一致性快照 |
-| S4 | [SQLite WAL](https://www.sqlite.org/wal.html) | WAL 文件与连接行为 |
-| S5 | [Tiptap Markdown](https://tiptap.dev/docs/editor/markdown) / [Custom Markdown Extensions](https://tiptap.dev/docs/editor/markdown/guides/integrate-markdown-in-your-extension) | 双向转换、扩展与限制 |
-| S6 | [Excalidraw Integration](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/integration) | 白板集成 |
-| S7 | [PDF.js](https://mozilla.github.io/pdf.js/) | PDF 阅读与渲染 |
-| S8 | [Mozilla Readability](https://github.com/mozilla/readability) | 正文抽取与清洗边界 |
-| S9 | [Turndown](https://github.com/mixmark-io/turndown) | HTML 转 Markdown |
-| S10 | [Cloudflare D1 Limits](https://developers.cloudflare.com/d1/platform/limits/) | 数据库、行大小、查询预算与容量 |
-| S11 | [D1 Database API](https://developers.cloudflare.com/d1/worker-api/d1-database/) | batch、session、dump 限制 |
-| S12 | [D1 Import / Export](https://developers.cloudflare.com/d1/best-practices/import-export-data/) | SQL 导出与恢复边界 |
-| S13 | [R2 Presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/) | 附件直传与授权 |
-
+| 编号 | 官方资料                                                                                                                                                                       | 主要用途                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| S1   | [Electron utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process)                                                                                          | 后台进程模型                     |
+| S2   | [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)                                                                                                  | Renderer、IPC、CSP、远程内容安全 |
+| S3   | [SQLite Online Backup API](https://www.sqlite.org/backup.html)                                                                                                                 | 活跃数据库一致性快照             |
+| S4   | [SQLite WAL](https://www.sqlite.org/wal.html)                                                                                                                                  | WAL 文件与连接行为               |
+| S5   | [Tiptap Markdown](https://tiptap.dev/docs/editor/markdown) / [Custom Markdown Extensions](https://tiptap.dev/docs/editor/markdown/guides/integrate-markdown-in-your-extension) | 双向转换、扩展与限制             |
+| S6   | [Excalidraw Integration](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/integration)                                                                                  | 白板集成                         |
+| S7   | [PDF.js](https://mozilla.github.io/pdf.js/)                                                                                                                                    | PDF 阅读与渲染                   |
+| S8   | [Mozilla Readability](https://github.com/mozilla/readability)                                                                                                                  | 正文抽取与清洗边界               |
+| S9   | [Turndown](https://github.com/mixmark-io/turndown)                                                                                                                             | HTML 转 Markdown                 |
+| S10  | [Cloudflare D1 Limits](https://developers.cloudflare.com/d1/platform/limits/)                                                                                                  | 数据库、行大小、查询预算与容量   |
+| S11  | [D1 Database API](https://developers.cloudflare.com/d1/worker-api/d1-database/)                                                                                                | batch、session、dump 限制        |
+| S12  | [D1 Import / Export](https://developers.cloudflare.com/d1/best-practices/import-export-data/)                                                                                  | SQL 导出与恢复边界               |
+| S13  | [R2 Presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)                                                                                               | 附件直传与授权                   |

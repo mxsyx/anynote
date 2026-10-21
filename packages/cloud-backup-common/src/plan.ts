@@ -6,18 +6,11 @@ import type {
 } from "@anynote/types/cloud-backup.js";
 import { sameLocator } from "./layout.js";
 
-/** Description of an asset participating in the plan. */
-export interface PlanAsset {
-  path: string;
-  sha256: string;
-  size: number;
-}
-
 export interface PlanInput {
   commitId: string;
   databaseSha256: string;
   databaseSize: number;
-  assets: readonly PlanAsset[];
+  databaseChunks: readonly { sha256: string; size: number }[];
   /** Manifest of the last successful commit; empty means a full upload is needed. */
   previous: CloudBackupManifest | null;
   /**
@@ -30,11 +23,10 @@ export interface PlanInput {
 }
 
 /**
- * Build a file-level incremental upload plan (design §8.1, §17).
+ * Build a chunked incremental upload plan (design §8.1, §17).
  *
  * Decision rules:
- * - SQLite is compared by the post-capture SHA-256; if changed it is uploaded whole, with no block-level diff.
- * - Immutable assets are reused by content hash; when `exists` is provided, the remote is confirmed to still exist.
+ * - SQLite chunks are compared by SHA-256; only absent or changed chunks are uploaded.
  * - The manifest is always regenerated (including commitId/time), so it is never reused.
  *
  * @param input The capture result and the previous manifest.
@@ -43,10 +35,7 @@ export interface PlanInput {
 export async function buildUploadPlan(
   input: PlanInput,
 ): Promise<CloudBackupPlan> {
-  const previous = input.previous,
-    previousAssets = new Map<string, CloudObjectLocator>();
-  for (const asset of previous?.assets ?? [])
-    previousAssets.set(asset.sha256, asset.locator);
+  const previous = input.previous;
 
   const items: CloudUploadItem[] = [];
 
@@ -54,31 +43,32 @@ export async function buildUploadPlan(
   const reusable = async (locator: CloudObjectLocator) =>
     input.exists ? await input.exists(locator) : true;
 
-  let databaseReused = false;
-  if (previous?.database.sha256 === input.databaseSha256)
-    databaseReused = await reusable(previous.database.locator);
-  if (!databaseReused)
-    items.push({
-      kind: "database",
-      sha256: input.databaseSha256,
-      size: input.databaseSize,
-    });
-
-  for (const asset of input.assets) {
-    const locator = previousAssets.get(asset.sha256);
-    if (locator && (await reusable(locator))) continue;
-    items.push({
-      kind: "asset",
-      sha256: asset.sha256,
-      size: asset.size,
-      assetPath: asset.path,
-    });
+  let databaseReused =
+    previous?.database.sha256 === input.databaseSha256 &&
+    previous.database.size === input.databaseSize &&
+    previous.database.chunks.length === input.databaseChunks.length &&
+    previous.database.chunks.every(
+      (c, i) =>
+        c.sha256 === input.databaseChunks[i].sha256 &&
+        c.size === input.databaseChunks[i].size,
+    );
+  const previousChunks = new Map(
+    previous?.database.chunks.map((c) => [c.sha256, c]) || [],
+  );
+  for (const chunk of new Map(
+    input.databaseChunks.map((c) => [c.sha256, c]),
+  ).values()) {
+    const old = previousChunks.get(chunk.sha256);
+    if (old && old.size === chunk.size && (await reusable(old.locator)))
+      continue;
+    databaseReused = false;
+    items.push({ kind: "database", sha256: chunk.sha256, size: chunk.size });
   }
 
   const uploadBytes = items.reduce((total, item) => total + item.size, 0),
     unchanged = databaseReused && items.length === 0,
     // The space budget includes the old current database (the old copy is not deleted before a successful commit) and the newly added objects.
-    requiredBytes = uploadBytes + (previous?.database.size ?? 0);
+    requiredBytes = uploadBytes;
 
   return {
     commitId: input.commitId,
@@ -105,27 +95,6 @@ export function assertPlanBudget(plan: CloudBackupPlan): boolean {
       { code: "quota-exceeded" },
     );
   return true;
-}
-
-/**
- * Determine whether an object in the plan can reuse an existing locator.
- *
- * @param plan The upload plan.
- * @param sha256 Content hash.
- * @param kind Object kind.
- * @returns The reusable locator, or undefined.
- */
-export function reusedLocator(
-  previous: CloudBackupManifest | null,
-  sha256: string,
-  kind: "database" | "asset",
-): CloudObjectLocator | undefined {
-  if (!previous) return undefined;
-  if (kind === "database")
-    return previous.database.sha256 === sha256
-      ? previous.database.locator
-      : undefined;
-  return previous.assets.find((asset) => asset.sha256 === sha256)?.locator;
 }
 
 export { sameLocator };

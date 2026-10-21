@@ -1,12 +1,6 @@
+import { putAsset } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
+
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
 import { extensionBlock, parseBlocks } from "@anynote/protocol/markdown.js";
@@ -490,19 +484,14 @@ export function writeResource(
     throw Error("图片类型与内容不匹配");
   const overBudget = imageBudgetError(bytes, mime);
   if (overBudget) throw Error(overBudget);
-  const hash = digest(bytes),
-    path = `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
-    dest = s.notebookPath(notebookId, path);
-  mkdirSync(join(dest, ".."), { recursive: true });
-  if (existsSync(dest)) {
-    if (digest(readFileSync(dest)) !== hash) throw Error("已有资源损坏");
-  } else {
-    writeFileSync(s.notebookPath(notebookId, path + ".tmp"), bytes, {
-      flush: true,
-    });
-    renameSync(dest + ".tmp", dest);
-  }
-  return { id, hash, path, size: bytes.length, mime, name };
+  return {
+    id,
+    hash: digest(bytes),
+    data: bytes,
+    size: bytes.length,
+    mime,
+    name,
+  };
 }
 
 /**
@@ -512,12 +501,7 @@ export function writeResource(
  * @param r Resource row.
  */
 function bind(db: SqlDatabase, r: SqlRow) {
-  db.prepare("INSERT OR IGNORE INTO assets VALUES(?,?,?,?)").run(
-    r.hash,
-    r.size,
-    r.mime,
-    r.path,
-  );
+  putAsset(db, r.data, r.mime);
   if (db.prepare("SELECT id FROM resources WHERE id=?").get(r.id))
     db.prepare(
       "UPDATE resources SET asset_hash=?,revision=revision+1 WHERE id=?",
@@ -580,7 +564,6 @@ export function save(
       db
         .prepare("SELECT primary_resource_id FROM notes WHERE node_id=?")
         .get(p.id)?.primary_resource_id,
-      undefined,
       previousHead,
       new Set(resources.map((r) => r.id)),
     );
@@ -638,7 +621,6 @@ export async function advancedOperations(
       "restoreLocalBackup",
       "removeLocalBackupTarget",
       "deleteLocalNotebookBackup",
-      "rebuildLocalBackupManifest",
       "configureBackup",
       "listBackupTargets",
       "startBackup",
@@ -1110,7 +1092,6 @@ export async function advancedOperations(
         undefined,
         undefined,
         undefined,
-        undefined,
         originalHtml ? [originalHtml] : [],
       );
       s.index(db, id);
@@ -1228,15 +1209,6 @@ export async function advancedOperations(
       db.prepare("UPDATE notebook_meta SET name=?").run(p.title);
       return db.prepare("SELECT * FROM notebook_meta").get();
     });
-    writeFileSync(
-      s.notebookPath(p.notebookId, "notebook.json"),
-      JSON.stringify({
-        formatVersion: 1,
-        id: p.notebookId,
-        name: p.title,
-        database: "notebook.sqlite",
-      }),
-    );
     if (s.externalDirectories.has(p.notebookId)) {
       s.externalDirectories.get(p.notebookId)!.name = p.title;
       persistDirectories(s);

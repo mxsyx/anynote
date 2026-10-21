@@ -1,3 +1,4 @@
+import { mapDatabaseChunks } from "@anynote/cloud-backup-common";
 import { randomUUID } from "node:crypto";
 import type {
   AccountContext,
@@ -31,7 +32,6 @@ import {
   parseManifest,
   parseRootMarker,
   publishHead,
-  safeRelativePath,
   type ManagedObject,
 } from "@anynote/cloud-backup-common";
 import {
@@ -75,7 +75,6 @@ const stateKeys = {
   root: "root.item",
   notebook: "notebook.item",
   device: "device.item",
-  assets: "assets.item",
   slot: "device.slot",
   slots: "slots",
   managed: "managed.objects",
@@ -86,7 +85,6 @@ interface ResolvedFolders {
   rootId: string;
   notebookId: string;
   deviceId: string;
-  assetsId: string;
   deviceSlotId: string;
 }
 
@@ -203,11 +201,9 @@ async function resolveFolders(
       driveId,
       notebook.id,
       input.deviceSlotId,
-    ),
-    assets = await findOrCreateFolder(client, driveId, device.id, "assets");
+    );
   await ctx.state.set(stateKeys.notebook, notebook.id);
   await ctx.state.set(stateKeys.device, device.id);
-  await ctx.state.set(stateKeys.assets, assets.id);
   await ctx.state.set(stateKeys.slot, input.deviceSlotId);
   const slots =
     (await ctx.state.get<Record<string, string>>(stateKeys.slots)) ?? {};
@@ -218,7 +214,6 @@ async function resolveFolders(
     rootId,
     notebookId: notebook.id,
     deviceId: device.id,
-    assetsId: assets.id,
     deviceSlotId: input.deviceSlotId,
   };
 }
@@ -227,25 +222,17 @@ async function resolveFolders(
 async function requireFolders(
   ctx: BackupHostContext,
 ): Promise<ResolvedFolders> {
-  const [driveId, rootId, notebookId, deviceId, assetsId, deviceSlotId] =
+  const [driveId, rootId, notebookId, deviceId, deviceSlotId] =
     await Promise.all([
       ctx.state.get<string>(stateKeys.drive),
       ctx.state.get<string>(stateKeys.root),
       ctx.state.get<string>(stateKeys.notebook),
       ctx.state.get<string>(stateKeys.device),
-      ctx.state.get<string>(stateKeys.assets),
       ctx.state.get<string>(stateKeys.slot),
     ]);
-  if (
-    !driveId ||
-    !rootId ||
-    !notebookId ||
-    !deviceId ||
-    !assetsId ||
-    !deviceSlotId
-  )
+  if (!driveId || !rootId || !notebookId || !deviceId || !deviceSlotId)
     throw Error("云盘目标目录尚未创建，请重新配置该目标");
-  return { driveId, rootId, notebookId, deviceId, assetsId, deviceSlotId };
+  return { driveId, rootId, notebookId, deviceId, deviceSlotId };
 }
 
 /** Record a managed object for managed GC (design §14.3). */
@@ -403,11 +390,7 @@ export const oneDriveProvider: CloudBackupProvider = {
       commitId: randomUUID(),
       databaseSha256: input.capture.database.sha256,
       databaseSize: input.capture.database.size,
-      assets: input.capture.assets.map((asset) => ({
-        path: asset.path,
-        sha256: asset.sha256,
-        size: asset.size,
-      })),
+      databaseChunks: input.capture.database.chunks,
       previous,
       // When a remote object is deleted/moved, re-check and repair, not relying solely on a stale local cursor (design §8.1).
       exists: async (locator) => {
@@ -435,72 +418,46 @@ export const oneDriveProvider: CloudBackupProvider = {
       folders = await requireFolders(ctx);
     let transferredBytes = 0;
 
-    const databaseItem = plan.items.find((item) => item.kind === "database"),
-      database = databaseItem
-        ? objectRef(
-            capture.database.sha256,
-            capture.database.size,
-            client.locate(
-              folders.driveId,
-              await client.uploadObject({
-                driveId: folders.driveId,
-                parentId: folders.deviceId,
-                name: `${capture.database.sha256}.sqlite`,
-                source: capture.database,
-                size: capture.database.size,
-                mimeType: "application/vnd.sqlite3",
-              }),
-            ),
-            "application/vnd.sqlite3",
-          )
-        : await reuseObject(
-            client,
-            folders.driveId,
-            folders.deviceId,
-            `${capture.database.sha256}.sqlite`,
-            capture.database.sha256,
-          );
-    if (databaseItem) transferredBytes += capture.database.size;
-    await trackManaged(ctx, database, "database");
+    const database = await mapDatabaseChunks(
+      capture.database,
+      async (chunk) => {
+        const databaseItem = plan.items.find(
+            (item) => item.kind === "database" && item.sha256 === chunk.sha256,
+          ),
+          database = databaseItem
+            ? objectRef(
+                chunk.sha256,
+                chunk.size,
+                client.locate(
+                  folders.driveId,
+                  await client.uploadObject({
+                    driveId: folders.driveId,
+                    parentId: folders.deviceId,
+                    name: `${chunk.sha256}.bin`,
+                    source: chunk,
+                    size: chunk.size,
+                    mimeType: "application/octet-stream",
+                  }),
+                ),
+                "application/octet-stream",
+              )
+            : await reuseObject(
+                client,
+                folders.driveId,
+                folders.deviceId,
+                `${chunk.sha256}.bin`,
+                chunk.sha256,
+              );
+        if (databaseItem) transferredBytes += chunk.size;
+        await trackManaged(ctx, database, "database");
 
-    const assets: (CloudBackupObjectRef & { path: string })[] = [];
-    for (const asset of capture.assets) {
-      const item = plan.items.find(
-        (candidate) =>
-          candidate.kind === "asset" && candidate.sha256 === asset.sha256,
-      );
-      const ref = item
-        ? objectRef(
-            asset.sha256,
-            asset.size,
-            client.locate(
-              folders.driveId,
-              await client.uploadObject({
-                driveId: folders.driveId,
-                parentId: folders.assetsId,
-                name: `${asset.sha256}.bin`,
-                source: asset,
-                size: asset.size,
-                mimeType: asset.mimeType ?? "application/octet-stream",
-              }),
-            ),
-            asset.mimeType,
-          )
-        : await reuseObject(
-            client,
-            folders.driveId,
-            folders.assetsId,
-            `${asset.sha256}.bin`,
-            asset.sha256,
-          );
-      if (item) transferredBytes += asset.size;
-      await trackManaged(ctx, ref, "asset");
-      assets.push({ ...ref, path: asset.path });
-    }
+        return database;
+      },
+    );
 
     const manifestDraft: CloudBackupManifest = {
       format: "anynote.cloud-backup-manifest",
-      formatVersion: 1,
+      formatVersion: 2,
       notebookId: capture.notebookId,
       notebookName: capture.notebookName,
       deviceSlotId: folders.deviceSlotId,
@@ -514,12 +471,12 @@ export const oneDriveProvider: CloudBackupProvider = {
         schemaVersion: capture.schemaVersion,
         contentSeq: capture.contentSeq,
       },
-      assets,
+      assets: [],
     };
     return {
       commitId: plan.commitId,
       database,
-      assets,
+      assets: [],
       transferredBytes,
       complete: true,
       manifestDraft,
@@ -533,20 +490,11 @@ export const oneDriveProvider: CloudBackupProvider = {
     const client = createGraphClient(ctx),
       folders = await requireFolders(ctx),
       // The database must reach a content-verification level (design §13.1).
-      database = await verifyObject(input.database, client, ctx, "数据库");
-    assertContentVerification(database, "数据库");
-    // Assets likewise download-verify by default; advanced settings can disable it, but the result must not be mixed into "all verified".
-    const verifyAssets =
-      (await ctx.state.get<boolean>("verify.downloadAssets")) ?? true;
-    const assets: (CloudBackupObjectRef & { path: string })[] = [];
-    for (const asset of input.assets)
-      assets.push({
-        ...(verifyAssets
-          ? await verifyObject(asset, client, ctx, `附件 ${asset.path}`)
-          : asset),
-        path: asset.path,
+      database = await mapDatabaseChunks(input.database, async (chunk) => {
+        const verified = await verifyObject(chunk, client, ctx, "数据库分块");
+        assertContentVerification(verified, "数据库分块");
+        return verified;
       });
-
     const manifest: CloudBackupManifest = {
         ...input.manifestDraft,
         database: {
@@ -554,7 +502,7 @@ export const oneDriveProvider: CloudBackupProvider = {
           schemaVersion: input.manifestDraft.database.schemaVersion,
           contentSeq: input.manifestDraft.database.contentSeq,
         },
-        assets,
+        assets: [],
       },
       bytes = Buffer.from(JSON.stringify(manifest)),
       file = await client.uploadBytes({
@@ -575,7 +523,15 @@ export const oneDriveProvider: CloudBackupProvider = {
     input.manifest = manifest;
     input.manifestRef = manifestRef;
     input.manifestSha256 = ctx.verifier.sha256(readBack);
-    await trackManaged(ctx, { ...database, locator: manifestRef }, "manifest");
+    await trackManaged(
+      ctx,
+      {
+        sha256: input.manifestSha256,
+        size: bytes.length,
+        locator: manifestRef,
+      },
+      "manifest",
+    );
     return manifest;
   },
 
@@ -670,7 +626,6 @@ export const oneDriveProvider: CloudBackupProvider = {
         commitId: head.commitId,
         completedAt: head.completedAt,
         databaseBytes: manifest?.database.size,
-        assetCount: manifest?.assets.length,
         verification: "download-sha256",
       });
     }
@@ -700,32 +655,27 @@ export const oneDriveProvider: CloudBackupProvider = {
       manifestRef = input.manifestRef ?? head?.manifestRef;
     if (!manifestRef) throw Error("该设备槽没有可恢复的当前副本");
     const manifest = await readManifest(client, manifestRef),
-      database = await client.downloadToDest(
-        manifest.database.locator.ref,
-        "notebook.sqlite",
-      ),
-      assets: RestoreBundle["assets"] = [];
-    for (const asset of manifest.assets) {
-      // The manifest is untrusted input: relative paths are written to disk only after core validation (design §16).
-      if (safeRelativePath(asset.path) !== asset.path)
-        throw Error(`云端清单包含不安全的资源路径：${asset.path}`);
-      const downloaded = await client.downloadToDest(
-        asset.locator.ref,
-        asset.path,
-      );
-      assets.push({
-        path: asset.path,
-        sha256: asset.sha256,
-        size: downloaded.bytes,
-        filePath: downloaded.filePath,
+      database = await mapDatabaseChunks(manifest.database, async (chunk) => {
+        const downloaded = await client.downloadToDest(
+          chunk.locator.ref,
+          `chunks/${chunk.sha256}.bin`,
+        );
+        if (
+          downloaded.sha256 !== chunk.sha256 ||
+          downloaded.bytes !== chunk.size
+        )
+          throw Error("下载数据库分块校验失败");
+        ctx.tasks.progress(downloaded.bytes);
+        return {
+          sha256: chunk.sha256,
+          size: downloaded.bytes,
+          filePath: downloaded.filePath,
+        };
       });
-      ctx.tasks.progress(downloaded.bytes);
-    }
     return {
       manifest,
-      databasePath: database.filePath,
-      databaseSha256: database.sha256 ?? "",
-      assets,
+      databaseChunks: database.chunks,
+      assets: [],
       verification: "download-sha256",
     };
   },

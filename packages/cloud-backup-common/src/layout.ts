@@ -1,3 +1,4 @@
+import { assertDatabaseChunks } from "@anynote/protocol/cloud-objects.js";
 import { z } from "zod";
 import {
   cloudBackupLayout,
@@ -72,22 +73,27 @@ export const headSchema = z
 export const manifestSchema = z
   .object({
     format: z.literal("anynote.cloud-backup-manifest"),
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     notebookId: uuid,
     notebookName: z.string().max(240).optional(),
     deviceSlotId: uuid,
     deviceLabel: z.string().max(120).optional(),
     commitId: uuid,
     createdAt: timestamp,
-    schemaVersion: z.number().int().min(1).max(1000),
+    schemaVersion: z.literal(3),
     contentSeq: z.number().int().min(0),
-    database: objectRefSchema.extend({
-      schemaVersion: z.number().int().min(1).max(1000),
+    database: z.object({
+      sha256: sha256Schema,
+      size: z
+        .number()
+        .int()
+        .positive()
+        .max(20 * 1024 ** 3),
+      chunks: z.array(objectRefSchema).min(1).max(20480),
+      schemaVersion: z.literal(3),
       contentSeq: z.number().int().min(0),
     }),
-    assets: z
-      .array(objectRefSchema.extend({ path: safeRelativePathSchema() }))
-      .max(500_000),
+    assets: z.tuple([]),
     sourceDevice: z.string().max(240).optional(),
   })
   .strict();
@@ -130,8 +136,11 @@ export const parseHead = (value: unknown): CloudBackupHead =>
   headSchema.parse(value) as CloudBackupHead;
 
 /** Parse and strictly validate the full manifest. */
-export const parseManifest = (value: unknown): CloudBackupManifest =>
-  manifestSchema.parse(value) as CloudBackupManifest;
+export const parseManifest = (value: unknown): CloudBackupManifest => {
+  const manifest = manifestSchema.parse(value) as CloudBackupManifest;
+  assertDatabaseChunks(manifest.database);
+  return manifest;
+};
 
 /** Parse and validate the backup root identity marker. */
 export const parseRootMarker = (value: unknown): CloudBackupRootMarker =>
@@ -143,11 +152,7 @@ export const deviceDir = (notebookId: string, deviceSlotId: string): string =>
 
 /** Database immutable object path (content-addressed, reuse by hash allowed). */
 export const databaseObjectPath = (sha256: string): string =>
-  `${cloudBackupLayout.databasesDir}/${sha256}.sqlite`;
-
-/** Asset immutable object path; a two-level prefix avoids too many entries in one directory. */
-export const assetObjectPath = (sha256: string): string =>
-  `${cloudBackupLayout.assetsDir}/${cloudBackupLayout.assetsPrefix}/${sha256.slice(0, 2)}/${sha256}.bin`;
+  `${cloudBackupLayout.databasesDir}/${sha256}.bin`;
 
 /** Manifest object path. */
 export const manifestObjectPath = (commitId: string): string =>

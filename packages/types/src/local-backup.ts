@@ -21,15 +21,15 @@ export interface LocalBackupFile {
 /** Manifest file of a local disk backup (`anynote.local-backup`). */
 export interface LocalBackupManifest {
   format: "anynote.local-backup";
-  formatVersion: 1;
+  formatVersion: 2;
   targetId: string;
   notebookId: string;
   taskId: string;
   completedAt: string;
   revision: LocalBackupRevision;
-  database: LocalBackupFile;
-  bootstrap: LocalBackupFile;
-  verificationStatus: "verified-new-files" | "rebuilt-needs-review";
+  name: string;
+  database: LocalBackupFile & { chunks: { sha256: string; size: number }[] };
+  verificationStatus: "verified-new-files";
   lastFullVerifiedAt?: string;
   files: LocalBackupFile[];
   cleanup: LocalBackupFile[];
@@ -104,10 +104,8 @@ export interface LocalBackupScheduleInput extends LocalBackupInput {
   concurrency?: 1 | 2 | 3 | 4;
 }
 
-/** Input for starting a backup; `approvalToken` confirms the space/overwrite estimate when required. */
-export interface LocalBackupRunInput extends LocalBackupInput {
-  approvalToken?: string;
-}
+/** Input for starting a chunked backup. */
+export type LocalBackupRunInput = LocalBackupInput;
 
 /** Set the Notebook scope that participates in backup for a disk. */
 export interface LocalBackupScopeInput {
@@ -124,17 +122,15 @@ export interface LocalBackupGroupInput {
 /** Pre-backup space and change estimate. */
 export interface LocalBackupEstimate {
   notebookId: string;
-  copyAssets: number;
-  skipAssets: number;
-  replaceDatabase: boolean;
+  copyChunks: number;
+  skipChunks: number;
+  databaseChanged: boolean;
   deleteFiles: number;
   deleteBytes: number;
   copyBytes: number;
   temporaryBytes: number;
   availableBytes: number;
   enoughSpace: boolean;
-  requiresReview: boolean;
-  approvalToken: string;
   revision: LocalBackupRevision;
 }
 
@@ -291,7 +287,6 @@ export interface LocalBackupAPI {
   runGroup(input: LocalBackupGroupInput): Promise<LocalBackupTaskHandle>;
   verify(input: LocalBackupInput): Promise<LocalBackupTaskHandle>;
   restore(input: LocalBackupInput): Promise<LocalBackupTaskHandle>;
-  rebuildManifest(input: LocalBackupInput): Promise<LocalBackupTaskHandle>;
   removeTarget(input: LocalBackupInput): Promise<boolean>;
   deleteNotebookBackup(input: LocalBackupInput): Promise<boolean>;
   getTask(id: string): Promise<LocalBackupTask | null>;

@@ -24,7 +24,7 @@ import type { ArchiveProgress } from "@anynote/types/runtime.js";
 /** Archive size, entry, and manifest budgets. */
 export const limits = {
   bytes: 20 * 1024 ** 3,
-  entries: 100000,
+  entries: 2,
   manifest: 16 * 1024 ** 2,
   containerBytes: 0,
 };
@@ -45,9 +45,6 @@ export function outputBudget(bytes: number, files: number) {
   return Math.ceil(bytes * 1.01) + limits.manifest + files * 512 + 1024 ** 2;
 }
 
-/** Content-addressed path format for assets. */
-const assetPath = /^assets\/sha256\/([a-f0-9]{2})\/([a-f0-9]{64})\.bin$/;
-
 /**
  * Whether an archive entry name is an allowed safe path.
  *
@@ -55,12 +52,7 @@ const assetPath = /^assets\/sha256\/([a-f0-9]{2})\/([a-f0-9]{64})\.bin$/;
  * @returns True when the entry name is valid.
  */
 export function validEntry(name: string) {
-  const match = name.match(assetPath);
-  return (
-    name === "manifest.json" ||
-    name === "notebook.sqlite" ||
-    !!(match && match[1] === match[2].slice(0, 2))
-  );
+  return name === "manifest.json" || name === "notebook.sqlite";
 }
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/),
@@ -70,23 +62,14 @@ const hash = z.string().regex(/^[a-f0-9]{64}$/),
 export const manifestSchema = z.object({
   format: z.literal("anynote.notebook"),
   formatVersion: z.literal(1),
-  schemaVersion: z.union([z.literal(1), z.literal(2)]),
+  schemaVersion: z.literal(3),
   notebookId: z.string().uuid(),
   database: z.object({
     path: z.literal("notebook.sqlite"),
     size,
     sha256: hash,
   }),
-  assets: z
-    .array(
-      z.object({
-        path: z.string().refine((p) => !!p.match(assetPath) && validEntry(p)),
-        size,
-        sha256: hash,
-        mimeType: z.string().optional(),
-      }),
-    )
-    .max(limits.entries - 2),
+  assets: z.tuple([]),
 });
 
 /**
@@ -194,16 +177,13 @@ export async function writeArchive(
 ) {
   check(signal);
   const descriptors = manifestSchema.parse(manifest);
-  const declared = [descriptors.database, ...descriptors.assets];
+  const declared = [descriptors.database];
   const total = declared.reduce((sum, item) => sum + item.size, 0);
   if (
     total > limits.bytes ||
     new Set(declared.map((item) => item.path)).size !== declared.length
   )
     throw Error("归档大小超限或清单包含重复项");
-  for (const asset of descriptors.assets)
-    if (asset.path.match(assetPath)![2] !== asset.sha256)
-      throw Error("附件路径与哈希不匹配");
   const existing = (() => {
     try {
       return lstatSync(file);
@@ -244,7 +224,7 @@ export async function writeArchive(
     const metadata = Buffer.from(JSON.stringify(manifest));
     if (metadata.length > limits.manifest) throw Error("清单超过 16MB");
     zip.addBuffer(metadata, "manifest.json");
-    for (const entry of [descriptors.database, ...descriptors.assets]) {
+    for (const entry of [descriptors.database]) {
       if (!validEntry(entry.path)) throw Error("不安全的归档路径");
       zip.addReadStreamLazy(
         entry.path,
@@ -457,17 +437,13 @@ export async function extractArchive(
     const manifest = manifestSchema.parse(
       JSON.parse(Buffer.concat(parts).toString("utf8")),
     );
-    const declared = [manifest.database, ...manifest.assets],
+    const declared = [manifest.database],
       byName = new Map(all.map((e) => [e.fileName, e]));
     if (
       new Set(declared.map((e) => e.path)).size !== declared.length ||
       all.length !== declared.length + 1
     )
       throw Error("清单包含重复项或归档含未声明文件");
-    for (const entry of manifest.assets) {
-      const match = entry.path.match(assetPath);
-      if (match![2] !== entry.sha256) throw Error("附件路径与哈希不匹配");
-    }
     for (const item of declared)
       if (byName.get(item.path)?.uncompressedSize !== item.size)
         throw Error("清单大小与归档不符");

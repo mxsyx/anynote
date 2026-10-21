@@ -1,3 +1,11 @@
+import { snapshotDatabase } from "./database-snapshot.js";
+import {
+  putAsset,
+  readAsset,
+  readAssetRange,
+  verifyAsset,
+  verifyAssets,
+} from "./assets.js";
 import {
   initializeBackupRevision,
   assertNotebookSchema,
@@ -25,16 +33,11 @@ import { closeScripts } from "./script-commands.js";
 import { loadTaskHistory, recordTask } from "./task-history.js";
 import { loadIntegrityReports } from "./integrity.js";
 import { Diagnostics, diagnosticsOperation } from "./diagnostics.js";
-import { recoverTemporaryJobs } from "./temporary-jobs.js";
+import { temporaryJob, recoverTemporaryJobs } from "./temporary-jobs.js";
 import { unzipSync, zipSync } from "fflate";
 import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
-  createReadStream,
-  openSync,
-  closeSync,
-  readSync,
-  fstatSync,
   lstatSync,
   mkdirSync,
   readdirSync,
@@ -50,7 +53,7 @@ import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
 import type { IntegrityReport } from "@anynote/types";
 import type { TaskRecord } from "./task-history.js";
-import { backup, DatabaseSync, errorMessage } from "@anynote/types/runtime.js";
+import { DatabaseSync, errorMessage } from "@anynote/types/runtime.js";
 import {
   advancedOperations,
   isImageMime,
@@ -59,7 +62,7 @@ import {
 } from "./operations.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
 import { diagnoseNotebook, preserveNotebookEvidence } from "./recovery.js";
-import { upgradeSQL } from "./schema.js";
+import { schema } from "./schema.js";
 import { cancelSearch, searchWorkspace } from "./search.js";
 import {
   acquireWriteLock,
@@ -116,21 +119,7 @@ function throughput(
     : { read: bytes, write: 0 };
 }
 
-/** Full database-creation SQL for schema v1. */
-export const legacySchema = `
-CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,schema_version INTEGER NOT NULL DEFAULT 1,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
-CREATE TABLE nodes(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES nodes(id),kind TEXT NOT NULL CHECK(kind IN ('folder','note')),title TEXT NOT NULL,sort_key INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,deleted_by TEXT,favorite INTEGER NOT NULL DEFAULT 0,tags TEXT NOT NULL DEFAULT '[]');
-CREATE INDEX nodes_parent ON nodes(parent_id,sort_key,id);
-CREATE TABLE assets(hash TEXT PRIMARY KEY,size INTEGER NOT NULL,mime TEXT NOT NULL,path TEXT NOT NULL);
-CREATE TABLE resources(id TEXT PRIMARY KEY,asset_hash TEXT NOT NULL REFERENCES assets(hash),original_name TEXT NOT NULL);
-CREATE TABLE notes(node_id TEXT PRIMARY KEY REFERENCES nodes(id),note_type TEXT NOT NULL CHECK(note_type IN ('markdown','pdf','image')),head_revision_id TEXT REFERENCES note_revisions(id),primary_resource_id TEXT REFERENCES resources(id));
-CREATE TABLE note_revisions(id TEXT PRIMARY KEY,note_id TEXT NOT NULL REFERENCES notes(node_id),body TEXT NOT NULL,created_at INTEGER NOT NULL,actor TEXT NOT NULL DEFAULT 'user');
-CREATE TABLE changes(seq INTEGER PRIMARY KEY AUTOINCREMENT,entity_id TEXT NOT NULL,operation TEXT NOT NULL,payload_json TEXT NOT NULL,created_at INTEGER NOT NULL);
-CREATE VIRTUAL TABLE fts_notes USING fts5(note_id UNINDEXED,title,body,tokenize='trigram');
-`;
-
-/** Current schema version (v1 base schema + v2 upgrade). */
-export const schema = legacySchema + upgradeSQL;
+export { schema } from "./schema.js";
 
 /** Generic validation schema for operation input fields. */
 const inputSchema = z
@@ -505,6 +494,12 @@ export class Storage {
     return assertLocalPath(this.directory(id), relative);
   }
 
+  /** Device-local auxiliary files are never part of a Notebook's portable contents. */
+  auxiliaryPath(id: string, relative: string) {
+    uuid.parse(id);
+    return assertLocalPath(this.root, `_local/notebooks/${id}/${relative}`);
+  }
+
   /**
    * List all Notebooks in the workspace and externally registered.
    *
@@ -523,19 +518,13 @@ export class Storage {
   }
 
   /**
-   * Read each Notebook's metadata; v1 is auto-upgraded by opening, and failures are marked unavailable.
+   * Read each Notebook's metadata; failures are marked unavailable.
    *
    * @returns Notebook registry entries with status.
    */
   registry() {
     return this.notebookCatalog().map((entry) => {
       try {
-        if (
-          this.read(entry.id)
-            .prepare("SELECT schema_version FROM notebook_meta")
-            .get()!.schema_version === 1
-        )
-          this.open(entry.id);
         return {
           ...this.read(entry.id).prepare("SELECT * FROM notebook_meta").get(),
           external: entry.external,
@@ -583,7 +572,7 @@ export class Storage {
       const meta = db
         .prepare("SELECT id,schema_version FROM notebook_meta")
         .get();
-      if (meta?.id !== id || ![1, 2].includes(meta.schema_version))
+      if (meta?.id !== id || meta.schema_version !== 3)
         throw Error("Notebook 身份或版本无效");
       this.readDbs.set(id, db);
       while (this.readDbs.size > this.maxReadConnections) {
@@ -607,15 +596,15 @@ export class Storage {
     for (const [id, db] of this.dbs) {
       if (this.dbs.size <= this.maxWriteConnections) break;
       if (id === exclude || this.pins.get(id)) continue;
-      db.close();
-      this.dbs.delete(id);
       this.writeLocks.get(id)?.();
+      if (db.isOpen) db.close();
+      this.dbs.delete(id);
       this.writeLocks.delete(id);
     }
   }
 
   /**
-   * Get a writable connection (migrating v1 if needed, acquiring the write lock, and refreshing the notebook.json cache).
+   * Get a writable connection (acquiring the write lock and checking the single-file schema).
    *
    * @param id Notebook ID.
    * @returns The open database handle.
@@ -634,54 +623,27 @@ export class Storage {
       throw Error("Notebook 目录不可用，请重新连接磁盘后重试");
     this.readDbs.get(id)?.close();
     this.readDbs.delete(id);
-    const release = this.writeLocks.get(id) || acquireWriteLock(dir);
+    if (this.externalDirectories.has(id)) {
+      const meta = validateDirectory(dir, { 3: schema });
+      if (meta.id !== id) throw Error("Notebook 身份与已登记目录不匹配");
+    }
+    const release = acquireWriteLock(dir),
+      db = release.db;
     this.writeLocks.set(id, release);
-    let db;
     try {
-      if (this.externalDirectories.has(id)) {
-        const meta = validateDirectory(dir, { 1: legacySchema, 2: schema });
-        if (meta.id !== id) throw Error("Notebook 身份与已登记目录不匹配");
-      }
-      db = new DatabaseSync(p);
-      db.exec(
-        "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000; PRAGMA trusted_schema=OFF;",
-      );
       const meta = db.prepare("SELECT * FROM notebook_meta").get();
-      if (!meta || meta.id !== id) throw Error("Notebook 身份与目录不匹配");
-      if (meta.schema_version === 1) {
-        const snapshots = this.notebookPath(id, "snapshots");
-        mkdirSync(snapshots, { recursive: true });
-        db.prepare("VACUUM INTO ?").run(
-          join(snapshots, "before-v2-" + Date.now() + ".sqlite"),
-        );
-        this.migrate(db, dir);
-      } else if (meta.schema_version !== 2) throw Error("不支持的数据库版本");
+      if (!meta || meta.id !== id || meta.schema_version !== 3)
+        throw Error("Notebook 身份或版本无效");
       initializeBackupRevision(db);
       const identity = lstatSync(p, { bigint: true });
       this.writeDbIdentities.set(id, `${identity.dev}:${identity.ino}`);
       this.writeDbLineages.set(id, randomUUID());
       this.dbs.set(id, db);
-      if (this.externalDirectories.has(id)) {
-        const fresh = db.prepare("SELECT * FROM notebook_meta").get()!;
-        const cache = this.notebookPath(id, "notebook.json");
-        writeFileSync(
-          this.notebookPath(id, "notebook.json.tmp"),
-          JSON.stringify({
-            formatVersion: 1,
-            id,
-            name: fresh.name,
-            database: "notebook.sqlite",
-          }),
-          { flush: true },
-        );
-        renameSync(cache + ".tmp", cache);
-      }
       this.trimWrites(id);
       return db;
-    } catch (e: any) {
-      db?.close();
-      this.dbs.delete(id);
+    } catch (e) {
       release();
+      this.dbs.delete(id);
       this.writeLocks.delete(id);
       throw e;
     }
@@ -704,39 +666,12 @@ export class Storage {
   }
 
   /**
-   * Run the v1→v2 migration within a transaction, backfilling resource closures and search indexes.
-   *
-   * @param db Open database handle.
-   * @param rootDir Optional Notebook root directory.
-   */
-  migrate(db: SqlDatabase, rootDir?: string) {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      db.exec(upgradeSQL);
-      for (const n of db
-        .prepare("SELECT node_id,primary_resource_id FROM notes")
-        .all()) {
-        for (const r of db
-          .prepare("SELECT id,body FROM note_revisions WHERE note_id=?")
-          .all(n.node_id))
-          this.capture(db, r.id, r.body, n.primary_resource_id, rootDir);
-        this.index(db, n.node_id);
-      }
-      db.exec("COMMIT");
-    } catch (e: any) {
-      db.exec("ROLLBACK");
-      throw e;
-    }
-  }
-
-  /**
    * Capture the resource closure referenced by a revision, recursively expanding whiteboard-embedded images.
    *
    * @param db Open database handle.
    * @param revisionId Revision ID.
    * @param body Revision body.
    * @param primary Primary resource ID, if any.
-   * @param rootDir Optional Notebook root directory.
    * @param previousRevision Previous revision ID for reuse.
    * @param changed Resource IDs changed since the previous revision.
    * @param extraIds Resource IDs that are pinned to the revision without being
@@ -747,7 +682,6 @@ export class Storage {
     revisionId: string,
     body: string,
     primary?: string | null,
-    rootDir?: string,
     previousRevision?: string,
     changed = new Set<string>(),
     extraIds: Iterable<string> = [],
@@ -764,13 +698,13 @@ export class Storage {
           (previousRevision && !changed.has(id)
             ? db
                 .prepare(
-                  "SELECT a.path,a.mime,p.asset_hash FROM revision_resources p JOIN assets a ON a.hash=p.asset_hash WHERE p.revision_id=? AND p.resource_id=?",
+                  "SELECT a.mime,p.asset_hash FROM revision_resources p JOIN assets a ON a.hash=p.asset_hash WHERE p.revision_id=? AND p.resource_id=?",
                 )
                 .get(previousRevision, id)
             : null) ||
           db
             .prepare(
-              "SELECT r.*,a.path,a.mime FROM resources r JOIN assets a ON a.hash=r.asset_hash WHERE r.id=?",
+              "SELECT r.*,a.mime FROM resources r JOIN assets a ON a.hash=r.asset_hash WHERE r.id=?",
             )
             .get(id);
       if (!r) continue;
@@ -780,18 +714,7 @@ export class Storage {
         r.asset_hash,
       );
       if (r.mime === "application/vnd.anynote.whiteboard+json") {
-        const scene = JSON.parse(
-          readFileSync(
-            join(
-              rootDir ||
-                this.directory(
-                  db.prepare("SELECT id FROM notebook_meta").get()!.id,
-                ),
-              r.path,
-            ),
-            "utf8",
-          ),
-        );
+        const scene = JSON.parse(readAsset(db, r.asset_hash).toString("utf8"));
         for (const f of Object.values(scene.files || {}) as SqlRow[])
           if (f.resourceId && !ids.has(f.resourceId)) {
             ids.add(f.resourceId);
@@ -1020,8 +943,8 @@ export class Storage {
       return extensionCleanupOperation(this, op, raw);
 
     if (op === "readLocalBackupRevision") {
-      const id = uuid.parse(raw.notebookId),
-        db = this.open(id);
+      const id = uuid.parse(raw.notebookId);
+      this.open(id);
       const identity = lstatSync(this.notebookPath(id, "notebook.sqlite"), {
         bigint: true,
       });
@@ -1029,10 +952,6 @@ export class Storage {
         throw Object.assign(Error("源数据库已被替换，请重新打开 Notebook"), {
           code: "SOURCE_CHANGED",
         });
-      const { localResourceEntries } = await import(
-        "@anynote/backup/local-capture.js"
-      );
-      localResourceEntries(this, id, db);
       return this.localBackupRevision(id);
     }
 
@@ -1061,17 +980,16 @@ export class Storage {
     }
 
     if (op === "registerNotebookDirectory")
-      return registerDirectory(this, raw, { 1: legacySchema, 2: schema });
+      return registerDirectory(this, raw, { 3: schema });
 
     if (op === "detachNotebookDirectory") return detachDirectory(this, raw);
 
     if (op === "diagnoseNotebook")
-      return diagnoseNotebook(this, raw, { 1: legacySchema, 2: schema });
+      return diagnoseNotebook(this, raw, { 3: schema });
 
     if (op === "preserveNotebookEvidence")
       return preserveNotebookEvidence(this, raw, {
-        1: legacySchema,
-        2: schema,
+        3: schema,
       });
 
     if (
@@ -1170,18 +1088,9 @@ export class Storage {
       const db = new DatabaseSync(join(dir, "notebook.sqlite"));
       db.exec(schema);
       db.prepare(
-        "INSERT INTO notebook_meta(id,name,created_at,schema_version) VALUES(?,?,?,2)",
+        "INSERT INTO notebook_meta(id,name,created_at,schema_version) VALUES(?,?,?,3)",
       ).run(id, p.title || "我的知识库", Date.now());
       db.close();
-      writeFileSync(
-        join(dir, "notebook.json"),
-        JSON.stringify({
-          formatVersion: 1,
-          id,
-          name: p.title || "我的知识库",
-          database: "notebook.sqlite",
-        }),
-      );
       return { id, name: p.title || "我的知识库" };
     }
 
@@ -1192,14 +1101,14 @@ export class Storage {
     if (op === "restoreSnapshot") {
       if (!p.notebookId || !/^\d+\.anynote$/.test(p.name || ""))
         throw Error("无效快照名称");
-      const snapshot = this.notebookPath(p.notebookId, "snapshots/" + p.name);
+      const snapshot = this.auxiliaryPath(p.notebookId, "snapshots/" + p.name);
       if (!existsSync(snapshot)) throw Error("快照不存在或已被移除");
       return this.importArchive(readFileSync(snapshot).toString("base64"));
     }
 
     if (op === "listSnapshots") {
       if (!p.notebookId) throw Error("缺少 Notebook");
-      const dir = this.notebookPath(p.notebookId, "snapshots");
+      const dir = this.auxiliaryPath(p.notebookId, "snapshots");
       return existsSync(dir)
         ? readdirSync(dir)
             .filter((n) => n.endsWith(".anynote"))
@@ -1294,7 +1203,6 @@ export class Storage {
             db
               .prepare("SELECT primary_resource_id FROM notes WHERE node_id=?")
               .get(id!)?.primary_resource_id,
-            undefined,
             previousHead,
           );
         }
@@ -1419,19 +1327,6 @@ export class Storage {
         throw Error("文件内容与类型不一致");
       const overBudget = imageBudgetError(bytes, mime || "");
       if (overBudget) throw Error(overBudget);
-      const h = hash(bytes),
-        path = `assets/sha256/${h.slice(0, 2)}/${h}.bin`,
-        dest = this.notebookPath(p.notebookId!, path);
-      mkdirSync(join(dest, ".."), { recursive: true });
-      if (existsSync(dest)) {
-        if (hash(readFileSync(dest)) !== h)
-          throw Error("已存在的资源损坏，请先恢复");
-      } else {
-        writeFileSync(this.notebookPath(p.notebookId!, path + ".tmp"), bytes, {
-          flush: true,
-        });
-        renameSync(dest + ".tmp", dest);
-      }
       this.parent(db, p.parentId);
       const res = randomUUID(),
         noteId = randomUUID(),
@@ -1460,12 +1355,7 @@ export class Storage {
           rev,
           noteId,
         );
-        db.prepare("INSERT OR IGNORE INTO assets VALUES(?,?,?,?)").run(
-          h,
-          bytes.length,
-          mime,
-          path,
-        );
+        const h = putAsset(db, bytes, mime!);
         db.prepare(
           "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
         ).run(res, h, p.name || "文件");
@@ -1497,52 +1387,27 @@ export class Storage {
         if (pinned) Object.assign(r, pinned);
         else throw Error("此版本未引用该资源");
       }
-      const assetPath = this.notebookPath(p.notebookId!, r.path);
       if (op === "getAssetInfo") {
-        const digest = createHash("sha256");
-        let size = 0;
-        for await (const chunk of createReadStream(assetPath)) {
-          size += chunk.length;
-          digest.update(chunk);
-        }
-        if (digest.digest("hex") !== r.hash || size !== r.size)
-          throw Error("资源损坏，请从备份恢复");
+        const size = verifyAsset(db, r.hash);
         return { size, mime: r.mime, hash: r.hash };
       }
       if (op === "getAssetRange") {
         if (p.assetHash !== r.hash || p.offset === undefined || !p.length)
           throw Error("资源身份或范围无效");
-        if (p.offset + p.length > r.size) throw Error("资源范围超出文件");
-        const fd = openSync(assetPath, "r");
-        try {
-          if (fstatSync(fd).size !== r.size) throw Error("资源大小已改变");
-          const bytes = Buffer.alloc(p.length);
-          let read = 0;
-          while (read < bytes.length) {
-            const count = readSync(
-              fd,
-              bytes,
-              read,
-              bytes.length - read,
-              p.offset + read,
-            );
-            if (!count) throw Error("资源读取不完整");
-            read += count;
-          }
-          return { data: bytes.toString("base64"), hash: r.hash };
-        } finally {
-          closeSync(fd);
-        }
+        const bytes = readAssetRange(db, r.hash, p.offset, p.length);
+        return { data: bytes.toString("base64"), hash: r.hash };
       }
-      const b = readFileSync(assetPath);
-      if (hash(b) !== r.hash) throw Error("资源损坏，请从备份恢复");
-      return { data: b.toString("base64"), mime: r.mime, hash: r.hash };
+      return {
+        data: readAsset(db, r.hash).toString("base64"),
+        mime: r.mime,
+        hash: r.hash,
+      };
     }
 
     if (op === "exportArchive" || op === "snapshot") {
       const bundle = await this.exportArchive(notebookId);
       if (op === "snapshot") {
-        const dir = this.notebookPath(p.notebookId!, "snapshots");
+        const dir = this.auxiliaryPath(p.notebookId!, "snapshots");
         mkdirSync(dir, { recursive: true });
         const stamp = Date.now();
         writeFileSync(join(dir, stamp + ".anynote"), bundle, { flush: true });
@@ -1566,29 +1431,28 @@ export class Storage {
    */
   async exportArchive(id: string) {
     const db = this.open(id),
-      tmp = this.notebookPath(id, "export-" + randomUUID() + ".sqlite");
+      workspace = temporaryJob(this.root, "archive-jobs"),
+      tmp = join(workspace.dir, "notebook.sqlite");
     this.pins.set(id, (this.pins.get(id) || 0) + 1);
     try {
-      await backup(db, tmp);
-      const bytes = readFileSync(tmp),
-        snap = new DatabaseSync(tmp, { readOnly: true }),
-        meta = snap.prepare("SELECT * FROM notebook_meta").get()!,
-        assets = snap.prepare("SELECT * FROM assets").all();
-      snap.close();
-      const files: Record<string, Uint8Array> = { "notebook.sqlite": bytes };
-      let size = bytes.length;
-      for (const a of assets) {
-        const b = readFileSync(this.notebookPath(id, a.path));
-        size += b.length;
-        if (size > 100 * 1024 * 1024) throw Error("当前导出包上限为 100MB");
-        if (hash(b) !== a.hash) throw Error("资源校验失败");
-        files[a.path] = b;
+      await snapshotDatabase(db, tmp);
+      const snap = new DatabaseSync(tmp, { readOnly: true });
+      let meta;
+      try {
+        meta = snap.prepare("SELECT * FROM notebook_meta").get()!;
+        verifyAssets(snap);
+      } finally {
+        snap.close();
       }
+      const bytes = readFileSync(tmp);
+      const files: Record<string, Uint8Array> = { "notebook.sqlite": bytes };
+      if (bytes.length > 100 * 1024 * 1024)
+        throw Error("当前导出包上限为 100MB");
       files["manifest.json"] = Buffer.from(
         JSON.stringify({
           format: "anynote.notebook",
           formatVersion: 1,
-          schemaVersion: 2,
+          schemaVersion: 3,
           appVersion: "0.1.0",
           notebookId: id,
           generationId: randomUUID(),
@@ -1599,19 +1463,15 @@ export class Storage {
             size: bytes.length,
             sha256: hash(bytes),
           },
-          assets: assets.map((a: SqlRow) => ({
-            path: a.path,
-            size: a.size,
-            sha256: a.hash,
-            mimeType: a.mime,
-          })),
+          assets: [],
           includesHistory: true,
           includesTrash: true,
         }),
       );
       return Buffer.from(zipSync(files, { level: 6 }));
     } finally {
-      rmSync(tmp, { force: true });
+      rmSync(workspace.dir, { recursive: true, force: true });
+      workspace.release();
       const pins = this.pins.get(id)! - 1;
       if (pins) this.pins.set(id, pins);
       else this.pins.delete(id);
@@ -1637,9 +1497,7 @@ export class Storage {
           f.name.startsWith("/") ||
           f.name.includes("..") ||
           f.name.includes("\\") ||
-          !/^(manifest\.json|notebook\.sqlite|assets\/sha256\/[a-f0-9]{2}\/[a-f0-9]{64}\.bin)$/.test(
-            f.name,
-          )
+          !/^(manifest\.json|notebook\.sqlite)$/.test(f.name)
         )
           throw Error("导入包包含不安全路径或重复文件");
         seen.add(f.name);
@@ -1653,7 +1511,7 @@ export class Storage {
       .object({
         format: z.literal("anynote.notebook"),
         formatVersion: z.literal(1),
-        schemaVersion: z.union([z.literal(1), z.literal(2)]),
+        schemaVersion: z.literal(3),
         notebookId: uuid,
         database: z.object({
           path: z.literal("notebook.sqlite"),
@@ -1671,7 +1529,9 @@ export class Storage {
         ),
       })
       .parse(JSON.parse(Buffer.from(files["manifest.json"] || []).toString()));
-    for (const f of [m.database, ...m.assets]) {
+    if (m.assets.length || Object.keys(files).length !== 2)
+      throw Error("不支持的归档格式");
+    for (const f of [m.database]) {
       const b = files[f.path];
       if (!b || b.length !== f.size || hash(b) !== f.sha256)
         throw Error("导入文件校验失败");
@@ -1701,7 +1561,7 @@ export class Storage {
   }
 
   /**
-   * Validate an archive directory's structure, identity, assets, and tree, and migrate it to the current schema.
+   * Validate an archive directory's structure, identity, assets, and tree, and remap its identity.
    *
    * @param dir Archive directory.
    * @param m Archive manifest.
@@ -1712,7 +1572,7 @@ export class Storage {
     try {
       db.exec("PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON;");
       const reference = new DatabaseSync(":memory:");
-      reference.exec(m.schemaVersion === 1 ? legacySchema : schema);
+      reference.exec(schema);
       try {
         assertNotebookSchema(db, reference);
       } finally {
@@ -1730,22 +1590,9 @@ export class Storage {
         meta[0].id !== m.notebookId
       )
         throw Error("Notebook 元数据不匹配");
-      const declared = new Map<string, SqlRow>(
-        m.assets.map((a: SqlRow) => [a.path, a]),
-      );
-      const stored = db.prepare("SELECT * FROM assets").all();
-      if (stored.length !== declared.size)
-        throw Error("资源清单不完整或存在未登记资源");
-      for (const a of stored) {
-        const entry = declared.get(a.path);
-        if (
-          !entry ||
-          entry.sha256 !== a.hash ||
-          entry.size !== a.size ||
-          (entry.mimeType !== undefined && entry.mimeType !== a.mime)
-        )
-          throw Error("资源清单不完整");
-      }
+      if (m.schemaVersion !== 3 || m.assets.length)
+        throw Error("不支持的归档格式");
+      verifyAssets(db);
       const rows = db.prepare("SELECT id,parent_id,kind FROM nodes").all(),
         map = new Map(rows.map((n) => [n.id, n])),
         checked = new Set();
@@ -1761,7 +1608,6 @@ export class Storage {
         }
         for (const key of chain) checked.add(key);
       }
-      if (m.schemaVersion === 1) this.migrate(db, dir);
       initializeBackupRevision(db, true);
       db.prepare("UPDATE notebook_meta SET id=?,name=name || ?").run(
         id,
@@ -1774,15 +1620,6 @@ export class Storage {
       db.exec("DELETE FROM fts_notes;");
       for (const n of db.prepare("SELECT node_id FROM notes").all())
         this.index(db, n.node_id);
-      writeFileSync(
-        join(dir, "notebook.json"),
-        JSON.stringify({
-          formatVersion: 1,
-          id,
-          sourceId: m.notebookId,
-          database: "notebook.sqlite",
-        }),
-      );
     } finally {
       db.close();
     }
@@ -1806,11 +1643,11 @@ export class Storage {
       job.controller?.abort();
       job.worker?.terminate();
     }
-    for (const db of this.dbs.values()) db.close();
+    for (const release of this.writeLocks.values()) release();
+    for (const db of this.dbs.values()) if (db.isOpen) db.close();
     this.dbs.clear();
     for (const db of this.readDbs.values()) db.close();
     this.readDbs.clear();
-    for (const release of this.writeLocks.values()) release();
     this.writeLocks.clear();
     this.importPreviews.clear();
     this.diagnostics.flush();

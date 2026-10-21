@@ -11,7 +11,7 @@ import type {
 import { assertPlanBudget, buildUploadPlan } from "./plan.js";
 import { assertManifestIntegrity } from "./verify.js";
 
-/** The final result of one file-level backup. */
+/** The final result of one chunked backup. */
 export interface CloudBackupFlowResult {
   commitId: string;
   unchanged: boolean;
@@ -22,7 +22,7 @@ export interface CloudBackupFlowResult {
   cleanup?: CleanupResult;
 }
 
-export interface FileLevelBackupArgs {
+export interface ChunkedBackupArgs {
   provider: CloudBackupProvider;
   ctx: BackupHostContext;
   target: BackupTargetHandle;
@@ -42,7 +42,7 @@ export interface FileLevelBackupArgs {
 }
 
 /**
- * Run the "capture → plan → upload → verify → publish → cleanup" file-level flow (design §8.2).
+ * Run the "capture → plan → upload → verify → publish → cleanup" chunked flow (design §8.2).
  *
  * This is the first-party shared flow: it only orchestrates the protocol steps exposed by the Provider and, at each gate,
  * enforces the core's data-protection constraints — no enterable recoverable state unless the invariants hold.
@@ -50,8 +50,8 @@ export interface FileLevelBackupArgs {
  * @param args Provider, context, capture result, and previous state.
  * @returns The backup result.
  */
-export async function runFileLevelBackup(
-  args: FileLevelBackupArgs,
+export async function runChunkedBackup(
+  args: ChunkedBackupArgs,
 ): Promise<CloudBackupFlowResult> {
   const { provider, ctx, capture, deviceSlotId } = args,
     signal = ctx.tasks.signal;
@@ -106,10 +106,8 @@ export async function runFileLevelBackup(
     deviceSlotId,
     commitId: plan.commitId,
     databaseSha256: capture.database.sha256,
-    assets: capture.assets.map((asset) => ({
-      path: asset.path,
-      sha256: asset.sha256,
-    })),
+    databaseSize: capture.database.size,
+    databaseChunks: capture.database.chunks,
   });
   signal.throwIfAborted();
 

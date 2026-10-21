@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -181,12 +181,12 @@ test("corrupt asset and stale revision do not create a target or trash source", 
     /版本冲突/,
   );
   const asset = await call("getAsset", { id: n.primary_resource_id }),
-    row = s
-      .open(a.id)
-      .prepare("SELECT path FROM assets WHERE hash=?")
-      .get(asset.hash);
-  writeFileSync(s.notebookPath(a.id, row.path), "broken");
-  await assert.rejects(s.run("transferNode", p), /校验失败/);
+    db = s.open(a.id);
+  db.prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?").run(
+    Buffer.from("broken"),
+    asset.hash,
+  );
+  await assert.rejects(s.run("transferNode", p), /校验失败|分块缺失/);
   assert.equal((await dest("listNodes")).length, 0);
   assert.equal((await call("getNote", { id: n.id })).deleted_at, null);
 });
@@ -255,7 +255,9 @@ test("interrupted move never trashes source when destination asset bytes are cor
   };
   await assert.rejects(s.run("transferNode", p), /中断/);
   const asset = s.open(b.id).prepare("SELECT * FROM assets").get();
-  writeFileSync(s.notebookPath(b.id, asset.path), "damaged");
+  s.open(b.id)
+    .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
+    .run(Buffer.from("damaged"), asset.hash);
   const result = await s.run("transferNode", p);
   assert.equal(result.status, "copied-target-changed");
   assert.equal((await call("getNote", { id: n.id })).deleted_at, null);

@@ -1,5 +1,10 @@
+import { assembleFile, readChunk } from "@anynote/protocol/file-chunks.js";
+import { assertDatabaseChunks } from "@anynote/protocol/cloud-objects.js";
+import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
+import { lstat } from "node:fs/promises";
+import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, lstatSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { open } from "node:fs/promises";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
@@ -18,7 +23,7 @@ import {
   assertContentVerification,
   isCleanupEmpty,
   planCleanup,
-  runFileLevelBackup,
+  runChunkedBackup,
   type ManagedObject,
 } from "@anynote/cloud-backup-common";
 import { createBackupHostContext, createTempDir } from "./host.js";
@@ -130,9 +135,7 @@ export function startCloudBackup(
       controller.signal.throwIfAborted();
       job.progress = "正在创建一致性备份切点";
       capture = await ctx.capture.capture(target.notebookId);
-      job.totalBytes =
-        capture.database.size +
-        capture.assets.reduce((total, asset) => total + asset.size, 0);
+      job.totalBytes = capture.database.size;
       job.processedBytes = 0;
       controller.signal.throwIfAborted();
 
@@ -141,7 +144,7 @@ export function startCloudBackup(
         (await provider.probe({ account: account.ref, ctx }));
       controller.signal.throwIfAborted();
 
-      const result = await runFileLevelBackup({
+      const result = await runChunkedBackup({
         provider,
         ctx,
         target: handle,
@@ -298,35 +301,46 @@ export function startCloudRestore(
         ctx,
       );
       controller.signal.throwIfAborted();
-      const manifest: CloudBackupManifest = bundle.manifest,
-        database = await hashFile(bundle.databasePath);
+      const manifest: CloudBackupManifest = bundle.manifest;
+      assertDatabaseChunks(manifest.database);
+      const databasePath = join(workspace.dir, "notebook.sqlite");
+      const chunks = new Map(bundle.databaseChunks.map((c) => [c.sha256, c]));
+      await assembleFile(
+        databasePath,
+        manifest.database,
+        async (chunk) => {
+          const source = chunks.get(chunk.sha256);
+          const path = assertLocalPath(
+            workspace.dir,
+            `chunks/${chunk.sha256}.bin`,
+          );
+          if (!source || source.size !== chunk.size || source.filePath !== path)
+            throw Error("恢复分块路径或身份无效");
+          if ((await lstat(path)).size !== chunk.size)
+            throw Error("恢复分块大小无效");
+          return readChunk(
+            { file: path, offset: 0, size: chunk.size },
+            controller.signal,
+          );
+        },
+        controller.signal,
+      );
+      rmSync(assertLocalPath(workspace.dir, "chunks"), {
+        recursive: true,
+        force: true,
+      });
+      const database = await hashFile(databasePath);
       if (
         database.sha256 !== manifest.database.sha256 ||
         database.size !== manifest.database.size
       )
         throw Error("恢复数据库 SHA-256 校验失败，已拒绝注册");
 
-      const assets = [] as { path: string; size: number; sha256: string }[];
-      for (const asset of bundle.assets) {
-        if (!existsSync(asset.filePath))
-          throw Error(`恢复资源缺失：${asset.path}`);
-        const stat = lstatSync(asset.filePath),
-          actual = await hashFile(asset.filePath);
-        if (actual.sha256 !== asset.sha256)
-          throw Error(`恢复资源 SHA-256 校验失败：${asset.path}`);
-        assets.push({
-          path: asset.path,
-          size: stat.size,
-          sha256: actual.sha256,
-        });
-        job.processedBytes = (job.processedBytes ?? 0) + stat.size;
-      }
-
       assertContentVerification(
         {
           sha256: manifest.database.sha256,
           size: manifest.database.size,
-          locator: { kind: "local", ref: bundle.databasePath },
+          locator: { kind: "local", ref: databasePath },
           verification: bundle.verification,
         },
         "恢复数据库",
@@ -351,7 +365,7 @@ export function startCloudRestore(
             size: manifest.database.size,
             sha256: manifest.database.sha256,
           },
-          assets,
+          assets: [],
           includesHistory: true,
           includesTrash: true,
         },
@@ -363,7 +377,7 @@ export function startCloudRestore(
         notebookId: published.id,
         name: manifest.notebookName ?? published.id,
         databaseSha256: manifest.database.sha256,
-        assets: assets.length,
+        databaseBytes: manifest.database.size,
         verification: bundle.verification as CloudVerificationLevel,
       };
       s.settle(job, "completed", {

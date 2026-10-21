@@ -1,6 +1,7 @@
+import { readAsset } from "./assets.js";
 import { imageBlock, imageMarkdown } from "@anynote/protocol/image.js";
 import { zipSync } from "fflate";
-import { readFileSync } from "node:fs";
+
 import { posix } from "node:path";
 import { parseBlocks, resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlRow } from "@anynote/types/runtime.js";
@@ -128,7 +129,7 @@ export function exportMarkdown(s: Storage, id: string) {
   const exportResource = (r: SqlRow, head: string) => {
     const dest = assetPath(r);
     if (files[dest]) return dest;
-    let bytes = readFileSync(s.notebookPath(id, r.path));
+    let bytes = readAsset(s.open(id), r.hash);
     if (r.mime === "application/vnd.anynote.whiteboard+json") {
       const scene = JSON.parse(bytes.toString());
       for (const [fileId, f] of Object.entries(scene.files || {}) as [
@@ -137,7 +138,7 @@ export function exportMarkdown(s: Storage, id: string) {
       ][]) {
         const image = resolve(f.resourceId, head);
         if (!image) throw Error("白板图片资源缺失");
-        const data = readFileSync(s.notebookPath(id, image.path));
+        const data = readAsset(s.open(id), image.hash);
         scene.files[fileId] = {
           id: fileId,
           mimeType: image.mime,
@@ -227,7 +228,7 @@ export function exportMarkdown(s: Storage, id: string) {
     } else {
       const r = resourceMap.get(n.primary_resource_id);
       if (r) {
-        put(path, readFileSync(s.notebookPath(id, r.path)));
+        put(path, readAsset(s.open(id), r.hash));
         const annotations = db
           .prepare(
             "SELECT * FROM annotations WHERE note_id=? AND deleted_at IS NULL",

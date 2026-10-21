@@ -1,3 +1,4 @@
+import { verifyAssets } from "../.build/packages/storage-sqlite/assets.js";
 import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -210,7 +211,7 @@ async function main() {
     const copied = await engine.backup(target, book.id, capture, {
       sources: [storage.root],
     });
-    assert.ok(copied.copiedFiles >= 2, "首次备份应复制数据库与引导文件");
+    assert.ok(copied.copiedFiles >= 1, "首次备份应复制数据库分块");
     await engine.verify(target, book.id);
     // Overwrite replace: back up again after a content change; the database must be replaced on the same disk and the new content read during verification.
     const second = await storage.run("createNode", {
@@ -221,12 +222,10 @@ async function main() {
     const replaced = await engine.backup(target, book.id, capture, {
       sources: [storage.root],
     });
-    assert.ok(replaced.copiedFiles >= 1, "内容变化后必须复制新数据库");
+    assert.ok(replaced.copiedFiles >= 1, "内容变化后必须复制变化分块");
     manifest = await engine.verify(target, book.id);
     assert.equal(
-      await hashFile(
-        join(target.path, "notebooks", book.id, "notebook.sqlite"),
-      ),
+      (await engine.verify(target, book.id)).database.sha256,
       manifest.database.sha256,
     );
     // Full restore: copy back to this machine and verify the database, body, and asset closure byte for byte.
@@ -246,12 +245,7 @@ async function main() {
           .get(id)?.body;
       assert.equal(bodyOf(second.id), "第二版：覆盖替换后必须校验通过。");
       assert.equal(bodyOf(first.id), "第一版：APFS 实盘复制与校验。");
-      for (const asset of db.prepare("SELECT path,hash FROM assets").all())
-        assert.equal(
-          await hashFile(join(restored, asset.path)),
-          asset.hash,
-          "恢复后的附件哈希必须匹配",
-        );
+      verifyAssets(db);
     } finally {
       db.close();
     }
@@ -274,9 +268,7 @@ async function main() {
     await guard(target);
     await engine.verify(target, book.id);
     assert.equal(
-      await hashFile(
-        join(target.path, "notebooks", book.id, "notebook.sqlite"),
-      ),
+      (await engine.verify(target, book.id)).database.sha256,
       manifest.database.sha256,
     );
     // When another volume occupies the same mount point it must be rejected, never cleaning up or overwriting unknown content.

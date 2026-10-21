@@ -1,3 +1,4 @@
+import { databaseCapture } from "./helpers/database-capture.mjs";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
@@ -11,19 +12,6 @@ import {
 } from "../.build/extensions/backup-onedrive/index.js";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
-
-/** Wrap a byte array as the read-only source expected by the core. */
-function bufferSource(bytes) {
-  return {
-    size: bytes.length,
-    async read(offset, length) {
-      return bytes.subarray(offset, offset + length);
-    },
-    async *stream() {
-      yield bytes;
-    },
-  };
-}
 
 /**
  * In-memory Graph: implements only the endpoints the Provider actually uses, to verify directory resolution, chunked upload,
@@ -363,7 +351,7 @@ test("对象引用与 320KiB 分片对齐", () => {
   assert.throws(() => uploadChunkRanges(10, 1234), /320KiB/);
 });
 
-test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢复读回", async () => {
+test("OneDrive 端到端：分块去重、eTag 冲突拒绝、恢复读回", async () => {
   const fake = createFakeGraph(),
     ctx = createContext(fake),
     notebookId = randomUUID(),
@@ -375,25 +363,19 @@ test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢
   );
   assert.match(handle.deviceSlotRef, /^drive-1::/);
 
-  const dbBytes = Buffer.from("sqlite-database-payload"),
-    // Larger than the simple upload threshold, forcing createUploadSession.
-    assetBytes = Buffer.alloc(4 * 1024 * 1024 + 1, 0x5a),
-    assetSha = sha256(assetBytes),
+  const dbBytes = Buffer.concat([
+      Buffer.alloc(1024 ** 2, 1),
+      Buffer.alloc(1024 ** 2, 2),
+      Buffer.alloc(1024 ** 2, 1),
+      Buffer.from("tail"),
+    ]),
     capture = {
       notebookId,
       notebookName: "Test",
       contentSeq: 3,
-      schemaVersion: 2,
-      database: { ...bufferSource(dbBytes), sha256: sha256(dbBytes) },
-      assets: [
-        {
-          ...bufferSource(assetBytes),
-          path: `assets/sha256/${assetSha.slice(0, 2)}/${assetSha}.bin`,
-          sha256: assetSha,
-          size: assetBytes.length,
-          mimeType: "application/octet-stream",
-        },
-      ],
+      schemaVersion: 3,
+      database: databaseCapture(dbBytes),
+      assets: [],
       release: async () => {},
     };
 
@@ -401,13 +383,14 @@ test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢
     { capture, target: handle, previous: null, previousHead: null },
     ctx,
   );
-  assert.equal(plan.items.length, 2);
+  assert.equal(plan.items.length, 3);
+  assert.equal(plan.uploadBytes, 2 * 1024 ** 2 + 4);
   plan.capture = capture;
 
   const prepared = await oneDriveProvider.execute(plan, ctx);
   const manifest = await oneDriveProvider.verify(prepared, ctx);
-  assert.equal(manifest.database.verification, "download-sha256");
-  assert.equal(manifest.assets.length, 1);
+  assert.equal(manifest.database.chunks[0].verification, "download-sha256");
+  assert.equal(manifest.assets.length, 0);
 
   // A concurrent writer already published current: a same-name/version conflict must be rejected, not overwritten.
   fake.failNextWrite = 409;
@@ -427,9 +410,24 @@ test("OneDrive 端到端：创建目录、分段上传、eTag 冲突拒绝、恢
   assert.equal(slots.slots[0].deviceSlotId, deviceSlotId);
 
   const bundle = await oneDriveProvider.download({ deviceSlotId }, ctx);
-  assert.equal(bundle.databaseSha256, sha256(dbBytes));
-  assert.equal(bundle.assets.length, 1);
-  assert.equal(bundle.assets[0].sha256, assetSha);
+  assert.equal(bundle.manifest.database.sha256, sha256(dbBytes));
+  assert.equal(bundle.manifest.database.chunks.length, 4);
+  assert.equal(new Set(bundle.databaseChunks.map((c) => c.sha256)).size, 3);
+  const changed = Buffer.from(dbBytes);
+  changed[1024 ** 2] = 99;
+  const incremental = await oneDriveProvider.plan(
+    {
+      capture: { ...capture, database: databaseCapture(changed) },
+      target: handle,
+      previous: manifest,
+      previousHead: committed.head,
+    },
+    ctx,
+  );
+  assert.equal(incremental.items.length, 1);
+  assert.equal(incremental.uploadBytes, 1024 ** 2);
+
+  assert.equal(bundle.assets.length, 0);
 });
 
 test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
@@ -446,8 +444,8 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
       notebookId,
       notebookName: "Test",
       contentSeq: 1,
-      schemaVersion: 2,
-      database: { ...bufferSource(dbBytes), sha256: sha256(dbBytes) },
+      schemaVersion: 3,
+      database: databaseCapture(dbBytes),
       assets: [],
       release: async () => {},
     };
@@ -467,5 +465,5 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
     readerCtx,
   );
   const bundle = await oneDriveProvider.download({ deviceSlotId }, readerCtx);
-  assert.equal(bundle.databaseSha256, sha256(dbBytes));
+  assert.equal(bundle.manifest.database.sha256, sha256(dbBytes));
 });
