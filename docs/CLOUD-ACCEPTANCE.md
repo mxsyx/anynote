@@ -1,5 +1,7 @@
 # 真实云备份验收
 
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [G07 Cloudflare](todo/07-cloudflare-acceptance.md)、[G01 云盘账号](todo/01-cloud-drive-acceptance.md) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+
 2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。这些协议测试不代表完整产品发布验收通过。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）

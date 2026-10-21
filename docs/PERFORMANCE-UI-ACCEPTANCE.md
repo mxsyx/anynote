@@ -1,5 +1,7 @@
 # 性能与界面验收
 
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [G19 性能](todo/19-desktop-performance.md)、[G20 视觉](todo/20-visual-components.md)、[G06 人工原生 UI](todo/06-native-ui-acceptance.md) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+
 > 存储与备份格式已改为SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
 > 依据设计文档 18.6、21 的性能与界面目标，验收运行真实 Electron 生产页面和 Linux 打包程序，使用正式 Preload、IPC、独立 SQLite 进程、PDF.js 阅读器和后台备份任务。每次生成临时工作区，测试结束后删除数据；不读取 `.env.cloud`，不修改日常 Notebook。
 

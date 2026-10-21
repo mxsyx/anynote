@@ -4,7 +4,7 @@
 
 ## 运行
 
-需要 Node.js 24+ 和 pnpm 11.20.0。
+需要 Node.js 24+ 和 pnpm 12.14.0（以根 `package.json` 的 `engines` / `packageManager` 为准）。
 
 ```sh
 pnpm install
@@ -45,7 +45,7 @@ pnpm run dev
 - 多个独立 Notebook、目录树、重命名、移动、拖拽移动与同级排序、收藏、标签、最近打开、回收站及批次恢复。
 - 跨 Notebook 复制/移动：笔记与目录子树、历史、附件和批注保留，内部链接重写，幂等重试；移动后源条目可从回收站恢复。
 - 跨 Notebook 全局搜索：类型、目录子树、标签、更新时间筛选，显示库名、路径和命中上下文；支持取消与部分结果提示。
-- CodeMirror Markdown 源码编辑、GFM 阅读与块级富文本 Beta；防抖保存、中文输入法保护、草稿保留和版本冲突校验。
+- Tiptap 连续 Markdown 文档编辑，阅读与编辑合一；防抖保存、中文输入法保护、草稿保留和版本冲突校验。复杂语法及未知块保留原文，详见 [编辑器边界](./docs/EDITOR-ECOSYSTEM.md)。
 - 内联本地图片、稳定内部链接、跨 Notebook 反向链接、未知扩展只读降级与原文保留。
 - 正文纸张限制最大宽度并居中，两侧露出桌面背景；纸张随外层阅读区域整体滚动，不显示笔记类型标记。输入 `/` 可插入标题（一级至六级）、正文、列表、任务、引用、代码、表格、分割线、换行、链接、图片、白板和视频，也可应用加粗、斜体、删除线与行内代码；桌面原生「编辑 → 插入内容」共用同一套命令。收藏笔记位于顶部「更多操作」中。
 - Excalidraw 白板：保存场景、图片和静态预览；历史版本冻结资源引用，恢复后继续编辑可保留原资源版本。
@@ -66,17 +66,17 @@ pnpm run dev
 - AI 提案、显式应用及版本条件撤销工具接口；没有配置或调用模型 Provider。
 - 浅色/深色主题、大纲/历史面板、专注模式与键盘快捷键。
 
-设置页「从云端恢复」支持全新设备只提供云连接信息，分页查找并恢复备份，无需原 Notebook 或目标配置。使用步骤见 [全新设备恢复](./docs/CLOUD-RECOVERY.md)。
+设置中的「从云端恢复」支持全新设备只提供云连接信息，分页查找并恢复备份，无需原 Notebook 或目标配置。使用步骤见 [全新设备恢复](./docs/CLOUD-RECOVERY.md)。
 
 ## 备份配置
 
-侧栏「本地优先，安心记录」进入备份页面，添加 Cloudflare 目标：填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
+通过桌面原生菜单进入备份页面，添加 Cloudflare 目标：填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
 
 同一页面还可添加云盘目标：选择 Google Drive、Dropbox 或 OneDrive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；数据库按 1MiB 分块增量上传，未变化块会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可通过 `ANYNOTE_OAUTH_APPS`（按 `ANYNOTE_OAUTH_STAGE` 区分开发/生产）或 `ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID` 提供自己的 Client ID。注册、注入与授权验收见 [官方 OAuth 应用注册](./docs/OAUTH-REGISTRATION.md)。
 
-Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。Wrangler 自动部署及真实 Cloudflare 验收已通过，结果见云验收报告。
+Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。历史 Wrangler 部署及真实 Cloudflare 报告使用当时格式；当前 schema v4/独立附件协议需重新验收，状态见 [G07](docs/todo/07-cloudflare-acceptance.md)。
 
-Cloudflare 生产页面及 Linux 打包应用均通过 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启和其他平台。
+历史 Cloudflare 生产页面及 Linux 打包应用记录了 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。该历史 Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启、其他平台或当前格式的重新验收。
 
 桌面凭据通过 Electron safeStorage 与系统密钥服务加密保存在设备目录；Linux keyring 不可用时拒绝持久化。浏览器开发预览仅在 API 进程内存保留凭据。凭据与目标游标不进入 Notebook 导出。自动备份只在应用运行且用户已启用该目标时执行；远端备份独立于本地保存，不提供双向同步。
 
@@ -88,7 +88,7 @@ Cloudflare 生产页面及 Linux 打包应用均通过 9 项真实桌面检查�
 
 每库使用 `notebook.sqlite` 保存正文、历史和元数据（schema v4），附件保存为 `assets/sha256/<前两位>/<SHA256>.bin` 不可变文件。数据库按 1MiB 分块增量备份，附件按文件哈希增量备份，统一清单提交与恢复。迁移 Notebook 需携带整个目录；设备快照与凭据留在 `_local/`。不兼容旧 BLOB schema 与旧备份格式；详细契约见 [存储与备份设计](./docs/SQLITE-STORAGE.md)。
 
-单文件导入上限 50MB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB，包含清单、数据库和全部引用附件；浏览器/base64 归档 API和本地快照仍为 100MB；正式云备份恢复采用 1MiB 数据库分块与附件整文件增量、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 上限 10MB、最多 200 张图片。Cloudflare 单次缓冲上传上限 20MiB，大附件使用 multipart 传输，仍保存为完整文件。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。尚未实现第三方插件沙箱、任意 Markdown 的完整富文本往返、签名更新及跨平台发行验证。富文本仅规范化用户编辑的块，普通表格与任务项支持富文本编辑，独立本地图片支持尺寸编辑，复杂表格、HTML、混排/远程图片和未知扩展使用源码编辑。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
+单文件导入上限 50MB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB，包含清单、数据库和全部引用附件；浏览器/base64 归档 API和本地快照仍为 100MB；正式云备份恢复采用 1MiB 数据库分块与附件整文件增量、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 与媒体预算可在导入时配置，具体以导入预览为准。Cloudflare 单次缓冲上传上限 20MiB，大附件使用 multipart 传输，仍保存为完整文件。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。第三方已支持声明式贡献、QuickJS/WASM 受限脚本、签名包与审核更新；通用第三方 Node/React 宿主、任意 Markdown 无损往返、桌面应用签名更新及跨平台发行验收仍未完成。连续编辑器保留未修改块原文，修改块会规范化；复杂语法与未知扩展显示为保留块，不提供源码模式切换。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
 
 ## 验证与打包
 
@@ -117,7 +117,7 @@ pnpm run test:search
 pnpm run package
 ```
 
-输出 Linux 应用目录 `release/linux-unpacked/`。可直接启动 `release/linux-unpacked/anynote`。目前没有经过签名的生产安装包。
+按当前宿主平台生成 `release/` 下的应用目录；Linux 为 `release/linux-unpacked/`，可启动 `release/linux-unpacked/anynote`。其他平台产物见 [发行任务](docs/todo/05-desktop-distribution.md)；未签名构建不代表正式发行验收。
 
 性能与界面验收覆盖万篇笔记、千层目录、100MiB PDF、备份期间界面响应，以及三档视口、浅深主题、键盘和自动无障碍检查；步骤、机器、报告和人工验收边界见 [性能与界面验收](./docs/PERFORMANCE-UI-ACCEPTANCE.md)。脚本使用临时数据和本地 Cloudflare Worker 适配器，不读取云凭据。
 
@@ -143,10 +143,12 @@ pnpm run package
 
 开发检查、提交钩子和 GitHub CI/CD 见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
-各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 在干净离线项目中校验兼容窗口与旧消费者。
+各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 用于在干净离线项目中校验声明的契约窗口。当前 SDK tarball 云盘模块遗漏导致独立消费失败，见 [G18 核对报告](docs/G18-documentation-review.md)；历史成功记录不代表当前发布链通过。
 
 仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、筛选构建及现有循环依赖说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册；`googleapis` 懒加载，Dropbox/OneDrive 直连厂商 HTTP 端点、不引入厂商 SDK。
 
 首方扩展的独立进程运行、Notebook 会话授权、命令惰性激活与故障回收见 [扩展宿主](./docs/EXTENSION-HOST.md)。使用 `pnpm run test:extension-host` 验证宿主及真实桌面流程。
 
 本地磁盘备份的实现、平台边界和剩余待办见 [本地备份说明](packages/backup-local/README.md)。运行 `pnpm run test:desktop:local-backup` 验证生产 Electron 中的目录授权、范围配置、校验、取消与恢复导航；报告保存在 `artifacts/local-backup-acceptance.json`。
+
+架构实际选择见 [ADR-001–010](docs/adr/README.md)，任务状态与证据维护规则见 [文档维护](docs/DOCUMENTATION.md)。

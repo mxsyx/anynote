@@ -63,3 +63,5 @@ node scripts/sdk-package-smoke.mjs
 专项合约覆盖声明校验、状态升级、设置摘要绑定、未知字段保护、读预览不写入、事务失败回滚、幂等重试、原值恢复、权限/安装/并发/备份冲突、预算、在途取消和归档后独立授权。桌面流程使用临时 Notebook，通过真实界面完成设置及状态迁移、备份恢复和再次迁移；数据库只读核对原值与版本，不访问真实云账户。
 
 2026-10-04：完整回归 160 项通过，其中迁移专项 10 项；严格 TypeScript 编译、SDK 干净项目离线安装/类型/运行验证和 Linux 应用目录打包通过。生产页面与最新 Linux 打包应用各 18 项流程、21 次自动 WCAG 扫描通过，违规为零。生产报告：`test-results/editor-ecosystem.json`。迁移预览截图：`docs/screenshots/editor/extension-data-migration.png`。打包报告：`test-results/editor-ecosystem-packaged.json`。
+
+2026-10-21 文档核对：这里的迁移只指用户确认的扩展状态/设置变换，不提供 Notebook 旧 schema 兼容。上述 2026-10-04 报告是历史证据；当前 SDK 消费失败与实际验证结果见 [G18 报告](G18-documentation-review.md)。后续任务只在 [分组清单](../TODO.md) 维护。

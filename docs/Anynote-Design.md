@@ -1,6 +1,7 @@
 # Anynote 产品与技术设计文档
 
 > 存储与备份格式已改为SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
+> 当前决策核对：2026-10-21，见 [ADR-001–010](adr/README.md)。下文未更新的建议不作为功能状态或发布验收依据；当前状态见 [实施记录](IMPLEMENTATION.md)，任务唯一状态见 [TODO](../TODO.md)。
 > 版本：0.1 · 日期：2026-10-01 · 状态：建议设计基线，供产品、设计与研发评审。
 >
 > 产品定位：以 Notebook 为边界、本地优先、可扩展的个人知识库。支持 Markdown、PDF、图片，将日常记录、网页收藏、资料阅读和知识整理放在一个安静、美观、可靠的桌面空间里。
@@ -135,7 +136,7 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 | -------------- | ---------------------------------------------- | ---------------------------------------------------- |
 | UI             | React、Tailwind、Radix/shadcn 基础组件、Lucide | 二次设计统一样式；不直接拼出默认组件展示页           |
 | UI 状态        | Jotai；异步查询可使用 TanStack Query           | SQLite 是真源，前端缓存不另建业务状态真源            |
-| 本地数据库     | better-sqlite3，放在存储进程                   | Electron ABI 与平台架构打包验证；对外仍暴露异步 API  |
+| 本地数据库     | node:sqlite，放在存储进程（ADR-001）                   | Node 24+；内嵌运行时与平台需验证，对外暴露异步 API  |
 | SQL/迁移       | Drizzle 或显式 SQL Repository                  | 选一套；本地和 D1 迁移独立，避免假设完全兼容         |
 | 校验           | Zod 或 JSON Schema                             | IPC、插件 manifest、导入格式、远程协议必须校验       |
 | 编辑器         | Tiptap/ProseMirror、CodeMirror 6               | 上层封装 EditorAdapter，固定版本并做回归             |
@@ -150,24 +151,20 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 
 ### 5.1 Notebook 文件布局
 
+当前持久化布局（[ADR-001](adr/001-notebook-storage.md)）：
+
 ```text
 <notebook-root>/
-  notebook.json
   notebook.sqlite
   assets/
     sha256/ab/<64位哈希>.bin
-  snapshots/
-    <generation-id>/notebook.sqlite
-    <generation-id>/manifest.json
-  cache/
-    thumbnails/
-    pdf-text/
-    editor/
-  temp/
-  locks/
+<application-data>/
+  _local/
+    notebook-directories.json
+    notebooks/<UUID>/...
 ```
 
-`notebook.json` 是轻量引导文件，包含格式版本、Notebook UUID、显示名缓存、数据库文件名。UUID 与显示名以数据库为权威；启动时校验并修复缓存。重命名不改资源路径。
+Notebook UUID、显示名、图标和封面色以 `notebook_meta` 为准，不生成 `notebook.json`。设备快照、任务、游标与缓存保存在应用设备目录，不随知识库携带。主数据库连接直接持有写锁，不另建 Notebook 租约数据库。具体路径以 [Storage](../packages/storage-sqlite/src/index.ts) 为准。
 
 SQLite WAL 模式运行时会出现 `notebook.sqlite-wal` 与 `-shm`。这属于正常运行文件，不能把活跃 `.sqlite` 文件单独复制后称为完整备份。[S3][S4]
 
@@ -294,23 +291,15 @@ Markdown 笔记在 SQLite 保存 UTF-8 扩展 Markdown 文本，称为 **Anynote
 
 ProseMirror/Tiptap JSON 只作为编辑器派生模型，可以缓存，缓存失效时从正文重建。若未来增加无法可靠映射到协议的在线文档能力，必须先扩展文档协议，不能悄悄把 JSON 升格为另一份真源。
 
-当前采用统一文档编辑会话，正文保存为 Markdown；无模式切换。具体实现与语法边界见 [编辑器与扩展生态](EDITOR-ECOSYSTEM.md)。以下阶段设计中的双模式方案已由统一编辑器替代。
+当前采用统一文档编辑会话，正文保存为 Markdown；无模式切换。具体实现与语法边界见 [编辑器与扩展生态](EDITOR-ECOSYSTEM.md)。实际决定见 [ADR-002](adr/002-markdown-source.md)。
 
-### 7.2 双模式方案与无损边界
+### 7.2 连续编辑与无损边界
 
-**富文本模式**提供段落块、选区菜单、斜杠菜单、块拖拽、图片缩放、表格、折叠块、白板和视频卡片。
+Tiptap/ProseMirror 提供连续文档、选区菜单、斜杠插入、Markdown 输入转换、任务和表格；当前不展示 CodeMirror 源码/阅读/Beta 切换。
 
-**源码模式**由 CodeMirror 6 提供语法高亮、行号可选、搜索替换、快捷格式化和预览。
+适配层记录可编辑块原文与语义签名：未修改块复用原文，修改块由编辑器序列化，块间统一空行。不支持的语法与未知扩展以 `preservedBlock` 保存原文，不直接编辑内部文本，也不作为任意 HTML 执行。不能承诺任意 Markdown 全文逐字节往返。
 
-Tiptap 官方 Markdown 功能支持双向转换与扩展 tokenizer，但当前文档标记为 Beta，并说明评论和复杂表格等限制。因此不能直接承诺“任意 Markdown 经过 JSON 往返原样不变”。[S5]
-
-Anynote 适配层承担以下职责：
-
-1. 用源码位置感知 AST 保存原始块文本与范围；富文本局部编辑只序列化受影响的块，避免重写整篇。
-2. 未修改区域保留原字节；修改区域可规范化，允许列表缩进、强调分隔符等文本形式变化，但不能丢语义。
-3. 不支持的 Markdown/HTML/指令块进入 `opaque` 节点，保留原文并显示只读占位，不透传为可执行 HTML。
-4. 如果适配器不能安全表示某结构，提示使用源码模式；复杂文档先只读富文本，不能以“修复文档”名义删除内容。
-5. 发布前验证嵌套列表、表格、代码围栏、转义、脚注、未知插件块等语料。无法完成可靠局部回写时，先上线源码编辑+渲染预览，富文本模式继续 Beta。
+文档模型回归及连续编辑浏览器入口见 [编辑器说明](EDITOR-ECOSYSTEM.md)；真实输入法与原生交互验收归 G06。设计扩展语法和当前不支持的功能不能仅凭菜单或类型存在标为已实现。
 
 ### 7.3 扩展 Markdown 语法
 
@@ -494,7 +483,7 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 
 - 默认建议保留最近 30 个完成版本，再按日/周/月采样保留；首次设置展示预计空间，不把该策略等同于云厂商内置恢复窗口。
 - 本地/云端删除为 tombstone；旧备份仍保留删除前内容，直到超出保留策略。
-- 永久清理备份是独立操作；任何被保留增量版本依赖的 checkpoint 不得先删。
+- 永久清理备份是独立操作；必须保护所有保留版本完整清单引用的数据库块与附件；当前不依赖历史 delta 链。
 - GC 采用 mark-and-sweep：从所有保留版本及进行中任务标记，再回收无引用且超过宽限期的对象。
 - 恢复默认创建新的本地目录和新 Notebook 身份，保留 `restoredFrom` 来源，不覆盖现有库。
 - 灾难恢复保留原 Notebook 身份时必须重新认领写入权、产生新 epoch/lineage，并重新建立备份游标，防止旧客户端继续写旧分支。
@@ -502,82 +491,58 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 
 ## 12. Cloudflare 主备份端
 
+本节按当前物理备份实现更新，替代早期实体 delta/周期 checkpoint 草案；决定见 [ADR-005](adr/005-generation-publication.md) 与 [ADR-006](adr/006-complete-checkpoints.md)。
+
 ### 12.1 职责分配
 
-| 组件   | 职责                                                                                          |
-| ------ | --------------------------------------------------------------------------------------------- |
-| Worker | 鉴权、Notebook 授权、协议校验、备份协调、预签名、恢复接口                                     |
-| D1     | 结构化备份记录、实体版本与 delta、目录/标签/批注元信息、generation 状态、当前 head、资源目录  |
-| R2     | 图片/PDF/白板等资源、不可变正文对象、大型结构化 payload、完整恢复清单、可选 SQLite checkpoint |
+| 组件 | 当前职责 |
+| --- | --- |
+| Worker | 应用 Token 鉴权、协议校验、对象上传校验、generation 发布及恢复/维护接口 |
+| D1 | Notebook/分支身份、writer epoch、generation 状态与清单引用、对象验证目录、维护状态 |
+| R2 | 不可变数据库块、完整附件文件与完整版本清单 |
 
-本地一个 Notebook 一个数据库是强约束；远端初版不强制一个 Notebook 一个 D1。建议个人自托管使用一个 D1，通过 `(owner_id, notebook_id, lineage_id)` 隔离多个 Notebook。远端按租户/Notebook 分片是扩容策略，不是本地数据库布局的复制。
+D1 不保存用于恢复重建的领域实体 delta，也不是本地 SQLite 文件同步服务。具体路由与表结构以 [Worker](../apps/cloudflare-backup/src/index.ts) 及其 migrations 为准。
 
-D1 是受管数据库，具有 SQLite SQL 语义，但不是本地 SQLite 文件的自动同步服务。D1 官方单库上限当前为 Free 500MB / Paid 10GB，单行/字符串/BLOB 上限约 2MB；部署时需要再次核实套餐和限制。[S10]
+### 12.2 物理增量协议
 
-### 12.2 逻辑增量协议
+1. 捕获一致性 SQLite 与其完整资源闭包，从副本读取 `snapshotSeq`。
+2. 将数据库按 1MiB 分块，清单记录整库大小/哈希、有序块及完整附件；重复块可重复出现在有序列表中。
+3. 携带 generation、lineage、device、expectedHead、writerEpoch 调用 plan，建立 staging 并获取缺失对象。
+4. 只上传缺失块与附件；附件传输可使用 multipart，但最终仍为一个完整文件对象。按 SHA-256/大小验证，不把 ETag 当 SHA-256。
+5. Worker 验证引用对象完整后原子发布；客户端确认 committed 后推进 ack 游标。响应丢失先查询同一 generation。
 
-1. 客户端捕获一致性切点 `snapshotSeq`。
-2. 读取该 Provider 已提交 `lastAckSeq`；从变更日志取 `(lastAckSeq, snapshotSeq]`，按实体合并重复变更。删除也必须传。
-3. 在快照状态中解析变更实体的最终版本与资源引用；未变化实体由 base generation 继承。
-4. 调用 `plan`，服务端按 owner/Notebook 范围返回缺失对象、upload grant 和 generation ID。
-5. 将缺失附件与正文对象上传 R2，跳过已验证同哈希对象。
-6. 分批上传结构化 delta。每批有 batch ID、请求哈希与幂等约束；generation 处于 staging，不影响当前 head。
-7. 客户端提交最终清单；Worker 校验版本链、批次完整性、资源存在/验证状态与协议版本。
-8. 在 D1 原子事务中将 generation 标记 committed，并以 CAS 更新 head；服务端返回 generation ID 和确认序号。
-9. 客户端收到确认后才持久化 `lastAckSeq`。响应丢失时重查或幂等重试，不能直接跳过该区间。
+### 12.3 每代完整 checkpoint
 
-资源去重使用应用 SHA-256 与大小，不能把 multipart ETag 当 SHA-256。预签名上传 grant 限制 key、有效期和允许大小/类型；服务端采用实际支持的 checksum 或有界流式校验任务，避免信任客户端写入的自声明元信息。大型对象校验未完成时 generation 不提交。
+每一代都是完整恢复清单，独立于更早版本。checkpoint 表示完整引用集合，不表示每次重传整库；未变化对象复用。不再实施“每 100 代或每天生成逻辑 checkpoint”，不维护实体 delta 链或可选 SQLite 加速点。
 
-### 12.3 远端版本模型
+当前清单为 `anynote.sqlite` v1、schemaVersion 4，要求 `sqlite-assets-v1`；旧逻辑协议及 BLOB 格式不兼容。清单和空间预算见 [存储契约](SQLITE-STORAGE.md) 与 [流式备份](STREAMING-CLOUD-BACKUP.md)。
 
-建议 D1 表：`owners`、`notebooks`、`backup_branches`、`backup_generations`、`entity_versions`、`generation_deltas`、`asset_catalog`、`upload_grants`、`generation_batches`。
+### 12.4 原子发布与并发控制
 
-- `entity_versions` 为不可变版本；唯一键包含租户、Notebook、实体 ID 和版本 ID。
-- `generation_deltas` 记录该版本改变的实体版本或 tombstone；checkpoint generation 提供完整实体映射。
-- 正文默认放 R2；D1 保存正文哈希、格式与引用。小型标题、目录、标签、批注结构直接存 D1。
-- 大型结构化值超过应用预算时放 R2，D1 保存类型化描述；不依赖接近 2MB 的 D1 单行极限。
-- 默认每 100 次增量或每天生成一次逻辑 checkpoint，将长链压缩成完整映射，未变化对象仍不重传。
-- 可选每天/每周把一致性 SQLite 快照放 R2 作为恢复加速点；这会产生整库上传量，应单独显示并允许关闭。
+对象先验证，随后 D1 batch 中的事务 guard 检查 `expectedHead`、writer/epoch、维护锁和退休状态，再更新 head 与 committed。guard 失败回滚，不将 UPDATE 零行当作成功。恢复列表仅暴露已提交版本。
 
-### 12.4 D1 原子发布与并发控制
+接管显式提升 writer epoch，旧写入者不能覆盖新 head。恢复默认创建新 Notebook；分支接续由用户明确选择。备份不提供双向同步或离线编辑自动合并。
 
-D1 `batch()` 支持 SQL 批次的事务回滚，但 D1 与 R2 之间不存在跨服务事务。[S11]
+### 12.5 当前核心 API
 
-因此使用“R2 不可变对象先上传 → staging 元数据 → 完整验证 → D1 发布”的方式：
+下表为源码已存在的核心路由子集；对象 multipart 与维护接口见对应专项文档。
 
-- 所有分批写入都带 generation ID，未 committed 数据对恢复接口不可见。
-- head 更新使用 `expectedHead` 与 `writerEpoch`，避免先读 head 再无条件写回。
-- CAS 失败必须导致整个最终发布事务失败；不能把 `UPDATE 0 rows` 当成功。实现可用受唯一约束/触发器保护的事务 guard，或条件插入方案，需针对 D1 实测。
-- 验证失败或 head 冲突返回明确错误，旧 head 不变。
-- 首版每个远端 Notebook lineage 只允许一个写入设备。设备接管在 UI 显式操作，并增加 writerEpoch，旧设备随后只能读取或创建新的备份分支。
-- 两台离线设备分别编辑的内容不自动合并；新分支保留双方数据，不允许最后写入覆盖。
-- 变更日志已被压缩、丢失或恢复后 lineage 不一致时，走完整逻辑 checkpoint，不伪造增量。
-
-### 12.5 API 草案
-
-| 接口                                                 | 用途                           |
-| ---------------------------------------------------- | ------------------------------ |
-| `GET /v1/capabilities`                               | 协议、对象大小、批次和加密能力 |
-| `POST /v1/notebooks/register`                        | 注册 Notebook/设备/lineage     |
-| `POST /v1/notebooks/:id/backup/plan`                 | 计划 generation，识别缺失对象  |
-| `POST /v1/notebooks/:id/backup/:generation/batches`  | 幂等提交 delta 批次            |
-| `POST /v1/notebooks/:id/backup/:generation/commit`   | 校验并发布                     |
-| `GET /v1/notebooks/:id/backup/:generation`           | 查询状态，处理提交响应丢失     |
-| `GET /v1/notebooks/:id/backups`                      | 分页历史版本                   |
-| `GET /v1/notebooks/:id/backups/:generation/manifest` | 固定版本恢复清单               |
-| `POST /v1/notebooks/:id/assets/download-grants`      | 批量授权下载                   |
-| `POST /v1/notebooks/:id/writer/takeover`             | 显式设备接管                   |
-| `POST /v1/notebooks/:id/retention/plan`              | 生成版本删除/GC 计划           |
-
-协议使用 `protocolVersion`、`requestId`、`idempotencyKey`、`expectedHead`、`writerEpoch`、`snapshotSeq`。错误码包括 `HEAD_CONFLICT`、`WRITER_REVOKED`、`ASSET_MISSING`、`SCHEMA_UNSUPPORTED`、`QUOTA_EXCEEDED` 等。
+| 接口 | 用途 |
+| --- | --- |
+| `GET /v1/capabilities` | 协议与能力 |
+| `POST /v1/notebooks/:id/backup/plan` | 完整清单规划、staging 和缺失对象 |
+| `PUT /v1/notebooks/:id/backup/:generation/objects/:hash` | 小对象上传与验证 |
+| `POST /v1/notebooks/:id/backup/:generation/commit` | 条件发布 |
+| `GET /v1/notebooks/:id/backup/:generation` | 固定版本状态确认 |
+| `GET /v1/notebooks/:id/backups` | 已提交版本列表 |
+| `GET /v1/notebooks/:id/backups/:generation/manifest` | 固定版本完整清单 |
+| `GET /v1/notebooks/:id/objects/:hash` | 已授权对象读取 |
 
 ### 12.6 恢复流程
 
-获取固定 committed generation → 找最近 checkpoint → 顺序应用 delta → 下载并校验资源 → 创建全新本地 SQLite → 在事务中写入领域数据 → 重建 FTS/链接缓存 → 完整性验证 → 注册 Notebook。
+固定 committed generation 并持有恢复 pin → 下载完整清单 → 按有序块拼接 SQLite → 校验块与整库大小/哈希 → 下载并验证附件 → 校验 schema、完整性、外键及资源闭包 → 重映射身份并重建索引 → 登记新 Notebook。
 
-默认通过 Anynote 恢复 API 重建本地库，不依赖 D1 直接导出二进制 SQLite。D1 当前常规导出为 SQL；`dump()` 的二进制导出只适用于早期 alpha 数据库，不能作为生产恢复基线。[S11][S12]
-
-如有可选 R2 SQLite checkpoint，可恢复快照后再应用较新的逻辑 delta；必须校验 schema 与切点一致。
+恢复不重放实体 delta，也不依赖 D1 导出数据库。缺失、损坏、取消或 pin 续约失败不登记半成品。历史云验收报告不能替代当前格式在真实服务与独立设备上的验收，状态见 G03/G07。
 
 ### 12.7 鉴权、部署与成本控制
 
@@ -1051,7 +1016,7 @@ anynote/
 - Editor：Markdown 往返语料、未知块、模式切换、中文 IME、撤销、插件禁用。
 - Import：相对路径、srcset、懒加载、编码、脚本清洗、网络重定向、媒体失败与重试。
 - Provider 合约：无变化不上传、重复请求幂等、部分上传不提交、哈希不匹配、配额与鉴权。
-- Restore：完整包、Cloudflare checkpoint+delta、历史/回收站、跨版本。
+- Restore：完整包、Cloudflare 完整 checkpoint + 对象去重、历史/回收站、跨版本。
 - Plugin：权限、生命周期、崩溃隔离、opaque 降级、SDK 兼容。
 - UI：真实内容截图、键盘、无障碍、浅/深主题、窗口尺度。
 
@@ -1127,18 +1092,20 @@ anynote/
 
 正式排期前需要确认：目标操作系统优先级、个人自托管还是商业托管、典型 Notebook/附件规模、富文本首发深度、PDF 批注需求、加密是否为首发硬要求、团队人数与发布目标。
 
-## 25. 建议优先完成的 ADR
+## 25. 架构决策记录（ADR）
 
-1. ADR-001：一个 Notebook 一个 SQLite，资源与目录分离。
-2. ADR-002：Anynote Markdown 真源与富文本无损边界。
-3. ADR-003：Asset 不可变、Resource 稳定身份与历史资源闭包。
-4. ADR-004：备份与同步分开，v1 远端单写/分支策略。
-5. ADR-005：Cloudflare generation staging + 原子发布。
-6. ADR-006：远端备份的实体级增量与完整 SQLite 快照边界。
-7. ADR-007：受信与受限插件运行时及公共 SDK。
-8. ADR-008：`.anynote` 容器、安全导入与版本兼容。
-9. ADR-009：AI 提案、权限、乐观锁与撤销。
-10. ADR-010：设计 token、辅助面板与阅读优先布局。
+已按 2026-10-21 当前源码追认以下实际选择；背景、取舍、源码和验证入口见 [ADR 索引](adr/README.md)。旧设计建议与已采纳决定有差异时，以 ADR 及当前专项契约为准。采纳不等于完成发布验收。
+
+1. [ADR-001：Notebook 独立 SQLite 与目录排序](adr/001-notebook-storage.md)。
+2. [ADR-002：Markdown 真源与连续编辑边界](adr/002-markdown-source.md)。
+3. [ADR-003：不可变 Asset、Resource 身份与历史闭包](adr/003-immutable-assets.md)。
+4. [ADR-004：备份与同步分离及远端写入身份](adr/004-backup-not-sync.md)。
+5. [ADR-005：Cloudflare staging 与原子发布](adr/005-generation-publication.md)。
+6. [ADR-006：每代完整 checkpoint 与物理分块增量](adr/006-complete-checkpoints.md)。
+7. [ADR-007：扩展信任等级与公共 SDK](adr/007-extension-runtimes.md)。
+8. [ADR-008：完整归档、安全导入与版本拒绝](adr/008-archive-compatibility.md)。
+9. [ADR-009：AI 提案、显式应用与条件撤销](adr/009-ai-proposals.md)。
+10. [ADR-010：原生阅读布局、设计 token 与辅助面板](adr/010-native-reading-layout.md)。
 
 ## 26. 官方资料与依据
 

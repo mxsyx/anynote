@@ -28,17 +28,17 @@
 
 | 格式                    | 标识                                  | 版本 | 归属     |
 | ----------------------- | ------------------------------------- | ---- | -------- |
-| `notebook-schema`       | `notebook.sqlite`（`schema_version`） | 3    | `format` |
+| `notebook-schema`       | `notebook.sqlite`（`schema_version`） | 4    | `format` |
 | `notebook-archive`      | `anynote.notebook`                    | 1    | `format` |
 | `sqlite-backup`         | `anynote.sqlite`                      | 1    | `format` |
-| `local-backup`          | `anynote.local-backup`                | 2    | `format` |
+| `local-backup`          | `anynote.local-backup`                | 3    | `format` |
 | `cloud-backup-head`     | `anynote.cloud-backup-head`           | 1    | `format` |
-| `cloud-backup-manifest` | `anynote.cloud-backup-manifest`       | 2    | `format` |
+| `cloud-backup-manifest` | `anynote.cloud-backup-manifest`       | 3    | `format` |
 | `extension-package`     | `anynote.extension.v1`                | 1    | `format` |
 | `extension-directory`   | `anynote.extension-directory.v1`      | 1    | `format` |
 | `extension-settings`    | `anynote.extension-settings.v1`       | 1    | `format` |
 
-格式版本按整数独立演进；新增表或字段必须同步更新矩阵与迁移契约。
+格式版本按整数独立演进；结构变更须核对矩阵与拒绝边界。开发期不保证历史数据兼容，也不要求自动迁移；当前 v4 字段扩充见 [G14 决策](G14-navigation-decision.md)。
 
 ## 兼容窗口
 
@@ -88,7 +88,7 @@ pnpm run test:release:matrix  # 兼容窗口 + 旧消费者在干净离线项目
 `@anynote/plugin-sdk` 与 `@anynote/first-party-adapters`）。`test:release:matrix` 将其
 复制到只含官方 tarball 的干净项目，用 `tsc` 编译后实际运行，并断言兼容窗口逻辑。
 改变公开调用面时，必须同时提升 `legacyConsumers` 的契约版本并更新 fixture，
-不能静默破坏旧消费者。
+该 fixture 是现有调用面检查，不构成历史数据兼容承诺；开发期破坏性接口调整需同步版本、文档和有效消费者，不为移除功能保留测试。
 
 `tests/release-matrix.test.mjs` 另行校验矩阵与真实代码一致：单元版本对齐
 package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁移 SQL、兼容窗口
@@ -103,6 +103,8 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 根 `CHANGELOG.md` 按单元记录变更，并随每个 tarball 一起发布。
 
 ## 当前边界
+
+2026-10-21：矩阵定义存在，但 SDK tarball 漏打包云盘模块，干净消费失败，当前发布链不能宣称通过；结果见 [G18 核对报告](G18-documentation-review.md)，修复归 [G05/T009](todo/05-desktop-distribution.md)。
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema

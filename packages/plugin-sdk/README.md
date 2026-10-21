@@ -1,6 +1,6 @@
 # Plugin SDK 0.1
 
-公开 SDK 没有 Node、Electron、数据库或 UI 框架依赖。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
+公开 SDK 的便携契约层不依赖 Node、Electron、数据库或 UI 框架；源码 workspace 还包含内部宿主，不应直接作为公共包发布。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
 
 ## 扩展点与调用合约
 
@@ -28,7 +28,9 @@ pnpm run build:sdk
 pnpm --dir artifacts/plugin-sdk pack --pack-destination ..
 ```
 
-生成的 SDK 包只包含 公开 API、声明式扩展和本地备份契约模块及其 `.d.ts`，没有应用内部 imports。可以在干净项目中安装 `artifacts/anynote-plugin-sdk-0.1.0.tgz`。此命令仅构建本地产物，不发布 npm。
+目标产物位于 `artifacts/plugin-sdk/`，打包后为 `artifacts/anynote-plugin-sdk-0.1.0.tgz`；此命令只构建本地产物，不发布 npm。源码 workspace 的导出指向 `src/` 类型与 `dist/` 运行文件。
+
+2026-10-21 核对：入口已导出 `createCloudBackupAPI`，但 `scripts/build-sdk.mjs` 尚未复制 `cloud-backup.js/.d.ts` 或改写云盘共享类型引用，`pnpm run test:sdk:package` 的干净消费失败。因此当前 tarball 不能宣称可独立使用；复现与修复归属见 [G18 报告](../../docs/G18-documentation-review.md) 和 [G05/T009](../../docs/todo/05-desktop-distribution.md)。
 
 ```ts
 import { createAPI, type DeclarativeManifest } from "@anynote/plugin-sdk";
@@ -100,15 +102,15 @@ await api.notes.get(noteId);
 
 ## 受限搜索上下文
 
-正文转换命令可声明 `action.searchContext: {query, limit}` 并申请 `search:read`，接收当前 Notebook 的标题和短片段快照。有状态命令同样支持；当前库发生知识写入时拒绝旧上下文提交。示例见 [reading-related.json](examples/reading-related.json)，类型为 `ScriptSearchRequest` / `ScriptSearchContext`。授权、预算与开发工具 fixture 见 [搜索上下文说明](../../docs/SCRIPT-SEARCH-CONTEXT.md)。
+正文转换命令可声明 `action.searchContext: {query, limit}` 并申请 `search:read`，接收当前 Notebook 的标题和短片段快照。有状态命令同样支持；当前库发生知识写入时拒绝旧上下文提交。示例见 [reading-related.json](./src/examples/reading-related.json)，类型为 `ScriptSearchRequest` / `ScriptSearchContext`。授权、预算与开发工具 fixture 见 [搜索上下文说明](../../docs/SCRIPT-SEARCH-CONTEXT.md)。
 
 ## 受限异步宿主查询
 
-声明 `action.asyncSearch` 并申请 `search:read` 后，脚本可使用第二个参数 `host: ScriptHostAPI`，执行 `await host.search(queryId)`。查询固定于清单，仅访问当前 Notebook；最多 4 次串行请求，取消或过期结果拒绝提交。有状态命令同样支持。示例 [reading-async-related.json](examples/reading-async-related.json)，权限、预算和 fixture 格式见 [异步宿主说明](../../docs/SCRIPT-ASYNC-HOST.md)。
+声明 `action.asyncSearch` 并申请 `search:read` 后，脚本可使用第二个参数 `host: ScriptHostAPI`，执行 `await host.search(queryId)`。查询固定于清单，仅访问当前 Notebook；最多 4 次串行请求，取消或过期结果拒绝提交。有状态命令同样支持。示例 [reading-async-related.json](./src/examples/reading-async-related.json)，权限、预算和 fixture 格式见 [异步宿主说明](../../docs/SCRIPT-ASYNC-HOST.md)。
 
 ## 固定 HTTPS 网络代理
 
-声明 `action.networkRequests` 并申请 `network` 后，可使用 `ScriptNetworkAPI.request(id)` 等待固定地址的文本/JSON。安装审核显示域名和 URL；没有动态 URL、请求体、凭据或直接 fetch。搜索与网络共享四次串行调用预算。示例 [reading-network.json](examples/reading-network.json)，完整边界与离线 `fixture.network` 见 [网络代理说明](../../docs/SCRIPT-NETWORK-PROXY.md)。
+声明 `action.networkRequests` 并申请 `network` 后，可使用 `ScriptNetworkAPI.request(id)` 等待固定地址的文本/JSON。安装审核显示域名和 URL；没有动态 URL、请求体、凭据或直接 fetch。搜索与网络共享四次串行调用预算。示例 [reading-network.json](./src/examples/reading-network.json)，完整边界与离线 `fixture.network` 见 [网络代理说明](../../docs/SCRIPT-NETWORK-PROXY.md)。
 
 ## 宿主本地磁盘备份接口
 
