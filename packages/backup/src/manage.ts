@@ -28,11 +28,13 @@ export async function manage(
   {
     find,
     secret,
+    save,
   }: {
     find: (
       s: Storage,
       p: { notebookId: string; targetId: string },
     ) => BackupTarget;
+    save: (target: BackupTarget) => void;
     secret: (s: Storage, id: string) => Promise<Credentials>;
   },
 ) {
@@ -61,6 +63,23 @@ export async function manage(
       .parse(raw),
     target = find(s, p);
 
+  const policy = {
+    keep: p.keep ?? target.retention?.keep ?? 30,
+    calendar: {
+      dailyDays:
+        p.calendar?.dailyDays ?? target.retention?.calendar.dailyDays ?? 0,
+      weeklyWeeks:
+        p.calendar?.weeklyWeeks ?? target.retention?.calendar.weeklyWeeks ?? 0,
+      monthlyMonths:
+        p.calendar?.monthlyMonths ??
+        target.retention?.calendar.monthlyMonths ??
+        0,
+    },
+  };
+  if (op === "saveRemoteRetention") {
+    save({ ...target, retention: policy });
+    return policy;
+  }
   const client = new CloudflareClient(target, await secret(s, target.id)),
     book = p.remoteNotebookId || target.remoteNotebookId || p.notebookId,
     lineage = p.lineageId || target.lineageId,
@@ -72,15 +91,29 @@ export async function manage(
   )
     throw Error("服务端需升级并应用最新 D1 迁移");
   if (
-    p.calendar &&
-    Object.values(p.calendar).some((count) => count > 0) &&
+    op === "previewRemoteRetention" &&
+    Object.values(policy.calendar).some((count) => count > 0) &&
     !capability.capabilities?.includes("calendar-retention")
   )
     throw Error("服务端不支持日/周/月保留，请先升级 Worker");
+  if (
+    [
+      "remoteRetentionState",
+      "previewRemoteRetention",
+      "applyRemoteRetention",
+    ].includes(op) &&
+    !capability.capabilities?.includes("maintenance-lifecycle-v1")
+  )
+    throw Error(
+      "服务端不支持维护生命周期与空间预估，请先升级 Worker 并应用最新 D1 迁移",
+    );
   if (op === "remoteWriter")
     return client.call(base + "/writer?lineageId=" + lineage);
   if (op === "remoteRetentionState")
-    return client.call(base + "/retention/state");
+    return {
+      ...(await client.call(base + "/retention/state")),
+      policy: target.retention || null,
+    };
   if (
     [...s.jobs.values()].some(
       (j) =>
@@ -141,8 +174,7 @@ export async function manage(
           lineageId: target.lineageId,
           deviceId: target.deviceId,
           writerEpoch: target.writerEpoch || 1,
-          keep: p.keep || 30,
-          ...(p.calendar ? { calendar: p.calendar } : {}),
+          ...policy,
         },
       });
     } else {
@@ -150,7 +182,7 @@ export async function manage(
         throw Error("清理需要有效计划与显式确认");
       let batches = 0;
       do {
-        if (++batches > 200) throw Error("清理批次超过预算，请重试同一计划");
+        if (++batches > 1000) throw Error("清理批次超过预算，请重试同一计划");
         result = await client.call(base + "/retention/apply", {
           method: "POST",
           body: {

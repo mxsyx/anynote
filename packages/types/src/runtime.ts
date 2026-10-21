@@ -88,6 +88,10 @@ export interface BackupTarget {
   name?: string;
   writerEpoch?: number;
   remoteNotebookId?: string;
+  retention?: {
+    keep: number;
+    calendar: { dailyDays: number; weeklyWeeks: number; monthlyMonths: number };
+  };
   lastGeneration?: string;
   autoBackup?: boolean;
   lastAckSeq?: number | null;

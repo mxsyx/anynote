@@ -27,7 +27,11 @@ function fixture(
     reclaimBytes: 0,
     graceHours: 24,
   };
-  env.DB.db.prepare("INSERT INTO notebook_state VALUES(?,0,?)").run(book, id);
+  env.DB.db
+    .prepare(
+      "INSERT INTO notebook_state(notebook_id,revision,maintenance_id) VALUES(?,0,?)",
+    )
+    .run(book, id);
   env.DB.db
     .prepare(
       "INSERT INTO retention_plans(id,notebook_id,lineage_id,writer_id,writer_epoch,state_revision,body_json,status,created_at,execution_id,execution_owner) VALUES(?,?,?,?,1,0,?,'deleting',?,?,?)",

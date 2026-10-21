@@ -22,46 +22,18 @@ if (!crypto.DigestStream)
     }
   };
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 export class D1 {
   constructor() {
     this.db = new DatabaseSync(":memory:");
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../../apps/cloudflare-backup/migrations/0001.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
+    const migrations = new URL(
+      "../../apps/cloudflare-backup/migrations/",
+      import.meta.url,
     );
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../../apps/cloudflare-backup/migrations/0002.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../../apps/cloudflare-backup/migrations/0003.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../../apps/cloudflare-backup/migrations/0004.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
+    for (const name of readdirSync(migrations)
+      .filter((name) => name.endsWith(".sql"))
+      .sort())
+      this.db.exec(readFileSync(new URL(name, migrations), "utf8"));
   }
   prepare(sql) {
     const self = this;

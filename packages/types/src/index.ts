@@ -193,6 +193,7 @@ export type Operation =
   | "takeoverRemoteWriter"
   | "previewRemoteRetention"
   | "applyRemoteRetention"
+  | "saveRemoteRetention"
   | "remoteRetentionState"
   | "configureCloudRecovery"
   | "listCloudRecoveryConnections"

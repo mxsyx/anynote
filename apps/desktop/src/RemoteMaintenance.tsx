@@ -10,6 +10,7 @@ interface Target {
   lineageId: string;
   remoteNotebookId?: string;
   name: string;
+  retention?: { keep: number; calendar: Calendar };
 }
 
 /** UTC daily/weekly/monthly sampling retention policy. */
@@ -42,6 +43,12 @@ interface Plan {
   staging: number;
   reclaimBytes: number;
   graceHours: number;
+  expiredStaging?: number;
+  space?: {
+    totalBytes: number;
+    retainedBytes: number;
+    deferredObjects: number;
+  };
   status?: string;
 }
 
@@ -71,17 +78,20 @@ export default function RemoteMaintenance({
   onChanged: () => void;
 }) {
   const [mode, setMode] = useState<"retention" | "writer">("retention"),
-    [keep, setKeep] = useState(30),
-    [calendar, setCalendar] = useState<Calendar>({
-      dailyDays: 0,
-      weeklyWeeks: 0,
-      monthlyMonths: 0,
-    }),
+    [keep, setKeep] = useState(target.retention?.keep ?? 30),
+    [calendar, setCalendar] = useState<Calendar>(
+      target.retention?.calendar ?? {
+        dailyDays: 0,
+        weeklyWeeks: 0,
+        monthlyMonths: 0,
+      },
+    ),
     [remote, setRemote] = useState(target.remoteNotebookId || notebookId),
     [lineage, setLineage] = useState(target.lineageId),
     [plan, setPlan] = useState<Plan | null>(null),
     [writer, setWriter] = useState<Writer | null>(null),
     [busy, setBusy] = useState(false),
+    [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [confirmed, setConfirmed] = useState(false),
     [notice, setNotice] = useState("");
@@ -105,11 +115,20 @@ export default function RemoteMaintenance({
     }
   };
   useEffect(() => {
-    void request<{ activePlan: Plan | null }>("remoteRetentionState", {
+    let active = true;
+    void request<{
+      activePlan: Plan | null;
+      policy: { keep: number; calendar: Calendar } | null;
+    }>("remoteRetentionState", {
       notebookId,
       targetId: target.id,
     })
       .then((result) => {
+        if (!active) return;
+        if (result.policy) {
+          setKeep(result.policy.keep);
+          setCalendar(result.policy.calendar);
+        }
         if (result.activePlan) {
           setPlan(result.activePlan);
           setKeep(result.activePlan.keep);
@@ -123,7 +142,15 @@ export default function RemoteMaintenance({
           setNotice("发现未完成的清理，请确认后重试同一计划。");
         }
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [notebookId, target.id]);
   return (
     <div className="modal-overlay">
@@ -149,7 +176,7 @@ export default function RemoteMaintenance({
           <Button
             variant="ghost"
             size="layout"
-            disabled={busy || plan?.status === "deleting"}
+            disabled={loading || busy || plan?.status === "deleting"}
             onClick={() => {
               setMode("retention");
               setConfirmed(false);
@@ -160,7 +187,7 @@ export default function RemoteMaintenance({
           <Button
             variant="ghost"
             size="layout"
-            disabled={busy || plan?.status === "deleting"}
+            disabled={loading || busy || plan?.status === "deleting"}
             onClick={() => {
               setMode("writer");
               setConfirmed(false);
@@ -172,9 +199,11 @@ export default function RemoteMaintenance({
         {mode === "retention" ? (
           <>
             <p>
-              仅清理当前分支的旧版本。所有分支的
-              head、保留版本、上传中版本和恢复 pin 均受保护；对象宽限期为 24
-              小时。
+              仅清理当前分支的旧版本。所有分支的 head、保留版本、有效上传和恢复
+              pin 均受保护；对象宽限期为 24 小时。当前分支连续 7
+              天无活动的上传可在确认后取消。
+              配置按目标保存，仅用于手动预览和确认，不会定时删除。
+              首次设置请先预览空间，再保存配置。
             </p>
             <label>
               保留最近版本数
@@ -183,7 +212,7 @@ export default function RemoteMaintenance({
                 min={1}
                 max={1000}
                 value={keep}
-                disabled={busy || plan?.status === "deleting"}
+                disabled={loading || busy || plan?.status === "deleting"}
                 onChange={(e) => {
                   setKeep(Number(e.target.value));
                   setPlan(null);
@@ -209,7 +238,7 @@ export default function RemoteMaintenance({
                   min={0}
                   max={max}
                   value={calendar[key]}
-                  disabled={busy || plan?.status === "deleting"}
+                  disabled={loading || busy || plan?.status === "deleting"}
                   onChange={(e) => {
                     setCalendar({ ...calendar, [key]: Number(e.target.value) });
                     setPlan(null);
@@ -222,9 +251,11 @@ export default function RemoteMaintenance({
               variant="ghost"
               size="layout"
               className="secondary"
-              disabled={busy || plan?.status === "deleting"}
+              disabled={loading || busy || plan?.status === "deleting"}
               onClick={() =>
                 void act(async () => {
+                  setPlan(null);
+                  setConfirmed(false);
                   setPlan(
                     await request<Plan>("previewRemoteRetention", {
                       notebookId,
@@ -242,11 +273,45 @@ export default function RemoteMaintenance({
             {plan && (
               <>
                 <p>
-                  将删除 {plan.remove.length} 个旧版本、{plan.objects.length}{" "}
-                  个无引用对象，预计释放{" "}
+                  将删除 {plan.remove.length - (plan.expiredStaging || 0)}{" "}
+                  个旧版本，取消 {plan.expiredStaging || 0} 个过期上传，并回收{" "}
+                  {plan.objects.length} 个无引用对象，预计释放{" "}
                   {(plan.reclaimBytes / 1024 ** 2).toFixed(2)} MB。保护{" "}
                   {plan.protected.length} 个版本及 {plan.staging} 个上传中版本。
                 </p>
+                {plan.space && (
+                  <p>
+                    当前数据占用{" "}
+                    {(plan.space.totalBytes / 1024 ** 2).toFixed(2)} MB，
+                    清理后预计{" "}
+                    {(plan.space.retainedBytes / 1024 ** 2).toFixed(2)} MB。
+                    包含版本清单与上传临时对象，不含维护归档和未完成分段上传。
+                    过期上传 {plan.expiredStaging || 0} 个；
+                    {plan.space.deferredObjects > 0 &&
+                      `另有 ${plan.space.deferredObjects} 个候选需后续预览。`}
+                  </p>
+                )}
+                {plan.status !== "deleting" && (
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    disabled={busy || loading}
+                    onClick={() =>
+                      void act(async () => {
+                        await request("saveRemoteRetention", {
+                          notebookId,
+                          targetId: target.id,
+                          keep: plan.keep,
+                          calendar: plan.calendar,
+                        });
+                        setNotice("保留配置已保存；清理仍需手动预览和确认。");
+                        onChanged();
+                      })
+                    }
+                  >
+                    保存保留配置
+                  </Button>
+                )}
                 {plan.calendar && (
                   <p>
                     本次计划：最近 {plan.keep} 个版本 +{" "}
@@ -285,7 +350,7 @@ export default function RemoteMaintenance({
                     disabled={busy}
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />
-                  我确认永久删除列出的远端版本和对象
+                  我确认永久删除列出的远端版本和对象，并取消列出的过期上传
                 </label>
                 <Button
                   variant="ghost"

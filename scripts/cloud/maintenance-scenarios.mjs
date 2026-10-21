@@ -74,9 +74,10 @@ export async function maintenanceScenario({
         lastGeneration: undefined,
         keep: 1,
       });
-    let first, latest, p;
+    let first, firstManifest, latest, p;
     await check("maintenance-preview-and-live-restore-pin", async () => {
       first = await upload();
+      firstManifest = await client.call(base + `/backups/${first}/manifest`);
       n = await s.run("saveNote", {
         notebookId: b.id,
         id: n.id,
@@ -160,6 +161,37 @@ export async function maintenanceScenario({
           (await client.call(base + "/retention/state")).activePlan,
           null,
         );
+        assert.equal(
+          (await post("/retention/apply", { planId: p.id, confirmed: true }))
+            .completed,
+          true,
+        );
+      },
+    );
+    await check(
+      "maintenance-archived-receipts-and-space-estimate",
+      async () => {
+        const caps = await client.call("/v1/capabilities");
+        assert.ok(caps.capabilities.includes("maintenance-lifecycle-v1"));
+        await assert.rejects(
+          post("/backup/plan", firstManifest),
+          /GENERATION_RETIRED/,
+        );
+        const next = await preview();
+        assert.equal(
+          next.space.totalBytes - next.reclaimBytes,
+          next.space.retainedBytes,
+        );
+        assert.ok(next.space.retainedBytes > 0);
+        let result;
+        do {
+          result = await post("/retention/apply", {
+            planId: next.id,
+            deviceId: target.deviceId,
+            writerEpoch: 1,
+            confirmed: true,
+          });
+        } while (!result.completed);
         assert.equal(
           (await post("/retention/apply", { planId: p.id, confirmed: true }))
             .completed,

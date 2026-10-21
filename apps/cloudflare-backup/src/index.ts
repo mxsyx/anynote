@@ -8,6 +8,7 @@ import type {
   SqlRow,
   WorkerEnv,
 } from "@anynote/types/runtime.js";
+import { archived, touchStaging } from "./maintenance-history.js";
 import { gate, maintenance, state, usable } from "./maintenance.js";
 
 export { MaintenanceCoordinator } from "./maintenance-coordinator.js";
@@ -103,6 +104,7 @@ export default {
             "writer-takeover",
             "retention-gc",
             "calendar-retention",
+            "maintenance-lifecycle-v1",
             ...(env.MAINTENANCE ? ["maintenance-recovery-v1"] : []),
             "maintenance-admin-v1",
             "restore-pin",
@@ -240,11 +242,17 @@ export default {
           branch.writer_epoch !== m.writerEpoch
         )
           return response({ error: "WRITER_REVOKED" }, 409);
-        await state(env, notebookId);
+
+        // Fence admission across completed cleanup while allowing unrelated uploads
+        // to update the reference revision without blocking other branches.
+        const admissionState = await state(env, notebookId);
+        if (admissionState.maintenance_id)
+          return response({ error: "MAINTENANCE_IN_PROGRESS" }, 409);
         if (
-          await env.DB.prepare("SELECT id FROM retired_generations WHERE id=?")
+          (await env.DB.prepare("SELECT id FROM retired_generations WHERE id=?")
             .bind(m.generationId)
-            .first()
+            .first()) ||
+          (await archived(env, notebookId, "retired", m.generationId))
         )
           return response({ error: "GENERATION_RETIRED" }, 409);
         const body = new TextEncoder().encode(JSON.stringify(m)),
@@ -258,6 +266,18 @@ export default {
           return response({ error: "IDEMPOTENCY_CONFLICT" }, 409);
         if (!prior && branch.head !== m.expectedHead)
           return response({ error: "HEAD_CONFLICT" }, 409);
+        if (!prior) {
+          const count = await env.DB.prepare(
+            "SELECT count(*) AS count FROM generations WHERE notebook_id=?",
+          )
+            .bind(notebookId)
+            .first();
+          if (count!.count >= 2000)
+            return response(
+              { error: "版本身份达到 2000 条预算，请先手动预览清理" },
+              409,
+            );
+        }
         await env.BUCKET.put(
           `manifests/${notebookId}/${m.generationId}.json`,
           body,
@@ -269,13 +289,17 @@ export default {
               env,
               notebookId,
               admission,
-              "EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND writer_id=? AND writer_epoch=?) AND NOT EXISTS(SELECT 1 FROM retired_generations WHERE id=?)",
+              "EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND writer_id=? AND writer_epoch=?) AND NOT EXISTS(SELECT 1 FROM retired_generations WHERE id=?) AND EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND maintenance_epoch=?) AND (EXISTS(SELECT 1 FROM generations WHERE id=?) OR (SELECT count(*) FROM generations WHERE notebook_id=?)<2000)",
               [
                 notebookId,
                 m.lineageId,
                 m.deviceId,
                 m.writerEpoch,
                 m.generationId,
+                notebookId,
+                admissionState.maintenance_epoch,
+                m.generationId,
+                notebookId,
               ],
             ),
             env.DB.prepare(
@@ -291,6 +315,9 @@ export default {
               manifestHash,
               m.createdAt,
             ),
+            env.DB.prepare(
+              "INSERT INTO generation_activity SELECT id,? FROM generations WHERE id=? AND status='staging' ON CONFLICT(id) DO UPDATE SET touched_at=excluded.touched_at",
+            ).bind(Date.now(), m.generationId),
             env.DB.prepare(
               "UPDATE notebook_state SET revision=revision+1 WHERE notebook_id=?",
             ).bind(notebookId),
@@ -347,6 +374,7 @@ export default {
           return response({ error: "WRITER_REVOKED" }, 409);
         if ((await state(env, notebookId)).maintenance_id)
           return response({ error: "MAINTENANCE_IN_PROGRESS" }, 409);
+        await touchStaging(env, generation.id, notebookId);
         const manifest = await loadManifest(env, generation),
           object = descriptors(manifest).get(upload[2]);
         if (!object) throw Error("对象未获得此版本授权");
@@ -425,7 +453,7 @@ export default {
         try {
           await env.DB.batch([
             env.DB.prepare(
-              "INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND head=? AND writer_id=? AND writer_epoch=?) AND EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND maintenance_id IS NULL) AND NOT EXISTS(SELECT 1 FROM retired_generations WHERE id=?) THEN 1 ELSE 0 END",
+              "INSERT INTO transaction_guard SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND head=? AND writer_id=? AND writer_epoch=?) AND EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND maintenance_id IS NULL) AND NOT EXISTS(SELECT 1 FROM retired_generations WHERE id=?) AND EXISTS(SELECT 1 FROM generations WHERE id=? AND status='staging') THEN 1 ELSE 0 END",
             ).bind(
               generation.id,
               notebookId,
@@ -434,6 +462,7 @@ export default {
               generation.writer_id,
               generation.writer_epoch,
               notebookId,
+              generation.id,
               generation.id,
             ),
             env.DB.prepare(
@@ -445,6 +474,9 @@ export default {
             env.DB.prepare(
               "UPDATE notebook_state SET revision=revision+1 WHERE notebook_id=?",
             ).bind(notebookId),
+            env.DB.prepare("DELETE FROM generation_activity WHERE id=?").bind(
+              generation.id,
+            ),
             env.DB.prepare("DELETE FROM transaction_guard WHERE id=?").bind(
               generation.id,
             ),

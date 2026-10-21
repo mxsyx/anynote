@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
+import { D1, R2 } from "./helpers/cloud-adapters.mjs";
 import { Storage } from "../.build/packages/backend/index.js";
 import { prepareImport } from "../.build/packages/importer/html.js";
 import { ImportResources } from "../.build/packages/importer/resources.js";
@@ -615,90 +615,6 @@ test("malformed persisted proposals and missing dispatch fields cannot mutate no
   );
 });
 
-class D1 {
-  constructor() {
-    this.db = new DatabaseSync(":memory:");
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../apps/cloudflare-backup/migrations/0001.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../apps/cloudflare-backup/migrations/0002.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-    this.db.exec(
-      readFileSync(
-        new URL(
-          "../apps/cloudflare-backup/migrations/0003.sql",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
-  }
-  prepare(sql) {
-    const self = this;
-    let values = [];
-    return {
-      bind(...v) {
-        values = v;
-        return this;
-      },
-      async first() {
-        return self.db.prepare(sql).get(...values) || null;
-      },
-      async all() {
-        return { results: self.db.prepare(sql).all(...values) };
-      },
-      async run() {
-        return self.db.prepare(sql).run(...values);
-      },
-    };
-  }
-  async batch(statements) {
-    this.db.exec("BEGIN");
-    try {
-      const rows = [];
-      for (const p of statements) rows.push(await p.run());
-      this.db.exec("COMMIT");
-      return rows;
-    } catch (e) {
-      this.db.exec("ROLLBACK");
-      throw e;
-    }
-  }
-}
-class R2 {
-  constructor() {
-    this.objects = new Map();
-  }
-  async put(k, b) {
-    this.objects.set(k, Buffer.from(b));
-  }
-  async head(k) {
-    return this.objects.has(k) ? { size: this.objects.get(k).length } : null;
-  }
-  async get(k) {
-    if (!this.objects.has(k)) return null;
-    const b = this.objects.get(k);
-    return {
-      size: b.length,
-      body: b,
-      arrayBuffer: async () =>
-        b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
-    };
-  }
-}
 test("Cloudflare Worker stages/validates/CAS-commits logical backups and rejects missing objects and stale heads", async (t) => {
   const { s, book, call } = await fixture(t),
     n = await call("createNode", { title: "Cloudflare", body: "逻辑恢复" }),

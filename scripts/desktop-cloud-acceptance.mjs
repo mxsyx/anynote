@@ -672,7 +672,7 @@ async function acceptance() {
           );
           await dialog
             .getByRole("checkbox", {
-              name: "我确认永久删除列出的远端版本和对象",
+              name: "我确认永久删除列出的远端版本和对象，并取消列出的过期上传",
             })
             .check();
           await apply.click();

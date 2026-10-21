@@ -31,6 +31,7 @@ export const managementOperations = [
   "takeoverRemoteWriter",
   "previewRemoteRetention",
   "applyRemoteRetention",
+  "saveRemoteRetention",
   "remoteRetentionState",
 ];
 

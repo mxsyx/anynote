@@ -596,4 +596,449 @@ test("a client refuses calendar sampling on an older worker instead of silently 
     }),
     /不支持日\/周\/月/,
   );
+  await assert.rejects(
+    s.run("previewRemoteRetention", {
+      notebookId: b.id,
+      targetId: target.id,
+      keep: 1,
+    }),
+    /不支持维护生命周期/,
+  );
+});
+
+async function stage(f, changes = {}) {
+  const data = snapshotBundle(await f.bundle());
+  const manifest = {
+    ...data.manifest,
+    generationId: randomUUID(),
+    lineageId: f.target.lineageId,
+    deviceId: f.target.deviceId,
+    writerEpoch: f.target.writerEpoch,
+    expectedHead: f.target.lastGeneration || "",
+    ...changes,
+  };
+  await f.client.call(f.base + "/backup/plan", {
+    method: "POST",
+    body: manifest,
+  });
+  return { manifest, data };
+}
+
+test("staging expires by server activity, protects other branches, and a renewed upload invalidates cleanup", async (t) => {
+  const f = await fixture(t);
+  await f.upload();
+  const stale = await stage(f, { createdAt: "2099-01-01T00:00:00Z" });
+  const live = await stage(f, { createdAt: "2000-01-01T00:00:00Z" });
+  const other = await stage(f, { lineageId: randomUUID(), expectedHead: "" });
+  f.env.DB.db
+    .prepare("UPDATE generation_activity SET touched_at=? WHERE id IN (?,?)")
+    .run(
+      Date.now() - 8 * 86400000,
+      stale.manifest.generationId,
+      other.manifest.generationId,
+    );
+  const p = await f.plan(1);
+  assert.deepEqual(
+    p.remove.map((g) => g.id),
+    [stale.manifest.generationId],
+  );
+  assert.equal(p.expiredStaging, 1);
+  const hash = live.data.objects.keys().next().value;
+  await f.client.uploadObject(
+    f.base + `/backup/${stale.manifest.generationId}/objects/${hash}`,
+    live.data.objects.get(hash),
+  );
+  await assert.rejects(f.apply(p), /变化|PLAN_CHANGED/);
+  assert.equal((await f.plan(1)).expiredStaging, 0);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM generations").get().n,
+    4,
+  );
+});
+
+test("expired staging, orphan manifests and private objects are reclaimed only after confirmation; retired IDs stay fenced", async (t) => {
+  const f = await fixture(t);
+  const head = await f.upload();
+  const staged = await stage(f);
+  f.env.DB.db
+    .prepare("UPDATE generation_activity SET touched_at=? WHERE id=?")
+    .run(Date.now() - 8 * 86400000, staged.manifest.generationId);
+  const orphan = `manifests/${f.b.id}/${randomUUID()}.json`;
+  const temp = `staging/${f.b.id}/${staged.manifest.generationId}/hash/nonce`;
+  const fresh = `manifests/${f.b.id}/${randomUUID()}.json`;
+  for (const key of [orphan, temp, fresh])
+    await f.env.BUCKET.put(key, Buffer.from("orphan"));
+  for (const key of [orphan, temp])
+    f.env.BUCKET.metadata.get(key).uploaded = new Date(
+      Date.now() - 2 * 86400000,
+    );
+  const p = await f.plan(1);
+  assert.ok(p.objects.some((o) => o.key === orphan));
+  assert.ok(p.objects.some((o) => o.key === temp));
+  assert.ok(!p.objects.some((o) => o.key === fresh));
+  assert.ok(await f.env.BUCKET.head(orphan));
+  assert.equal(p.space.totalBytes - p.reclaimBytes, p.space.retainedBytes);
+  await f.apply(p);
+  assert.equal(await f.env.BUCKET.head(orphan), null);
+  assert.equal(await f.env.BUCKET.head(temp), null);
+  const remaining = [...f.env.BUCKET.objects]
+    .filter(([key]) => /^(objects|manifests|staging)\//.test(key))
+    .reduce((sum, [, bytes]) => sum + bytes.length, 0);
+  assert.equal(remaining, p.space.retainedBytes);
+  assert.ok(await f.env.BUCKET.head(fresh));
+  assert.ok(await f.env.BUCKET.head(`manifests/${f.b.id}/${head}.json`));
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM retired_generations").get()
+      .n,
+    0,
+  );
+  await assert.rejects(
+    f.client.call(f.base + "/backup/plan", {
+      method: "POST",
+      body: staged.manifest,
+    }),
+    /GENERATION_RETIRED/,
+  );
+  await f.apply(await f.plan(1));
+  assert.equal((await f.apply(p)).completed, true);
+  await f.env.BUCKET.put(
+    `maintenance/${f.b.id}/retired/${staged.manifest.generationId}.json`,
+    "null",
+  );
+  await assert.rejects(
+    f.client.call(f.base + "/backup/plan", {
+      method: "POST",
+      body: staged.manifest,
+    }),
+    /维护归档身份无效/,
+  );
+});
+
+test("archive failure holds the gate and retries preserve completed-plan and takeover receipts", async (t) => {
+  const f = await fixture(t);
+  await f.upload();
+  await f.upload();
+  const p = await f.plan(1);
+  const put = f.env.BUCKET.put.bind(f.env.BUCKET);
+  let fail = true;
+  f.env.BUCKET.put = async (key, body) => {
+    if (fail && key.includes("/retired/")) {
+      fail = false;
+      throw Error("archive interrupted");
+    }
+    return put(key, body);
+  };
+  await assert.rejects(f.apply(p), /archive interrupted/);
+  assert.equal(
+    (await f.client.call(f.base + "/retention/state")).activePlan.id,
+    p.id,
+  );
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM retired_generations").get()
+      .n,
+    1,
+  );
+  await f.apply(p);
+  const claim = {
+    requestId: randomUUID(),
+    lineageId: f.target.lineageId,
+    deviceId: f.target.deviceId,
+    expectedHead: f.target.lastGeneration,
+    expectedWriterEpoch: 1,
+    confirmed: true,
+  };
+  await f.client.call(f.base + "/writer/takeover", {
+    method: "POST",
+    body: claim,
+  });
+  f.target.writerEpoch = 2;
+  await f.client.call(f.base + "/writer/takeover", {
+    method: "POST",
+    body: { ...claim, requestId: randomUUID(), expectedWriterEpoch: 2 },
+  });
+  f.target.writerEpoch = 3;
+  await f.apply(await f.plan(1));
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM writer_claims").get().n,
+    1,
+  );
+  assert.equal(
+    f.env.DB.db.prepare("SELECT id FROM retention_plans WHERE id=?").get(p.id),
+    undefined,
+  );
+  assert.equal((await f.apply(p)).completed, true);
+  await assert.rejects(
+    f.client.call(f.base + "/writer/takeover", { method: "POST", body: claim }),
+    /WRITER_REVOKED/,
+  );
+});
+
+test("expired previews are archived without deleting data and cannot be executed", async (t) => {
+  const f = await fixture(t);
+  await f.upload();
+  const p = await f.plan(1);
+  f.env.DB.db
+    .prepare("UPDATE retention_plans SET created_at=? WHERE id=?")
+    .run(Date.now() - 600001, p.id);
+  await f.plan(1);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT id FROM retention_plans WHERE id=?").get(p.id),
+    undefined,
+  );
+  await assert.rejects(f.apply(p), /过期/);
+  assert.equal((await listBackups(f.client, f.target)).length, 1);
+});
+
+test("2000 active identities remain cleanable and archived tombstones do not consume admission capacity", async (t) => {
+  const f = await fixture(t);
+  const head = await f.upload();
+  const original = f.env.DB.db
+    .prepare("SELECT * FROM generations WHERE id=?")
+    .get(head);
+  const content = f.env.BUCKET.objects.get(`manifests/${f.b.id}/${head}.json`);
+  const insert = f.env.DB.db.prepare(
+    "INSERT INTO generations VALUES(?,?,?,?,?,?,?,?,?,?)",
+  );
+  for (let i = 0; i < 1999; i++) {
+    const id = randomUUID();
+    insert.run(
+      id,
+      original.notebook_id,
+      original.lineage_id,
+      "committed",
+      original.expected_head,
+      original.writer_id,
+      original.writer_epoch,
+      original.snapshot_seq,
+      original.manifest_hash,
+      "2000-01-01T00:00:00Z",
+    );
+    await f.env.BUCKET.put(`manifests/${f.b.id}/${id}.json`, content);
+  }
+  await assert.rejects(stage(f), /2000/);
+  const started = performance.now();
+  const p = await f.plan(1);
+  assert.equal(p.remove.length, 1999);
+  await f.apply(p);
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM generations").get().n,
+    1,
+  );
+  assert.equal(
+    f.env.DB.db.prepare("SELECT count(*) AS n FROM retired_generations").get()
+      .n,
+    0,
+  );
+  await f.upload();
+  assert.ok(
+    performance.now() - started < 10000,
+    "bounded 2000-version cleanup must complete within the local regression budget",
+  );
+});
+
+test("target retention settings persist across restart, remain isolated, and do not enable automatic cleanup", async (t) => {
+  const f = await fixture(t);
+  const one = await f.s.run("configureBackup", {
+    notebookId: f.b.id,
+    name: "one",
+    endpoint: "https://worker.invalid",
+    token: f.env.APP_TOKEN,
+  });
+  const two = await f.s.run("configureBackup", {
+    notebookId: f.b.id,
+    name: "two",
+    endpoint: "https://worker.invalid",
+    token: f.env.APP_TOKEN,
+  });
+  const p = { notebookId: f.b.id, targetId: one.id };
+  const policy = {
+    keep: 7,
+    calendar: { dailyDays: 14, weeklyWeeks: 8, monthlyMonths: 12 },
+  };
+  const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+    throw Error("configuration must remain local");
+  });
+  await f.s.run("saveRemoteRetention", { ...p, ...policy });
+  await assert.rejects(f.s.run("saveRemoteRetention", { ...p, keep: 0 }));
+  await assert.rejects(
+    f.s.run("saveRemoteRetention", { ...p, calendar: { dailyDays: 366 } }),
+  );
+  const reopened = new Storage(f.s.root);
+  try {
+    const targets = await reopened.run("listBackupTargets", {
+      notebookId: f.b.id,
+    });
+    assert.deepEqual(targets.find((x) => x.id === one.id).retention, policy);
+    assert.equal(targets.find((x) => x.id === two.id).retention, undefined);
+    assert.equal(targets.find((x) => x.id === one.id).autoBackup, undefined);
+  } finally {
+    reopened.close();
+  }
+  fetch.mockImplementation((input, init) =>
+    worker.fetch(new Request(input, init), f.env),
+  );
+  assert.deepEqual((await f.s.run("remoteRetentionState", p)).policy, policy);
+  await f.upload(one);
+  const preview = await f.s.run("previewRemoteRetention", p);
+  assert.equal(preview.keep, policy.keep);
+  assert.deepEqual(preview.calendar, policy.calendar);
+  await f.s.run("previewRemoteRetention", {
+    ...p,
+    keep: 2,
+    calendar: { dailyDays: 0, weeklyWeeks: 0, monthlyMonths: 0 },
+  });
+  assert.deepEqual((await f.s.run("remoteRetentionState", p)).policy, policy);
+});
+
+test("a commit already reading R2 cannot publish after its staging identity was retired and archived", async (t) => {
+  const f = await fixture(t);
+  await f.upload();
+  const staged = await stage(f);
+  for (const [hash, bytes] of staged.data.objects)
+    await f.client.uploadObject(
+      f.base + `/backup/${staged.manifest.generationId}/objects/${hash}`,
+      bytes,
+    );
+  let release, entered;
+  const wait = new Promise((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const head = f.env.BUCKET.head.bind(f.env.BUCKET);
+  let held = false;
+  f.env.BUCKET.head = async (key) => {
+    if (!held) {
+      held = true;
+      entered();
+      await wait;
+    }
+    return head(key);
+  };
+  const commit = f.client.call(
+    f.base + `/backup/${staged.manifest.generationId}/commit`,
+    {
+      method: "POST",
+      body: { expectedHead: f.target.lastGeneration, writerEpoch: 1 },
+    },
+  );
+  const rejected = assert.rejects(commit, /HEAD_CONFLICT/);
+  await ready;
+  try {
+    f.env.DB.db
+      .prepare("UPDATE generation_activity SET touched_at=? WHERE id=?")
+      .run(Date.now() - 8 * 86400000, staged.manifest.generationId);
+    await f.apply(await f.plan(1));
+  } finally {
+    release();
+  }
+  await rejected;
+  assert.equal(
+    f.env.DB.db
+      .prepare("SELECT head FROM branches WHERE notebook_id=? AND lineage_id=?")
+      .get(f.b.id, f.target.lineageId).head,
+    f.target.lastGeneration,
+  );
+});
+
+test("object and preview budget overflow fails closed without deleting protected data", async (t) => {
+  const f = await fixture(t);
+  const head = await f.upload();
+  const p = await f.plan(1);
+  const row = f.env.DB.db
+    .prepare("SELECT * FROM retention_plans WHERE id=?")
+    .get(p.id);
+  for (let i = 0; i < 127; i++)
+    f.env.DB.db
+      .prepare(
+        "INSERT INTO retention_plans(id,notebook_id,lineage_id,writer_id,writer_epoch,state_revision,body_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+      )
+      .run(
+        randomUUID(),
+        f.b.id,
+        row.lineage_id,
+        row.writer_id,
+        row.writer_epoch,
+        row.state_revision,
+        row.body_json,
+        "planned",
+        Date.now(),
+      );
+  await assert.rejects(f.plan(1), /128/);
+  f.env.DB.db.prepare("DELETE FROM retention_plans").run();
+  for (let i = 0; i < 10001; i++) {
+    const key = `objects/${f.b.id}/${i.toString(16).padStart(64, "0")}`;
+    f.env.BUCKET.objects.set(key, Buffer.from("x"));
+    f.env.BUCKET.metadata.set(key, {
+      uploaded: new Date(Date.now() - 2 * 86400000),
+      etag: "test",
+    });
+  }
+  await assert.rejects(f.plan(1), /10000/);
+  assert.ok(await f.env.BUCKET.head(`manifests/${f.b.id}/${head}.json`));
+  assert.equal(
+    (await f.client.call(f.base + "/retention/state")).activePlan,
+    null,
+  );
+});
+
+test("admission fences completed maintenance without serializing unrelated branch plans", async (t) => {
+  const f = await fixture(t);
+  await f.upload();
+  const stale = await stage(f);
+  const put = f.env.BUCKET.put.bind(f.env.BUCKET);
+  let resume, entered;
+  let gate = new Promise((resolve) => {
+    resume = resolve;
+  });
+  let ready = new Promise((resolve) => {
+    entered = resolve;
+  });
+  let heldId = stale.manifest.generationId;
+  f.env.BUCKET.put = async (key, bytes) => {
+    if (key === `manifests/${f.b.id}/${heldId}.json`) {
+      entered();
+      await gate;
+    }
+    return put(key, bytes);
+  };
+  const pending = f.client.call(f.base + "/backup/plan", {
+    method: "POST",
+    body: stale.manifest,
+  });
+  const rejected = assert.rejects(pending, /MAINTENANCE/);
+  await ready;
+  try {
+    f.env.DB.db
+      .prepare("UPDATE generation_activity SET touched_at=? WHERE id=?")
+      .run(Date.now() - 8 * 86400000, heldId);
+    await f.apply(await f.plan(1));
+  } finally {
+    resume();
+  }
+  await rejected;
+  assert.equal(
+    f.env.DB.db.prepare("SELECT id FROM generations WHERE id=?").get(heldId),
+    undefined,
+  );
+
+  heldId = randomUUID();
+  gate = new Promise((resolve) => {
+    resume = resolve;
+  });
+  ready = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const first = stage(f, { generationId: heldId });
+  await ready;
+  try {
+    await stage(f, { lineageId: randomUUID(), expectedHead: "" });
+  } finally {
+    resume();
+  }
+  await first;
+  assert.ok(
+    f.env.DB.db.prepare("SELECT id FROM generations WHERE id=?").get(heldId),
+  );
 });

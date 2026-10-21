@@ -1,5 +1,11 @@
 import { objectDescriptors } from "@anynote/protocol/cloud-objects.js";
 import type { SqlRow, WorkerEnv } from "@anynote/types/runtime.js";
+import {
+  archived,
+  archiveHistory,
+  archivePreviews,
+  stagingGrace,
+} from "./maintenance-history.js";
 import { calendarPolicy, sampleVersions } from "./retention-policy.js";
 
 /** UUID format for version/lineage IDs. */
@@ -171,14 +177,16 @@ async function snapshot(
   calendar?: import("./retention-policy.js").CalendarPolicy,
   referenceTime: string = "",
 ) {
+  const reference = referenceTime ? Date.parse(referenceTime) : Date.now();
+  if (!Number.isFinite(reference)) fail("清理时间无效");
   const rows = (
     await env.DB.prepare(
-      "SELECT g.* FROM generations g WHERE notebook_id=? AND NOT EXISTS(SELECT 1 FROM retired_generations r WHERE r.id=g.id) ORDER BY created_at DESC,id DESC LIMIT 201",
+      "SELECT g.*,a.touched_at FROM generations g LEFT JOIN generation_activity a ON a.id=g.id WHERE notebook_id=? AND NOT EXISTS(SELECT 1 FROM retired_generations r WHERE r.id=g.id) ORDER BY created_at DESC,id DESC LIMIT 2001",
     )
       .bind(book)
       .all()
   ).results;
-  if (rows.length > 200) fail("版本规划超过 200 条预算");
+  if (rows.length > 2000) fail("版本规划超过 2000 条身份预算");
   const heads = (
     await env.DB.prepare("SELECT head FROM branches WHERE notebook_id=?")
       .bind(book)
@@ -186,7 +194,7 @@ async function snapshot(
   ).results;
   const pins = (
     await env.DB.prepare(
-      "SELECT generation_id FROM restore_pins WHERE notebook_id=? AND expires_at>?",
+      "SELECT DISTINCT generation_id FROM restore_pins WHERE notebook_id=? AND expires_at>?",
     )
       .bind(book, Date.now())
       .all()
@@ -195,6 +203,9 @@ async function snapshot(
     ...heads.map((b) => b.head),
     ...pins.map((p) => p.generation_id),
   ]);
+  const identities = new Set(rows.map((g) => g.id));
+  if ([...protectedIds].some((id) => id && !identities.has(id)))
+    fail("保护版本身份缺失，拒绝清理");
   const selected = rows.filter(
     (g) => g.lineage_id === lineage && g.status === "committed",
   );
@@ -209,7 +220,18 @@ async function snapshot(
         );
   if (sampled) sampled.forEach((g) => protectedIds.add(g.id));
   else selected.slice(0, keep).forEach((g) => protectedIds.add(g.id));
-  const remove = selected.filter((g) => !protectedIds.has(g.id)),
+  const expired = rows.filter(
+    (g) =>
+      g.lineage_id === lineage &&
+      g.status === "staging" &&
+      !protectedIds.has(g.id) &&
+      g.touched_at != null &&
+      reference - g.touched_at >= stagingGrace,
+  );
+  const remove = [
+      ...selected.filter((g) => !protectedIds.has(g.id)),
+      ...expired,
+    ],
     removed = new Set(remove.map((g) => g.id)),
     marked = new Set();
 
@@ -225,6 +247,7 @@ async function snapshot(
     if (marked.size > 200000) fail("保护引用超过 200000 条预算");
   }
   const objects = [];
+  let totalBytes = 0;
   let cursor;
   for (let page = 0; page < 10; page++) {
     const listed = await env.BUCKET.list({
@@ -233,11 +256,12 @@ async function snapshot(
       limit: 1000,
     });
     for (const item of listed.objects) {
+      totalBytes += item.size;
       const hash = item.key.split("/").pop();
       if (!/^[a-f0-9]{64}$/.test(hash!)) continue;
       if (
         !marked.has(hash) &&
-        Date.now() - new Date(item.uploaded).getTime() >= grace
+        reference - new Date(item.uploaded).getTime() >= grace
       )
         objects.push({ key: item.key, hash, size: item.size, etag: item.etag });
     }
@@ -245,14 +269,63 @@ async function snapshot(
     cursor = listed.cursor;
     if (page === 9) fail("对象规划超过 10000 条预算");
   }
+  // Unregistered manifests and completed transport staging objects cannot be
+  // restored. Still require the age grace and exact object identity at apply.
+  const known = new Map(rows.map((g) => [g.id, g.status]));
+  const garbage: { key: string; size: number; etag: string }[] = [];
+  let manifestBytes = 0;
+  for (const kind of ["manifests", "staging"]) {
+    let cursor;
+    for (let page = 0; page < 10; page++) {
+      const listed = await env.BUCKET.list({
+        prefix: `${kind}/${book}/`,
+        cursor,
+        limit: 1000,
+      });
+      for (const item of listed.objects) {
+        totalBytes += item.size;
+        const id = item.key.split("/")[2].replace(/\.json$/, "");
+        if (kind === "manifests" && removed.has(id)) manifestBytes += item.size;
+        if (reference - new Date(item.uploaded).getTime() < grace) continue;
+        if (
+          !known.has(id) ||
+          (kind === "staging" &&
+            (removed.has(id) || known.get(id) === "committed"))
+        )
+          garbage.push({ key: item.key, size: item.size, etag: item.etag });
+      }
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
+      if (page === 9) fail("维护对象规划超过 10000 条预算");
+    }
+  }
+  const candidates = [...objects, ...garbage].slice(0, 1000);
+  const reclaimBytes = candidates.reduce(
+    (sum, item) => sum + item.size,
+    manifestBytes,
+  );
   return {
     keep,
     ...(sampled ? { calendar, referenceTime, sampled } : {}),
-    remove: remove.map((g) => ({ id: g.id, createdAt: g.created_at })),
-    objects: objects.slice(0, 1000),
-    protected: [...protectedIds].filter(Boolean),
-    staging: rows.filter((g) => g.status === "staging").length,
-    reclaimBytes: objects.slice(0, 1000).reduce((s, o) => s + o.size, 0),
+    remove: remove.map((g) => ({
+      id: g.id,
+      createdAt: g.created_at,
+      status: g.status,
+    })),
+    objects: candidates,
+    protected: rows
+      .filter((g) => g.status === "committed" && !removed.has(g.id))
+      .map((g) => g.id),
+    staging: rows.filter((g) => g.status === "staging" && !removed.has(g.id))
+      .length,
+    expiredStaging: expired.length,
+    reclaimBytes,
+    space: {
+      totalBytes,
+      retainedBytes: totalBytes - reclaimBytes,
+      reclaimBytes,
+      deferredObjects: objects.length + garbage.length - candidates.length,
+    },
     graceHours: 24,
   };
 }
@@ -323,9 +396,10 @@ export async function maintenance(
     await state(env, book);
     const b = await branch(env, book, p.lineageId);
     if (!b) fail("分支不存在");
-    const prior = await env.DB.prepare("SELECT * FROM writer_claims WHERE id=?")
-      .bind(p.requestId)
-      .first();
+    const prior =
+      (await env.DB.prepare("SELECT * FROM writer_claims WHERE id=?")
+        .bind(p.requestId)
+        .first()) || (await archived(env, book, "claims", p.requestId));
     if (prior) {
       if (
         prior.notebook_id !== book ||
@@ -547,9 +621,17 @@ export async function maintenance(
     const p = await json(request);
     if (!Number.isInteger(p.keep) || p.keep < 1 || p.keep > 1000)
       fail("保留数量需为 1 到 1000");
-    const b = await scope(env, book, p),
-      before = await state(env, book);
+    const b = await scope(env, book, p);
+    await archivePreviews(env, book);
+    const before = await state(env, book);
     if (before.maintenance_id) fail("MAINTENANCE_IN_PROGRESS");
+    const previews = await env.DB.prepare(
+      "SELECT count(*) AS count FROM retention_plans WHERE notebook_id=? AND status='planned' AND created_at>=?",
+    )
+      .bind(book, Date.now() - 600000)
+      .first();
+    if (previews!.count >= 128)
+      fail("有效预览达到 128 条预算，请等待旧预览过期后重试");
     const body = await snapshot(
         env,
         book,
@@ -562,10 +644,18 @@ export async function maintenance(
     if (after.revision !== before.revision || after.maintenance_id)
       fail("规划期间版本发生变化");
     const id = crypto.randomUUID();
-    await env.DB.prepare(
-      "INSERT INTO retention_plans(id,notebook_id,lineage_id,writer_id,writer_epoch,state_revision,body_json,status,created_at) VALUES(?,?,?,?,?,?,?,'planned',?)",
-    )
-      .bind(
+    const guard = crypto.randomUUID();
+    await env.DB.batch([
+      gate(
+        env,
+        book,
+        guard,
+        "EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND revision=?) AND (SELECT count(*) FROM retention_plans WHERE notebook_id=? AND status='planned' AND created_at>=?)<128",
+        [book, before.revision, book, Date.now() - 600000],
+      ),
+      env.DB.prepare(
+        "INSERT INTO retention_plans(id,notebook_id,lineage_id,writer_id,writer_epoch,state_revision,body_json,status,created_at) VALUES(?,?,?,?,?,?,?,'planned',?)",
+      ).bind(
         id,
         book,
         p.lineageId,
@@ -574,8 +664,9 @@ export async function maintenance(
         before.revision,
         JSON.stringify(body),
         Date.now(),
-      )
-      .run();
+      ),
+      clear(env, guard),
+    ]);
     return result({ id, ...body });
   }
 
@@ -584,11 +675,12 @@ export async function maintenance(
     const p = await json(request);
     validId(p.planId);
     if (p.confirmed !== true) fail("清理需要显式确认");
-    const plan = await env.DB.prepare(
-      "SELECT * FROM retention_plans WHERE id=? AND notebook_id=?",
-    )
-      .bind(p.planId, book)
-      .first();
+    const plan =
+      (await env.DB.prepare(
+        "SELECT * FROM retention_plans WHERE id=? AND notebook_id=?",
+      )
+        .bind(p.planId, book)
+        .first()) || (await archived(env, book, "plans", p.planId));
     if (!plan) fail("清理计划不存在");
     if (plan.status === "completed")
       return result({ completed: true, planId: plan.id });
@@ -619,7 +711,7 @@ export async function maintenance(
             env,
             book,
             guard,
-            "EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND revision=?) AND EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND writer_id=? AND writer_epoch=?)",
+            "EXISTS(SELECT 1 FROM notebook_state WHERE notebook_id=? AND revision=?) AND EXISTS(SELECT 1 FROM branches WHERE notebook_id=? AND lineage_id=? AND writer_id=? AND writer_epoch=?) AND EXISTS(SELECT 1 FROM retention_plans WHERE id=? AND status='planned' AND created_at>=?)",
             [
               book,
               plan.state_revision,
@@ -627,6 +719,8 @@ export async function maintenance(
               plan.lineage_id,
               p.deviceId,
               p.writerEpoch,
+              plan.id,
+              Date.now() - 600000,
             ],
           ),
           env.DB.prepare(
@@ -675,6 +769,8 @@ export async function maintenance(
       )
         .bind(plan.id)
         .first();
+      // Retired rows are already fenced. Archive them before removing D1
+      // tombstones so even a replay years later cannot recreate a deleted ID.
       let objectCursor = cursors!.object_cursor,
         generationCursor = cursors!.generation_cursor;
       for (const entry of body.objects.slice(objectCursor, objectCursor + 8)) {
@@ -683,9 +779,13 @@ export async function maintenance(
         await env.BUCKET.delete(entry.key);
         objectCursor++;
         await env.DB.batch([
-          env.DB.prepare(
-            "DELETE FROM asset_catalog WHERE notebook_id=? AND hash=?",
-          ).bind(book, entry.hash),
+          ...(entry.hash
+            ? [
+                env.DB.prepare(
+                  "DELETE FROM asset_catalog WHERE notebook_id=? AND hash=?",
+                ).bind(book, entry.hash),
+              ]
+            : []),
           env.DB.prepare(
             "UPDATE retention_plans SET object_cursor=? WHERE id=?",
           ).bind(objectCursor, plan.id),
@@ -708,6 +808,9 @@ export async function maintenance(
         generationCursor++;
         await env.DB.batch([
           env.DB.prepare("DELETE FROM generations WHERE id=?").bind(entry.id),
+          env.DB.prepare("DELETE FROM generation_activity WHERE id=?").bind(
+            entry.id,
+          ),
           env.DB.prepare(
             "UPDATE retention_plans SET generation_cursor=? WHERE id=?",
           ).bind(generationCursor, plan.id),
@@ -719,12 +822,14 @@ export async function maintenance(
           planId: plan.id,
           processedGenerations: generationCursor,
         });
+      if (await archiveHistory(env, book, plan.id))
+        return result({ completed: false, planId: plan.id, archiving: true });
       await env.DB.batch([
         env.DB.prepare(
           "UPDATE retention_plans SET status='completed' WHERE id=?",
         ).bind(plan.id),
         env.DB.prepare(
-          "UPDATE notebook_state SET maintenance_id=NULL,revision=revision+1 WHERE notebook_id=? AND maintenance_id=?",
+          "UPDATE notebook_state SET maintenance_id=NULL,revision=revision+1,maintenance_epoch=maintenance_epoch+1 WHERE notebook_id=? AND maintenance_id=?",
         ).bind(book, plan.id),
       ]);
       return result({

@@ -176,7 +176,15 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   if (managementOperations.includes(op))
     return {
       handled: true,
-      result: await manage(s, op, raw, { find, secret }),
+      result: await manage(s, op, raw, {
+        find,
+        secret,
+        save: (target) =>
+          write(
+            s,
+            read(s).map((item) => (item.id === target.id ? target : item)),
+          ),
+      }),
     };
 
   if (op === "configureBackup") {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
+import { maintenanceScenario } from "../scripts/cloud/maintenance-scenarios.mjs";
 import { acceptanceScenario } from "../scripts/cloud/scenarios.mjs";
 import { readCloudConfig, redact } from "../scripts/cloud/config.mjs";
 import { CloudflareClient } from "../.build/packages/backup/providers.js";
@@ -87,4 +88,18 @@ test("cloud config blocks missing credentials, rejects unsafe endpoint URLs and 
       () => readCloudConfig({ ...env, ANYNOTE_CF_ENDPOINT: url }),
       /HTTPS/,
     );
+});
+
+test("maintenance acceptance covers archived identities, receipts and estimated space", async (t) => {
+  const env = {
+    DB: new D1(),
+    BUCKET: new R2(),
+    APP_TOKEN: "local-contract-token",
+  };
+  t.onTestFinished(() => env.DB.db.close());
+  const result = await maintenanceScenario({
+    client: new LocalWorkerClient(env),
+  });
+  assert.equal(result.steps.length, 6);
+  assert.ok(result.steps.every((step) => step.status === "passed"));
 });
