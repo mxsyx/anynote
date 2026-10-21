@@ -424,3 +424,402 @@ test("cancelling database validation waits for worker exit and never publishes a
   assert.equal((await s.run("listNotebooks")).length, 1);
   assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
 });
+
+test("current-content archive prunes only its snapshot, erases history pages and declares extension requirements", async (t) => {
+  const { root, s, book, call } = await fixture(t);
+  const old = await call("createNode", {
+    title: "SECRET_OLD_TITLE",
+    body: "SECRET_OLD_BODY",
+  });
+  const oldHash = putAsset(
+      s.open(book.id),
+      Buffer.from("SECRET_OLD_ASSET"),
+      "text/plain",
+    ),
+    resourceId = randomUUID();
+  s.open(book.id)
+    .prepare("INSERT INTO resources VALUES(?,?,?,1)")
+    .run(resourceId, oldHash, "old.txt");
+  s.open(book.id)
+    .prepare("INSERT INTO revision_resources VALUES(?,?,?)")
+    .run(old.head_revision_id, resourceId, oldHash);
+  const current = await call("saveNote", {
+    id: old.id,
+    expectedRevision: 1,
+    title: "当前",
+    body: ':::anynote{type="future.custom" version="9"}\n{"keep":true}\n:::\n',
+    tags: ["保留"],
+    favorite: true,
+  });
+  const trash = await call("createNode", {
+    title: "SECRET_TRASH",
+    body: "SECRET_TRASH_BODY",
+  });
+  await call("trashNode", { id: trash.id });
+  s.open(book.id)
+    .prepare(
+      "INSERT INTO extension_data(extension_id,key,value_json) VALUES(?,?,?)",
+    )
+    .run("future.custom", "opaque.history", '"SECRET_EXTENSION_STATE"');
+  const before = s.open(book.id).prepare("SELECT * FROM changes").all();
+  const file = join(root, "current.anynote");
+  await complete(
+    s,
+    await call("startExportArchiveFile", { path: file, currentOnly: true }),
+  );
+  const files = unzipSync(readFileSync(file)),
+    manifest = JSON.parse(Buffer.from(files["manifest.json"]));
+  assert.equal(manifest.includesHistory, false);
+  assert.equal(manifest.includesTrash, false);
+  assert.equal(manifest.includesExtensionState, false);
+  assert.deepEqual(manifest.requiredExtensions.blocks, [
+    { type: "future.custom", version: "9" },
+  ]);
+  assert.equal(manifest.assets.length, 0);
+  for (const secret of [
+    "SECRET_OLD_BODY",
+    "SECRET_OLD_TITLE",
+    "SECRET_TRASH",
+    "SECRET_EXTENSION_STATE",
+  ])
+    assert.equal(
+      Buffer.from(files["notebook.sqlite"]).includes(Buffer.from(secret)),
+      false,
+      secret,
+    );
+  const restored = await complete(
+    s,
+    await s.run("startImportArchiveFile", { path: file }),
+  );
+  const db = s.open(restored.restoredId);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM nodes").get().n, 1);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS n FROM note_revisions").get().n,
+    1,
+  );
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM resources").get().n, 0);
+  assert.equal(
+    db.prepare("SELECT head_revision_id FROM notes").get().head_revision_id,
+    current.head_revision_id,
+  );
+  assert.equal(
+    (await s.run("getNote", { notebookId: restored.restoredId, id: old.id }))
+      .favorite,
+    1,
+  );
+  assert.deepEqual(
+    s.open(book.id).prepare("SELECT * FROM changes").all(),
+    before,
+  );
+  assert.equal((await call("history", { id: old.id })).length, 2);
+  assert.equal(verifyAsset(s.open(book.id), oldHash), 16);
+  assert.ok(
+    (await call("listNodes")).find((n) => n.id === trash.id).deleted_at,
+  );
+  const full = join(root, "full.anynote");
+  await complete(s, await call("startExportArchiveFile", { path: full }));
+  const fullManifest = JSON.parse(
+    Buffer.from(unzipSync(readFileSync(full))["manifest.json"]),
+  );
+  assert.equal(fullManifest.includesHistory, true);
+  assert.equal(fullManifest.includesTrash, true);
+  assert.ok(fullManifest.assets.some((a) => a.sha256 === oldHash));
+  assert.ok(
+    fullManifest.requiredExtensions.data.some(
+      (r) => r.extensionId === "future.custom",
+    ),
+  );
+});
+
+test("open directory and ZIP preserve deep-tree links, case/name collisions, originals, sidecars and loss report", async (t) => {
+  const { root, s, book, call } = await fixture(t);
+  let parentId = null;
+  for (let i = 0; i < 12; i++)
+    parentId = (
+      await call("createNode", {
+        title: "超长中文目录".repeat(10),
+        kind: "folder",
+        parentId,
+      })
+    ).id;
+  const target = await call("createNode", { title: "CON. (目标)", parentId });
+  const a = await call("createNode", {
+    title: "same",
+    body: `[目标](anynote://notebook/${book.id}/note/${target.id}#段落)\n[外部](anynote://notebook/${randomUUID()}/note/${target.id})\n:::anynote{type="future.custom" version="7"}\n{}\n:::\n`,
+  });
+  const b = await call("createNode", { title: "SAME" });
+  for (const [id, title] of [
+    ["12345678-0000-4000-8000-000000000001", "Case"],
+    ["12345678-0000-4000-8000-000000000002", "case"],
+  ]) {
+    s.open(book.id)
+      .prepare(
+        "INSERT INTO nodes(id,kind,title,sort_key,created_at,updated_at) VALUES(?,'folder',?,0,0,0)",
+      )
+      .run(id, title);
+  }
+  const pdf = await call("importFile", {
+    name: "批注.pdf",
+    data: Buffer.from("%PDF-1.4\noriginal-pdf").toString("base64"),
+    mime: "application/pdf",
+  });
+  await call("addAnnotation", {
+    id: pdf.id,
+    page: 1,
+    selector: [{ x: 0, y: 0, width: 0.1, height: 0.1 }],
+    assetHash: s
+      .open(book.id)
+      .prepare("SELECT asset_hash FROM resources WHERE id=?")
+      .get(pdf.primary_resource_id).asset_hash,
+    quote: "quote",
+    body: "annotation",
+    color: "yellow",
+  });
+  const directory = join(root, "markdown");
+  await complete(
+    s,
+    await call("startExportMarkdownFile", {
+      path: directory,
+      format: "directory",
+    }),
+  );
+  const mapping = JSON.parse(readFileSync(join(directory, "EXPORT-MAP.json")));
+  const pathOf = (id) => mapping.nodes.find((n) => n.id === id).path;
+  assert.notEqual(pathOf(a.id).toLowerCase(), pathOf(b.id).toLowerCase());
+  assert.equal(
+    new Set(mapping.nodes.map((n) => n.path.normalize("NFC").toLowerCase()))
+      .size,
+    mapping.nodes.length,
+  );
+  assert.ok(
+    pathOf(target.id).startsWith("_long/") ||
+      pathOf(target.id).includes("_CON"),
+  );
+  for (const n of mapping.nodes) assert.ok(Buffer.byteLength(n.path) <= 220);
+  const body = readFileSync(join(directory, pathOf(a.id)), "utf8");
+  assert.ok(
+    body.includes(
+      pathOf(target.id)
+        .split("/")
+        .map((part) =>
+          encodeURIComponent(part).replace(
+            /[!'()*]/g,
+            (char) => "%" + char.charCodeAt(0).toString(16).toUpperCase(),
+          ),
+        )
+        .join("/") + "#段落",
+    ),
+  );
+  assert.ok(body.includes("future.custom"));
+  assert.equal(
+    readFileSync(join(directory, pathOf(pdf.id)), "utf8"),
+    "%PDF-1.4\noriginal-pdf",
+  );
+  assert.equal(
+    JSON.parse(
+      readFileSync(join(directory, pathOf(pdf.id) + ".annotations.json")),
+    )[0].body,
+    "annotation",
+  );
+  assert.match(
+    readFileSync(join(directory, "EXPORT-REPORT.txt"), "utf8"),
+    /future.custom@7/,
+  );
+  const file = join(root, "markdown.zip");
+  await complete(s, await call("startExportMarkdownFile", { path: file }));
+  const zipped = unzipSync(readFileSync(file));
+  assert.deepEqual(
+    Buffer.from(zipped[pathOf(pdf.id)]),
+    readFileSync(join(directory, pathOf(pdf.id))),
+  );
+  assert.ok(zipped["EXPORT-MAP.json"]);
+  const existing = await call("startExportMarkdownFile", {
+    path: directory,
+    format: "directory",
+  });
+  await s.jobs.get(existing.id).promise;
+  assert.equal(s.jobs.get(existing.id).status, "failed");
+  assert.equal(
+    readFileSync(join(directory, pathOf(pdf.id)), "utf8"),
+    "%PDF-1.4\noriginal-pdf",
+  );
+  assert.ok(!readdirSync(root).some((n) => n.endsWith(".partial")));
+});
+
+test(
+  "open export streams a current 112MiB original past the browser budget and cancels worker conversion cleanly",
+  { timeout: 60000 },
+  async (t) => {
+    const { root, s, book, call } = await fixture(t);
+    const file = join(root, "large.bin"),
+      fd = openSync(file, "w"),
+      chunk = Buffer.alloc(64 * 1024);
+    try {
+      for (let i = 0; i < 112 * 1024 ** 2; i += chunk.length) {
+        randomFillSync(chunk);
+        writeSync(fd, chunk);
+      }
+    } finally {
+      closeSync(fd);
+    }
+    const hash = putAssetFile(
+        s.open(book.id),
+        file,
+        "application/octet-stream",
+      ),
+      resource = randomUUID();
+    s.open(book.id)
+      .prepare("INSERT INTO resources VALUES(?,?,?,1)")
+      .run(resource, hash, "large.bin");
+    await call("createNode", {
+      title: "large",
+      body: `[大文件](anynote-resource:${resource})`,
+    });
+    const output = join(root, "large.zip");
+    await complete(s, await call("startExportMarkdownFile", { path: output }));
+    assert.ok(statSync(output).size > 100 * 1024 ** 2);
+    const { stageMarkdown } = await import(
+      "../.build/packages/storage-sqlite/open-export.js"
+    );
+    const staged = join(root, "bounded");
+    mkdirSync(staged);
+    const baseline = process.memoryUsage().arrayBuffers;
+    let peak = baseline;
+    await stageMarkdown(
+      s.open(book.id),
+      book.id,
+      staged,
+      new AbortController().signal,
+      () => {
+        peak = Math.max(peak, process.memoryUsage().arrayBuffers);
+      },
+    );
+    assert.ok(
+      peak - baseline < 48 * 1024 ** 2,
+      `stream buffer growth ${peak - baseline}`,
+    );
+    rmSync(staged, { recursive: true });
+    await assert.rejects(call("exportMarkdown"), /100MiB/);
+    const cancelled = await call("startExportMarkdownFile", {
+        path: join(root, "cancelled"),
+        format: "directory",
+      }),
+      job = s.jobs.get(cancelled.id);
+    for (
+      let i = 0;
+      i < 5000 &&
+      job.status === "running" &&
+      !job.progress.startsWith("转换 Markdown");
+      i++
+    )
+      await new Promise((r) => setTimeout(r, 1));
+    assert.equal(job.status, "running");
+    assert.ok(job.worker);
+    await s.run("cancelTask", { id: job.id });
+    await job.promise;
+    assert.equal(job.status, "cancelled");
+    assert.equal(existsSync(join(root, "cancelled")), false);
+    assert.equal(s.pins.has(book.id), false);
+    assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
+    assert.ok(!readdirSync(root).some((n) => n.endsWith(".partial")));
+  },
+);
+
+test("streamed whiteboard exports keep pinned image versions, raw scene, preview and original image", async (t) => {
+  const { root, s, call } = await fixture(t);
+  const { parseBlocks } = await import(
+    "../.build/packages/protocol/markdown.js"
+  );
+  const png =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
+  const note = await call("createNode", { title: "白板" }),
+    blockId = randomUUID();
+  const first = await call("saveWhiteboard", {
+    id: note.id,
+    expectedRevision: 1,
+    blockId,
+    scene: {
+      elements: [],
+      appState: {},
+      files: {
+        sample: {
+          dataURL: "data:image/png;base64," + png,
+          mimeType: "image/png",
+          created: 1,
+        },
+      },
+    },
+    preview: png,
+  });
+  const block = parseBlocks(first.body).find(
+    (b) => b.attrs?.type === "core.whiteboard",
+  );
+  const second = await call("saveWhiteboard", {
+    id: note.id,
+    expectedRevision: first.revision,
+    blockId,
+    ...block.data,
+    scene: { elements: [], appState: {}, files: {} },
+    preview: png,
+  });
+  await call("restoreRevision", {
+    id: note.id,
+    expectedRevision: second.revision,
+    revisionId: first.head_revision_id,
+  });
+  const file = join(root, "whiteboard.zip");
+  await complete(s, await call("startExportMarkdownFile", { path: file }));
+  const files = unzipSync(readFileSync(file));
+  const scene = JSON.parse(
+    Buffer.from(
+      Object.entries(files).find(([name]) =>
+        name.endsWith(".excalidraw.json"),
+      )[1],
+    ),
+  );
+  assert.equal(scene.files.sample.dataURL, "data:image/png;base64," + png);
+  assert.ok(Object.keys(files).some((name) => name.endsWith(".scene.json")));
+  assert.ok(Object.keys(files).some((name) => name.endsWith(".png")));
+  const body = Buffer.from(
+    Object.entries(files).find(([name]) => name.endsWith(".md"))[1],
+  ).toString();
+  assert.match(body, /!\[白板预览\]\(_assets\//);
+  assert.match(body, /\[白板场景\]\(_assets\//);
+  const archive = join(root, "whiteboard.anynote");
+  await complete(
+    s,
+    await call("startExportArchiveFile", { path: archive, currentOnly: true }),
+  );
+  const imported = await complete(
+    s,
+    await s.run("startImportArchiveFile", { path: archive }),
+  );
+  assert.equal(
+    (
+      await s.run("getWhiteboard", {
+        notebookId: imported.restoredId,
+        id: block.data.resourceId,
+        noteId: note.id,
+      })
+    ).files.sample.dataURL,
+    "data:image/png;base64," + png,
+  );
+});
+
+test("open export rejects malformed path IDs and cleans staging without writing outside its directory", async (t) => {
+  const { root, s, book, call } = await fixture(t);
+  const folder = await call("createNode", { title: "unsafe", kind: "folder" });
+  s.open(book.id)
+    .prepare("UPDATE nodes SET id=? WHERE id=?")
+    .run("../../escape", folder.id);
+  const result = await call("startExportMarkdownFile", {
+    path: join(root, "unsafe"),
+    format: "directory",
+  });
+  const job = s.jobs.get(result.id);
+  await job.promise;
+  assert.equal(job.status, "failed");
+  assert.match(job.error, /ID 无效/);
+  assert.equal(existsSync(join(root, "unsafe")), false);
+  assert.ok(!readdirSync(root).some((n) => n.endsWith(".partial")));
+});

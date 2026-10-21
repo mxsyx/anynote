@@ -1950,7 +1950,7 @@ export async function advancedOperations(
   if (op === "exportMarkdown") {
     const { exportMarkdown } = await import("./open-export.js");
     const p = z.object({ notebookId: uuid }).strict().parse(raw);
-    result = exportMarkdown(s, p.notebookId);
+    result = await exportMarkdown(s, p.notebookId);
   }
 
   if (["proposePatch", "applyProposal", "undoProposal"].includes(op)) {

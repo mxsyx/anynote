@@ -307,29 +307,71 @@ else {
           op = "registerNotebookDirectory";
           input = { path: selected.filePaths[0] };
         }
-        if (op === "exportArchiveFile") {
+        if (op === "exportArchiveFile" || op === "exportMarkdownFile") {
           if (
             !input ||
-            Object.keys(input).some((key) => key !== "notebookId") ||
+            Object.keys(input).some(
+              (key) =>
+                ![
+                  "notebookId",
+                  ...(op === "exportArchiveFile"
+                    ? ["currentOnly"]
+                    : ["format"]),
+                ].includes(key),
+            ) ||
+            (input.currentOnly !== undefined &&
+              typeof input.currentOnly !== "boolean") ||
+            (input.format !== undefined &&
+              (typeof input.format !== "string" ||
+                !["zip", "directory"].includes(input.format))) ||
             typeof input.notebookId !== "string" ||
             !/^[a-f0-9-]{36}$/.test(input.notebookId)
           )
             throw Error("导出请求无效");
-          const budget = (await callStore("archiveExportBudget", input)) as {
+          const budget = (await callStore("archiveExportBudget", {
+            notebookId: input.notebookId,
+            currentOnly:
+              op === "exportMarkdownFile" || input.currentOnly === true,
+          })) as {
             estimatedDestinationBytes: number;
           };
+          if (op === "exportMarkdownFile" && input.format === "directory") {
+            const selected = await dialog.showOpenDialog(win, {
+              title: "选择 Markdown 导出位置（将创建独立文件夹）",
+              properties: ["openDirectory", "createDirectory"],
+            });
+            if (selected.canceled || !selected.filePaths.length) return null;
+            return callStore("startExportMarkdownFile", {
+              notebookId: input.notebookId,
+              format: "directory",
+              path: path.join(
+                selected.filePaths[0],
+                `Notebook-${input.notebookId}-${Date.now()}`,
+              ),
+            });
+          }
+          const markdown = op === "exportMarkdownFile";
           const selected = await dialog.showSaveDialog(win, {
-            title: `导出 Notebook（预计 ${(budget.estimatedDestinationBytes / 1024 ** 2).toFixed(1)} MB 磁盘空间）`,
-            defaultPath: `Notebook-${input.notebookId}.anynote`,
-            filters: [{ name: "Anynote Notebook", extensions: ["anynote"] }],
+            title: `导出 ${markdown ? "Markdown ZIP" : input.currentOnly ? "当前内容" : "完整 Notebook"}（预计 ${(budget.estimatedDestinationBytes / 1024 ** 2).toFixed(1)} MB 磁盘空间）`,
+            defaultPath: `Notebook-${input.notebookId}.${markdown ? "zip" : "anynote"}`,
+            filters: [
+              {
+                name: markdown ? "Markdown ZIP" : "Anynote Notebook",
+                extensions: [markdown ? "zip" : "anynote"],
+              },
+            ],
             properties: ["showOverwriteConfirmation"],
           });
           if (selected.canceled || !selected.filePath) return null;
-          return callStore("startExportArchiveFile", {
-            notebookId: input.notebookId,
-            path: selected.filePath,
-            replaceExisting: true,
-          });
+          return callStore(
+            markdown ? "startExportMarkdownFile" : "startExportArchiveFile",
+            {
+              notebookId: input.notebookId,
+              path: selected.filePath,
+              replaceExisting: true,
+              currentOnly: input.currentOnly === true,
+            },
+          );
         }
         if (op === "importArchiveFile") {
           if (input && Object.keys(input).length)

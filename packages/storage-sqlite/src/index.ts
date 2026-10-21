@@ -1,3 +1,5 @@
+import { contentRequirements } from "./archive-content.js";
+import { entryLimits } from "@anynote/protocol/import-limits.js";
 import { closeImports } from "./import-state.js";
 import { snapshotDatabase } from "./database-snapshot.js";
 import {
@@ -1015,17 +1017,20 @@ export class Storage {
       [
         "archiveExportBudget",
         "startExportArchiveFile",
+        "startExportMarkdownFile",
         "startImportArchiveFile",
       ].includes(op)
     ) {
       const { archiveBudget, startArchiveJob } = await import(
         "./archive-jobs.js"
       );
-      if (op === "archiveExportBudget")
-        return archiveBudget(
-          this,
-          z.object({ notebookId: uuid }).strict().parse(raw).notebookId,
-        );
+      if (op === "archiveExportBudget") {
+        const p = z
+          .object({ notebookId: uuid, currentOnly: z.boolean().optional() })
+          .strict()
+          .parse(raw);
+        return archiveBudget(this, p.notebookId, p.currentOnly);
+      }
       return startArchiveJob(this, op, raw);
     }
 
@@ -1360,7 +1365,8 @@ export class Storage {
 
     if (op === "importFile") {
       const bytes = Buffer.from(p.data!, "base64");
-      if (bytes.length > 50 * 1024 * 1024) throw Error("文件超过 50MB 限制");
+      if (bytes.length > entryLimits.singleFileBytes)
+        throw Error("文件超过 50MiB 限制");
       const mime = p.mime;
       if (
         !(
@@ -1482,8 +1488,9 @@ export class Storage {
     try {
       const assets = await snapshotDatabase(db, tmp);
       const snap = new DatabaseSync(tmp, { readOnly: true });
-      let meta;
+      let meta, requiredExtensions;
       try {
+        requiredExtensions = contentRequirements(snap);
         meta = snap.prepare("SELECT * FROM notebook_meta").get()!;
         verifyAssets(snap);
       } finally {
@@ -1493,9 +1500,9 @@ export class Storage {
       const files: Record<string, Uint8Array> = { "notebook.sqlite": bytes };
       if (
         bytes.length + assets.reduce((n, a) => n + a.size, 0) >
-        100 * 1024 * 1024
+        entryLimits.legacyArchiveBytes
       )
-        throw Error("当前导出包上限为 100MB");
+        throw Error("当前导出包上限为 100MiB");
       for (const asset of assets)
         files[asset.path] = readFileSync(join(workspace.dir, asset.path));
       files["manifest.json"] = Buffer.from(
@@ -1516,6 +1523,8 @@ export class Storage {
           assets,
           includesHistory: true,
           includesTrash: true,
+          includesExtensionState: true,
+          requiredExtensions,
         }),
       );
       return Buffer.from(zipSync(files, { level: 6 }));
@@ -1537,7 +1546,8 @@ export class Storage {
    */
   async importArchive(data: string) {
     const bytes = Buffer.from(data || "", "base64");
-    if (bytes.length > 100 * 1024 * 1024) throw Error("导入包超过 100MB");
+    if (bytes.length > entryLimits.legacyArchiveBytes)
+      throw Error("导入包超过 100MiB");
     let total = 0;
     const seen = new Set();
     const files = unzipSync(bytes, {
@@ -1554,7 +1564,7 @@ export class Storage {
           throw Error("导入包包含不安全路径或重复文件");
         seen.add(f.name);
         total += f.originalSize;
-        if (total > 100 * 1024 * 1024 || seen.size > 10000)
+        if (total > entryLimits.legacyArchiveBytes || seen.size > 10000)
           throw Error("导入包解压预算超限");
         return true;
       },

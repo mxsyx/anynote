@@ -18,9 +18,9 @@ const browser = desktop
     });
 if (desktop)
   app = await _electron.launch({
-    executablePath: resolve(
-      process.env.ANYNOTE_EXECUTABLE || "node_modules/electron/dist/electron",
-    ),
+    executablePath: process.env.ANYNOTE_EXECUTABLE
+      ? resolve(process.env.ANYNOTE_EXECUTABLE)
+      : undefined,
     args: process.env.ANYNOTE_EXECUTABLE
       ? ["--no-sandbox"]
       : ["--no-sandbox", "."],
@@ -109,8 +109,9 @@ try {
   )
     await page.getByRole("button", { name: f.title, exact: true }).click();
   await page.getByRole("button", { name: n.title, exact: true }).click();
-  await page.getByRole("button", { name: "源码", exact: true }).click();
-  await page.locator(".cm-content").fill("跨库前未保存的最新草稿");
+  await page
+    .locator(".tiptap[contenteditable=true]")
+    .fill("跨库前未保存的最新草稿");
   await page.getByRole("button", { name: "更多操作", exact: true }).click();
   await page
     .getByRole("button", { name: "移动到其他 Notebook", exact: true })

@@ -20,11 +20,14 @@ export async function snapshotDatabase(
   source: SqlDatabase,
   destination: string,
   signal?: AbortSignal,
+  prepare?: (file: string) => Promise<unknown>,
 ) {
   signal?.throwIfAborted();
   await backup(source, destination, {
     progress: () => signal?.throwIfAborted(),
   });
+  signal?.throwIfAborted();
+  await prepare?.(destination);
   signal?.throwIfAborted();
   const sourceRoot = await realpath(
     dirname(

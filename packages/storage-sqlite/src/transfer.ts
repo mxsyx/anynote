@@ -1,3 +1,4 @@
+import { entryLimits } from "@anynote/protocol/import-limits.js";
 import { putAsset, readAsset } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -61,7 +62,8 @@ function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
     ids.add(node!.id);
     nodes.push(node);
     queue.push(...(children.get(node!.id) || []));
-    if (nodes.length > 10000) throw Error("单次跨库操作最多 10000 个条目");
+    if (nodes.length > entryLimits.transferNodes)
+      throw Error("单次跨库操作最多 10000 个条目");
   }
   const notes = rows(db, "notes").filter((row) => ids.has(row.node_id));
   const noteIds = new Set(notes.map((row) => row.node_id));
@@ -112,8 +114,10 @@ function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
     metadata,
     reports,
   };
-  if (Buffer.byteLength(JSON.stringify(result)) > 100 * 1024 * 1024)
-    throw Error("跨库记录超过 100MB 预算");
+  if (
+    Buffer.byteLength(JSON.stringify(result)) > entryLimits.transferRecordBytes
+  )
+    throw Error("跨库记录超过 100MiB 预算");
   return result;
 }
 
@@ -266,14 +270,16 @@ export function transferNode(s: Storage, raw: unknown) {
       // Asset bytes are prepared before the target transaction. Any failure leaves the source knowledge intact;
       // the target commits both bytes and references atomically.
       for (const asset of data.assets) {
+        if (budget + asset.size > entryLimits.transferAssetBytes)
+          throw Error("单次跨库附件超过 100MiB 预算");
         let bytes = readAsset(source, asset.hash);
         if (bytes.length !== asset.size || digest(bytes) !== asset.hash)
           throw Error("源附件大小或 SHA-256 校验失败");
         if (asset.mime === "application/vnd.anynote.whiteboard+json")
           bytes = Buffer.from(rewrite(bytes.toString("utf8")));
         budget += bytes.length;
-        if (budget > 100 * 1024 * 1024)
-          throw Error("单次跨库附件超过 100MB 预算");
+        if (budget > entryLimits.transferAssetBytes)
+          throw Error("单次跨库附件超过 100MiB 预算");
         const hash = digest(bytes);
         hashMap.set(asset.hash, hash);
         preparedAssets.push({

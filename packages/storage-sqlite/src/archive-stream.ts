@@ -1,3 +1,4 @@
+import { entryLimits } from "@anynote/protocol/import-limits.js";
 import { assertAssets, assetPath } from "@anynote/protocol/assets.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -24,7 +25,7 @@ import type { ArchiveProgress } from "@anynote/types/runtime.js";
 
 /** Archive size, entry, and manifest budgets. */
 export const limits = {
-  bytes: 20 * 1024 ** 3,
+  bytes: entryLimits.streamingBytes,
   entries: 100002,
   manifest: 16 * 1024 ** 2,
   containerBytes: 0,
@@ -69,6 +70,20 @@ export const manifestSchema = z.object({
   formatVersion: z.literal(1),
   schemaVersion: z.literal(4),
   notebookId: z.string().uuid(),
+  includesHistory: z.boolean().optional(),
+  includesTrash: z.boolean().optional(),
+  includesExtensionState: z.boolean().optional(),
+  requiredExtensions: z
+    .object({
+      blocks: z.array(z.object({ type: z.string(), version: z.string() })),
+      data: z.array(
+        z.object({
+          extensionId: z.string(),
+          schemaVersion: z.number().int().positive(),
+        }),
+      ),
+    })
+    .optional(),
   database: z.object({
     path: z.literal("notebook.sqlite"),
     size,
@@ -179,28 +194,58 @@ export async function writeArchive(
   file: string,
   manifest: unknown,
   resolveFile: (path: string) => string,
+  options: ZipOptions = {},
+) {
+  const descriptors = manifestSchema.parse(manifest);
+  assertAssets(descriptors.assets);
+  const metadata = Buffer.from(JSON.stringify(manifest));
+  if (metadata.length > limits.manifest) throw Error("清单超过 16MiB");
+  const declared = [descriptors.database, ...descriptors.assets];
+  if (declared.some((entry) => !validEntry(entry.path)))
+    throw Error("不安全的归档路径");
+  return writeZip(file, declared, resolveFile, options, metadata);
+}
+
+type ZipOptions = {
+  signal?: AbortSignal;
+  onProgress?: ArchiveProgress;
+  forceZip64?: boolean;
+  replaceExisting?: boolean;
+};
+
+export type ExportEntry = {
+  path: string;
+  size: number;
+  sha256: string;
+  directory?: boolean;
+};
+
+/** Shared bounded ZIP writer. Callers supply verified, privately staged files. */
+export async function writeZip(
+  file: string,
+  declared: ExportEntry[],
+  resolveFile: (path: string) => string,
   {
     signal,
     onProgress = () => {},
     forceZip64 = false,
     replaceExisting = false,
-  }: {
-    signal?: AbortSignal;
-    onProgress?: ArchiveProgress;
-    forceZip64?: boolean;
-    replaceExisting?: boolean;
-  } = {},
+  }: ZipOptions = {},
+  metadata?: Buffer,
 ) {
   check(signal);
-  const descriptors = manifestSchema.parse(manifest);
-  const declared = [descriptors.database, ...descriptors.assets];
-  assertAssets(descriptors.assets);
-  const total = declared.reduce((sum, item) => sum + item.size, 0);
+  const total = declared.reduce(
+    (sum, item) => sum + item.size,
+    metadata?.length || 0,
+  );
   if (
+    !Number.isSafeInteger(total) ||
     total > limits.bytes ||
-    new Set(declared.map((item) => item.path)).size !== declared.length
+    declared.length + Number(!!metadata) > limits.entries ||
+    new Set(declared.map((item) => item.path.normalize("NFC").toLowerCase()))
+      .size !== declared.length
   )
-    throw Error("归档大小超限或清单包含重复项");
+    throw Error("导出大小、条目数超限或包含重复项");
   const existing = (() => {
     try {
       return lstatSync(file);
@@ -238,11 +283,20 @@ export async function writeArchive(
   // Attach the handler immediately to avoid an unhandled rejection if initialization fails.
   promise.catch(() => {});
   try {
-    const metadata = Buffer.from(JSON.stringify(manifest));
-    if (metadata.length > limits.manifest) throw Error("清单超过 16MB");
-    zip.addBuffer(metadata, "manifest.json");
-    for (const entry of [descriptors.database, ...descriptors.assets]) {
-      if (!validEntry(entry.path)) throw Error("不安全的归档路径");
+    if (metadata) zip.addBuffer(metadata, "manifest.json");
+    for (const entry of declared) {
+      if (
+        entry.path.includes("\\") ||
+        entry.path
+          .split("/")
+          .some((part) => !part || part === "." || part === "..") ||
+        /^[a-z]:/i.test(entry.path)
+      )
+        throw Error("不安全的导出路径");
+      if (entry.directory) {
+        zip.addEmptyDirectory(entry.path);
+        continue;
+      }
       zip.addReadStreamLazy(
         entry.path,
         { size: entry.size, compress: true, forceZip64Format: forceZip64 },

@@ -1,3 +1,7 @@
+import {
+  entryBudgetHint,
+  entryLimits,
+} from "@anynote/protocol/import-limits.js";
 import { ViewState } from "./components/ui/view-state";
 import { loadWhiteboard } from "./whiteboard-assets";
 import { observeBackupEnvironment } from "./backup-environment";
@@ -1110,12 +1114,13 @@ function App() {
     });
   };
   /** Export the full Notebook archive (desktop uses a file dialog, browser downloads directly). */
-  const exportBook = () =>
+  const exportBook = (currentOnly = false) =>
     task(async () => {
       if (!book) return;
       if (window.anynote) {
         const job = await request<{ id: string } | null>("exportArchiveFile", {
           notebookId: book.id,
+          currentOnly,
         });
         if (job) setTasksOpen(true);
         return;
@@ -1147,7 +1152,8 @@ function App() {
     const picked = Array.from(files || []);
     await task(async () => {
       for (const file of picked) {
-        if (file.size > 50 * 1024 * 1024) throw Error("图片超过50MB");
+        if (file.size > entryLimits.singleFileBytes)
+          throw Error("图片超过50MiB");
         const n = current.current;
         if (!n || !bookRef.current) return;
         const saved = await request<NoteNode>("addResource", {
@@ -1173,7 +1179,8 @@ function App() {
     const picked = Array.from(files);
     await task(async () => {
       for (const file of picked) {
-        if (file.size > 50 * 1024 * 1024) throw Error("单文件不能超过 50MB");
+        if (file.size > entryLimits.singleFileBytes)
+          throw Error("单文件不能超过 50MiB");
         let n: NoteNode;
         if (/\.(md|txt)$/i.test(file.name)) {
           n = await request("createNode", {
@@ -1215,8 +1222,8 @@ function App() {
   const importArchive = async (file: File | undefined) => {
     if (!file) return;
     await task(async () => {
-      if (file.size > 100 * 1024 * 1024)
-        throw Error("当前导入包不能超过 100MB");
+      if (file.size > entryLimits.legacyArchiveBytes)
+        throw Error("当前导入包不能超过 100MiB");
       const r = await request<{ id: string }>("importArchive", {
           data: await base64(file),
         }),
@@ -2627,10 +2634,17 @@ function App() {
                       </Button>
                     </div>
                   ))}
-                <div className="setting-row">
+                <div className="setting-row export-settings">
                   <div>
                     <h3>数据迁移</h3>
-                    <p>导出包含历史与回收站，不包含设备凭据。</p>
+                    <p>
+                      完整归档包含历史、回收站与扩展状态；仅当前内容不含这些数据。源
+                      Notebook 保持不变。
+                    </p>
+                    <details>
+                      <summary>各入口大小限制</summary>
+                      <p>{entryBudgetHint}</p>
+                    </details>
                   </div>
                   <Button
                     variant="ghost"
@@ -2646,6 +2660,14 @@ function App() {
                     className="secondary"
                     onClick={() =>
                       void task(async () => {
+                        if (window.anynote) {
+                          const job = await request("exportMarkdownFile", {
+                            notebookId: book?.id,
+                            format: "zip",
+                          });
+                          if (job) setTasksOpen(true);
+                          return;
+                        }
                         const r = await request<{ data: string; name: string }>(
                           "exportMarkdown",
                           { notebookId: book?.id },
@@ -2655,8 +2677,36 @@ function App() {
                       })
                     }
                   >
-                    导出 Markdown 文件夹
+                    导出 Markdown ZIP
                   </Button>
+                  {window.anynote && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="secondary"
+                        onClick={() => void exportBook(true)}
+                      >
+                        导出仅当前内容
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="secondary"
+                        onClick={() =>
+                          void task(async () => {
+                            const job = await request("exportMarkdownFile", {
+                              notebookId: book?.id,
+                              format: "directory",
+                            });
+                            if (job) setTasksOpen(true);
+                          })
+                        }
+                      >
+                        导出 Markdown 文件夹
+                      </Button>
+                    </>
+                  )}
                 </div>
                 <div className="about">
                   <div className="brand-mark">

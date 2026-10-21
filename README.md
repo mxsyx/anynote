@@ -55,7 +55,7 @@ pnpm run dev
 - 图片阅读：缩放/适应窗口/实际尺寸、顺时针 90° 视图旋转、EXIF 与尺寸信息、说明（写入正文与历史）与区域批注；缩放/适应/旋转按笔记恢复。视图旋转只改预览，旋转编辑经 `saveImageVersion` 另存为新的不可变资源版本。
 - 图片原件（PNG/JPEG/WebP/SVG）、SHA-256 内容寻址、不可变正文及标题/标签/收藏历史、本地一致性快照；写入时校验像素/边长预算，大图按分辨率分级有界解码，SVG 预览先清洗再栅格化，原文件照常保存。
 - 快照保留数量/天数与本地孤立资源清理：先预览、再确认，保护历史及回收站引用，执行前复查候选文件。
-- 桌面完整 `.anynote` 流式 ZIP/ZIP64 导入/导出，支持磁盘预算、后台进度和取消；包含历史、回收站、批注、资源和扩展状态；开放 Markdown 文件夹 ZIP 导出，白板导出可携带图片的 Excalidraw 场景，批注为 JSON sidecar。
+- 桌面完整 `.anynote` 流式 ZIP/ZIP64 导入/导出，支持磁盘预算、后台进度和取消；包含历史、回收站、批注、资源和扩展状态；新增仅当前内容归档（只裁剪导出快照）；桌面开放 Markdown 目录/ZIP 流式导出可取消，包含白板原场景、可携带图片的 Excalidraw 场景、批注 sidecar、路径映射和能力损失报告。
 - Cloudflare Worker + D1 + R2 自托管分块备份：SQLite 块去重、staging/committed、分支 CAS、幂等提交与完整快照清单，恢复后创建新 Notebook。
 - 云盘备份（官方扩展）：Google Drive、Dropbox 与 OneDrive 均已完成备份与恢复闭环（Dropbox 使用 App Folder、分块 `content_hash`、`upload session` 与 rev 冲突处理；OneDrive 使用应用目录 `Files.ReadWrite.AppFolder`、`driveId`+`itemId` 定位与 `createUploadSession` 分片上传）。核心提供备份中心、账号授权、任务调度、一致性捕获、凭据保护与恢复验证；厂商 API 适配下沉到独立官方扩展。连接账号使用系统浏览器 Authorization Code + PKCE，凭据经系统安全存储保存；每设备独立备份槽，只保留当前完整副本。
 - Cloudflare 远端维护：按版本数及 UTC 日/周/月采样预览并确认清理，保护全部分支、上传中版本与恢复 pin；设备接管撤销旧 epoch，支持恢复副本接续远端分支。详见 [远端维护](./docs/REMOTE-MAINTENANCE.md)。
@@ -88,7 +88,7 @@ Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./a
 
 每库使用 `notebook.sqlite` 保存正文、历史和元数据（schema v4），附件保存为 `assets/sha256/<前两位>/<SHA256>.bin` 不可变文件。数据库按 1MiB 分块增量备份，附件按文件哈希增量备份，统一清单提交与恢复。迁移 Notebook 需携带整个目录；设备快照与凭据留在 `_local/`。不兼容旧 BLOB schema 与旧备份格式；详细契约见 [存储与备份设计](./docs/SQLITE-STORAGE.md)。
 
-单文件导入上限 50MB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB，包含清单、数据库和全部引用附件；浏览器/base64 归档 API和本地快照仍为 100MB；正式云备份恢复采用 1MiB 数据库分块与附件整文件增量、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 与媒体预算可在导入时配置，具体以导入预览为准。Cloudflare 单次缓冲上传上限 20MiB，大附件使用 multipart 传输，仍保存为完整文件。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。第三方已支持声明式贡献、QuickJS/WASM 受限脚本、签名包与审核更新；通用第三方 Node/React 宿主、任意 Markdown 无损往返、桌面应用签名更新及跨平台发行验收仍未完成。连续编辑器保留未修改块原文，修改块会规范化；复杂语法与未知扩展显示为保留块，不提供源码模式切换。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
+单文件导入上限 50 MiB；桌面完整归档采用流式 ZIP/ZIP64，解压总量预算 20GiB，包含清单、数据库和全部引用附件；桌面开放 Markdown 导出的转换后总量同样限制 20 GiB；浏览器/base64 归档 API、本地快照与浏览器 Markdown 导出仍为 100 MiB；跨库转移为 10000 条目、记录和附件各 100 MiB；正式云备份恢复采用 1MiB 数据库分块与附件整文件增量、20GiB 总量预算，详见 [大文件云备份](./docs/STREAMING-CLOUD-BACKUP.md)；HTML 与媒体预算可在导入时配置，具体以导入预览为准。Cloudflare 单次缓冲上传上限 20MiB，大附件使用 multipart 传输，仍保存为完整文件。桌面归档细节和测试见 [流式归档](./docs/STREAMING-ARCHIVE.md)。第三方已支持声明式贡献、QuickJS/WASM 受限脚本、签名包与审核更新；通用第三方 Node/React 宿主、任意 Markdown 无损往返、桌面应用签名更新及跨平台发行验收仍未完成。连续编辑器保留未修改块原文，修改块会规范化；复杂语法与未知扩展显示为保留块，不提供源码模式切换。新历史可恢复正文、资源和标题/标签/收藏；旧历史缺少元数据时保留当前值，目录位置不回滚。本地清理不删除仍登记在数据库中的资源。
 
 ## 验证与打包
 

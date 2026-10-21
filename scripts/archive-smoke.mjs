@@ -1,3 +1,4 @@
+import { unzipSync } from "fflate";
 import { putAssetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { _electron } from "playwright";
@@ -11,10 +12,12 @@ import {
   closeSync,
   statSync,
   writeFileSync,
+  readFileSync,
+  readdirSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash, randomFillSync } from "node:crypto";
+import { createHash, randomFillSync, randomUUID } from "node:crypto";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 const root = mkdtempSync(join(tmpdir(), "anynote-archive-desktop-")),
   archive = join(root, "desktop.anynote");
@@ -57,6 +60,15 @@ try {
   const hash = putAssetFile(s.open(book.id), temp, "application/octet-stream");
   assert.equal(hash, digest.digest("hex"));
   rmSync(temp);
+  const resourceId = randomUUID();
+  s.open(book.id)
+    .prepare("INSERT INTO resources VALUES(?,?,?,1)")
+    .run(resourceId, hash, "large.bin");
+  await s.run("createNode", {
+    notebookId: book.id,
+    title: "大附件",
+    body: `[附件](anynote-resource:${resourceId})`,
+  });
   s.close();
   app = await _electron.launch({
     executablePath: process.env.ANYNOTE_EXECUTABLE
@@ -110,9 +122,11 @@ try {
   let dialog = page.getByRole("dialog", { name: "任务中心" });
   await dialog.waitFor();
   await dialog.getByText("Notebook 归档导出", { exact: true }).waitFor();
-  const wait = async (type) => {
+  const wait = async (type, id) => {
     for (let n = 0; n < 600; n++) {
-      const j = (await rpc("listTasks")).find((j) => j.type === type);
+      const j = (await rpc("listTasks")).find(
+        (j) => j.type === type && (!id || j.id === id),
+      );
       if (j && ["completed", "failed", "cancelled"].includes(j.status)) {
         assert.equal(j.status, "completed", j.error);
         return j;
@@ -127,6 +141,92 @@ try {
   await dialog
     .getByText("完整 Notebook 已导出，包含历史与回收站", { exact: true })
     .waitFor();
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  await assert.rejects(
+    rpc("exportMarkdownFile", { notebookId: book.id, path: archive }),
+    /请求无效/,
+  );
+  await assert.rejects(
+    rpc("startExportMarkdownFile", { notebookId: book.id, path: archive }),
+    /未授权/,
+  );
+  await app.evaluate(({ Menu }) =>
+    Menu.getApplicationMenu().getMenuItemById("settings").click(),
+  );
+  await page
+    .getByRole("button", { name: "导出仅当前内容", exact: true })
+    .waitFor();
+  await page.getByText("各入口大小限制", { exact: true }).click();
+  await page.getByText(/普通单文件导入 50 MiB/).waitFor();
+  mkdirSync("test-results", { recursive: true });
+  await page.locator(".export-settings").scrollIntoViewIfNeeded();
+  await page
+    .locator(".export-settings")
+    .screenshot({ path: "test-results/g16-export-settings.png" });
+  const currentFile = join(root, "current.anynote");
+  await app.evaluate(({ dialog }, file) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+  }, currentFile);
+  await page
+    .getByRole("button", { name: "导出仅当前内容", exact: true })
+    .click();
+  dialog = page.getByRole("dialog", { name: "任务中心" });
+  await dialog.waitFor();
+  const currentJob = (await rpc("listTasks"))
+    .filter((j) => j.type === "archive-export")
+    .at(-1);
+  await wait("archive-export", currentJob.id);
+  const currentManifest = JSON.parse(
+    Buffer.from(unzipSync(readFileSync(currentFile))["manifest.json"]),
+  );
+  assert.equal(currentManifest.includesHistory, false);
+  assert.equal(currentManifest.includesTrash, false);
+  assert.equal(
+    (await rpc("history", { notebookId: book.id, id: note.id })).length,
+    2,
+  );
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  const markdownFile = join(root, "markdown.zip");
+  await app.evaluate(({ dialog }, file) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+  }, markdownFile);
+  await page
+    .getByRole("button", { name: "导出 Markdown ZIP", exact: true })
+    .click();
+  await dialog.waitFor();
+  await wait("archive-markdown");
+  assert.ok(statSync(markdownFile).size > 100 * 1024 ** 2);
+  await dialog.getByText("Markdown 开放导出", { exact: true }).waitFor();
+  await dialog
+    .getByText(
+      "Markdown 已导出；目录映射与能力损失见 EXPORT-MAP.json / EXPORT-REPORT.txt",
+      { exact: true },
+    )
+    .waitFor();
+  await page.screenshot({
+    path: "test-results/g16-export-task.png",
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  await app.evaluate(({ dialog }, dir) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] });
+  }, root);
+  await page
+    .getByRole("button", { name: "导出 Markdown 文件夹", exact: true })
+    .click();
+  await dialog.waitFor();
+  const directoryJob = (await rpc("listTasks"))
+    .filter((j) => j.type === "archive-markdown")
+    .at(-1);
+  await wait("archive-markdown", directoryJob.id);
+  const directory = readdirSync(root).find((name) =>
+    name.startsWith("Notebook-"),
+  );
+  assert.ok(
+    readFileSync(join(root, directory, "EXPORT-REPORT.txt"), "utf8").includes(
+      "future.custom@99",
+    ),
+  );
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
   await app.evaluate(({ dialog }, file) => {
     dialog.showOpenDialog = async () => ({
@@ -185,6 +285,10 @@ try {
           "native-dialog-cancel",
           "UI-export-over-100MB",
           "task-center-budget-and-completion",
+          "UI-current-only-source-unchanged",
+          "UI-Markdown-ZIP-over-100MiB",
+          "UI-Markdown-directory-report",
+          "entry-budget-hint",
           "UI-stream-import",
           "unknown-block-tags-favorite-history-trash",
           "open-imported-notebook",

@@ -4,6 +4,7 @@ import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import {
   importBudget,
+  entryBudgetHint,
   type ImportBudget,
 } from "@anynote/protocol/import-limits.js";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
@@ -465,6 +466,7 @@ export default function ImportDialog({
           <>
             <details>
               <summary>导入预算</summary>
+              <p>{entryBudgetHint}</p>
               <div className="import-budget">
                 {(
                   [

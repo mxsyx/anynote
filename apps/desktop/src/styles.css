@@ -1105,6 +1105,18 @@
   padding: 24px 0;
   border-bottom: 1px solid var(--border);
 }
+.export-settings {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.export-settings > div {
+  flex-basis: 100%;
+}
+.export-settings button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .about {
   padding: 50px 0 0;
   text-align: center;

@@ -1,3 +1,4 @@
+import { entryLimits } from "@anynote/protocol/import-limits.js";
 import { Button } from "./components/ui/button";
 import { NativeSelect } from "./components/ui/native-select";
 import React, { useEffect, useState } from "react";
@@ -116,6 +117,11 @@ export default function NotebookTransferDialog({
           ”及其子项会保留历史、附件和批注。副本中的内部链接将指向目标库。
           {mode === "move" ? "复制成功后，源条目移入回收站。" : ""}
         </p>
+        <p>
+          单次最多 {entryLimits.transferNodes} 个条目，结构记录与附件各{" "}
+          {entryLimits.transferAssetBytes / 1024 ** 2} MiB；不适用流式归档的 20
+          GiB 预算。
+        </p>
         <label>
           目标 Notebook
           <NativeSelect
@@ -149,10 +155,7 @@ export default function NotebookTransferDialog({
         {!targets.length && (
           <p role="status">请先创建或打开另一个 Notebook。</p>
         )}
-        <p>
-          Notebook 级别的扩展设置不随条目复制。单次支持最多 10000 个条目和 100MB
-          附件。
-        </p>
+        <p>Notebook 级别的扩展设置不随条目复制。</p>
         {error && (
           <p role="alert">
             {error}

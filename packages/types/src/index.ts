@@ -151,6 +151,7 @@ export type Operation =
   | "exportArchive"
   | "archiveExportBudget"
   | "exportArchiveFile"
+  | "exportMarkdownFile"
   | "importArchiveFile"
   | "snapshot"
   | "listSnapshots"
