@@ -22,12 +22,13 @@ export const simpleUploadLimit = 4 * 1024 * 1024;
 
 /** Metadata fields to read back; `eTag` is used for conditional writes and conflict detection. */
 const selectFields =
-  "id,name,size,folder,file,eTag,cTag,parentReference,lastModifiedDateTime";
+  "id,name,size,folder,file,eTag,cTag,parentReference,lastModifiedDateTime,webUrl";
 
 /** Slim projection of a Graph file/folder. */
 export interface GraphItem {
   id: string;
   name?: string;
+  webUrl?: string;
   size?: number;
   eTag?: string;
   cTag?: string;

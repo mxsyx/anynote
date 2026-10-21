@@ -66,6 +66,7 @@ export const environmentSchema = z
   .object({
     onBattery: z.boolean().optional(),
     metered: z.boolean().optional(),
+    online: z.boolean().optional(),
     reportedAt: z.number().int().nonnegative().optional(),
   })
   .strict();
@@ -84,6 +85,7 @@ export type PauseReason =
   | "auth"
   | "permanent"
   | "exhausted"
+  | "offline"
   | "battery"
   | "metered"
   | "large-task";
@@ -325,7 +327,9 @@ export function environmentPause(
   policy: Policy,
   environment: EnvironmentState | undefined,
   taskBytes?: number,
+  network = false,
 ): PauseReason | undefined {
+  if (network && environment?.online === false) return "offline";
   if (policy.pause.onBattery && environment?.onBattery) return "battery";
   if (policy.pause.onMeteredNetwork && environment?.metered) return "metered";
   if (
@@ -369,6 +373,10 @@ export function isStickyPause(reason: string | null | undefined): boolean {
   return !!reason && stickyPauses.includes(reason as PauseReason);
 }
 
+// Environment observations belong to the running host. Persisting them can leave
+// a restarted app stuck on yesterday's offline or metered connection.
+const environments = new WeakMap<Storage, EnvironmentState>();
+
 /** Persisted policy file content. */
 const fileSchema = z
   .object({ policy: policySchema, environment: environmentSchema })
@@ -400,10 +408,13 @@ export function readPolicy(s: Storage): {
   try {
     if (existsSync(p)) {
       const parsed = fileSchema.parse(JSON.parse(readFileSync(p, "utf8")));
-      return parsed;
+      return { policy: parsed.policy, environment: environments.get(s) ?? {} };
     }
   } catch {}
-  return { policy: policySchema.parse({}), environment: {} };
+  return {
+    policy: policySchema.parse({}),
+    environment: environments.get(s) ?? {},
+  };
 }
 
 /**
@@ -416,7 +427,7 @@ function writePolicy(
   s: Storage,
   value: { policy: Policy; environment: EnvironmentState },
 ) {
-  const validated = fileSchema.parse(value),
+  const validated = fileSchema.parse({ ...value, environment: {} }),
     p = file(s);
   mkdirSync(join(p, ".."), { recursive: true });
   writeFileSync(p + ".tmp", JSON.stringify(validated), {
@@ -469,6 +480,7 @@ export function policyOperation(s: Storage, op: string, raw: unknown) {
       .object({
         onBattery: z.boolean().optional(),
         metered: z.boolean().optional(),
+        online: z.boolean().optional(),
       })
       .strict()
       .parse(raw);
@@ -478,7 +490,7 @@ export function policyOperation(s: Storage, op: string, raw: unknown) {
         ...p,
         reportedAt: Date.now(),
       });
-    writePolicy(s, { policy: current.policy, environment });
+    environments.set(s, environment);
     return { handled: true, result: environment };
   }
   return { handled: false };

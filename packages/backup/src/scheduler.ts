@@ -127,7 +127,7 @@ export function startBackupScheduler(
         )
           continue;
         if (isStickyPause(target.pausedReason)) continue;
-        const pause = environmentPause(policy, env, target.lastTaskBytes);
+        const pause = environmentPause(policy, env, target.lastTaskBytes, true);
         if (pause) {
           if (target.pausedReason !== pause)
             await setRemotePause(target, pause);

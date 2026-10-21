@@ -25,6 +25,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anynote/backup": "workspace:*",
     "@anynote/backup-dropbox": "workspace:*",
     "@anynote/backup-google-drive": "workspace:*",
     "@anynote/backup-onedrive": "workspace:*",

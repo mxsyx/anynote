@@ -324,6 +324,13 @@ export const googleDriveProvider: CloudBackupProvider = {
     };
   },
 
+  async folderLink(target) {
+    if (!target.notebookRef) throw Error("尚未创建云盘目录，请先配置目标");
+    return {
+      url: `https://drive.google.com/drive/folders/${encodeURIComponent(target.notebookRef)}`,
+    };
+  },
+
   async ensureTarget(
     input: TargetInput,
     ctx: BackupHostContext,

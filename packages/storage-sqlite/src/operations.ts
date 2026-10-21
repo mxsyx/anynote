@@ -642,6 +642,9 @@ export async function advancedOperations(
   // Cloud backup (design §3.1): a third backup target family alongside Cloudflare and local targets.
   if (
     [
+      "getCloudSettings",
+      "setCloudClientId",
+      "openCloudFolder",
       "listCloudProviders",
       "listCloudAccounts",
       "beginCloudAuthorization",

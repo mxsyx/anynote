@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  net,
   powerMonitor,
   safeStorage,
   shell,
@@ -140,12 +141,17 @@ else {
       store.postMessage({
         type: "environment",
         onBattery: powerMonitor.isOnBatteryPower(),
+        online: net.isOnline(),
       });
     powerMonitor.on("on-battery", reportPower);
     powerMonitor.on("on-ac", reportPower);
     // The storage process may not be listening yet, so send the initial state
     // again shortly after startup.
     setTimeout(reportPower, 2000).unref?.();
+    const environmentTimer = setInterval(reportPower, 30_000);
+    environmentTimer.unref?.();
+    powerMonitor.on("resume", reportPower);
+    app.once("before-quit", () => clearInterval(environmentTimer));
 
     /**
      * Send a request to the storage process and wait for the response (with a timeout).

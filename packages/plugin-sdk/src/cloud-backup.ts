@@ -17,6 +17,9 @@ export function createCloudBackupAPI(transport: Transport): CloudBackupAPI {
   const task = (op: string, input: object) => call<{ id: string }>(op, input);
 
   return Object.freeze({
+    getSettings: (input = {}) => call("getCloudSettings", input),
+    setClientId: (input) => call("setCloudClientId", input),
+    openFolder: (input) => call("openCloudFolder", input),
     listProviders: (input = {}) => call("listCloudProviders", input),
     listAccounts: (input = {}) => call("listCloudAccounts", input),
     beginAuthorization: (input) => call("beginCloudAuthorization", input),

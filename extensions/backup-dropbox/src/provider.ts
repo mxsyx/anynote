@@ -329,6 +329,15 @@ export const dropboxProvider: CloudBackupProvider = {
     };
   },
 
+  async folderLink(target) {
+    // Dropbox app-scoped paths omit the user-visible app folder name. Do not
+    // manufacture a deep link that may point to another folder in the account.
+    return {
+      url: "https://www.dropbox.com/home/Apps",
+      detail: `请在 Apps 中打开授权应用目录，再进入 ${target.notebookRef ?? "AnynoteBackup"}。请确认浏览器登录的是备份账号。`,
+    };
+  },
+
   async ensureTarget(
     input: TargetInput,
     ctx: BackupHostContext,

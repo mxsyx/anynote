@@ -38,6 +38,7 @@ export interface EnvironmentReport {
   type: "environment";
   /** Whether the device is currently running on battery power. */
   onBattery: boolean;
+  online: boolean;
 }
 
 /**

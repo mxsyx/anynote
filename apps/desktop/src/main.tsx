@@ -1,3 +1,4 @@
+import { observeBackupEnvironment } from "./backup-environment";
 import {
   Dialog,
   DialogContent,
@@ -225,20 +226,7 @@ function App() {
       narrow.removeEventListener("change", resize);
     };
   }, []);
-  // Report a metered/save-data network so the backup pause policy can defer
-  // automatic backups on metered connections; battery state arrives from the
-  // desktop main process. A missing Network Information API stays "unknown".
-  useEffect(() => {
-    const connection = (navigator as { connection?: any }).connection;
-    if (!connection) return;
-    const report = () =>
-      void request("reportBackupEnvironment", {
-        metered: !!connection.saveData,
-      }).catch(() => {});
-    report();
-    connection.addEventListener?.("change", report);
-    return () => connection.removeEventListener?.("change", report);
-  }, []);
+  useEffect(observeBackupEnvironment, []);
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   useEffect(() => {
     const el = treeRef.current;

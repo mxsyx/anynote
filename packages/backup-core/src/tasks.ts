@@ -27,6 +27,8 @@ import {
 import { createBackupHostContext, createTempDir } from "./host.js";
 import { clearCloudFailureState, nextFailureState } from "./failure.js";
 import { getCloudProvider } from "./registry.js";
+import { assertCloudOnline, cloudPause } from "./network.js";
+import { assertCloudAccount } from "./accounts.js";
 import { patchTarget } from "./state.js";
 import {
   prepareRestore,
@@ -60,6 +62,8 @@ export function startCloudBackup(
   account: CloudBackupAccount,
   options: { deviceLabel?: string } = {},
 ): { id: string } {
+  assertCloudAccount(account, target.providerId);
+  assertCloudOnline(s);
   const active = activeJob(s, target.id);
   if (active) return { id: active.id };
   const id = randomUUID(),
@@ -203,6 +207,16 @@ export function startCloudBackup(
         return;
       }
       if (job.status === "cancelled") return;
+      if (cloudPause(s, target) === "offline") {
+        patchTarget(s, target.id, {
+          lastAttempt: undefined,
+          lastError: "设备离线，等待网络恢复",
+        });
+        s.settle(job, "failed", {
+          error: "设备离线，网络恢复后自动备份会继续",
+        });
+        return;
+      }
       const next = nextFailureState(target, error, { now: Date.now() });
       patchTarget(s, target.id, {
         lastError: error?.message ?? String(error),
@@ -242,6 +256,8 @@ export function startCloudRestore(
     expectedCommitId?: string;
   },
 ): { id: string } {
+  assertCloudAccount(account, target.providerId);
+  assertCloudOnline(s);
   const active = activeJob(s, target.id);
   if (active) return { id: active.id };
   const id = randomUUID(),

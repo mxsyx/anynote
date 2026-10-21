@@ -340,8 +340,9 @@ export function createBackupHostContext(
   args: HostContextArgs,
 ): BackupHostContext {
   const { s, broker, account, providerId } = args,
-    // Isolate extension state by provider + Notebook, avoiding a shared key space across notebooks.
-    stateScope = `${providerId}:${args.notebookId ?? "-"}`,
+    // Isolate directory caches and upload sessions by account and Notebook.
+    // Two accounts of the same provider must never share remote object references.
+    stateScope = `${providerId}:${account.id}:${args.notebookId ?? "-"}`,
     ref: CloudAccountRef = account.ref,
     tokenProvider = broker.tokenProvider(
       account.id,

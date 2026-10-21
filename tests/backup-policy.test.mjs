@@ -103,6 +103,11 @@ test("backoffDelay grows exponentially and honors Retry-After", () => {
 test("environmentPause follows the opt-in pause policy", () => {
   const base = policySchema.parse({});
   assert.equal(environmentPause(base, { onBattery: true }), undefined);
+  assert.equal(environmentPause(base, { online: false }), undefined);
+  assert.equal(
+    environmentPause(base, { online: false }, undefined, true),
+    "offline",
+  );
   const policy = policySchema.parse({
     pause: { onBattery: true, onMeteredNetwork: true, largeTaskBytes: 1000 },
   });

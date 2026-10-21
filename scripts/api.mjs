@@ -62,6 +62,10 @@ const server = createServer(async (req, res) => {
       ? hostedRequest(extensionHost, op, input)
       : storage.run(op, input));
     res.end(JSON.stringify({ result }));
+    if (op === "reportBackupEnvironment" || op === "setBackupPolicy") {
+      void cloudScheduler.tick();
+      void scheduler.tick();
+    }
   } catch (e) {
     res.writeHead(400).end(JSON.stringify({ error: e.message }));
   }

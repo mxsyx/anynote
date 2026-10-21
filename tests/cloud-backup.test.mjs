@@ -679,3 +679,43 @@ test("占位 Provider 明确拒绝未实现的备份流程", async () => {
   const probed = await provider.probe({});
   assert.equal(probed.accountType, "placeholder");
 });
+
+test("disconnect or relogin wins over an in-flight token refresh", async () => {
+  for (const replacement of [undefined, { token: "new-login" }]) {
+    const store = new Map([
+      ["account", { token: "expired", refreshToken: "old", expiresAt: 0 }],
+    ]);
+    let release, started;
+    const refreshing = new Promise((resolve) => {
+      started = resolve;
+    });
+    const broker = new TokenBroker({
+      vault: {
+        get: async (id) => store.get(id),
+        set: async (id, value) => store.set(id, value),
+      },
+      fetchImpl: async () => {
+        started();
+        await new Promise((resolve) => {
+          release = resolve;
+        });
+        return new Response(
+          JSON.stringify({ access_token: "stale-refresh", expires_in: 3600 }),
+        );
+      },
+    });
+    const descriptor = {
+      providerId: "google-drive",
+      tokenEndpoint: "https://oauth.test/token",
+      scopes: [],
+    };
+    const pending = broker.accessToken("account", descriptor, "client");
+    await refreshing;
+    if (replacement) await broker.save("account", replacement);
+    else await broker.forget("account");
+    const rejection = assert.rejects(pending, /授权已改变/);
+    release();
+    await rejection;
+    assert.equal(store.get("account").token, replacement?.token);
+  }
+});

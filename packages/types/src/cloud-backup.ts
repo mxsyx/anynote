@@ -558,6 +558,10 @@ export interface CloudBackupProvider {
   capabilities: CloudBackupCapabilities;
   accountDescriptor: OAuthProviderDescriptor;
 
+  folderLink?(
+    target: CloudBackupTarget,
+    ctx: BackupHostContext,
+  ): Promise<{ url: string; detail?: string }>;
   probe(ctx: AccountContext): Promise<TargetCapabilities>;
   ensureTarget(
     input: TargetInput,
@@ -626,6 +630,7 @@ export interface CloudBackupTargetView {
   state:
     | "idle"
     | "waiting-network"
+    | "paused"
     | "reauth-required"
     | "quota-exceeded"
     | "permission-denied"
@@ -633,6 +638,7 @@ export interface CloudBackupTargetView {
     | "retrying"
     | "completed"
     | "cleanup-pending";
+  waitingReason?: string;
   pendingBytes?: number;
 }
 
@@ -658,8 +664,26 @@ export interface CloudBackupTaskReport {
   diskBudgetBytes?: number;
 }
 
+export interface CloudAppSetting {
+  providerId: CloudProviderId;
+  title: string;
+  customClientId: string;
+  configured: boolean;
+  source: "explicit" | "environment" | "registered" | "none";
+  stage: "development" | "production";
+}
+
 /** Public SDK surface for cloud backup. */
 export interface CloudBackupAPI {
+  getSettings(input?: object): Promise<CloudAppSetting[]>;
+  setClientId(input: {
+    providerId: CloudProviderId;
+    clientId: string;
+  }): Promise<CloudAppSetting[]>;
+  openFolder(input: {
+    notebookId: string;
+    targetId: string;
+  }): Promise<{ url: string; opened: boolean; detail?: string }>;
   listProviders(input?: object): Promise<
     {
       id: CloudProviderId;
@@ -669,6 +693,7 @@ export interface CloudBackupAPI {
       capabilities: CloudBackupCapabilities;
       /** Vendor scopes to be requested; shown truthfully before connecting. */
       scopes: readonly string[];
+      oauthConfigured: boolean;
     }[]
   >;
   listAccounts(input?: object): Promise<CloudBackupAccount[]>;
@@ -676,6 +701,7 @@ export interface CloudBackupAPI {
     providerId: CloudProviderId;
     /** Self-compiled builds can inject a custom OAuth Client ID. */
     oauthClientId?: string;
+    accountRefId?: string;
   }): Promise<{ sessionId: string; authorizationUrl: string; opened: boolean }>;
   completeAuthorization(input: {
     sessionId: string;

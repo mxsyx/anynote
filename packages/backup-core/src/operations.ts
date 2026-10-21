@@ -12,10 +12,23 @@ import type {
   CloudProviderId,
   TargetCapabilities,
 } from "@anynote/types/cloud-backup.js";
-import { describeOAuthApps, oauthDescriptors } from "@anynote/oauth-broker";
+import {
+  assertAccountIdle,
+  assertCloudAccount,
+  clientKey,
+  cloudAppSettings,
+  connectedIdentity,
+  customClientId,
+  sameCloudIdentity,
+} from "./accounts.js";
+import { assertCloudOnline, cloudPause } from "./network.js";
 import { cloudBroker } from "./broker.js";
 import { canAutoRun } from "./failure.js";
-import { createBackupHostContext, createTempDir } from "./host.js";
+import {
+  createBackupHostContext,
+  createTempDir,
+  optionalCloudOpenExternal,
+} from "./host.js";
 import { listProviderViews } from "./identity.js";
 import {
   getCloudProvider,
@@ -31,7 +44,7 @@ import {
   readTargets,
   upsertAccount,
   upsertTarget,
-  writeAccounts,
+  providerState,
   writeTargets,
 } from "./state.js";
 import { startCloudBackup, startCloudRestore } from "./tasks.js";
@@ -39,6 +52,9 @@ import { prepareRestore, previewRestoreBudget } from "./restore-budget.js";
 
 /** Cloud backup core operations; one-to-one with the `Operation` union / `operations.json`. */
 export const cloudBackupOperations = [
+  "getCloudSettings",
+  "setCloudClientId",
+  "openCloudFolder",
   "listCloudProviders",
   "listCloudAccounts",
   "beginCloudAuthorization",
@@ -96,6 +112,8 @@ async function withContext<T>(
   },
   fn: (ctx: BackupHostContext) => Promise<T>,
 ): Promise<T> {
+  assertCloudAccount(account, providerId);
+  assertCloudOnline(s);
   const tempDir = createTempDir(s, "cloud-op"),
     controller = new AbortController();
   try {
@@ -121,6 +139,7 @@ function targetState(
   s: Storage,
   target: CloudBackupTarget,
   account: CloudBackupAccount | undefined,
+  pause: ReturnType<typeof cloudPause>,
 ): CloudBackupTargetView["state"] {
   const running = [...s.jobs.values()].find(
     (job) =>
@@ -132,6 +151,10 @@ function targetState(
     return "reauth-required";
   if (target.pausedReason === "quota") return "quota-exceeded";
   if (target.pausedReason === "permanent") return "permission-denied";
+  if (pause === "offline" || (target.autoBackup && pause === "metered"))
+    return "waiting-network";
+  if (target.autoBackup && (pause || target.pausedReason === "exhausted"))
+    return "paused";
   if (target.nextAttemptAt && !canAutoRun(target)) return "retrying";
   if (target.pendingCleanup) return "cleanup-pending";
   return target.lastSuccess ? "completed" : "idle";
@@ -142,7 +165,8 @@ function targetView(
   s: Storage,
   target: CloudBackupTarget,
 ): CloudBackupTargetView {
-  const account = findAccount(s, target.accountRefId),
+  const pause = cloudPause(s, target),
+    account = findAccount(s, target.accountRefId),
     registered = hasCloudProvider(target.providerId)
       ? getCloudProvider(target.providerId)
       : undefined,
@@ -159,7 +183,8 @@ function targetView(
       installed: !!registered,
     },
     capabilities: registered?.provider.capabilities ?? unavailableCapabilities,
-    state: targetState(s, target, account),
+    state: targetState(s, target, account, pause),
+    waitingReason: target.autoBackup || pause === "offline" ? pause : undefined,
   };
 }
 
@@ -183,13 +208,32 @@ export async function cloudBackupOperation(
   if (!(cloudBackupOperations as readonly string[]).includes(op))
     return { handled: false };
 
+  if (op === "getCloudSettings") {
+    z.object({})
+      .strict()
+      .parse(raw ?? {});
+    return { handled: true, result: cloudAppSettings(s) };
+  }
+
+  if (op === "setCloudClientId") {
+    const p = z
+      .object({
+        providerId: providerIdSchema,
+        clientId: z.string().trim().max(512),
+      })
+      .strict()
+      .parse(raw);
+    providerState(s, p.providerId, clientKey, p.clientId);
+    return { handled: true, result: cloudAppSettings(s) };
+  }
+
   if (op === "listCloudProviders") {
     z.object({})
       .strict()
       .parse(raw ?? {});
     // App identity reflects only whether a Client ID was resolved, never its content (design §6.3).
     const apps = new Map(
-      describeOAuthApps().map((app) => [app.providerId, app]),
+      cloudAppSettings(s).map((app) => [app.providerId, app]),
     );
     return {
       handled: true,
@@ -220,13 +264,31 @@ export async function cloudBackupOperation(
     const p = z
       .object({
         providerId: providerIdSchema,
-        oauthClientId: z.string().min(1).max(512).optional(),
+        oauthClientId: z.string().trim().min(1).max(512).optional(),
+        accountRefId: uuid.optional(),
       })
       .strict()
       .parse(raw);
+    assertCloudOnline(s);
+    const account = p.accountRefId ? findAccount(s, p.accountRefId) : undefined;
+    if (p.accountRefId && (!account || account.ref.providerId !== p.providerId))
+      throw Error("重新登录的账号不存在或厂商不匹配");
+    if (account) assertAccountIdle(s, account.id);
+    if (
+      account &&
+      p.oauthClientId &&
+      p.oauthClientId !== account.ref.oauthClientId
+    )
+      throw Error(
+        "切换 OAuth 应用请连接新账号，再切换备份目标；原目录不会自动迁移。",
+      );
     const result = await cloudBroker(s).begin({
       providerId: p.providerId,
-      oauthClientId: p.oauthClientId,
+      oauthClientId:
+        account?.ref.oauthClientId ??
+        p.oauthClientId ??
+        customClientId(s, p.providerId),
+      reconnect: account ? { id: account.id, ref: account.ref } : undefined,
     });
     return { handled: true, result };
   }
@@ -234,8 +296,32 @@ export async function cloudBackupOperation(
   if (op === "completeCloudAuthorization") {
     const p = z.object({ sessionId: uuid }).strict().parse(raw),
       { id, ref } = await cloudBroker(s).complete({ sessionId: p.sessionId }),
-      account: CloudBackupAccount = { id, ref, createdAt: Date.now() };
+      previous = connectedIdentity(s, ref);
+    // Repeated authorization of the same identity repairs all its targets, rather
+    // than producing duplicate accounts. Different apps remain separate identities.
+    if (previous && previous.id !== id) {
+      await cloudBroker(s).tokens.save(
+        previous.id,
+        await cloudBroker(s).tokens.load(id),
+      );
+      await cloudBroker(s).tokens.forget(id);
+    }
+    const account: CloudBackupAccount = {
+      id: previous?.id ?? id,
+      ref,
+      createdAt: previous?.createdAt ?? Date.now(),
+      lastRefreshedAt: Date.now(),
+      reauthReason: null,
+    };
     upsertAccount(s, account);
+    for (const target of readTargets(s))
+      if (target.accountRefId === account.id && target.pausedReason === "auth")
+        patchTarget(s, target.id, {
+          pausedReason: null,
+          failureCount: 0,
+          nextAttemptAt: null,
+          lastError: null,
+        });
     return { handled: true, result: account };
   }
 
@@ -251,21 +337,12 @@ export async function cloudBackupOperation(
     const p = z.object({ accountRefId: uuid }).strict().parse(raw),
       account = findAccount(s, p.accountRefId);
     if (account) {
-      // Disconnect only stops tasks and clears local tokens; it does not delete remote copies (design §5.4).
-      await cloudBroker(s).tokens.revoke(
-        p.accountRefId,
-        oauthDescriptors[account.ref.providerId],
-      );
-      for (const target of readTargets(s).filter(
-        (item) => item.accountRefId === p.accountRefId,
-      ))
-        for (const job of s.jobs.values())
-          if (job.targetId === target.id && job.status === "running")
-            job.controller?.abort();
-      writeAccounts(
-        s,
-        readAccounts(s).filter((item) => item.id !== p.accountRefId),
-      );
+      assertAccountIdle(s, account.id);
+      cloudBroker(s).cancelAccount(account.id);
+      // Keep the public identity so the same targets can be safely reconnected.
+      // Local disconnect does not revoke the app grant on other devices.
+      await cloudBroker(s).tokens.forget(account.id);
+      upsertAccount(s, { ...account, reauthReason: "已断开，请重新登录" });
     }
     return { handled: true, result: true };
   }
@@ -286,7 +363,7 @@ export async function cloudBackupOperation(
         .strict()
         .parse(raw),
       account = findAccount(s, p.accountRefId);
-    if (!account) throw Error("云盘账号不存在或已断开");
+    assertCloudAccount(account, p.providerId);
     const { provider } = getCloudProvider(p.providerId),
       capabilities: TargetCapabilities = await withContext(
         s,
@@ -310,28 +387,42 @@ export async function cloudBackupOperation(
         .strict()
         .parse(raw),
       account = findAccount(s, p.accountRefId);
-    if (!account) throw Error("云盘账号不存在或已断开");
+    assertCloudAccount(account, p.providerId);
     const previous = p.targetId
-        ? readTargets(s).find(
-            (item) =>
-              item.id === p.targetId && item.notebookId === p.notebookId,
-          )
-        : undefined,
-      target: CloudBackupTarget = {
-        ...previous,
-        id: previous?.id ?? randomUUID(),
-        notebookId: p.notebookId,
-        providerId: p.providerId,
-        accountRefId: p.accountRefId,
-        // Device slots are stored locally; a fresh install/new machine generates a new slot (design §9.1).
-        deviceSlotId: previous?.deviceSlotId ?? randomUUID(),
-        deviceLabel: p.deviceLabel ?? previous?.deviceLabel,
-        credentialsMode: s.vault ? "system-encrypted" : "session-only",
-        beta:
-          getCloudProvider(p.providerId).beta ??
-          listProviderViews().find((view) => view.id === p.providerId)?.beta,
-        createdAt: previous?.createdAt ?? Date.now(),
-      };
+      ? findTarget(s, p.notebookId, p.targetId)
+      : undefined;
+    if (
+      readTargets(s).some(
+        (t) =>
+          t.id !== previous?.id &&
+          t.notebookId === p.notebookId &&
+          t.accountRefId === account.id,
+      )
+    )
+      throw Error(
+        "该账号已为此 Notebook 配置目标，请使用已有目标或选择其他账号",
+      );
+    assertAccountIdle(s, account.id);
+    if (previous && previous.providerId !== p.providerId)
+      throw Error("不能将既有目标切换到不同云盘厂商，请添加新目标");
+    if (previous) assertAccountIdle(s, previous.accountRefId);
+    const oldAccount = previous && findAccount(s, previous.accountRefId);
+    const same =
+      !!previous &&
+      !!oldAccount &&
+      sameCloudIdentity(oldAccount.ref, account.ref);
+    const target: CloudBackupTarget = {
+      ...(same ? previous : {}),
+      id: previous?.id ?? randomUUID(),
+      notebookId: p.notebookId,
+      providerId: p.providerId,
+      accountRefId: account.id,
+      deviceSlotId: same ? previous.deviceSlotId : randomUUID(),
+      deviceLabel: p.deviceLabel ?? previous?.deviceLabel,
+      credentialsMode: s.vault ? "system-encrypted" : "session-only",
+      beta: getCloudProvider(p.providerId).beta,
+      createdAt: same ? previous.createdAt : Date.now(),
+    };
     const { provider } = getCloudProvider(p.providerId),
       handle = await withContext(
         s,
@@ -349,13 +440,23 @@ export async function cloudBackupOperation(
               deviceSlotId: target.deviceSlotId,
               deviceLabel: target.deviceLabel,
               existing: {
-                rootRef: previous?.rootRef,
-                notebookRef: previous?.notebookRef,
+                rootRef: target.rootRef,
+                notebookRef: target.notebookRef,
               },
             },
             ctx,
           ),
       );
+    assertCloudAccount(findAccount(s, account.id), p.providerId);
+    if (previous) {
+      assertAccountIdle(s, previous.accountRefId);
+      const current = findTarget(s, p.notebookId, previous.id);
+      if (
+        current.accountRefId !== previous.accountRefId ||
+        current.deviceSlotId !== previous.deviceSlotId
+      )
+        throw Error("目标已被其他操作修改，请刷新后重试");
+    }
     target.rootRef = handle.rootRef;
     target.notebookRef = handle.notebookRef;
     upsertTarget(s, target);
@@ -404,6 +505,31 @@ export async function cloudBackupOperation(
     return { handled: true, result: true };
   }
 
+  if (op === "openCloudFolder") {
+    const p = z
+      .object({ notebookId: uuid, targetId: uuid })
+      .strict()
+      .parse(raw);
+    const target = findTarget(s, p.notebookId, p.targetId),
+      account = findAccount(s, target.accountRefId);
+    assertCloudAccount(account, target.providerId);
+    const { provider } = getCloudProvider(target.providerId);
+    if (!provider.folderLink)
+      throw Error("该扩展不支持打开目录，请在云盘中查找 AnynoteBackup");
+    const link = await withContext(
+      s,
+      account,
+      target.providerId,
+      { notebookId: p.notebookId },
+      (ctx) => provider.folderLink!(target, ctx),
+    );
+    if (new URL(link.url).protocol !== "https:")
+      throw Error("云盘目录地址必须为 HTTPS");
+    const open = optionalCloudOpenExternal();
+    await open?.(link.url);
+    return { handled: true, result: { ...link, opened: !!open } };
+  }
+
   if (op === "testCloudConnection") {
     const p = z
         .object({ notebookId: uuid, targetId: uuid })
@@ -411,7 +537,7 @@ export async function cloudBackupOperation(
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
-    if (!account) throw Error("云盘账号需要重新登录");
+    assertCloudAccount(account, target.providerId);
     const { provider } = getCloudProvider(target.providerId),
       capabilities: TargetCapabilities = await withContext(
         s,
@@ -437,7 +563,7 @@ export async function cloudBackupOperation(
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
-    if (!account) throw Error("云盘账号需要重新登录");
+    assertCloudAccount(account, target.providerId);
     return {
       handled: true,
       result: startCloudBackup(s, target, account, {
@@ -457,7 +583,7 @@ export async function cloudBackupOperation(
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
-    if (!account) throw Error("云盘账号需要重新登录");
+    assertCloudAccount(account, target.providerId);
     const { provider } = getCloudProvider(target.providerId),
       page = await withContext(
         s,
@@ -494,7 +620,7 @@ export async function cloudBackupOperation(
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
-    if (!account) throw Error("云盘账号需要重新登录");
+    assertCloudAccount(account, target.providerId);
     if (op === "previewCloudRestore") {
       const { provider } = getCloudProvider(target.providerId);
       const manifest = await withContext(
@@ -523,7 +649,7 @@ export async function cloudBackupOperation(
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
-    if (!account) throw Error("云盘账号需要重新登录");
+    assertCloudAccount(account, target.providerId);
     const { provider } = getCloudProvider(target.providerId);
     if (!provider.deleteSlot)
       throw Error("该云盘扩展不支持直接删除云端备份，请在云盘中手动处理");
@@ -545,7 +671,11 @@ export async function cloudBackupOperation(
         lastVerification: undefined,
         pendingCleanup: result.failed,
       });
-    deleteProviderState(s, target.providerId, `slot.${p.deviceSlotId}`);
+    deleteProviderState(
+      s,
+      `${target.providerId}:${account.id}:${target.notebookId}`,
+      `slot.${p.deviceSlotId}`,
+    );
     return { handled: true, result };
   }
 

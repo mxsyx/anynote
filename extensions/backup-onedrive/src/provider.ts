@@ -358,6 +358,17 @@ export const oneDriveProvider: CloudBackupProvider = {
     };
   },
 
+  async folderLink(target, ctx) {
+    if (!target.notebookRef) throw Error("尚未创建云盘目录，请先配置目标");
+    const { driveId, itemId } = parseItemRef(target.notebookRef);
+    const item = await createGraphClient(ctx).getItem(driveId, itemId);
+    if (!item.webUrl)
+      throw Error(
+        "云盘未返回目录链接，请在 OneDrive 的应用目录中查找 AnynoteBackup",
+      );
+    return { url: item.webUrl };
+  },
+
   async ensureTarget(
     input: TargetInput,
     ctx: BackupHostContext,

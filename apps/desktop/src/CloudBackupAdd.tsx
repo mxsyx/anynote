@@ -1,8 +1,11 @@
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CloudBackupAccount } from "@anynote/types/cloud-backup.js";
 import { Cloud, ShieldCheck, X } from "./icons";
 import { request } from "./api";
+import CloudSettings from "./CloudSettings";
+import type { CloudTargetView } from "./CloudBackup";
 
 interface ProviderView {
   id: string;
@@ -11,115 +14,163 @@ interface ProviderView {
   installed: boolean;
   scopes: readonly string[];
   capabilities: { appScopedStorage: boolean; conditionalHead: boolean };
-  /** Whether an OAuth app identity has been resolved; when false, a self-build or env var must supply the Client ID. */
-  oauthConfigured?: boolean;
+  oauthConfigured: boolean;
 }
 
-interface AccountView {
-  id: string;
-  ref: { accountId: string; displayName?: string };
-}
-
-/** Mapping from vendor scopes to readable descriptions; unrecognized scopes show their raw value. */
 const scopeLabels: Record<string, string> = {
   openid: "确认你的账号身份",
   email: "读取账号邮箱，用于显示备份归属",
   "https://www.googleapis.com/auth/drive.file":
-    "只读写由 Anynote 创建或打开的文件（不访问其他云盘内容）",
+    "只读写由 Anynote 创建或打开的文件",
   "account_info.read": "读取账号基本信息",
   "files.metadata.read": "读取应用目录内文件列表",
   "files.content.read": "下载应用目录内的备份对象",
   "files.content.write": "上传备份对象到应用目录",
-  offline_access: "在你退出后仍可后台刷新授权（用于自动备份）",
+  offline_access: "后台刷新授权，用于自动备份",
   "User.Read": "读取账号基本信息",
-  "Files.ReadWrite.AppFolder": "只读写应用专属目录（App Folder）内的文件",
+  "Files.ReadWrite.AppFolder": "只读写应用专属目录内的文件",
 };
-
 type Step = "provider" | "permissions" | "authorizing" | "configure";
 
-/**
- * Add cloud target wizard.
- *
- * Four steps: choose provider → show scopes and data range to request → system browser authorization →
- * confirm account and device label and create the target. Regular users need not enter developer credentials.
- */
+/** One wizard for adding, explicitly switching identity, and repairing the original login. */
 export default function CloudBackupAdd({
   notebookId,
+  target,
+  reconnect,
   onClose,
   onCreated,
 }: {
   notebookId: string;
+  target?: CloudTargetView;
+  reconnect?: CloudBackupAccount;
   onClose: () => void;
   onCreated: (target: { id: string }) => void;
 }) {
   const [providers, setProviders] = useState<ProviderView[]>([]),
+    [accounts, setAccounts] = useState<CloudBackupAccount[]>([]),
     [selected, setSelected] = useState<ProviderView | null>(null),
     [step, setStep] = useState<Step>("provider"),
-    [sessionId, setSessionId] = useState(""),
-    [account, setAccount] = useState<AccountView | null>(null),
-    [deviceLabel, setDeviceLabel] = useState(""),
-    [backupNow, setBackupNow] = useState(true),
+    [account, setAccount] = useState<CloudBackupAccount | null>(null),
+    [deviceLabel, setDeviceLabel] = useState(target?.target.deviceLabel ?? ""),
+    [backupNow, setBackupNow] = useState(!target),
+    [confirmed, setConfirmed] = useState(false),
+    [savedId, setSavedId] = useState<string | null>(null),
+    [settings, setSettings] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-
+  const session = useRef(""),
+    live = useRef(true),
+    generation = useRef(0);
+  const reload = async () => {
+    const [ps, as] = await Promise.all([
+      request<ProviderView[]>("listCloudProviders"),
+      request<CloudBackupAccount[]>("listCloudAccounts"),
+    ]);
+    if (!live.current) return;
+    setProviders(ps);
+    setAccounts(as);
+    const providerId = reconnect?.ref.providerId ?? target?.target.providerId;
+    setSelected(
+      (current) => ps.find((p) => p.id === (providerId ?? current?.id)) ?? null,
+    );
+    if (providerId) setStep("permissions");
+  };
   useEffect(() => {
-    void request<ProviderView[]>("listCloudProviders")
-      .then(setProviders)
-      .catch((e) => setError((e as Error).message));
+    live.current = true;
+    void reload().catch((e) => setError(e.message));
+    return () => {
+      live.current = false;
+      generation.current++;
+      if (session.current)
+        void request("cancelCloudAuthorization", {
+          sessionId: session.current,
+        }).catch(() => {});
+    };
   }, []);
 
-  /** Run an async step with uniform busy/error handling. */
   const action = async (fn: () => Promise<void>) => {
     setError("");
     setBusy(true);
     try {
       await fn();
     } catch (e) {
-      setError((e as Error).message);
+      if (live.current) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (live.current) setBusy(false);
     }
   };
-
-  /** Start the browser authorization and wait for the loopback callback. */
-  const authorize = () =>
-    action(async () => {
-      if (!selected) return;
+  const authorize = async () => {
+    if (!selected) return;
+    const attempt = ++generation.current;
+    setError("");
+    setBusy(true);
+    try {
       const begun = await request<{
         sessionId: string;
         authorizationUrl: string;
         opened: boolean;
-      }>("beginCloudAuthorization", { providerId: selected.id });
-      setSessionId(begun.sessionId);
+      }>("beginCloudAuthorization", {
+        providerId: selected.id,
+        ...(reconnect ? { accountRefId: reconnect.id } : {}),
+      });
+      if (!live.current || attempt !== generation.current) {
+        await request("cancelCloudAuthorization", {
+          sessionId: begun.sessionId,
+        });
+        return;
+      }
+      session.current = begun.sessionId;
       setStep("authorizing");
-      // On desktop the main process launches the system browser; in a browser preview this opens a new tab.
       if (!begun.opened)
         window.open(begun.authorizationUrl, "_blank", "noopener,noreferrer");
-      const created = await request<AccountView>("completeCloudAuthorization", {
-        sessionId: begun.sessionId,
-      });
-      setAccount(created);
-      setStep("configure");
-    });
+      const created = await request<CloudBackupAccount>(
+        "completeCloudAuthorization",
+        { sessionId: begun.sessionId },
+      );
+      if (!live.current || attempt !== generation.current) return;
+      if (reconnect) onCreated({ id: reconnect.id });
+      else {
+        setAccount(created);
+        setStep("configure");
+      }
+    } catch (e) {
+      if (live.current && attempt === generation.current) {
+        setStep("permissions");
+        setError((e as Error).message);
+      }
+    } finally {
+      if (attempt === generation.current) {
+        session.current = "";
+        if (live.current) setBusy(false);
+      }
+    }
+  };
 
+  if (settings)
+    return (
+      <CloudSettings
+        onClose={() => {
+          setSettings(false);
+          void reload().catch((e) => setError(e.message));
+        }}
+        onSaved={() => {}}
+      />
+    );
+  const title = reconnect
+    ? "重新登录云盘账号"
+    : target
+      ? "切换云盘账号"
+      : "添加云盘目标";
   return (
     <div className="modal-overlay">
       <div
         className="form-dialog backup-config"
         role="dialog"
         aria-modal="true"
-        aria-label="添加云盘目标"
+        aria-label={title}
       >
         <div className="dialog-heading">
-          <h2>
-            {step === "provider"
-              ? "选择云盘"
-              : step === "permissions"
-                ? "将要申请的权限"
-                : step === "authorizing"
-                  ? "在浏览器中完成授权"
-                  : "确认并创建目标"}
-          </h2>
+          <h2>{title}</h2>
           <Button
             variant="ghost"
             size="layout"
@@ -129,88 +180,128 @@ export default function CloudBackupAdd({
             <X size={18} />
           </Button>
         </div>
-
         {step === "provider" && (
           <>
-            {providers.map((provider) => {
-              // Legacy backends that do not explicitly report config status are treated as configured, to avoid wrongly disabling connections.
-              const oauthReady = provider.oauthConfigured !== false;
-              return (
-                <div className="snapshot-row" key={provider.id}>
-                  <Cloud size={16} />
-                  <span>
-                    {provider.title}
-                    {provider.beta ? " · Beta" : ""}
-                    <small>
-                      {!provider.installed
-                        ? "官方扩展尚未安装"
-                        : oauthReady
-                          ? "官方扩展已随应用安装"
-                          : "未配置 OAuth 应用身份，请在自编译或环境变量中提供 Client ID"}
-                    </small>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    disabled={
-                      busy ||
-                      !provider.installed ||
-                      provider.beta ||
-                      !oauthReady
-                    }
-                    onClick={() => {
-                      setSelected(provider);
-                      setStep("permissions");
-                    }}
-                  >
-                    {!provider.installed
-                      ? "不可用"
-                      : provider.beta
-                        ? "即将支持"
-                        : oauthReady
-                          ? "连接"
-                          : "未配置"}
-                  </Button>
-                </div>
-              );
-            })}
-            <p className="small-note">
-              备份直接由桌面客户端调用厂商
-              API，不需要部署服务器；官方版本已预置应用身份，普通用户登录即可。
-            </p>
+            {providers.map((provider) => (
+              <div className="snapshot-row" key={provider.id}>
+                <Cloud size={16} />
+                <span>
+                  {provider.title}
+                  <small>
+                    {provider.installed
+                      ? provider.oauthConfigured
+                        ? "可以连接账号"
+                        : "未配置应用身份，可在高级设置中填写 Client ID"
+                      : "官方扩展尚未安装"}
+                  </small>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  className="secondary"
+                  disabled={busy || !provider.installed || provider.beta}
+                  onClick={() => {
+                    setSelected(provider);
+                    setStep("permissions");
+                  }}
+                >
+                  选择
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="ghost"
+              size="layout"
+              className="secondary"
+              onClick={() => setSettings(true)}
+            >
+              高级设置 · Client ID
+            </Button>
           </>
         )}
-
         {step === "permissions" && selected && (
           <>
-            <p>连接 {selected.title} 将申请以下权限，仅用于备份与恢复：</p>
+            {reconnect ? (
+              <p>
+                请登录原账号：
+                {reconnect.ref.displayName ?? reconnect.ref.accountId}。使用原
+                OAuth 应用 {reconnect.ref.oauthClientId}
+                ，目标和云端副本保持原归属。登录其他账号会被拒绝。
+              </p>
+            ) : (
+              <>
+                <h3>{selected.title} · 选择已连接账号</h3>
+                {accounts
+                  .filter(
+                    (a) => a.ref.providerId === selected.id && !a.reauthReason,
+                  )
+                  .map((a) => (
+                    <div className="snapshot-row" key={a.id}>
+                      <span>
+                        {a.ref.displayName ?? a.ref.accountId}
+                        <small>应用：{a.ref.oauthClientId}</small>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setAccount(a);
+                          setStep("configure");
+                        }}
+                      >
+                        使用此账号
+                      </Button>
+                    </div>
+                  ))}
+                <p>也可以连接另一个账号，其他账号将继续保留。</p>
+              </>
+            )}
+            {!target && !reconnect && (
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                disabled={busy}
+                onClick={() => setStep("provider")}
+              >
+                返回选择云盘
+              </Button>
+            )}
             <ul className="small-note">
               {selected.scopes.map((scope) => (
                 <li key={scope}>{scopeLabels[scope] ?? scope}</li>
               ))}
             </ul>
             <p className="small-note">
-              数据范围：应用目录{" "}
-              {selected.capabilities.appScopedStorage
-                ? "（App Folder，仅本应用可见）"
-                : "（My Drive 下可识别的 AnynoteBackup 目录）"}
-              ；不会访问通讯录、邮件或其他云盘文件。内容以明文上传，云盘服务端可读取。
+              仅用于备份和恢复。内容以明文上传，云盘服务端可读取。切换 OAuth
+              应用后，旧应用目录不会自动可见。
             </p>
+            {!reconnect && !selected.oauthConfigured && (
+              <p className="small-note">
+                当前未配置 OAuth 应用身份，请先打开高级设置。
+              </p>
+            )}
             <div className="dialog-actions">
               <Button
                 variant="ghost"
                 size="layout"
                 className="secondary"
-                onClick={() => setStep("provider")}
+                disabled={busy}
+                onClick={() => setSettings(true)}
               >
-                返回
+                高级设置
               </Button>
               <Button
                 variant="ghost"
                 size="layout"
                 className="primary"
-                disabled={busy}
+                disabled={
+                  busy ||
+                  !selected.installed ||
+                  (!reconnect && !selected.oauthConfigured)
+                }
                 onClick={authorize}
               >
                 <ShieldCheck size={14} />
@@ -219,92 +310,101 @@ export default function CloudBackupAdd({
             </div>
           </>
         )}
-
         {step === "authorizing" && (
           <>
-            <p role="status">
-              已发起授权，请在系统浏览器中登录并同意权限；完成后本窗口会自动继续。
-            </p>
-            <p className="small-note">
-              回调只监听本机回环地址并在校验 state
-              后立即关闭；取消或超时都会清理会话。
-            </p>
-            <div className="dialog-actions">
-              <Button
-                variant="ghost"
-                size="layout"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    await request("cancelCloudAuthorization", { sessionId });
-                    setSessionId("");
-                    setStep("permissions");
-                  })
-                }
-              >
-                取消授权
-              </Button>
-            </div>
+            <p role="status">请在系统浏览器中完成授权，返回后自动继续。</p>
+            <Button
+              variant="ghost"
+              size="layout"
+              className="secondary"
+              onClick={async () => {
+                const id = session.current;
+                generation.current++;
+                session.current = "";
+                setBusy(false);
+                setStep("permissions");
+                if (id)
+                  await request("cancelCloudAuthorization", {
+                    sessionId: id,
+                  }).catch((e) => setError(e.message));
+              }}
+            >
+              取消授权
+            </Button>
           </>
         )}
-
         {step === "configure" && account && selected && (
           <>
-            <p>
-              已连接账号：
-              {account.ref.displayName ?? account.ref.accountId}
+            {savedId && (
+              <p role="status">
+                目标已保存。首次备份未启动时可重试，也可关闭窗口稍后备份。
+              </p>
+            )}
+            <p>已选择：{account.ref.displayName ?? account.ref.accountId}</p>
+            <p className="small-note">
+              OAuth 应用：{account.ref.oauthClientId}
             </p>
             <label>
               设备标签
               <Input
+                disabled={!!savedId}
                 value={deviceLabel}
+                maxLength={120}
                 onChange={(e) => setDeviceLabel(e.target.value)}
                 placeholder="例如：家里的 MacBook"
               />
             </label>
-            <p className="small-note">
-              每个设备使用独立备份槽，互不覆盖；其他设备可从此处恢复当前副本。
-            </p>
+            {target && (
+              <label className="check-label">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                />
+                我确认切换身份会新建备份槽，保留旧副本，且需要重新启用自动备份；原账号同一应用身份则保留现有槽。
+              </label>
+            )}
             <label className="check-label">
               <input
                 type="checkbox"
                 checked={backupNow}
                 onChange={(e) => setBackupNow(e.target.checked)}
               />
-              创建后立即执行第一次备份
+              保存后立即备份
             </label>
             <div className="dialog-actions">
               <Button
                 variant="ghost"
                 size="layout"
                 className="secondary"
-                onClick={onClose}
+                disabled={busy || !!savedId}
+                onClick={() => setStep("permissions")}
               >
-                稍后再说
+                更换账号
               </Button>
               <Button
                 variant="ghost"
                 size="layout"
                 className="primary"
-                disabled={busy}
+                disabled={busy || (!!target && !confirmed)}
                 onClick={() =>
                   void action(async () => {
-                    const target = await request<{ id: string }>(
-                      "configureCloudTarget",
-                      {
-                        notebookId,
-                        providerId: selected.id,
-                        accountRefId: account.id,
-                        deviceLabel: deviceLabel.trim() || undefined,
-                      },
-                    );
+                    const saved = savedId
+                      ? { id: savedId }
+                      : await request<{ id: string }>("configureCloudTarget", {
+                          notebookId,
+                          providerId: selected.id,
+                          accountRefId: account.id,
+                          deviceLabel: deviceLabel.trim() || undefined,
+                          ...(target ? { targetId: target.target.id } : {}),
+                        });
+                    setSavedId(saved.id);
                     if (backupNow)
                       await request("startCloudBackup", {
                         notebookId,
-                        targetId: target.id,
+                        targetId: saved.id,
                       });
-                    onCreated(target);
+                    onCreated(saved);
                   })
                 }
               >
@@ -313,7 +413,6 @@ export default function CloudBackupAdd({
             </div>
           </>
         )}
-
         {error && (
           <p className="form-error" role="alert">
             {error}

@@ -513,6 +513,9 @@ importers:
 
   packages/backup-core:
     dependencies:
+      "@anynote/backup":
+        specifier: workspace:*
+        version: link:../backup
       "@anynote/protocol":
         specifier: workspace:*
         version: link:../protocol

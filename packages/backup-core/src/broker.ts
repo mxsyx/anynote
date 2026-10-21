@@ -16,7 +16,8 @@ function memoryVault(s: Storage): Vault {
     },
     async get(id: string) {
       const value = s.secretMemory!.get(id);
-      if (!value) throw Error("浏览器预览的凭据只保存在内存，请重新连接账号。");
+      if (!value)
+        throw Error("云盘账号需要重新登录；浏览器预览的凭据只保存在内存。");
       return value;
     },
   };

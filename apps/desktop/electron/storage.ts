@@ -126,14 +126,26 @@ parentPort.on(
     // a normal request, so failures are swallowed.
     if (data.type === "environment") {
       await storage
-        .run("reportBackupEnvironment", { onBattery: data.onBattery })
+        .run("reportBackupEnvironment", {
+          onBattery: data.onBattery,
+          online: data.online,
+        })
         .catch(() => {});
+      void cloudScheduler.tick();
+      void scheduler.tick();
       return;
     }
 
     try {
       const result = await storage.run(data.op, data.input);
       parentPort.postMessage({ id: data.id, result });
+      if (
+        data.op === "reportBackupEnvironment" ||
+        data.op === "setBackupPolicy"
+      ) {
+        void cloudScheduler.tick();
+        void scheduler.tick();
+      }
     } catch (e: any) {
       parentPort.postMessage({ id: data.id, error: e.message });
     }

@@ -49,19 +49,21 @@ interface BackupPolicy {
  * @returns Label shown on the target card, or an empty string.
  */
 function pauseLabel(reason?: string | null) {
-  return reason === "battery"
-    ? "电池供电，自动备份已暂停"
-    : reason === "metered"
-      ? "计量网络，自动备份已暂停"
-      : reason === "large-task"
-        ? "任务超过暂停阈值，自动备份已暂停"
-        : reason === "auth"
-          ? "鉴权失败，请修复凭据后重新启用自动备份"
-          : reason === "permanent"
-            ? "请求被拒绝，请检查目标配置"
-            : reason === "exhausted"
-              ? "重试次数已用尽，请手动重试"
-              : "";
+  return reason === "offline"
+    ? "设备离线，等待网络恢复"
+    : reason === "battery"
+      ? "电池供电，自动备份已暂停"
+      : reason === "metered"
+        ? "计量网络，自动备份已暂停"
+        : reason === "large-task"
+          ? "任务超过暂停阈值，自动备份已暂停"
+          : reason === "auth"
+            ? "鉴权失败，请修复凭据后重新启用自动备份"
+            : reason === "permanent"
+              ? "请求被拒绝，请检查目标配置"
+              : reason === "exhausted"
+                ? "重试次数已用尽，请手动重试"
+                : "";
 }
 
 /** A committed remote version. */
@@ -95,9 +97,14 @@ export default function BackupTargets({
     request<Target[]>("listBackupTargets", { notebookId }).then(setTargets);
   useEffect(() => {
     void reload();
-    void request<BackupPolicy>("getBackupPolicy")
-      .then((p) => setPolicy(p.policy))
-      .catch(() => {});
+    const refreshPolicy = () =>
+      void request<BackupPolicy>("getBackupPolicy")
+        .then((p) => setPolicy(p.policy))
+        .catch(() => {});
+    refreshPolicy();
+    window.addEventListener("anynote:backup-policy", refreshPolicy);
+    return () =>
+      window.removeEventListener("anynote:backup-policy", refreshPolicy);
   }, [notebookId]);
 
   /**
@@ -130,6 +137,7 @@ export default function BackupTargets({
           pause: { [key]: value },
         }),
       );
+      window.dispatchEvent(new Event("anynote:backup-policy"));
     });
   return (
     <>

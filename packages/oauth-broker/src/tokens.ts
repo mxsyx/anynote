@@ -203,6 +203,7 @@ export class TokenBroker {
   #fetch: typeof fetch;
   #now: () => number;
   #inflight = new Map<string, Promise<Credentials>>();
+  #versions = new Map<string, number>();
 
   /**
    * @param options Vault, fetch implementation, and clock.
@@ -227,11 +228,20 @@ export class TokenBroker {
 
   /** Atomically save account credentials. */
   async save(accountRefId: string, credentials: Credentials): Promise<void> {
+    this.#versions.set(
+      accountRefId,
+      (this.#versions.get(accountRefId) ?? 0) + 1,
+    );
     await this.#vault.set(accountRefId, credentials);
   }
 
   /** Delete account credentials; called on disconnect. */
   async forget(accountRefId: string): Promise<void> {
+    this.#versions.set(
+      accountRefId,
+      (this.#versions.get(accountRefId) ?? 0) + 1,
+    );
+    this.#inflight.delete(accountRefId);
     await this.#vault.set(accountRefId, { token: undefined });
   }
 
@@ -251,6 +261,7 @@ export class TokenBroker {
     descriptor: OAuthProviderDescriptor,
     clientId: string,
   ): Promise<string> {
+    const version = this.#versions.get(accountRefId) ?? 0;
     const credentials = await this.load(accountRefId);
     if (credentials.token && !this.#expired(credentials))
       return credentials.token;
@@ -267,6 +278,9 @@ export class TokenBroker {
       });
       const next = toCredentials(response, credentials, this.#now());
       next.providerId = credentials.providerId;
+      // A disconnect or fresh login must win over an older in-flight refresh.
+      if ((this.#versions.get(accountRefId) ?? 0) !== version)
+        throw new CloudAuthError("账号授权已改变，请重新登录", true);
       await this.save(accountRefId, next);
       return next;
     })();
@@ -274,7 +288,8 @@ export class TokenBroker {
     try {
       return (await refresh).token!;
     } finally {
-      this.#inflight.delete(accountRefId);
+      if (this.#inflight.get(accountRefId) === refresh)
+        this.#inflight.delete(accountRefId);
     }
   }
 

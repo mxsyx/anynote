@@ -66,11 +66,12 @@ function providerAuthParams(
 ): Record<string, string> {
   if (providerId === "google-drive")
     // Desktop background backup needs a refresh token (design §6.1).
-    return { access_type: "offline", prompt: "consent" };
+    return { access_type: "offline", prompt: "consent select_account" };
   if (providerId === "dropbox")
     // Dropbox uses the PKCE + refresh token background access mode (design §11.1).
-    return { token_access_type: "offline" };
-  if (providerId === "onedrive") return { response_mode: "query" };
+    return { token_access_type: "offline", force_reapprove: "true" };
+  if (providerId === "onedrive")
+    return { response_mode: "query", prompt: "select_account" };
   return {};
 }
 
@@ -97,6 +98,8 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
         listener: CallbackListener;
         verifier: string;
         descriptor: OAuthProviderDescriptor;
+        reconnect?: { id: string; ref: CloudAccountRef };
+        completing?: boolean;
       }
     >();
 
@@ -136,6 +139,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     async begin(input: {
       providerId: CloudProviderId;
       oauthClientId?: string;
+      reconnect?: { id: string; ref: CloudAccountRef };
     }): Promise<{
       sessionId: string;
       authorizationUrl: string;
@@ -144,6 +148,12 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
     }> {
       const descriptor = oauthDescriptors[input.providerId];
       if (!descriptor) throw new Error(`未知的云盘厂商：${input.providerId}`);
+      if (
+        input.reconnect &&
+        (input.reconnect.ref.providerId !== input.providerId ||
+          input.reconnect.ref.oauthClientId !== input.oauthClientId)
+      )
+        throw new CloudAuthError("重新登录必须使用原账号的 OAuth 应用身份");
       const client = clientIdFor(input.providerId, input.oauthClientId),
         state = randomState(),
         pkce = createPkce(),
@@ -179,6 +189,7 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
         listener,
         verifier: pkce.verifier,
         descriptor,
+        reconnect: input.reconnect,
       });
       try {
         await options.openExternal?.(url.toString());
@@ -209,7 +220,9 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       signal?: AbortSignal,
     ): Promise<{ id: string; ref: CloudAccountRef }> {
       const entry = sessions.get(input.sessionId);
-      if (!entry) throw new Error("OAuth 授权会话不存在或已结束");
+      if (!entry || entry.completing)
+        throw new Error("OAuth 授权会话不存在、已结束或正在处理");
+      entry.completing = true;
       try {
         const callback = await entry.listener.wait(signal);
         if (callback.error)
@@ -232,7 +245,14 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
           throw new CloudAuthError(
             "无法确定云盘账号身份，请重新授权或检查应用权限",
           );
-        const id = randomUUID();
+        // Verify the remote identity before overwriting any existing credentials.
+        if (entry.reconnect && entry.reconnect.ref.accountId !== accountId)
+          throw new CloudAuthError(
+            "登录的账号与原账号不同；请使用原账号重新登录，或通过切换账号建立新备份槽。",
+          );
+        if (!sessions.has(input.sessionId))
+          throw new CloudAuthError("授权已取消，请重新登录");
+        const id = entry.reconnect?.id ?? randomUUID();
         await tokens.save(id, credentials);
         return {
           id,
@@ -262,6 +282,11 @@ export function createOAuthBroker(options: OAuthBrokerOptions) {
       entry.listener.close();
       sessions.delete(input.sessionId);
       return true;
+    },
+
+    cancelAccount(accountRefId: string) {
+      for (const [id, entry] of sessions)
+        if (entry.reconnect?.id === accountRefId) discard(id);
     },
 
     /** Create a short-lived access token provider for the given account (used by trusted first-party extensions). */
