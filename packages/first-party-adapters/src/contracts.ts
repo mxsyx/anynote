@@ -91,6 +91,19 @@ export interface FirstPartyImportInput {
   title?: string;
   mode?: "article" | "page";
   files?: FirstPartyImportFile[];
+  /** Opaque grant returned by the native directory picker; never a file path. */
+  directoryGrant?: string;
+  /** Per-task limits can only tighten the host defaults. */
+  budget?: Partial<{
+    concurrency: number;
+    responseBytes: number;
+    responseMs: number;
+    htmlBytes: number;
+    mediaBytes: number;
+    totalBytes: number;
+    mediaCount: number;
+    decodeBytes: number;
+  }>;
   /** Keep the source HTML as a resource beside the converted note. */
   keepOriginal?: boolean;
 }
@@ -102,6 +115,19 @@ export interface FirstPartyImportRetryInput {
   /** Failed item sources to retry; omit to retry every failed item. */
   sources?: string[];
   files?: FirstPartyImportFile[];
+  /** Opaque grant returned by the native directory picker; never a file path. */
+  directoryGrant?: string;
+  /** Per-task limits can only tighten the host defaults. */
+  budget?: Partial<{
+    concurrency: number;
+    responseBytes: number;
+    responseMs: number;
+    htmlBytes: number;
+    mediaBytes: number;
+    totalBytes: number;
+    mediaCount: number;
+    decodeBytes: number;
+  }>;
 }
 
 /** Handle of a long-running import task. */

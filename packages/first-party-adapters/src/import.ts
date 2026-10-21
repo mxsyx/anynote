@@ -31,6 +31,8 @@ export function createImportAPI(transport: Transport): FirstPartyImportAPI {
     title: input.title,
     mode: input.mode,
     files: input.files,
+    directoryGrant: input.directoryGrant,
+    budget: input.budget,
     keepOriginal: input.keepOriginal,
   });
   return Object.freeze({
@@ -55,6 +57,8 @@ export function createImportAPI(transport: Transport): FirstPartyImportAPI {
         id: input.noteId,
         sources: input.sources,
         files: input.files,
+        directoryGrant: input.directoryGrant,
+        budget: input.budget,
       }),
     report: (input: FirstPartyImportRefInput) =>
       call<FirstPartyImportReport | null>("getImportReport", {

@@ -1,3 +1,4 @@
+import { closeImports } from "./import-state.js";
 import { snapshotDatabase } from "./database-snapshot.js";
 import {
   putAsset,
@@ -1692,7 +1693,7 @@ export class Storage {
     for (const db of this.readDbs.values()) db.close();
     this.readDbs.clear();
     this.writeLocks.clear();
-    this.importPreviews.clear();
+    closeImports(this);
     this.diagnostics.flush();
   }
 }

@@ -126,8 +126,22 @@ export default function ImportReport({
     setBusy(true);
     setError("");
     setMessage("正在重试未下载的媒体…");
+    let directoryGrant: string | undefined;
     try {
+      if (!report.source && window.anynote) {
+        const selected = await request<{ id: string } | null>(
+          "chooseImportDirectory",
+          { notebookId },
+        );
+        if (!selected) {
+          setMessage("");
+          return;
+        }
+        directoryGrant = selected.id;
+        if (!alive.current) return;
+      }
       const { id } = await request<{ id: string }>("retryImportMedia", {
+        directoryGrant,
         notebookId,
         id: noteId,
         ...(sources?.length ? { sources } : {}),
@@ -150,6 +164,11 @@ export default function ImportReport({
         setMessage("");
       }
     } finally {
+      if (directoryGrant)
+        void request("revokeImportDirectory", {
+          notebookId,
+          id: directoryGrant,
+        }).catch(() => {});
       if (alive.current) setBusy(false);
     }
   };

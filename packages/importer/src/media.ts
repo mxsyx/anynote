@@ -1,4 +1,9 @@
-import { importLimits } from "@anynote/protocol/import-limits.js";
+import {
+  ImportResources,
+  writeBase64,
+  type ResourceHandle,
+} from "./resources.js";
+import { openAdjacent, type AuthorizedDirectory } from "./directory.js";
 import { safeDownload } from "./network.js";
 
 /** Authorized adjacent resource file supplied by the user. */
@@ -6,12 +11,6 @@ export interface MediaFile {
   name: string;
   mime: string;
   data: string;
-}
-
-/** Image bytes resolved from a source reference. */
-export interface MediaBytes {
-  data: Buffer;
-  mime: string;
 }
 
 /** Raster MIME types the importer localizes as inline images. */
@@ -50,16 +49,16 @@ export const localizableMimes: Partial<Record<MediaKind, readonly string[]>> = {
 };
 
 /**
- * Resolve one image reference to bytes under the importer's media rules.
+ * Resolve one media reference to a staged file under the importer's media rules.
  *
  * The same rules are applied on the initial import and on a failed-media retry:
- * inline `data:` URLs, authorized adjacent files (only when no base URL exists),
+ * inline `data:` URLs, authorized adjacent files/directories (without a base URL),
  * or an SSRF-protected download against the base URL. Centralizing them here
  * keeps the retry from drifting away from the original authorization checks.
  *
  * @param source Image `src` (or the recorded source of a failed download).
- * @param options Adjacent files, base URL, and abort signal.
- * @returns The resolved bytes and declared MIME type.
+ * @param options Shared resource budget, authorized sources, MIME kind and cancellation.
+ * @returns Internal file handle after byte, signature and decode validation.
  */
 export async function loadMedia(
   source: string,
@@ -67,21 +66,79 @@ export async function loadMedia(
     files = [],
     base = null,
     signal,
-  }: { files?: MediaFile[]; base?: string | null; signal?: AbortSignal } = {},
-): Promise<MediaBytes> {
+    resources,
+    directory,
+    kind = "image",
+    name = "媒体",
+  }: {
+    files?: MediaFile[];
+    base?: string | null;
+    signal?: AbortSignal;
+    resources: ImportResources;
+    directory?: AuthorizedDirectory;
+    kind?: MediaKind;
+    name?: string;
+  },
+): Promise<ResourceHandle> {
+  signal?.throwIfAborted();
+  const stage = async (
+    mime: string,
+    produce: (write: (bytes: Uint8Array) => Promise<void>) => Promise<void>,
+  ) => {
+    assertLocalizableMedia({ mime }, kind);
+    return resources.stage(mime, name, produce);
+  };
   if (source.startsWith("data:")) {
     const match = source.match(
       /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/,
     );
     if (!match) throw Error("不支持的内嵌图片");
-    return { mime: match[1], data: Buffer.from(match[2], "base64") };
+    return stage(match[1], (write) =>
+      writeBase64(match[2], resources.budget.mediaBytes, write),
+    );
   }
   if (!base) {
+    if (directory) {
+      const { fd, size, mime, mtimeMs, ctimeMs } = await openAdjacent(
+        directory,
+        source,
+      ).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") throw Error("授权目录内未找到资源");
+        if (error.code === "EACCES" || error.code === "EPERM")
+          throw Error("没有读取此资源的权限");
+        throw error;
+      });
+      try {
+        if (size > resources.budget.mediaBytes) throw Error("资源大小超过预算");
+        return await stage(mime, async (write) => {
+          const buffer = Buffer.alloc(64 * 1024);
+          let offset = 0;
+          for (;;) {
+            signal?.throwIfAborted();
+            const { bytesRead } = await fd.read(
+              buffer,
+              0,
+              buffer.length,
+              offset,
+            );
+            if (!bytesRead) break;
+            await write(buffer.subarray(0, bytesRead));
+            offset += bytesRead;
+          }
+          const after = await fd.stat();
+          if (
+            offset !== size ||
+            after.size !== size ||
+            after.mtimeMs !== mtimeMs ||
+            after.ctimeMs !== ctimeMs
+          )
+            throw Error("资源文件在读取时改变");
+        });
+      } finally {
+        await fd.close();
+      }
+    }
     const decoded = decodeURIComponent(source).replace(/^\.\//, "");
-    // A relative name is matched directly. When a base-less import has already
-    // been rewritten to an absolute URL (Readability resolves relative refs
-    // against the document URL), the URL's path basename is used instead. Only
-    // user-authorized files are ever read, so neither form can escape the set.
     const names = [decoded];
     if (/^[a-z][\w+.-]*:/i.test(decoded)) {
       try {
@@ -97,25 +154,55 @@ export async function loadMedia(
           !name.split("/").includes(".."),
       )
       .map((name) => files.find((f) => f.name === name))
-      .find((found) => found);
+      .find(Boolean);
     if (!file) throw Error("未选择相邻资源文件");
-    return { data: Buffer.from(file.data, "base64"), mime: file.mime };
+    return stage(file.mime, (write) =>
+      writeBase64(file.data, resources.budget.mediaBytes, write),
+    );
   }
-  const media = await safeDownload(new URL(source, base).href, {
-    signal,
-    maxBytes: importLimits.mediaBytes,
-  });
-  return { data: media.data, mime: media.mime };
-}
-
-/**
- * Reject a resolved media item that is not a supported localized image.
- *
- * @param media Resolved bytes and MIME type.
- */
-export function assertLocalizableImage(media: MediaBytes) {
-  if (!(localizedImageMimes as readonly string[]).includes(media.mime))
-    throw Error("暂不支持此图片类型");
+  // The response MIME is available only after headers. Start the file sink lazily
+  // and await each write for backpressure, without buffering the response.
+  let handle: ResourceHandle | undefined;
+  let writeChunk: ((chunk: Uint8Array) => Promise<void>) | undefined;
+  let finish: (() => void) | undefined;
+  let rejectBody: ((error: unknown) => void) | undefined;
+  let staged: Promise<ResourceHandle> | undefined;
+  try {
+    await safeDownload(new URL(source, base).href, {
+      signal,
+      maxBytes: Math.min(
+        resources.budget.mediaBytes,
+        resources.budget.responseBytes,
+      ),
+      responseMs: resources.budget.responseMs,
+      onChunk: async (chunk, mime) => {
+        if (!staged) {
+          let ready!: () => void;
+          const available = new Promise<void>((resolve) => {
+            ready = resolve;
+          });
+          staged = stage(mime, async (write) => {
+            writeChunk = write;
+            ready();
+            await new Promise<void>((resolve, reject) => {
+              finish = resolve;
+              rejectBody = reject;
+            });
+          });
+          await Promise.race([available, staged]);
+        }
+        await writeChunk!(chunk);
+      },
+    });
+    finish?.();
+    handle = await staged;
+    if (!handle) throw Error("媒体响应为空");
+    return handle;
+  } catch (error) {
+    rejectBody?.(error);
+    await staged?.catch(() => {});
+    throw error;
+  }
 }
 
 /**
@@ -125,7 +212,7 @@ export function assertLocalizableImage(media: MediaBytes) {
  * @param kind Media kind being localized (defaults to an inline image).
  */
 export function assertLocalizableMedia(
-  media: MediaBytes,
+  media: { mime: string },
   kind: MediaKind = "image",
 ) {
   const allowed = localizableMimes[kind] || localizedImageMimes;

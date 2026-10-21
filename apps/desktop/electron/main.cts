@@ -239,6 +239,25 @@ else {
           typeof input?.notebookId === "string"
         )
           extensionHost.revokeNotebook(input.notebookId);
+        if (op === "chooseImportDirectory") {
+          if (
+            !input ||
+            Object.keys(input).some((key) => key !== "notebookId") ||
+            typeof input.notebookId !== "string" ||
+            !/^[a-f0-9-]{36}$/.test(input.notebookId)
+          )
+            throw Error("资源目录选择不接受渲染器路径");
+          const selected = await dialog.showOpenDialog(win, {
+            title: "授权读取 HTML 相邻资源目录",
+            properties: ["openDirectory"],
+            buttonLabel: "授权此目录",
+          });
+          if (selected.canceled || !selected.filePaths.length) return null;
+          return callStore("registerImportDirectory", {
+            notebookId: input.notebookId,
+            path: selected.filePaths[0],
+          });
+        }
         if (op === "configureLocalBackup") {
           if (
             !input ||

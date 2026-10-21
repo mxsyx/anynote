@@ -4,7 +4,16 @@ import { JSDOM } from "jsdom";
 import { randomUUID } from "node:crypto";
 import TurndownService from "turndown";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
-import { importLimits } from "@anynote/protocol/import-limits.js";
+import {
+  resolveImportBudget,
+  type ImportBudget,
+} from "@anynote/protocol/import-limits.js";
+import {
+  ImportResources,
+  mapConcurrent,
+  type ResourceHandle,
+} from "./resources.js";
+import type { AuthorizedDirectory } from "./directory.js";
 import { extensionBlock } from "@anynote/protocol/markdown.js";
 import {
   collapsePictures,
@@ -12,11 +21,7 @@ import {
   discoverBlockMedia,
   resolveLazyImages,
 } from "./discovery.js";
-import {
-  assertLocalizableImage,
-  assertLocalizableMedia,
-  loadMedia,
-} from "./media.js";
+import { loadMedia } from "./media.js";
 import { safeDownload } from "./network.js";
 
 /** Input parameters for web page/HTML import. */
@@ -28,6 +33,8 @@ export interface ImportInput {
   files?: { name: string; data: string; mime: string }[];
   /** Keep the source HTML as a resource beside the converted note. */
   keepOriginal?: boolean;
+  budget?: Partial<ImportBudget>;
+  directoryGrant?: string;
 }
 
 /** Escape a name for use inside Markdown link/image text. */
@@ -75,7 +82,13 @@ export async function prepareImport(
   input: ImportInput,
   signal: AbortSignal | undefined,
   progress: (message: string) => void = () => {},
+  context: {
+    resources?: ImportResources;
+    directory?: AuthorizedDirectory;
+  } = {},
 ) {
+  const budget = resolveImportBudget(input.budget);
+  signal?.throwIfAborted();
   let html = input.html || "",
     source = input.url || "https://anynote.invalid/",
     finalUrl: string | null = null;
@@ -83,7 +96,8 @@ export async function prepareImport(
     progress("正在获取网页");
     const page = await safeDownload(input.url, {
       signal,
-      maxBytes: importLimits.htmlBytes,
+      maxBytes: Math.min(budget.htmlBytes, budget.responseBytes),
+      responseMs: budget.responseMs,
     });
     html = decodeHtml(page.data, page.contentType || "");
     source = page.url;
@@ -93,8 +107,10 @@ export async function prepareImport(
   // The fetch time is recorded once the HTML is in hand (received or fetched),
   // so the report can state when this snapshot was taken.
   const fetchedAt = Date.now();
-  if (!html || Buffer.byteLength(html) > importLimits.htmlBytes)
-    throw Error("HTML 为空或超过 10MB");
+  if (!html || Buffer.byteLength(html) > budget.htmlBytes)
+    throw Error("HTML 为空或超过预算");
+  const store =
+    context.resources || (await ImportResources.create(budget, signal));
   const dom = new JSDOM(html, { url: source });
   try {
     const win = dom.window,
@@ -107,6 +123,14 @@ export async function prepareImport(
     // sizing, and `<picture>/<source>` collapse so later stages see plain src.
     resolveLazyImages(original);
     collapsePictures(original);
+    // Preserve local paths before Readability resolves and normalizes dot segments.
+    if (!input.url)
+      for (const element of original.querySelectorAll("img[src],a[href]"))
+        element.setAttribute(
+          "data-anynote-source",
+          element.getAttribute(element.tagName === "IMG" ? "src" : "href") ||
+            "",
+        );
 
     // Capture block media (provider videos, audio/video files, non-localizable
     // embeds) before the sanitizer removes those tags, replacing each with a
@@ -144,9 +168,9 @@ export async function prepareImport(
     container.innerHTML = clean;
 
     const files = input.files || [],
-      resources: { id: string; mime: string; name: string; data: string }[] =
-        [],
+      resources: ResourceHandle[] = [],
       report = {
+        budget,
         source: input.url || null,
         finalUrl,
         fetchedAt,
@@ -179,60 +203,49 @@ export async function prepareImport(
     // Optionally keep the source HTML beside the converted note so the original
     // markup stays inspectable without re-fetching the page.
     if (input.keepOriginal) {
-      const data = Buffer.from(html, "utf8"),
-        name = (title || "网页") + ".html",
-        originalId = randomUUID();
-      resources.push({
-        id: originalId,
+      const name = (title || "网页") + ".html";
+      const resource = await store.stage(
+        "text/html",
         name,
-        mime: "text/html",
-        data: data.toString("base64"),
-      });
-      report.originalHtml = { resourceId: originalId, name, size: data.length };
+        async (write) => {
+          await write(Buffer.from(html, "utf8"));
+        },
+        true,
+      );
+      resources.push(resource);
+      report.originalHtml = {
+        resourceId: resource.id,
+        name,
+        size: resource.size,
+      };
     }
 
     const images = [...container.querySelectorAll("img")];
-    if (images.length > importLimits.mediaCount)
-      throw Error(`图片数量超过 ${importLimits.mediaCount}`);
-    let bytes = 0;
+    const attachments = discoverAttachments(container, source);
+    if (
+      images.length + attachments.length + blockMedia.length >
+      budget.mediaCount
+    )
+      throw Error(`媒体数量超过 ${budget.mediaCount}`);
 
-    for (let i = 0; i < images.length; i++) {
+    await mapConcurrent(images, budget.concurrency, async (img, i) => {
       signal?.throwIfAborted();
       progress(`正在本地化图片 ${i + 1}/${images.length}`);
-      const img = images[i],
-        src = img.getAttribute("src") || "";
+      const src =
+        (!input.url ? img.getAttribute("data-anynote-source") : null) ??
+        img.getAttribute("src") ??
+        "";
       try {
         const media = await loadMedia(src, {
           files,
           base: input.url ? source : null,
           signal,
-        });
-        assertLocalizableImage(media);
-        if (
-          media.data.length > importLimits.mediaBytes ||
-          (bytes += media.data.length) > importLimits.totalBytes
-        )
-          throw Error("媒体大小超过预算");
-        const data = media.data;
-        if (
-          (media.mime === "image/png" &&
-            data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") ||
-          (media.mime === "image/jpeg" &&
-            !(data[0] === 255 && data[1] === 216)) ||
-          (media.mime === "image/webp" &&
-            !(
-              data.subarray(0, 4).toString() === "RIFF" &&
-              data.subarray(8, 12).toString() === "WEBP"
-            ))
-        )
-          throw Error("图片类型与实际内容不匹配");
-        const id = randomUUID();
-        resources.push({
-          id,
+          resources: store,
+          directory: context.directory,
           name: img.alt || "网页图片",
-          mime: media.mime,
-          data: media.data.toString("base64"),
         });
+        const id = media.id;
+        resources.push(media);
         img.setAttribute("src", "anynote-resource:" + id);
         report.media.push({
           source: src,
@@ -241,12 +254,13 @@ export async function prepareImport(
           resourceId: id,
         });
         report.localized++;
-        report.bytes += media.data.length;
+        report.bytes += media.size;
       } catch (e: any) {
+        signal?.throwIfAborted();
         report.failed++;
         // Embed a stable, Turndown-safe marker in the placeholder so a later
         // retry can find and replace exactly this line even after escaping.
-        const marker = `anynote-media-failed-${report.media.length}`;
+        const marker = `anynote-media-failed-${i}`;
         report.media.push({
           source: src,
           status: "failed",
@@ -259,33 +273,31 @@ export async function prepareImport(
         placeholder.textContent = `(${marker}) [图片未下载：${img.alt || src} — ${e.message}]`;
         img.replaceWith(placeholder);
       }
-    }
+    });
 
     // Attachments default to a kept external link; a user-supplied adjacent
     // file is localized into a resource and the link is rewritten. Every
     // attachment is recorded so nothing is silently dropped.
-    for (const attachment of discoverAttachments(container, source)) {
+    await mapConcurrent(attachments, budget.concurrency, async (attachment) => {
       signal?.throwIfAborted();
       progress(`正在处理附件 ${attachment.name}`);
       try {
-        const media = await loadMedia(attachment.href, {
-          files,
-          base: null,
-          signal,
-        });
-        assertLocalizableMedia(media, "attachment");
-        if (
-          media.data.length > importLimits.mediaBytes ||
-          (bytes += media.data.length) > importLimits.totalBytes
-        )
-          throw Error("媒体大小超过预算");
-        const id = randomUUID();
-        resources.push({
-          id,
-          name: attachment.name || "附件",
-          mime: media.mime,
-          data: media.data.toString("base64"),
-        });
+        const media = await loadMedia(
+          (!input.url
+            ? attachment.element.getAttribute("data-anynote-source")
+            : null) ?? attachment.href,
+          {
+            files,
+            base: null,
+            signal,
+            resources: store,
+            directory: input.url ? undefined : context.directory,
+            kind: "attachment",
+            name: attachment.name,
+          },
+        );
+        const id = media.id;
+        resources.push(media);
         // An icon-only link would otherwise convert to an empty label.
         if (!attachment.element.textContent?.trim())
           attachment.element.textContent = attachment.name;
@@ -298,8 +310,9 @@ export async function prepareImport(
           name: attachment.name,
         });
         report.localized++;
-        report.bytes += media.data.length;
+        report.bytes += media.size;
       } catch (e: any) {
+        signal?.throwIfAborted();
         report.media.push({
           source: attachment.source,
           status: "linked",
@@ -308,12 +321,12 @@ export async function prepareImport(
           error: e.message,
         });
       }
-    }
+    });
 
     // Render the block media captured before cleaning: provider videos become
     // safe `core.video` blocks, direct audio/video is localized, and anything
     // else is reported with a placeholder instead of vanishing.
-    for (const entry of blockMedia) {
+    await mapConcurrent(blockMedia, budget.concurrency, async (entry) => {
       signal?.throwIfAborted();
       const { media, marker } = entry;
       if (media.kind === "embed" && media.video) {
@@ -328,7 +341,7 @@ export async function prepareImport(
           kind: "video",
           name: media.name,
         });
-        continue;
+        return;
       }
       if (media.kind === "video" || media.kind === "audio") {
         progress(`正在本地化媒体 ${media.name}`);
@@ -339,21 +352,14 @@ export async function prepareImport(
               files,
               base: input.url ? source : null,
               signal,
+              resources: store,
+              directory: context.directory,
+              kind: media.kind,
+              name: media.name,
             },
           );
-          assertLocalizableMedia(resolved, media.kind);
-          if (
-            resolved.data.length > importLimits.mediaBytes ||
-            (bytes += resolved.data.length) > importLimits.totalBytes
-          )
-            throw Error("媒体大小超过预算");
-          const id = randomUUID();
-          resources.push({
-            id,
-            name: media.name || "媒体",
-            mime: resolved.mime,
-            data: resolved.data.toString("base64"),
-          });
+          const id = resolved.id;
+          resources.push(resolved);
           entry.markdown = `[${escapeMediaName(media.name)}](anynote-resource:${id})`;
           report.media.push({
             source: media.source,
@@ -363,8 +369,9 @@ export async function prepareImport(
             name: media.name,
           });
           report.localized++;
-          report.bytes += resolved.data.length;
+          report.bytes += resolved.size;
         } catch (e: any) {
+          signal?.throwIfAborted();
           report.failed++;
           report.media.push({
             source: media.source,
@@ -376,7 +383,7 @@ export async function prepareImport(
           });
           entry.markdown = `(${marker}) [媒体未下载：${media.name} — ${e.message}]`;
         }
-        continue;
+        return;
       }
       report.media.push({
         source: media.source,
@@ -389,7 +396,7 @@ export async function prepareImport(
       entry.markdown = /^https?:/i.test(media.source)
         ? `[未本地化媒体：${escapeMediaName(media.name)}](${media.source})（${reason}）`
         : `（未本地化媒体：${escapeMediaName(media.name)} — ${reason}）`;
-    }
+    });
 
     const td = new TurndownService({
       headingStyle: "atx",
@@ -455,8 +462,12 @@ export async function prepareImport(
       body,
       sourceUri: finalUrl,
       resources,
+      stagingDirectory: store.directory,
       report,
     };
+  } catch (error) {
+    await store.dispose();
+    throw error;
   } finally {
     dom.window.close();
   }

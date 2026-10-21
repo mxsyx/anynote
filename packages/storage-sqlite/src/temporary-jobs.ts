@@ -15,7 +15,7 @@ import { assertLocalPath } from "./workspace.js";
 const record = z
   .object({
     id: z.string().uuid(),
-    kind: z.enum(["archive-jobs", "backup-jobs"]),
+    kind: z.enum(["archive-jobs", "backup-jobs", "import-jobs"]),
   })
   .strict();
 
@@ -28,7 +28,7 @@ const record = z
  */
 export function temporaryJob(
   root: string,
-  kind: "archive-jobs" | "backup-jobs",
+  kind: "archive-jobs" | "backup-jobs" | "import-jobs",
 ) {
   const id = randomUUID(),
     leases = assertLocalPath(root, "_local/job-leases"),

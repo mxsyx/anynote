@@ -2,6 +2,10 @@ import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import { Input } from "./components/ui/input";
 import { useEffect, useRef, useState } from "react";
+import {
+  importBudget,
+  type ImportBudget,
+} from "@anynote/protocol/import-limits.js";
 import { decodeHtml } from "@anynote/protocol/html-decode.js";
 import { request, base64 } from "./api";
 import { X, Globe, FileCode, LoaderCircle, ArrowLeft, Check } from "./icons";
@@ -58,6 +62,10 @@ export default function ImportDialog({
     [url, setUrl] = useState(""),
     [html, setHtml] = useState(""),
     [files, setFiles] = useState<File[]>([]),
+    [directory, setDirectory] = useState<{ id: string; name: string } | null>(
+      null,
+    ),
+    [budget, setBudget] = useState<ImportBudget>({ ...importBudget }),
     [title, setTitle] = useState("HTML 收藏"),
     [article, setArticle] = useState(true),
     [keepOriginal, setKeepOriginal] = useState(false),
@@ -68,22 +76,47 @@ export default function ImportDialog({
   const fileRef = useRef<HTMLInputElement>(null),
     /** Task id of the running preview, kept so it can be cancelled. */
     task = useRef<string | null>(null),
-    alive = useRef(true);
+    alive = useRef(true),
+    generation = useRef(0),
+    previewId = useRef<string | null>(null),
+    grantId = useRef<string | null>(null);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true;
+    return () => {
       alive.current = false;
+      generation.current++;
+      if (previewId.current)
+        void request("discardImportPreview", {
+          notebookId,
+          id: previewId.current,
+        }).catch(() => {});
+      if (grantId.current)
+        void request("revokeImportDirectory", {
+          notebookId,
+          id: grantId.current,
+        }).catch(() => {});
       // Abandoning the dialog must not leave an import preview worker running.
-      if (task.current)
-        void request("cancelTask", { id: task.current }).catch(() => {});
-    },
-    [],
-  );
+      if (task.current) {
+        const id = task.current;
+        void request("cancelTask", { id })
+          .catch(() => {})
+          .then(() => request("discardImportPreview", { notebookId, id }))
+          .catch(() => {});
+      }
+    };
+  }, [notebookId]);
 
   /** Collect the current form values, including any selected adjacent files. */
   const buildInput = async () => {
+    if (
+      files.length > budget.mediaCount ||
+      files.some((file) => file.size > budget.mediaBytes) ||
+      files.reduce((total, file) => total + file.size, 0) > budget.totalBytes
+    )
+      throw Error("相邻资源超过导入预算");
     const resources = await Promise.all(
-      files.map(async (file) => ({
+      (mode === "html" ? files : []).map(async (file) => ({
         name: file.webkitRelativePath || file.name,
         mime: file.type,
         data: await base64(file),
@@ -94,23 +127,35 @@ export default function ImportDialog({
       parentId,
       mode: article ? "article" : "page",
       keepOriginal,
-      ...(mode === "url" ? { url } : { html, title, files: resources }),
+      budget,
+      ...(mode === "url"
+        ? { url }
+        : { html, title, files: resources, directoryGrant: directory?.id }),
     };
   };
 
   /** Convert the page and poll until the preview is ready. */
   const startPreview = async () => {
     if (busy) return;
+    const current = ++generation.current;
     setBusy(true);
     setError("");
     setPreview(null);
     try {
-      const input = await buildInput(),
-        { id } = await request<{ id: string }>("previewImport", input);
+      const input = await buildInput();
+      if (!alive.current || current !== generation.current) return;
+      const { id } = await request<{ id: string }>("previewImport", input);
+      if (!alive.current || current !== generation.current) {
+        await request("cancelTask", { id }).catch(() => {});
+        await request("discardImportPreview", { notebookId, id }).catch(
+          () => {},
+        );
+        return;
+      }
       task.current = id;
       for (;;) {
         await new Promise((resolve) => setTimeout(resolve, 400));
-        if (!alive.current) return;
+        if (!alive.current || current !== generation.current) return;
         const state = await request<PreviewState>("getImportPreview", {
           notebookId,
           id,
@@ -119,15 +164,23 @@ export default function ImportDialog({
         if (["failed", "cancelled", "interrupted"].includes(state.status))
           throw Error(state.error || "预览未完成，请重试");
         if (state.status === "completed" && state.preview) {
+          if (!alive.current || current !== generation.current) {
+            await request("discardImportPreview", { notebookId, id }).catch(
+              () => {},
+            );
+            return;
+          }
+          previewId.current = id;
           setPreview(state.preview);
           break;
         }
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (alive.current && current === generation.current)
+        setError((e as Error).message);
     } finally {
-      task.current = null;
-      if (alive.current) {
+      if (current === generation.current) task.current = null;
+      if (alive.current && current === generation.current) {
         setBusy(false);
         setProgress("");
       }
@@ -156,8 +209,12 @@ export default function ImportDialog({
 
   /** Cancel the running preview and return to the form. */
   const cancelPreview = async () => {
-    if (task.current)
-      await request("cancelTask", { id: task.current }).catch(() => {});
+    generation.current++;
+    if (task.current) {
+      const id = task.current;
+      await request("cancelTask", { id }).catch(() => {});
+      await request("discardImportPreview", { notebookId, id }).catch(() => {});
+    }
     task.current = null;
     setBusy(false);
     setProgress("");
@@ -242,10 +299,10 @@ export default function ImportDialog({
               <dd>{new Date(preview.fetchedAt).toLocaleString("zh-CN")}</dd>
               <dt>媒体</dt>
               <dd>
-                已本地化 {preview.media.localized} / {preview.media.total} 张 ·
-                未下载 {preview.media.failed} 张 · {mb(preview.media.bytes)} /
+                已本地化 {preview.media.localized} / {preview.media.total} 项 ·
+                未下载 {preview.media.failed} 项 · {mb(preview.media.bytes)} /
                 预算 {mb(preview.media.limitBytes)}，上限{" "}
-                {preview.media.limitCount} 张
+                {preview.media.limitCount} 项
               </dd>
               <dt>正文模式</dt>
               <dd>
@@ -284,14 +341,24 @@ export default function ImportDialog({
           <>
             <input
               ref={fileRef}
+              style={{ display: "none" }}
               type="file"
               accept=".html,.htm"
               hidden
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  setHtml(decodeHtml(new Uint8Array(await file.arrayBuffer())));
-                  setTitle(file.name.replace(/\.html?$/, ""));
+                  try {
+                    if (file.size > budget.htmlBytes)
+                      throw Error("HTML 超过导入预算");
+                    setHtml(
+                      decodeHtml(new Uint8Array(await file.arrayBuffer())),
+                    );
+                    setTitle(file.name.replace(/\.html?$/, ""));
+                    setError("");
+                  } catch (error) {
+                    setError((error as Error).message);
+                  }
                 }
               }}
             />
@@ -312,18 +379,126 @@ export default function ImportDialog({
               onChange={(e) => setHtml(e.target.value)}
             />
             <label>
-              相邻图片文件（可多选；只读取你选择的文件）
+              相邻资源文件（可多选；只读取你选择的文件）
               <input
                 type="file"
                 multiple
-                accept=".png,.jpg,.jpeg,.webp,.svg"
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                accept=".png,.jpg,.jpeg,.webp,.pdf,.mp4,.webm,.mov,.mp3,.m4a,.wav,.ogg,.aac,.flac"
+                disabled={busy}
+                onChange={(e) => {
+                  if (grantId.current)
+                    void request("revokeImportDirectory", {
+                      notebookId,
+                      id: grantId.current,
+                    }).catch(() => {});
+                  grantId.current = null;
+                  setDirectory(null);
+                  setFiles(Array.from(e.target.files || []));
+                }}
               />
             </label>
+            {window.anynote && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const selected = await request<{
+                        id: string;
+                        name: string;
+                      } | null>("chooseImportDirectory", { notebookId });
+                      if (!selected) return;
+                      if (!alive.current) {
+                        await request("revokeImportDirectory", {
+                          notebookId,
+                          id: selected.id,
+                        });
+                        return;
+                      }
+                      if (grantId.current)
+                        await request("revokeImportDirectory", {
+                          notebookId,
+                          id: grantId.current,
+                        });
+                      grantId.current = selected.id;
+                      setDirectory(selected);
+                      setFiles([]);
+                    } catch (error) {
+                      setError((error as Error).message);
+                    }
+                  }}
+                >
+                  {directory
+                    ? `资源目录：${directory.name}`
+                    : "授权相邻资源目录"}
+                </Button>
+                {directory && (
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      void request("revokeImportDirectory", {
+                        notebookId,
+                        id: directory.id,
+                      }).catch(() => {});
+                      grantId.current = null;
+                      setDirectory(null);
+                    }}
+                  >
+                    取消目录授权
+                  </Button>
+                )}
+                <p className="muted">
+                  选择相对资源所在的根目录。授权在关闭此窗口或 30 分钟后失效。
+                </p>
+              </>
+            )}
           </>
         )}
         {!preview && (
           <>
+            <details>
+              <summary>导入预算</summary>
+              <div className="import-budget">
+                {(
+                  [
+                    ["concurrency", "同时下载数", 1],
+                    ["responseMs", "响应时限（秒）", 1000],
+                    ["responseBytes", "响应上限（MB）", 1024 ** 2],
+                    ["htmlBytes", "HTML 上限（MB）", 1024 ** 2],
+                    ["mediaBytes", "单资源上限（MB）", 1024 ** 2],
+                    ["totalBytes", "总量上限（MB）", 1024 ** 2],
+                    ["mediaCount", "媒体数量", 1],
+                    ["decodeBytes", "图片解码上限（百万像素）", 4_000_000],
+                  ] as [keyof ImportBudget, string, number][]
+                ).map(([key, label, unit]) => (
+                  <label key={key}>
+                    {label}
+                    <Input
+                      type="number"
+                      required
+                      min={1 / unit}
+                      max={importBudget[key] / unit}
+                      step="any"
+                      disabled={busy}
+                      value={budget[key] / unit}
+                      onChange={(event) =>
+                        setBudget((previous) => ({
+                          ...previous,
+                          [key]: Math.round(Number(event.target.value) * unit),
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </details>
             <label className="check-label">
               <input
                 type="checkbox"
@@ -361,6 +536,12 @@ export default function ImportDialog({
                 type="button"
                 className="secondary"
                 onClick={() => {
+                  if (previewId.current)
+                    void request("discardImportPreview", {
+                      notebookId,
+                      id: previewId.current,
+                    }).catch(() => {});
+                  previewId.current = null;
                   setPreview(null);
                   setError("");
                 }}

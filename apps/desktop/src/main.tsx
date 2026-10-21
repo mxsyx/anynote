@@ -75,7 +75,6 @@ import { seed } from "./seed";
 import ImportReport from "./ImportReport";
 import Bookshelf from "./Bookshelf";
 import type { BoardBlock } from "./DocumentView";
-import ImportDialog from "./ImportDialog";
 import TaskCenter from "./TaskCenter";
 import ExtensionCommands from "./ExtensionCommands";
 import ExtensionPage from "./ExtensionPage";
@@ -90,6 +89,7 @@ import RecoveryWizard from "./RecoveryWizard";
 import NotebookTransferDialog from "./NotebookTransferDialog";
 import { appearanceKey, readAppearance, toggleAppearance } from "./appearance";
 import "./styles.css";
+const ImportDialog = lazy(() => import("./ImportDialog"));
 const SearchPreview = lazy(() => import("./SearchPreview"));
 const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
@@ -1391,12 +1391,14 @@ function App() {
         }}
       />
       {importOpen && book && (
-        <ImportDialog
-          notebookId={book.id}
-          parentId={parentId}
-          onClose={() => setImportOpen(false)}
-          onImported={() => setToast("已导入并保存至本地")}
-        />
+        <Suspense fallback={null}>
+          <ImportDialog
+            notebookId={book.id}
+            parentId={parentId}
+            onClose={() => setImportOpen(false)}
+            onImported={() => setToast("已导入并保存至本地")}
+          />
+        </Suspense>
       )}
       {tasksOpen && (
         <TaskCenter

@@ -79,18 +79,36 @@ export async function safeDownload(
     redirects = 5,
     protocols = ["http:", "https:"],
     isolatedConnection = false,
+    responseMs = 30_000,
+    onChunk,
   }: {
     signal?: AbortSignal;
     maxBytes?: number;
     redirects?: number;
     protocols?: readonly string[];
     isolatedConnection?: boolean;
+    responseMs?: number;
+    onChunk?: (chunk: Buffer, mime: string) => Promise<void>;
   } = {},
 ) {
-  signal?.throwIfAborted();
+  signal = AbortSignal.any([
+    ...(signal ? [signal] : []),
+    AbortSignal.timeout(responseMs),
+  ]);
+  signal.throwIfAborted();
   if (!protocols.includes(new URL(raw).protocol))
     throw Error("下载地址协议不允许");
-  const { url, record } = await resolvePublic(raw);
+  // DNS cannot be cancelled by lookup(), but the task deadline must still reject
+  // promptly and remove its listener when either side settles.
+  const { url, record } = await new Promise<
+    Awaited<ReturnType<typeof resolvePublic>>
+  >((resolve, reject) => {
+    const abort = () => reject(signal!.reason);
+    signal!.addEventListener("abort", abort, { once: true });
+    resolvePublic(raw)
+      .then(resolve, reject)
+      .finally(() => signal!.removeEventListener("abort", abort));
+  });
   signal?.throwIfAborted();
 
   return new Promise<{
@@ -124,7 +142,7 @@ export async function safeDownload(
             res.statusCode! < 400 &&
             res.headers.location
           ) {
-            res.resume();
+            res.destroy();
             if (redirects <= 0) throw Error("重定向次数超限");
             resolve(
               await safeDownload(new URL(res.headers.location, url).href, {
@@ -133,12 +151,14 @@ export async function safeDownload(
                 redirects: redirects - 1,
                 protocols,
                 isolatedConnection,
+                responseMs,
+                onChunk,
               }),
             );
             return;
           }
           if (res.statusCode !== 200) {
-            res.resume();
+            res.destroy();
             throw Error("下载失败：HTTP " + res.statusCode);
           }
           if (Number(res.headers["content-length"]) > maxBytes) {
@@ -154,7 +174,14 @@ export async function safeDownload(
               res.destroy();
               throw Error("资源超过下载上限");
             }
-            chunks.push(c);
+            if (onChunk)
+              await onChunk(
+                c,
+                String(res.headers["content-type"] || "")
+                  .split(";")[0]
+                  .toLowerCase(),
+              );
+            else chunks.push(c);
           }
           resolve({
             data: Buffer.concat(chunks),
@@ -165,6 +192,7 @@ export async function safeDownload(
             url: url.href,
           });
         } catch (e: any) {
+          res.destroy();
           reject(e);
         }
       },

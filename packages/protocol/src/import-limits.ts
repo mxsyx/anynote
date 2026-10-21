@@ -14,3 +14,34 @@ export const importLimits = {
   /** Maximum characters of converted Markdown returned for the pre-submit preview. */
   previewChars: 20000,
 };
+
+/** Defaults also serve as hard ceilings: task overrides may only tighten them. */
+export const importBudget = {
+  concurrency: 4,
+  responseBytes: importLimits.mediaBytes,
+  responseMs: 30_000,
+  htmlBytes: importLimits.htmlBytes,
+  mediaBytes: importLimits.mediaBytes,
+  totalBytes: importLimits.totalBytes,
+  mediaCount: importLimits.mediaCount,
+  decodeBytes: 40_000_000 * 4,
+};
+
+export type ImportBudget = typeof importBudget;
+
+export function resolveImportBudget(
+  input: Partial<ImportBudget> = {},
+): ImportBudget {
+  const resolved = { ...importBudget };
+  for (const [key, value] of Object.entries(input)) {
+    if (
+      !Object.hasOwn(importBudget, key) ||
+      !Number.isSafeInteger(value) ||
+      value! < 1 ||
+      value! > importBudget[key as keyof ImportBudget]
+    )
+      throw Error(`导入预算无效：${key}`);
+    resolved[key as keyof ImportBudget] = value!;
+  }
+  return resolved;
+}

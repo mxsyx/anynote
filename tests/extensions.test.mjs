@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { prepareImport } from "../.build/packages/importer/html.js";
+import { ImportResources } from "../.build/packages/importer/resources.js";
 import { loadMedia } from "../.build/packages/importer/media.js";
 import {
   isPublicAddress,
@@ -197,7 +198,7 @@ test("whiteboard revisions pin old scene, preview and embedded image versions", 
     /停用/,
   );
 });
-test("HTML import sanitizes scripts/URLs, localizes authorized images and reports failures", async () => {
+test("HTML import sanitizes scripts/URLs, localizes authorized images and reports failures", async (t) => {
   const html = `<title>测试文章</title><article><h1>值得保存</h1><p>正常正文</p><script>throw new Error('run')</script><a href="javascript:alert(1)">危险链接</a><img src="data:image/png;base64,${png}"><img src="../secret.png"><img src="image.png" onerror="alert(1)"></article>`;
   const result = await prepareImport(
     {
@@ -206,6 +207,9 @@ test("HTML import sanitizes scripts/URLs, localizes authorized images and report
       files: [{ name: "image.png", mime: "image/png", data: png }],
     },
     new AbortController().signal,
+  );
+  t.onTestFinished(() =>
+    rmSync(result.stagingDirectory, { recursive: true, force: true }),
   );
   assert.equal(result.report.localized, 2);
   assert.equal(result.report.failed, 1);
@@ -219,11 +223,14 @@ test("HTML import sanitizes scripts/URLs, localizes authorized images and report
   assert.equal(result.report.keepOriginal, false);
   assert.equal(result.report.originalHtml, null);
 });
-test("HTML import can keep the source HTML as a pinned resource", async () => {
+test("HTML import can keep the source HTML as a pinned resource", async (t) => {
   const html = `<title>原文</title><article><p>正文</p></article>`;
   const result = await prepareImport(
     { html, mode: "page", keepOriginal: true },
     new AbortController().signal,
+  );
+  t.onTestFinished(() =>
+    rmSync(result.stagingDirectory, { recursive: true, force: true }),
   );
   assert.equal(result.report.keepOriginal, true);
   const original = result.report.originalHtml;
@@ -231,9 +238,9 @@ test("HTML import can keep the source HTML as a pinned resource", async () => {
   assert.equal(original.size, Buffer.byteLength(html));
   const saved = result.resources.find((r) => r.id === original.resourceId);
   assert.equal(saved.mime, "text/html");
-  assert.equal(Buffer.from(saved.data, "base64").toString(), html);
+  assert.equal(readFileSync(saved.file, "utf8"), html);
 });
-test("HTML import discovers srcset/picture/lazy images, provider videos and direct media", async () => {
+test("HTML import discovers srcset/picture/lazy images, provider videos and direct media", async (t) => {
   const html = `<title>媒体</title><article>
     <picture><source srcset="small.png 1x, large.png 2x" type="image/png"><img src="small.png" alt="图"></picture>
     <img data-src="lazy.png" alt="懒图">
@@ -253,6 +260,9 @@ test("HTML import discovers srcset/picture/lazy images, provider videos and dire
     },
     new AbortController().signal,
   );
+  t.onTestFinished(() =>
+    rmSync(result.stagingDirectory, { recursive: true, force: true }),
+  );
   // Two images (srcset winner + lazy attribute) and one direct video file.
   assert.equal(result.report.localized, 3);
   assert.equal(resourceIds(result.body).length, 3);
@@ -267,7 +277,7 @@ test("HTML import discovers srcset/picture/lazy images, provider videos and dire
   assert.ok(!result.body.includes("blob:"));
   assert.ok(result.body.includes("未本地化媒体"));
 });
-test("HTML import localizes user-selected attachments and reports kept links", async () => {
+test("HTML import localizes user-selected attachments and reports kept links", async (t) => {
   const html = `<title>附件</title><article><p>下载</p><a href="report.pdf">报告</a><a href="https://example.com/other.pdf">外链</a></article>`;
   const result = await prepareImport(
     {
@@ -276,6 +286,9 @@ test("HTML import localizes user-selected attachments and reports kept links", a
       files: [{ name: "report.pdf", mime: "application/pdf", data: png }],
     },
     new AbortController().signal,
+  );
+  t.onTestFinished(() =>
+    rmSync(result.stagingDirectory, { recursive: true, force: true }),
   );
   assert.equal(result.report.localized, 1);
   assert.equal(resourceIds(result.body).length, 1);
@@ -289,12 +302,19 @@ test("HTML import localizes user-selected attachments and reports kept links", a
   assert.ok(kept, "未授权附件保留为外部链接并记录");
   assert.ok(result.body.includes("https://example.com/other.pdf"));
 });
-test("adjacent media lookup accepts a resolved absolute URL basename and rejects escapes", async () => {
+test("adjacent media lookup accepts a resolved absolute URL basename and rejects escapes", async (t) => {
+  const resources = await ImportResources.create();
+  t.onTestFinished(() => resources.dispose());
   const media = await loadMedia("https://anynote.invalid/report.pdf", {
+    resources,
+    kind: "attachment",
     files: [{ name: "report.pdf", mime: "application/pdf", data: png }],
   });
   assert.equal(media.mime, "application/pdf");
-  await assert.rejects(loadMedia("../secret.png", { files: [] }), /相邻资源/);
+  await assert.rejects(
+    loadMedia("../secret.png", { files: [], resources }),
+    /相邻资源/,
+  );
 });
 test("network checks reject loopback, metadata, private, mapped IPv6 and reserved addresses", async () => {
   for (const ip of [

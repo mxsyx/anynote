@@ -1,4 +1,4 @@
-import { putAsset } from "./assets.js";
+import { putAsset, putAssetFile } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { Worker } from "node:worker_threads";
@@ -7,9 +7,23 @@ import { extensionBlock, parseBlocks } from "@anynote/protocol/markdown.js";
 import { videoCard } from "@anynote/protocol/video.js";
 import { linkedPdfNoteBody, pdfIndexCoverage } from "@anynote/protocol/pdf.js";
 import { imageBudgetError } from "@anynote/protocol/image-safety.js";
-import { importLimits } from "@anynote/protocol/import-limits.js";
 import {
-  assertLocalizableMedia,
+  importLimits,
+  importBudget,
+  resolveImportBudget,
+  type ImportBudget,
+} from "@anynote/protocol/import-limits.js";
+import { ImportResources } from "@anynote/importer/resources.js";
+import type { AuthorizedDirectory } from "@anynote/importer/directory.js";
+import {
+  grantImportDirectory,
+  revokeImportDirectory,
+  importDirectory,
+  importWorkspace,
+  discardImportPreview,
+  importTtl,
+} from "./import-state.js";
+import {
   loadMedia,
   type MediaFile,
   type MediaKind,
@@ -31,7 +45,24 @@ const importFiles = z
       data: z.string().max(28_000_000),
     }),
   )
-  .max(200);
+  .max(200)
+  .refine(
+    (files) =>
+      files.reduce((total, file) => total + file.data.length, 0) <=
+      Math.ceil(importLimits.totalBytes / 3) * 4,
+    "相邻资源总量超过预算",
+  );
+
+const budgetInput = z
+  .object(
+    Object.fromEntries(
+      Object.entries(importBudget).map(([key, limit]) => [
+        key,
+        z.number().int().min(1).max(limit).optional(),
+      ]),
+    ) as { [K in keyof ImportBudget]: z.ZodOptional<z.ZodNumber> },
+  )
+  .strict();
 
 /** Input shared by the direct import and the pre-submit preview. */
 const importInput = z
@@ -45,6 +76,8 @@ const importInput = z
     files: importFiles.optional(),
     /** Keep the source HTML as a resource beside the converted note. */
     keepOriginal: z.boolean().optional(),
+    budget: budgetInput.optional(),
+    directoryGrant: uuid.optional(),
   })
   .strict();
 
@@ -61,10 +94,12 @@ export interface ImportPreview {
   /** Human-readable destination directory path inside the Notebook. */
   target: string;
   createdAt: number;
+  dispose: () => void;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 /** How long an uncommitted preview is kept before it is discarded. */
-const previewTtl = 30 * 60 * 1000;
+const previewTtl = importTtl;
 
 /** Maximum number of uncommitted previews held at once. */
 const previewLimit = 8;
@@ -101,9 +136,9 @@ function folderPath(db: SqlDatabase, parentId: string | null | undefined) {
 function pruneImportPreviews(s: Storage) {
   const stale = Date.now() - previewTtl;
   for (const [id, p] of s.importPreviews)
-    if (p.createdAt < stale) s.importPreviews.delete(id);
+    if (p.createdAt < stale) discardImportPreview(s, id);
   while (s.importPreviews.size > previewLimit)
-    s.importPreviews.delete(s.importPreviews.keys().next().value!);
+    discardImportPreview(s, s.importPreviews.keys().next().value!);
 }
 
 /**
@@ -138,8 +173,8 @@ function previewPayload(entry: ImportPreview, previewId: string) {
       failed: report.failed,
       total: report.media.length,
       bytes: report.bytes,
-      limitBytes: importLimits.totalBytes,
-      limitCount: importLimits.mediaCount,
+      limitBytes: report.budget.totalBytes,
+      limitCount: report.budget.mediaCount,
     },
     resources: r.resources.length,
   };
@@ -153,8 +188,21 @@ function previewPayload(entry: ImportPreview, previewId: string) {
  * @param entry Preview entry to store.
  */
 function rememberImportPreview(s: Storage, id: string, entry: ImportPreview) {
+  entry.timer = setTimeout(() => discardImportPreview(s, id), previewTtl);
+  entry.timer.unref();
   s.importPreviews.set(id, entry);
   pruneImportPreviews(s);
+}
+
+function assertImportCapacity(s: Storage) {
+  let running = 0;
+  for (const job of s.jobs.values())
+    if (
+      ["import", "import-preview", "import-media-retry"].includes(job.type) &&
+      ["running", "committing"].includes(job.status) &&
+      ++running >= 2
+    )
+      throw Error("同时导入任务超过上限");
 }
 
 /**
@@ -175,6 +223,9 @@ function startImportTask(
   type: string,
   progress: string,
 ) {
+  assertImportCapacity(s);
+  const directory = importDirectory(s, p.notebookId, p.directoryGrant);
+  const workspace = importWorkspace(s);
   const job: Task = {
     id: randomUUID(),
     notebookId: p.notebookId,
@@ -184,12 +235,31 @@ function startImportTask(
     createdAt: Date.now(),
   };
   s.track(job);
-  const worker = new Worker(
-    new URL(import.meta.resolve("@anynote/importer/worker.js")),
-    { workerData: p },
-  );
+  let worker: Worker;
+  try {
+    worker = new Worker(
+      new URL(import.meta.resolve("@anynote/importer/worker.js")),
+      {
+        workerData: {
+          input: p,
+          directory,
+          stagingDirectory: workspace.directory,
+        },
+      },
+    );
+  } catch (error) {
+    workspace.dispose();
+    s.settle(job, "failed", { error: (error as Error).message });
+    throw error;
+  }
   job.worker = worker;
-  return { job, worker };
+  worker.on("exit", () => {
+    if (job.status === "running")
+      s.settle(job, "failed", { error: "导入进程提前退出" });
+    if (job.status !== "committing" && !s.importPreviews.has(job.id))
+      workspace.dispose();
+  });
+  return { job, worker, dispose: workspace.dispose };
 }
 
 /** One media item recorded in an import report. */
@@ -321,72 +391,74 @@ async function runImportMediaRetry(
     id: string;
     base: string | null;
     files: MediaFile[];
+    directory?: AuthorizedDirectory;
+    budget: ImportBudget;
   },
   report: ImportReport,
   items: ImportMediaItem[],
 ) {
-  const db = s.open(target.notebookId),
-    controller = job.controller!,
+  const controller = job.controller!,
     outcomes: { item: ImportMediaItem; resource?: SqlRow; error?: string }[] =
       [];
-  let bytes = 0;
-  for (let i = 0; i < items.length && !controller.signal.aborted; i++) {
-    const item = items[i];
-    job.progress = `正在重试失败媒体 ${i + 1}/${items.length}`;
+  const workspace = importWorkspace(s),
+    resources = new ImportResources(
+      workspace.directory,
+      target.budget,
+      controller.signal,
+    );
+  resources.bytes =
+    Number(report.bytes || 0) +
+    Number((report.originalHtml as { size?: number } | undefined)?.size || 0);
+  try {
+    for (let i = 0; i < items.length && !controller.signal.aborted; i++) {
+      const item = items[i];
+      job.progress = `正在重试失败媒体 ${i + 1}/${items.length}`;
+      try {
+        const media = await loadMedia(item.source, {
+          files: target.files,
+          base: target.base,
+          signal: controller.signal,
+          resources,
+          directory: target.directory,
+          kind: (item.kind as MediaKind) || "image",
+          name: item.name || "网页图片",
+        });
+        outcomes.push({ item, resource: media });
+      } catch (e: any) {
+        if (controller.signal.aborted) break;
+        outcomes.push({ item, error: e.message });
+      }
+    }
+
+    let summary: {
+      applied: number;
+      failed: number;
+      skipped: number;
+      note: SqlRow;
+    };
     try {
-      const media = await loadMedia(item.source, {
-        files: target.files,
-        base: target.base,
-        signal: controller.signal,
-      });
-      assertLocalizableMedia(media, (item.kind as MediaKind) || "image");
-      if (
-        media.data.length > importLimits.mediaBytes ||
-        (bytes += media.data.length) > importLimits.totalBytes
-      )
-        throw Error("媒体大小超过预算");
-      outcomes.push({
-        item,
-        resource: writeResource(
-          s,
-          db,
-          target.notebookId,
-          { data: media.data, mime: media.mime, name: item.name || "网页图片" },
-          importLimits.mediaBytes,
-        ),
+      summary = await s.run("commitImportMediaRetry", {
+        notebookId: target.notebookId,
+        id: target.id,
+        report,
+        outcomes,
       });
     } catch (e: any) {
-      if (controller.signal.aborted) break;
-      outcomes.push({ item, error: e.message });
+      s.settle(job, "failed", { error: e.message });
+      return;
     }
+    job.note = summary.note;
+    const done = `重试完成：成功 ${summary.applied} 个，失败 ${summary.failed} 个${
+      summary.skipped ? `，跳过 ${summary.skipped} 个（引用已修改）` : ""
+    }`;
+    if (controller.signal.aborted)
+      s.settle(job, "cancelled", { progress: "已取消 · " + done, report });
+    else if (summary.applied)
+      s.settle(job, "completed", { progress: done, report });
+    else s.settle(job, "failed", { error: done, report });
+  } finally {
+    workspace.dispose();
   }
-
-  let summary: {
-    applied: number;
-    failed: number;
-    skipped: number;
-    note: SqlRow;
-  };
-  try {
-    summary = await s.run("commitImportMediaRetry", {
-      notebookId: target.notebookId,
-      id: target.id,
-      report,
-      outcomes,
-    });
-  } catch (e: any) {
-    s.settle(job, "failed", { error: e.message });
-    return;
-  }
-  job.note = summary.note;
-  const done = `重试完成：成功 ${summary.applied} 个，失败 ${summary.failed} 个${
-    summary.skipped ? `，跳过 ${summary.skipped} 个（引用已修改）` : ""
-  }`;
-  if (controller.signal.aborted)
-    s.settle(job, "cancelled", { progress: "已取消 · " + done, report });
-  else if (summary.applied)
-    s.settle(job, "completed", { progress: done, report });
-  else s.settle(job, "failed", { error: done, report });
 }
 
 /** Common input locating a node within a Notebook. */
@@ -501,7 +573,8 @@ export function writeResource(
  * @param r Resource row.
  */
 function bind(db: SqlDatabase, r: SqlRow) {
-  putAsset(db, r.data, r.mime);
+  if (r.file) r.hash = putAssetFile(db, r.file, r.mime);
+  else putAsset(db, r.data, r.mime);
   if (db.prepare("SELECT id FROM resources WHERE id=?").get(r.id))
     db.prepare(
       "UPDATE resources SET asset_hash=?,revision=revision+1 WHERE id=?",
@@ -715,6 +788,9 @@ export async function advancedOperations(
     "getImportReport",
     "startImport",
     "previewImport",
+    "registerImportDirectory",
+    "revokeImportDirectory",
+    "discardImportPreview",
     "getImportPreview",
     "commitImportPreview",
     "retryImportMedia",
@@ -856,6 +932,25 @@ export async function advancedOperations(
     return { handled: true, result: true };
   }
 
+  if (op === "registerImportDirectory") {
+    const p = z
+      .object({ notebookId: uuid, path: z.string().min(1) })
+      .strict()
+      .parse(raw);
+    return {
+      handled: true,
+      result: await grantImportDirectory(s, p.notebookId, p.path),
+    };
+  }
+  if (op === "revokeImportDirectory" || op === "discardImportPreview") {
+    const p = ref.strict().parse(raw);
+    if (op === "revokeImportDirectory")
+      revokeImportDirectory(s, p.notebookId, p.id);
+    else if (s.importPreviews.get(p.id)?.notebookId === p.notebookId)
+      discardImportPreview(s, p.id);
+    return { handled: true, result: true };
+  }
+
   if (op === "startImport") {
     const p = importInput.parse(raw);
     if (!p.url && !p.html) throw Error("请输入网页地址或 HTML");
@@ -863,7 +958,12 @@ export async function advancedOperations(
     if (!extensionFlag(importDb, "anynote.html-import"))
       throw Error("网页导入扩展已停用");
     s.parent(importDb, p.parentId);
-    const { job, worker } = startImportTask(s, p, "import", "准备导入");
+    const { job, worker, dispose } = startImportTask(
+      s,
+      p,
+      "import",
+      "准备导入",
+    );
     worker.on("message", async (m) => {
       if (job.status !== "running") return;
       if (m.progress) job.progress = m.progress;
@@ -887,6 +987,7 @@ export async function advancedOperations(
           s.settle(job, "failed", { error: e.message });
         }
         worker.terminate();
+        dispose();
       }
     });
     worker.on("error", (e) => {
@@ -904,7 +1005,12 @@ export async function advancedOperations(
       throw Error("网页导入扩展已停用");
     s.parent(importDb, p.parentId);
     const target = folderPath(importDb, p.parentId),
-      { job, worker } = startImportTask(s, p, "import-preview", "准备预览");
+      { job, worker, dispose } = startImportTask(
+        s,
+        p,
+        "import-preview",
+        "准备预览",
+      );
     worker.on("message", (m) => {
       if (job.status !== "running") return;
       if (m.progress) job.progress = m.progress;
@@ -920,6 +1026,7 @@ export async function advancedOperations(
           parentId: p.parentId ?? null,
           target,
           createdAt: Date.now(),
+          dispose,
         });
         s.settle(job, "completed", { progress: "预览已就绪" });
         worker.terminate();
@@ -937,7 +1044,13 @@ export async function advancedOperations(
     pruneImportPreviews(s);
     const job = s.jobs.get(p.id),
       entry = s.importPreviews.get(p.id);
-    if (!job && !entry) throw Error("预览已失效，请重新预览");
+    if (
+      (!job && !entry) ||
+      (!entry && job?.status === "completed") ||
+      (entry && entry.notebookId !== p.notebookId) ||
+      (job && job.notebookId !== p.notebookId)
+    )
+      throw Error("预览已失效，请重新预览");
     result = {
       status: job?.status || "completed",
       progress: job?.progress || "预览已就绪",
@@ -956,6 +1069,7 @@ export async function advancedOperations(
       })
       .strict()
       .parse(raw);
+    pruneImportPreviews(s);
     const entry = s.importPreviews.get(p.previewId);
     if (!entry) throw Error("预览已失效，请重新预览");
     if (
@@ -970,7 +1084,7 @@ export async function advancedOperations(
       notebookId: p.notebookId,
       parentId: p.parentId,
     });
-    s.importPreviews.delete(p.previewId);
+    discardImportPreview(s, p.previewId);
     return { handled: true, result: committed.result };
   }
 
@@ -984,6 +1098,8 @@ export async function advancedOperations(
           .optional(),
         /** Authorized adjacent files for an HTML-file import whose images failed. */
         files: importFiles.optional(),
+        directoryGrant: uuid.optional(),
+        budget: budgetInput.optional(),
       })
       .strict()
       .parse(raw);
@@ -1035,6 +1151,14 @@ export async function advancedOperations(
         payload: { notebookId: p.notebookId, id: p.id },
       },
     };
+    assertImportCapacity(s);
+    const directory = importDirectory(s, p.notebookId, p.directoryGrant);
+    const previousBudget = resolveImportBudget(
+      report.budget as Partial<ImportBudget> | undefined,
+    );
+    const retryBudget = resolveImportBudget(p.budget);
+    for (const key of Object.keys(retryBudget) as (keyof ImportBudget)[])
+      retryBudget[key] = Math.min(previousBudget[key], retryBudget[key]);
     s.track(job);
     void runImportMediaRetry(
       s,
@@ -1044,6 +1168,8 @@ export async function advancedOperations(
         id: p.id,
         base: report.finalUrl || report.source || null,
         files: p.files || [],
+        directory,
+        budget: retryBudget,
       },
       report,
       targets,
@@ -1060,9 +1186,7 @@ export async function advancedOperations(
       > & { notebookId: string; parentId?: string },
       db = s.open(p.notebookId);
     s.parent(db, p.parentId);
-    const resources = p.resources.map((r) =>
-        writeResource(s, db, p.notebookId, r),
-      ),
+    const resources = p.resources,
       id = randomUUID(),
       rev = randomUUID(),
       now = Date.now();
@@ -1142,6 +1266,7 @@ export async function advancedOperations(
       body = next;
       succeedImportMedia(item, resource);
       applied.push({ item, resource });
+      p.report.bytes = Number(p.report.bytes || 0) + resource.size;
     }
     recalcImportMedia(p.report);
     const persistReport = () =>
