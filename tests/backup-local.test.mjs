@@ -1342,3 +1342,208 @@ test("serialized failed verify and restore tasks keep their complete report and 
   }
   assert.equal(f.s.registry().length, before);
 });
+
+test("task queries and cancellation bypass capture while writes retain their barrier and workers are joined", async (t) => {
+  const f = await fixture(t);
+  await f.run();
+  const before = readFileSync(join(f.dest, ".backup/manifest.json"), "utf8");
+  for (let i = 0; i < 8; i++) f.add(`capture-${i}`);
+  const target = await f.s.run("configureLocalBackup", {
+    notebookId: f.book.id,
+    path: join(f.root, "disk"),
+  });
+  const { promises } = await import("node:fs");
+  const { syncBuiltinESMExports } = await import("node:module");
+  const { vi } = await import("vitest");
+  const originalLink = promises.link;
+  let entered, release;
+  const reached = new Promise((r) => {
+    entered = r;
+  });
+  const gate = new Promise((r) => {
+    release = r;
+  });
+  const mocked = vi
+    .spyOn(promises, "link")
+    .mockImplementation(async (...args) => {
+      if (String(args[1]).includes("backup-jobs")) {
+        entered();
+        await gate;
+      }
+      return originalLink(...args);
+    });
+  syncBuiltinESMExports();
+  try {
+    const handle = await f.s.run("startLocalBackup", {
+      notebookId: f.book.id,
+      targetId: target.id,
+    });
+    await reached;
+    let written = false;
+    const write = f.s
+      .run("createNode", { notebookId: f.book.id, title: "After cut" })
+      .then(() => {
+        written = true;
+      });
+    const [active] = await f.s.run("listTasks", { id: handle.id });
+    assert.equal(active.phase, "准备数据库");
+    await f.s.run("cancelTask", { id: handle.id });
+    assert.equal(written, false);
+    assert.equal(f.s.jobs.get(handle.id).controller.signal.aborted, true);
+    release();
+    await f.s.jobs.get(handle.id).promise;
+    await write;
+    assert.equal(f.s.jobs.get(handle.id).status, "cancelled");
+    assert.equal(f.s.pins.has(f.book.id), false);
+    assert.equal(
+      readFileSync(join(f.dest, ".backup/manifest.json"), "utf8"),
+      before,
+    );
+    assert.deepEqual(readdirSync(join(f.s.root, "_local/backup-jobs")), []);
+  } finally {
+    release();
+    mocked.mockRestore();
+    syncBuiltinESMExports();
+  }
+});
+
+test("100000 assets plus database chunks round-trip a streamed manifest and validation remains cancellable", async (t) => {
+  const f = await fixture(t);
+  await f.run();
+  const { atomicJSON, jsonSize } = await import(
+    "../.build/packages/backup-local/files.js"
+  );
+  const m = manifestOf(f);
+  m.assets = Array.from({ length: 100000 }, (_, i) => {
+    const hash = i.toString(16).padStart(64, "0");
+    return {
+      path: `assets/sha256/${hash.slice(0, 2)}/${hash}.bin`,
+      sha256: hash,
+      size: 0,
+    };
+  });
+  m.files = [...m.files, ...m.assets];
+  await atomicJSON(f.dest, ".backup/manifest.json", m);
+  const raw = readFileSync(join(f.dest, ".backup/manifest.json"), "utf8");
+  assert.equal(Buffer.byteLength(raw), await jsonSize(m));
+  const info = await f.engine.info(f.target, f.book.id);
+  assert.equal(info.manifest.assets.length, 100000);
+  assert.ok(info.manifest.files.length > 100000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5);
+  try {
+    await assert.rejects(
+      f.run({ signal: controller.signal }),
+      (e) => e.name === "AbortError",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  assert.equal(
+    readFileSync(join(f.dest, ".backup/manifest.json"), "utf8"),
+    raw,
+  );
+  m.files[m.files.length - 1] = m.files[m.files.length - 2];
+  await atomicJSON(f.dest, ".backup/manifest.json", m);
+  await assert.rejects(f.engine.info(f.target, f.book.id), /重复或冲突/);
+}, 60000);
+
+test("the I/O budget is shared across concurrent jobs and cancellation joins active work", async () => {
+  const { forEachIO } = await import(
+    "../.build/packages/protocol/io-budget.js"
+  );
+  let active = 0,
+    peak = 0,
+    completed = 0;
+  const controller = new AbortController();
+  const visit = async () => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((r) => setTimeout(r, 2));
+    active--;
+    completed++;
+    if (completed === 3) controller.abort();
+  };
+  const results = await Promise.allSettled(
+    Array.from({ length: 3 }, () =>
+      forEachIO(Array.from({ length: 50 }), visit, controller.signal),
+    ),
+  );
+  assert.ok(peak <= 4);
+  assert.equal(active, 0);
+  assert.ok(completed < 150);
+  assert.ok(results.every((r) => r.status === "rejected"));
+  let recovered = 0;
+  await forEachIO([1, 2, 3], async () => {
+    recovered++;
+  });
+  assert.equal(recovered, 3);
+});
+
+test("cancelling an I/O-budget waiter does not wait for another job's file transfer", async () => {
+  const { forEachIO } = await import(
+    "../.build/packages/protocol/io-budget.js"
+  );
+  let release,
+    ready,
+    active = 0;
+  const gate = new Promise((r) => {
+    release = r;
+  });
+  const reached = new Promise((r) => {
+    ready = r;
+  });
+  const busy = forEachIO([1, 2, 3, 4], async () => {
+    if (++active === 4) ready();
+    await gate;
+  });
+  await reached;
+  try {
+    const controller = new AbortController();
+    const waiting = forEachIO(
+      [1],
+      async () => assert.fail("Cancelled waiter acquired a slot"),
+      controller.signal,
+    );
+    controller.abort();
+    await assert.rejects(waiting, (e) => e.name === "AbortError");
+  } finally {
+    release();
+    await busy;
+  }
+  await forEachIO([1], async () => {});
+});
+
+test("batched JSON serialization preserves JSON semantics across buffer boundaries", async (t) => {
+  const f = await fixture(t);
+  const { atomicJSON, jsonSize } = await import(
+    "../.build/packages/backup-local/files.js"
+  );
+  const value = {
+    ignored: undefined,
+    fn: () => {},
+    symbol: Symbol("ignored"),
+    entries: Array.from({ length: 2048 }, (_, i) => [
+      i,
+      '中文\\"'.repeat(30),
+      undefined,
+    ]),
+    date: new Date("2026-10-21T00:00:00.000Z"),
+  };
+  await atomicJSON(f.root, "batched.json", value);
+  const expected = JSON.stringify(value);
+  assert.equal(readFileSync(join(f.root, "batched.json"), "utf8"), expected);
+  assert.equal(await jsonSize(value), Buffer.byteLength(expected));
+});
+
+test("batched manifest validation rejects null cleanup instead of treating it as absent", async (t) => {
+  const f = await fixture(t);
+  await f.run();
+  const manifest = manifestOf(f);
+  manifest.cleanup = null;
+  writeFileSync(
+    join(f.dest, ".backup/manifest.json"),
+    JSON.stringify(manifest),
+  );
+  await assert.rejects(f.engine.info(f.target, f.book.id), /清单.*格式/);
+});

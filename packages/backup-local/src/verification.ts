@@ -1,3 +1,4 @@
+import { forEachIO } from "@anynote/protocol/io-budget.js";
 import { lstat } from "node:fs/promises";
 import type {
   LocalBackupFile,
@@ -71,65 +72,71 @@ export async function inspectBackupFiles(input: {
   };
   emit();
   try {
-    for (const d of input.files) {
-      input.signal.throwIfAborted();
-      await input.guard();
-
-      /**
-       * Append one verification issue for the current file.
-       *
-       * @param code Issue code.
-       * @param message Issue message.
-       * @param actual Optional actual values to attach.
-       */
-      const issue = (
-        code: LocalVerificationIssue["code"],
-        message: string,
-        actual: Partial<LocalVerificationIssue> = {},
-      ) =>
-        report.issues.push({
-          path: d.path,
-          code,
-          message,
-          expected: { size: d.size, sha256: d.sha256 },
-          ...actual,
-        });
-      let stage: "path" | "read" = "path";
-      try {
-        const path = await safePath(input.root, d.path);
-        stage = "read";
-        const stat = await lstat(path);
-        if (!stat.isFile() || stat.isSymbolicLink()) {
-          issue("NOT_REGULAR_FILE", "不是普通文件");
-        } else if (stat.size !== d.size) {
-          issue("SIZE_MISMATCH", "文件大小不匹配", { actualSize: stat.size });
-        } else {
-          const before = await token(path),
-            hash = await hashFile(path, input.signal);
-          report.checkedBytes += stat.size;
-          if ((await token(path)) !== before)
-            issue("FILE_CHANGED", "校验期间文件发生变化");
-          else if (hash !== d.sha256)
-            issue("HASH_MISMATCH", "SHA-256 校验失败", { actualSha256: hash });
-          else report.verifiedFiles++;
-        }
-      } catch (e: any) {
+    await forEachIO(
+      input.files,
+      async (d) => {
         input.signal.throwIfAborted();
-        // A missing/changed root is not just another corrupt file: it should abort the whole disk task.
         await input.guard();
-        issue(
-          e.code === "ENOENT"
-            ? "FILE_MISSING"
-            : stage === "path" && !e.code
-              ? "PATH_UNSAFE"
-              : "READ_FAILED",
-          e.code === "ENOENT" ? "文件缺失" : e.message,
-          { ...(typeof e.code === "string" ? { systemCode: e.code } : {}) },
-        );
-      }
-      report.checkedFiles++;
-      emit();
-    }
+
+        /**
+         * Append one verification issue for the current file.
+         *
+         * @param code Issue code.
+         * @param message Issue message.
+         * @param actual Optional actual values to attach.
+         */
+        const issue = (
+          code: LocalVerificationIssue["code"],
+          message: string,
+          actual: Partial<LocalVerificationIssue> = {},
+        ) =>
+          report.issues.push({
+            path: d.path,
+            code,
+            message,
+            expected: { size: d.size, sha256: d.sha256 },
+            ...actual,
+          });
+        let stage: "path" | "read" = "path";
+        try {
+          const path = await safePath(input.root, d.path);
+          stage = "read";
+          const stat = await lstat(path);
+          if (!stat.isFile() || stat.isSymbolicLink()) {
+            issue("NOT_REGULAR_FILE", "不是普通文件");
+          } else if (stat.size !== d.size) {
+            issue("SIZE_MISMATCH", "文件大小不匹配", { actualSize: stat.size });
+          } else {
+            const before = await token(path),
+              hash = await hashFile(path, input.signal);
+            report.checkedBytes += stat.size;
+            if ((await token(path)) !== before)
+              issue("FILE_CHANGED", "校验期间文件发生变化");
+            else if (hash !== d.sha256)
+              issue("HASH_MISMATCH", "SHA-256 校验失败", {
+                actualSha256: hash,
+              });
+            else report.verifiedFiles++;
+          }
+        } catch (e: any) {
+          input.signal.throwIfAborted();
+          // A missing/changed root is not just another corrupt file: it should abort the whole disk task.
+          await input.guard();
+          issue(
+            e.code === "ENOENT"
+              ? "FILE_MISSING"
+              : stage === "path" && !e.code
+                ? "PATH_UNSAFE"
+                : "READ_FAILED",
+            e.code === "ENOENT" ? "文件缺失" : e.message,
+            { ...(typeof e.code === "string" ? { systemCode: e.code } : {}) },
+          );
+        }
+        report.checkedFiles++;
+        emit();
+      },
+      input.signal,
+    );
     input.signal.throwIfAborted();
     await input.guard();
     if (report.issues.length) report.databaseCheck = "skipped";

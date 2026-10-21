@@ -1,3 +1,5 @@
+import { assetPath } from "../.build/packages/protocol/assets.js";
+import { rm } from "node:fs/promises";
 import {
   putAsset,
   putAssetFile,
@@ -98,6 +100,17 @@ function pdf(id, bytes) {
   return Buffer.concat(parts);
 }
 async function worker(sample) {
+  const reuseRoot = option("--reuse-root");
+  if (reuseRoot) {
+    assert.equal(samples.length, 1);
+    assert.equal(dirname(resolve(reuseRoot)), base);
+    assert.match(
+      basename(reuseRoot),
+      /^anynote-local-benchmark-[a-zA-Z0-9]{6}$/,
+    );
+    assert.equal(realpathSync(reuseRoot), resolve(reuseRoot));
+    assert.ok(!option("--resume-root"));
+  }
   const resumeRoot = option("--resume-root");
   const resume = resumeRoot
     ? JSON.parse(readFileSync(resolve(option("--resume-report")), "utf8"))
@@ -129,9 +142,10 @@ async function worker(sample) {
     if (resume.inProgress.root)
       assert.equal(resolve(resume.inProgress.root), resolve(resumeRoot));
   }
-  const root = resumeRoot
-      ? resolve(resumeRoot)
-      : mkdtempSync(join(base, "anynote-local-benchmark-")),
+  const root =
+      resumeRoot || reuseRoot
+        ? resolve(resumeRoot || reuseRoot)
+        : mkdtempSync(join(base, "anynote-local-benchmark-")),
     s = new Storage(join(root, "source"));
   const metrics = resume ? [...resume.inProgress.metrics] : [];
   let captureMs = 0,
@@ -146,31 +160,46 @@ async function worker(sample) {
       filesystem.availableBytes > estimated,
       "Insufficient space for isolated benchmark",
     );
-    const book = resume
-      ? (await s.run("listNotebooks"))[0]
-      : await s.run("createNotebook", { title: "Local backup benchmark" });
+    const book =
+      resume || reuseRoot
+        ? (await s.run("listNotebooks"))[0]
+        : await s.run("createNotebook", { title: "Local backup benchmark" });
     assert.equal(book.name, "Local backup benchmark");
-    const note = resume
-      ? (await s.run("listNodes", { notebookId: book.id })).find(
-          (n) => n.kind === "note",
-        )
-      : await s.run("createNode", {
-          notebookId: book.id,
-          title: "Benchmark fixture",
-          body: "seed",
-        });
+    const note =
+      resume || reuseRoot
+        ? (await s.run("listNodes", { notebookId: book.id })).find(
+            (n) => n.kind === "note",
+          )
+        : await s.run("createNode", {
+            notebookId: book.id,
+            title: "Benchmark fixture",
+            body: "seed",
+          });
     const db = s.open(book.id),
       source = s.directory(book.id);
     const insertResource = db.prepare(
       "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
     );
     const largePDFs = Math.min(8, Math.max(1, Math.ceil(sample.assets / 1000)));
+    let seeding = !resume && !reuseRoot;
+    const insertAsset = db.prepare(
+      "INSERT INTO assets(hash,size,mime) VALUES(?,?,?)",
+    );
     function add(bytes, mime = "application/octet-stream") {
-      const hash = putAsset(db, bytes, mime);
+      const hash = seeding
+        ? createHash("sha256").update(bytes).digest("hex")
+        : putAsset(db, bytes, mime);
+      if (seeding) {
+        // Fixture setup is outside measurement; production publication remains covered by storage tests.
+        const file = join(source, assetPath(hash));
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, bytes);
+        insertAsset.run(hash, bytes.length, mime);
+      }
       insertResource.run(randomUUID(), hash, "benchmark");
     }
     const seedStarted = performance.now();
-    if (!resume) {
+    if (!resume && !reuseRoot) {
       db.exec("BEGIN IMMEDIATE");
       try {
         for (let i = 0; i < sample.assets; i++) {
@@ -202,6 +231,12 @@ async function worker(sample) {
         throw e;
       }
     }
+    if (reuseRoot)
+      assert.equal(
+        db.prepare("SELECT count(*) AS n FROM assets").get().n,
+        sample.assets,
+      );
+    seeding = false;
     const databaseBytes =
       db.prepare("PRAGMA page_count").get().page_count *
       db.prepare("PRAGMA page_size").get().page_size;
@@ -209,13 +244,13 @@ async function worker(sample) {
     const target = await initializeTarget(join(root, "disk"), [s.root]),
       engine = new LocalBackupService();
     const dest = join(target.path, "notebooks", book.id);
-    const capture = async () => {
+    const capture = async (signal) => {
       const dir = mkdtempSync(join(root, "capture-")),
         start = performance.now();
       try {
-        const c = await captureLocalNotebook(s, book.id, dir);
+        const c = await captureLocalNotebook(s, book.id, dir, signal);
         captureMs += performance.now() - start;
-        c.release = async () => rmSync(dir, { recursive: true, force: true });
+        c.release = () => rm(dir, { recursive: true, force: true });
         return c;
       } catch (e) {
         rmSync(dir, { recursive: true, force: true });
@@ -224,7 +259,7 @@ async function worker(sample) {
     };
     const run = (extra = {}) => {
       const { onProgress, ...options } = extra;
-      return engine.backup(target, book.id, capture, {
+      return engine.backup(target, book.id, () => capture(options.signal), {
         sources: [s.root],
         concurrency,
         readRevision: () =>
@@ -294,7 +329,8 @@ async function worker(sample) {
         delay.disable();
       }
     }
-    const seedMs = resume ? null : round(performance.now() - seedStarted);
+    const seedMs =
+      resume || reuseRoot ? null : round(performance.now() - seedStarted);
     const atLimit = sample.assets === 100000;
     const dropOneResource = () =>
       db
@@ -337,7 +373,13 @@ async function worker(sample) {
         manifest.revision,
         resume.inProgress.metrics[2].result.revision,
       );
-      assert.ok(manifest.database.chunks.length >= manifest.files.length);
+      assert.equal(
+        manifest.files.length,
+        new Set([
+          ...manifest.database.chunks.map((c) => `chunks/${c.sha256}.bin`),
+          ...manifest.assets.map((a) => a.path),
+        ]).size,
+      );
     }
     rmSync(join(root, "restore"), { recursive: true, force: true });
     if (!metrics.some((m) => m.name === "restore"))
@@ -411,6 +453,49 @@ async function worker(sample) {
         oldDatabasePreserved: true,
       };
     });
+    // Full verification records a new timestamp; cancellation must preserve that latest manifest.
+    const cancellationManifest = readFileSync(
+      join(dest, ".backup/manifest.json"),
+      "utf8",
+    );
+    for (const [name, phase] of [
+      ["cancel-check", "检查中"],
+      ["cancel-capture", "准备数据库"],
+      ["cancel-plan", "扫描清单"],
+    ]) {
+      await measure(name, async () => {
+        const controller = new AbortController();
+        let timer, abortAt;
+        try {
+          await assert.rejects(
+            run({
+              signal: controller.signal,
+              onProgress: (p) => {
+                if (p.phase === phase && !timer)
+                  timer = setTimeout(() => {
+                    abortAt = performance.now();
+                    controller.abort();
+                  }, 25);
+              },
+            }),
+            () => controller.signal.aborted,
+          );
+          assert.ok(abortAt, `Cancellation phase not reached: ${phase}`);
+          assert.ok(
+            readFileSync(join(dest, ".backup/manifest.json"), "utf8") ===
+              cancellationManifest,
+            "Cancellation changed the committed manifest",
+          );
+          return {
+            cancelled: true,
+            abortToReturnMs: round(performance.now() - abortAt),
+            oldManifestPreserved: true,
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+    }
     return {
       passed: true,
       sample: {
@@ -431,6 +516,7 @@ async function worker(sample) {
         "not measured; event-loop metrics describe the Node benchmark process",
       temporaryDataRemoved: true,
       resumed: Boolean(resume),
+      reusedFixture: Boolean(reuseRoot),
     };
   } finally {
     s.close();
@@ -515,6 +601,9 @@ if (args.includes("--worker")) {
           base,
           "--concurrency",
           String(concurrency),
+          ...(option("--reuse-root")
+            ? ["--reuse-root", resolve(option("--reuse-root"))]
+            : []),
           ...(resuming
             ? [
                 "--resume-root",
@@ -534,6 +623,8 @@ if (args.includes("--worker")) {
       });
       const [code] = await once(child, "exit");
       assert.ok(result, "Benchmark worker exited without a report");
+      if (!result.passed && report.inProgress)
+        result.metrics = report.inProgress.metrics;
       delete report.inProgress;
       report.samples.push(result);
       save();

@@ -1,3 +1,4 @@
+import { setImmediate as yieldTurn } from "node:timers/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import {
@@ -110,10 +111,11 @@ export async function token(file: string) {
  */
 export async function hashFile(file: string, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  await token(file);
+  const state = await token(file);
+  const size = Number(state.slice(0, state.indexOf(":")));
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file, {
-    highWaterMark: 1024 * 1024,
+    highWaterMark: Math.max(1, Math.min(1024 * 1024, size)),
     signal,
   }))
     hash.update(chunk);
@@ -165,6 +167,53 @@ export async function replace(from: string, to: string) {
   await syncDirectory(dirname(to));
 }
 
+/** Stream top-level manifest arrays; bound transient serialization memory to one batch. */
+async function* jsonChunks(value: unknown, signal?: AbortSignal) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    "toJSON" in value
+  ) {
+    yield JSON.stringify(value);
+    return;
+  }
+  let buffer = "{";
+  let first = true;
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      item === undefined ||
+      typeof item === "function" ||
+      typeof item === "symbol"
+    )
+      continue;
+    buffer += (first ? "" : ",") + JSON.stringify(key) + ":";
+    first = false;
+    if (Array.isArray(item)) {
+      buffer += "[";
+      for (let i = 0; i < item.length; i++) {
+        buffer += (i ? "," : "") + (JSON.stringify(item[i]) ?? "null");
+        if (buffer.length >= 64 * 1024) {
+          signal?.throwIfAborted();
+          yield buffer;
+          buffer = "";
+          await yieldTurn();
+        }
+      }
+      buffer += "]";
+    } else buffer += JSON.stringify(item);
+  }
+  signal?.throwIfAborted();
+  yield buffer + "}";
+}
+
+export async function jsonSize(value: unknown, signal?: AbortSignal) {
+  let size = 0;
+  for await (const chunk of jsonChunks(value, signal))
+    size += Buffer.byteLength(chunk);
+  return size;
+}
+
 /**
  * Write JSON via "write temp file + fsync + atomic replace".
  *
@@ -179,7 +228,7 @@ export async function atomicJSON(root: string, name: string, value: unknown) {
   const h = await open(temp, "wx", 0o600);
   try {
     try {
-      await h.writeFile(JSON.stringify(value));
+      for await (const chunk of jsonChunks(value)) await h.writeFile(chunk);
       await h.sync();
     } finally {
       await h.close();
@@ -202,7 +251,8 @@ export async function atomicJSON(root: string, name: string, value: unknown) {
 export async function readJSON(root: string, name: string) {
   const file = await safePath(root, name);
   await token(file);
-  if ((await lstat(file)).size > 64 * 1024 * 1024)
+  // A full replacement can contain 100k current assets and 100k cleanup entries.
+  if ((await lstat(file)).size > 128 * 1024 * 1024)
     throw Error("备份记录超过预算");
   return JSON.parse(await readFile(file, "utf8"));
 }
@@ -278,7 +328,9 @@ export async function copyVerified(
   await mkdir(dirname(temp), { recursive: true });
   try {
     await pipeline(
-      createReadStream(source, { highWaterMark: 1024 * 1024 }),
+      createReadStream(source, {
+        highWaterMark: Math.max(1, Math.min(1024 * 1024, expected.size)),
+      }),
       new Transform({
         transform(chunk, _encoding, cb) {
           onBytes(chunk.length);

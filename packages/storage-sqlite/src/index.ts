@@ -315,6 +315,9 @@ export class Storage {
       return Promise.resolve(diagnosticsOperation(this, op, input));
     if (
       [
+        // Task observation/cancellation must not wait behind the capture barrier.
+        "listTasks",
+        "cancelTask",
         "previewLocalBackup",
         "discoverCloudBackups",
         "listRemoteBackups",
@@ -975,7 +978,12 @@ export class Storage {
       const { captureLocalNotebook } = await import(
         "@anynote/backup/local-capture.js"
       );
-      return captureLocalNotebook(this, uuid.parse(raw.notebookId), dir);
+      return captureLocalNotebook(
+        this,
+        uuid.parse(raw.notebookId),
+        dir,
+        raw.signal,
+      );
     }
 
     if (op === "createBackupSnapshot") {

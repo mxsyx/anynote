@@ -1,5 +1,4 @@
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
-import { assertAssetClosure } from "@anynote/storage-sqlite/assets.js";
 import {
   readBackupRevision,
   hasRevisionMetadata,
@@ -26,6 +25,7 @@ export async function captureLocalNotebook(
   s: Storage,
   notebookId: string,
   dir: string,
+  signal?: AbortSignal,
 ): Promise<Capture> {
   const db = s.open(notebookId),
     databasePath = join(dir, "notebook.sqlite");
@@ -35,13 +35,12 @@ export async function captureLocalNotebook(
   const space = await statfs(dir);
   if (space.bavail * space.bsize < bytes * 1.1 + 1024 ** 2)
     throw Error("本机临时空间不足，无法生成一致性数据库副本");
-  const assets = await snapshotDatabase(db, databasePath);
+  const assets = await snapshotDatabase(db, databasePath, signal);
   const captured = new DatabaseSync(databasePath);
   try {
     captured.exec(
       "PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON; PRAGMA journal_mode=DELETE;",
     );
-    assertAssetClosure(captured, assets);
     const revision = readBackupRevision(captured);
     if (hasRevisionMetadata(captured) && !revision)
       throw Object.assign(Error("源备份版本标记不完整，已保留目标副本"), {

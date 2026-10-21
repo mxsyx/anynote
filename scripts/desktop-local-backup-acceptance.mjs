@@ -20,6 +20,13 @@ import assert from "node:assert/strict";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { inspectFilesystem } from "../.build/packages/backup-local/index.js";
 const args = process.argv.slice(2);
+if (args.includes("--scale")) {
+  const { localBackupScale } = await import(
+    "./acceptance/local-backup-scale.mjs"
+  );
+  await localBackupScale(args);
+  process.exit(0);
+}
 const option = (name) => {
   const i = args.indexOf(name);
   if (i < 0) return undefined;

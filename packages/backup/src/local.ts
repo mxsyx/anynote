@@ -1,10 +1,10 @@
+import { rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -179,7 +179,7 @@ async function captureOwned(
    */
   const release = async () => {
     try {
-      rmSync(workspace.dir, { recursive: true, force: true });
+      await rm(workspace.dir, { recursive: true, force: true });
     } finally {
       try {
         workspace.release();
@@ -194,6 +194,7 @@ async function captureOwned(
     const capture = await s.run("createLocalBackupCapture", {
       notebookId: t.notebookId,
       dir: workspace.dir,
+      signal,
     });
     signal.throwIfAborted();
     return { ...capture, release };
@@ -651,6 +652,8 @@ export async function localBackupOperation(
       let workspace: ReturnType<typeof temporaryJob> | undefined;
       let pinned = false,
         capturedSeq: string | undefined;
+      let terminal: Task["status"] = "completed";
+      let details: Partial<Task> = {};
       try {
         signal.throwIfAborted();
         update(s, t.id, { lastAttempt: Date.now() });
@@ -744,6 +747,7 @@ export async function localBackupOperation(
               const capture = (await s.run("createLocalBackupCapture", {
                 notebookId: t.notebookId,
                 dir: workspace.dir,
+                signal,
               })) as Capture;
               capturedSeq = capture.contentSeq;
               return capture;
@@ -786,7 +790,6 @@ export async function localBackupOperation(
             ...clearFailureState(),
           });
         }
-        s.settle(job, "completed");
       } catch (e: any) {
         if (e.verificationReport || e.report)
           job.verificationReport = e.verificationReport || e.report;
@@ -796,16 +799,19 @@ export async function localBackupOperation(
             : code === "TARGET_OFFLINE"
               ? "waiting-disk"
               : "failed";
-        s.settle(job, status, {
+        terminal = status;
+        details = {
           errorCode: code,
           error: signal.aborted
             ? "任务已取消"
             : status === "waiting-disk"
               ? "等待磁盘 · " + e.message
               : e.message,
-        });
+        };
         try {
-          const patch: Partial<LocalBackupTarget> = { lastError: job.error };
+          const patch: Partial<LocalBackupTarget> = {
+            lastError: details.error,
+          };
           // A genuine failure feeds the unified backoff/pause policy; a missing
           // disk or user cancellation keeps the normal remount/manual behavior.
           if (status === "failed") {
@@ -818,13 +824,26 @@ export async function localBackupOperation(
           update(s, t.id, patch);
         } catch {}
       } finally {
-        if (workspace?.dir)
-          rmSync(workspace.dir, { recursive: true, force: true });
-        workspace?.release();
-        if (pinned) {
-          const count = s.pins.get(t.notebookId)! - 1;
-          count ? s.pins.set(t.notebookId, count) : s.pins.delete(t.notebookId);
-          s.trimWrites();
+        try {
+          if (workspace?.dir)
+            await rm(workspace.dir, { recursive: true, force: true });
+        } catch (e: any) {
+          terminal = signal.aborted ? "cancelled" : "failed";
+          details = {
+            errorCode: signal.aborted ? "CANCELLED" : errorCode(e),
+            error: e.message,
+          };
+        } finally {
+          workspace?.release();
+          if (pinned) {
+            const count = s.pins.get(t.notebookId)! - 1;
+            count
+              ? s.pins.set(t.notebookId, count)
+              : s.pins.delete(t.notebookId);
+            s.trimWrites();
+          }
+          // A terminal task no longer owns workers, capture files or a write-connection pin.
+          s.settle(job, terminal, details);
         }
       }
     });

@@ -927,7 +927,8 @@ export async function advancedOperations(
     if (job.status === "running") {
       job.worker?.terminate();
       job.controller?.abort();
-      s.settle(job, "cancelled");
+      // Local jobs settle only after their workers and pinned captures are released.
+      if (!job.type.startsWith("local-")) s.settle(job, "cancelled");
     }
     return { handled: true, result: true };
   }

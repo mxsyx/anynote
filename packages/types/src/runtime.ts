@@ -10,7 +10,7 @@ import type {
   R2Bucket,
   DurableObjectNamespace,
 } from "@cloudflare/workers-types";
-import type { SQLInputValue, StatementSync } from "node:sqlite";
+import type { SQLInputValue, StatementSync, BackupOptions } from "node:sqlite";
 import {
   DatabaseSync as NativeDatabaseSync,
   backup as nativeBackup,
@@ -216,5 +216,8 @@ export function errorMessage(error: unknown): string {
  * @param path Destination file path.
  * @returns Result of the backup operation.
  */
-export const backup = (db: SqlDatabase, path: string) =>
-  nativeBackup(db as unknown as NativeDatabaseSync, path);
+export const backup = (
+  db: SqlDatabase,
+  path: string,
+  options?: BackupOptions,
+) => nativeBackup(db as unknown as NativeDatabaseSync, path, options);

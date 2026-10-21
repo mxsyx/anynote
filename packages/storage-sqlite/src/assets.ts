@@ -1,3 +1,4 @@
+import { setImmediate as yieldTurn } from "node:timers/promises";
 import {
   openSync,
   closeSync,
@@ -43,33 +44,40 @@ export function assetFile(db: SqlDatabase, hash: string) {
   return assertLocalPath(realpathSync(dirname(file)), assetPath(hash));
 }
 
-export function assetDescriptors(db: SqlDatabase) {
-  return db
+function* descriptors(db: SqlDatabase) {
+  for (const a of db
     .prepare("SELECT hash,size,mime FROM assets ORDER BY hash")
-    .all()
-    .map((a) => ({
-      path: assetPath(a.hash),
+    .iterate())
+    yield {
+      path: assetPath(a.hash as string),
       sha256: a.hash as string,
       size: a.size as number,
       mimeType: a.mime as string,
-    }));
+    };
+}
+
+export function assetDescriptors(db: SqlDatabase) {
+  return [...descriptors(db)];
 }
 
 /** Verify the manifest exactly covers the captured database's resource closure. */
-export function assertAssetClosure(
+function* checkAssetClosure(
   db: SqlDatabase,
   assets: readonly AssetDescriptor[],
 ) {
   assertAssets(assets);
-  const rows = db
-    .prepare(
-      `SELECT hash,size FROM assets WHERE hash IN (${resourceRoots}) ORDER BY hash`,
-    )
-    .all();
   const expected = new Map(assets.map((a) => [a.sha256, a.size]));
+  let count = 0;
+  for (const a of db
+    .prepare(`SELECT hash,size FROM assets WHERE hash IN (${resourceRoots})`)
+    .iterate()) {
+    if (expected.get(a.hash as string) !== a.size)
+      throw Error("附件清单与数据库引用不一致");
+    count++;
+    if (count % 256 === 0) yield;
+  }
   if (
-    rows.length !== expected.size ||
-    rows.some((a) => expected.get(a.hash) !== a.size) ||
+    count !== expected.size ||
     db
       .prepare(
         `SELECT asset_hash FROM (${resourceRoots}) WHERE asset_hash NOT IN (SELECT hash FROM assets)`,
@@ -77,6 +85,44 @@ export function assertAssetClosure(
       .get()
   )
     throw Error("附件清单与数据库引用不一致");
+}
+
+export function assertAssetClosure(
+  db: SqlDatabase,
+  assets: readonly AssetDescriptor[],
+) {
+  for (const _ of checkAssetClosure(db, assets)) {
+    /* Synchronous callers retain transaction semantics. */
+  }
+}
+
+/** Yield between scan batches while the caller retains the snapshot/capture barrier. */
+export async function assertAssetClosureAsync(
+  db: SqlDatabase,
+  assets: readonly AssetDescriptor[],
+  signal?: AbortSignal,
+) {
+  for (const _ of checkAssetClosure(db, assets)) {
+    signal?.throwIfAborted();
+    await yieldTurn();
+  }
+  signal?.throwIfAborted();
+}
+
+export async function assetDescriptorsAsync(
+  db: SqlDatabase,
+  signal?: AbortSignal,
+) {
+  const assets: AssetDescriptor[] = [];
+  for (const asset of descriptors(db)) {
+    assets.push(asset);
+    if (assets.length % 256 === 0) {
+      signal?.throwIfAborted();
+      await yieldTurn();
+    }
+  }
+  signal?.throwIfAborted();
+  return assets;
 }
 
 /** Publish durable immutable content before committing its database reference.
