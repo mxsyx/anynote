@@ -210,7 +210,7 @@ SQLite WAL 模式运行时会出现 `notebook.sqlite-wal` 与 `-shm`。这属于
 
 | 表                   | 关键字段                                                                        | 说明                              |
 | -------------------- | ------------------------------------------------------------------------------- | --------------------------------- |
-| `notebook_meta`      | id、name、schema_version、content_seq、created_at                               | 单行 Notebook 元信息              |
+| `notebook_meta`      | id、name、icon、cover_color、schema_version、content_seq、created_at                               | 单行 Notebook 元信息              |
 | `nodes`              | id、parent_id、kind、title、sort_key、revision、deleted_at、deleted_by          | Folder/Note 统一树                |
 | `notes`              | node_id、note_type、head_revision_id、primary_resource_id、source_uri           | 三种笔记共有信息                  |
 | `note_revisions`     | id、note_id、parent_revision_id、format、body、content_hash、created_at、actor  | 不可变笔记版本，正文或类型化状态  |
@@ -235,7 +235,7 @@ CREATE TABLE nodes (
   parent_id TEXT REFERENCES nodes(id),
   kind TEXT NOT NULL CHECK (kind IN ('folder', 'note')),
   title TEXT NOT NULL,
-  sort_key TEXT NOT NULL,
+  sort_key INTEGER NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -268,11 +268,11 @@ CREATE INDEX idx_changes_entity ON changes(entity_type, entity_id, seq);
 
 ### 6.3 树结构与排序
 
-采用邻接表 `parent_id`，查询子项使用分页索引，查询祖先/子树使用递归 CTE。树 UI 用显式栈与扁平可见列表，避免递归组件因极深目录栈溢出。
+采用邻接表 `parent_id`。当前 `listNodes` 返回完整元信息快照（不含正文），客户端生成目录、筛选与移动候选；子树查询使用递归 CTE。树 UI 用显式栈与扁平虚拟列表，避免极深目录栈溢出。分页子项查询暂不实现，决策与大目录测量见 [G14 目录契约](G14-navigation-decision.md)。
 
 移动目录时遍历目标祖先，确认目标不在源子树内。首版暂不增加闭包表；大量子树统计确有瓶颈时再加可重建路径缓存。
 
-`sort_key` 使用稳定的分数排序字符串；查询始终加 `id` 作为并列排序。键变长后只重排同一目录，重排也写入业务变更。常用计数缓存不能成为权威数据。
+`sort_key` 保留稀疏安全整数；查询始终加 `id` 作为并列排序。普通移动通过索引读取相邻键，间隙不足时只在同一事务中重排当前目录，重排也写入业务变更。常用计数缓存不能成为权威数据。
 
 删除目录写入一个删除操作 ID 并标记整个子树；恢复只恢复同一删除操作产生的节点，防止把更早已删除的子项也恢复。原父目录不存在时提示恢复到 Notebook 根目录。
 
@@ -886,8 +886,8 @@ Anynote 应表现为“安静、有质感的个人书桌”：主体是内容，
 **首次启动 / Notebook 首页**
 
 - 明确“创建 Notebook”和“打开/导入 Notebook”两条主路径，备份配置可以稍后进行。
-- 最近 Notebook 以封面色/图标、小标题、最后打开时间、路径和备份状态展示。
-- 创建表单包含名称、图标/封面色、位置；高级设置折叠，不要求先登录。
+- 最近 Notebook 以封面色/图标、小标题、最后打开时间和本机路径展示；显示明确标注的本地快照状态，云端/磁盘备份状态见备份页。
+- 创建表单包含名称、图标/封面色、位置；空位置使用默认目录，指定已有绝对路径时新建独立子目录，不要求先登录。开发期元信息格式与兼容边界见 [G14 决策](G14-navigation-decision.md)。
 
 **主编辑页**
 

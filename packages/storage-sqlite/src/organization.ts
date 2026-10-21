@@ -27,25 +27,39 @@ export function placeNode(s: Storage, raw: unknown) {
     throw Error("版本冲突：请刷新目录后重试");
   s.parent(db, p.parentId, p.id);
   if (p.beforeId === p.id) throw Error("不能以自身作为排序锚点");
-  const siblings = db
-      .prepare(
-        "SELECT id,sort_key FROM nodes WHERE parent_id IS ? AND deleted_at IS NULL AND id<>? ORDER BY sort_key,id",
-      )
-      .all(p.parentId, p.id),
-    position = p.beforeId
-      ? siblings.findIndex((n) => n.id === p.beforeId)
-      : siblings.length;
-  if (position < 0) throw Error("排序目标不在所选目录");
+  const anchor = p.beforeId
+    ? db
+        .prepare(
+          "SELECT id,sort_key FROM nodes WHERE id=? AND parent_id IS ? AND deleted_at IS NULL",
+        )
+        .get(p.beforeId, p.parentId)
+    : null;
+  if (p.beforeId && !anchor) throw Error("排序目标不在所选目录");
+  const previous = anchor
+    ? db
+        .prepare(
+          "SELECT sort_key FROM nodes WHERE parent_id IS ? AND deleted_at IS NULL AND id<>? AND (sort_key,id)<(?,?) ORDER BY sort_key DESC,id DESC LIMIT 1",
+        )
+        .get(p.parentId, p.id, anchor.sort_key, anchor.id)
+    : db
+        .prepare(
+          "SELECT sort_key FROM nodes WHERE parent_id IS ? AND deleted_at IS NULL AND id<>? ORDER BY sort_key DESC,id DESC LIMIT 1",
+        )
+        .get(p.parentId, p.id);
   return s.tx(db, p.id, "place", () => {
-    let left = position ? siblings[position - 1].sort_key : 0,
-      right =
-        position < siblings.length ? siblings[position].sort_key : left + 2048;
+    let left = previous?.sort_key ?? 0,
+      right = anchor?.sort_key ?? left + 2048;
     if (right - left < 2 || !Number.isSafeInteger(right) || left < 0) {
-      siblings.forEach((n, i) =>
-        db
-          .prepare("UPDATE nodes SET sort_key=? WHERE id=?")
-          .run((i + 1) * 1024, n.id),
-      );
+      const siblings = db
+        .prepare(
+          "SELECT id FROM nodes WHERE parent_id IS ? AND deleted_at IS NULL AND id<>? ORDER BY sort_key,id",
+        )
+        .all(p.parentId, p.id);
+      const position = p.beforeId
+        ? siblings.findIndex((n) => n.id === p.beforeId)
+        : siblings.length;
+      const update = db.prepare("UPDATE nodes SET sort_key=? WHERE id=?");
+      siblings.forEach((n, i) => update.run((i + 1) * 1024, n.id));
       left = position * 1024;
       right = (position + 1) * 1024;
     }

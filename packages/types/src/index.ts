@@ -3,6 +3,9 @@ import type { EditorCommand } from "./editor-commands.js";
 export interface Notebook {
   id: string;
   name: string;
+  icon?: string;
+  cover_color?: string;
+  path?: string;
   content_seq?: number;
   created_at?: number;
   external?: boolean;
@@ -32,10 +35,16 @@ export interface NoteNode {
   source_uri?: string;
 }
 
+export type SearchLocation =
+  | { kind: "text"; query: string }
+  | { kind: "pdf"; anchor: string }
+  | { kind: "metadata" };
+
 /** One hit in a cross-notebook search. */
 export interface SearchResult extends NoteNode {
   notebookId: string;
   notebookName: string;
+  location?: SearchLocation;
   path: string;
 }
 

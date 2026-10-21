@@ -1,6 +1,7 @@
 import { setImmediate } from "node:timers/promises";
 import { z } from "zod";
 import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
+import type { SearchLocation } from "@anynote/types";
 import type { Storage } from "./index.js";
 
 const uuid = z.string().uuid();
@@ -198,9 +199,29 @@ export async function searchWorkspace(s: Storage, raw: unknown) {
         a.notebookId.localeCompare(b.notebookId) ||
         a.id.localeCompare(b.id),
     );
+
+    // Resolve locations only for the final bounded result set, grouping by
+    // Notebook to avoid reopening LRU connections for interleaved hits.
+    const selectedResults = results.slice(0, p.limit);
+    if (p.query.trim()) {
+      const groups = new Map<string, SqlRow[]>();
+      for (const result of selectedResults) {
+        const group = groups.get(result.notebookId) || [];
+        group.push(result);
+        groups.set(result.notebookId, group);
+      }
+      for (const [notebookId, hits] of groups) {
+        try {
+          const db = s.read(notebookId);
+          for (const hit of hits) hit.location = locateHit(db, hit, p.query);
+        } catch (e: any) {
+          warnings.push({ notebookId, message: e.message });
+        }
+      }
+    }
     return {
       requestId: p.requestId,
-      results: results.slice(0, p.limit),
+      results: selectedResults,
       warnings,
       cancelled: false,
       truncated: truncated || results.length > p.limit,
@@ -258,4 +279,48 @@ export function searchScriptContext(
       snippet: String(r.snippet || "").slice(0, 512),
     })),
   };
+}
+
+/** Resolve a bounded result set against authoritative source text, never the FTS concatenation offsets. */
+function locateHit(
+  db: SqlDatabase,
+  note: SqlRow,
+  raw: string,
+): SearchLocation | undefined {
+  const query = raw.trim();
+  if (!query) return;
+  const includes = (text: string) =>
+    text.toLowerCase().includes(query.toLowerCase());
+  const body =
+    db
+      .prepare(
+        "SELECT r.body FROM notes t JOIN note_revisions r ON r.id=t.head_revision_id WHERE t.node_id=?",
+      )
+      .get(note.id)?.body || "";
+  if (includes(body)) return { kind: "text", query };
+  if (note.note_type === "pdf") {
+    const annotation = db
+      .prepare(
+        "SELECT a.id FROM annotations a JOIN notes n ON n.node_id=a.note_id JOIN resources r ON r.id=n.primary_resource_id WHERE a.note_id=? AND a.deleted_at IS NULL AND a.target_asset_hash=r.asset_hash AND (instr(lower(a.quote),lower(?))>0 OR instr(lower(a.body),lower(?))>0) ORDER BY a.page,a.id LIMIT 1",
+      )
+      .get(note.id, query, query);
+    if (annotation)
+      return { kind: "pdf", anchor: `pdf-annotation-${annotation.id}` };
+    const text =
+      db
+        .prepare(
+          "SELECT t.body FROM note_text t JOIN notes n ON n.node_id=t.note_id JOIN resources r ON r.id=n.primary_resource_id WHERE t.note_id=? AND t.asset_hash=r.asset_hash",
+        )
+        .get(note.id)?.body || "";
+
+    // PDF indexing writes explicit page headers. Restrict the match to each page
+    // so an FTS phrase spanning page boundaries never invents a return position.
+    for (const match of text.matchAll(
+      /\n\[第 (\d+) 页\]\n([\s\S]*?)(?=\n\[第 \d+ 页\]\n|$)/g,
+    )) {
+      if (includes(match[2]))
+        return { kind: "pdf", anchor: `pdf-page-${match[1]}` };
+    }
+  }
+  return { kind: "metadata" };
 }

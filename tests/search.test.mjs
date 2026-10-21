@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, renameSync } from "node:fs";
+import { mkdtempSync, rmSync, renameSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -247,4 +247,99 @@ test("LRU bounds read/write pools, retains edits and pins a live SQLite snapshot
     (await s.run("getNote", { notebookId: books[0].id, id: notes[0].id })).body,
     "长期保存内容",
   );
+});
+
+test("search supplies text, PDF page, annotation and metadata destinations", async (t) => {
+  const { s, search } = fixture(t);
+  const book = await s.run("createNotebook", { title: "定位" });
+  await note(s, book, "标题独特命中", "前言\n\n跨格式定位文字");
+  assert.deepEqual(
+    (await search({ query: "跨格式定位文字" })).results[0].location,
+    { kind: "text", query: "跨格式定位文字" },
+  );
+  assert.deepEqual(
+    (await search({ query: "标题独特命中" })).results[0].location,
+    { kind: "metadata" },
+  );
+  const pdf = await s.run("importFile", {
+    notebookId: book.id,
+    name: "索引.pdf",
+    mime: "application/pdf",
+    data: Buffer.from("%PDF-1.7\nfixture").toString("base64"),
+  });
+  const asset = await s.run("getAsset", {
+    notebookId: book.id,
+    id: pdf.primary_resource_id,
+  });
+  await s.run("indexPdf", {
+    notebookId: book.id,
+    id: pdf.id,
+    assetHash: asset.hash,
+    body: "\n[第 1 页]\n第一页\n[第 2 页]\n第二页上的天文发现",
+  });
+  assert.deepEqual((await search({ query: "天文发现" })).results[0].location, {
+    kind: "pdf",
+    anchor: "pdf-page-2",
+  });
+  const annotation = await s.run("addAnnotation", {
+    notebookId: book.id,
+    id: pdf.id,
+    assetHash: asset.hash,
+    page: 2,
+    selector: [{ x: 0, y: 0, width: 0.1, height: 0.1 }],
+    quote: "天文",
+    body: "需要复核的批注",
+  });
+  assert.deepEqual((await search({ query: "需要复核" })).results[0].location, {
+    kind: "pdf",
+    anchor: `pdf-annotation-${annotation.id}`,
+  });
+});
+
+test("Notebook appearance, explicit creation parent and paths survive reopen and archive export", async (t) => {
+  const { s, root } = fixture(t);
+  const parent = mkdtempSync(join(tmpdir(), "anynote-external-create-"));
+  t.onTestFinished(() => rmSync(parent, { recursive: true, force: true }));
+  const b = await s.run("createNotebook", {
+    title: "外部",
+    directory: parent,
+    icon: "✦",
+    coverColor: "#663b36",
+  });
+  assert.equal(b.path, join(realpathSync(parent), b.id));
+  assert.equal(b.external, true);
+  await s.run("renameNotebook", {
+    notebookId: b.id,
+    title: "新名",
+    icon: "☘",
+    coverColor: "#35483d",
+  });
+  s.close();
+  const reopened = new Storage(root);
+  try {
+    const actual = (await reopened.run("listNotebooks")).find(
+      (n) => n.id === b.id,
+    );
+    assert.equal(actual.icon, "☘");
+    assert.equal(actual.cover_color, "#35483d");
+    assert.equal(actual.name, "新名");
+    const archive = await reopened.run("exportArchive", { notebookId: b.id });
+    const imported = await reopened.run("importArchive", {
+      data: archive.data,
+    });
+    const restored = (await reopened.run("listNotebooks")).find(
+      (n) => n.id === imported.id,
+    );
+    assert.equal(restored.icon, "☘");
+    assert.equal(restored.cover_color, "#35483d");
+    await assert.rejects(
+      reopened.run("createNotebook", { directory: "relative" }),
+      /绝对路径/,
+    );
+    await assert.rejects(
+      reopened.run("createNotebook", { coverColor: "invalid" }),
+    );
+  } finally {
+    reopened.close();
+  }
 });

@@ -1205,19 +1205,36 @@ export async function advancedOperations(
 
   if (op === "renameNotebook") {
     const p = z
-        .object({ notebookId: uuid, title: z.string().trim().min(1).max(240) })
+        .object({
+          notebookId: uuid,
+          title: z.string().trim().min(1).max(240),
+          icon: z.string().trim().min(1).max(16).optional(),
+          coverColor: z
+            .string()
+            .regex(/^#[0-9a-f]{6}$/i)
+            .optional(),
+        })
         .strict()
         .parse(raw),
       db = s.open(p.notebookId);
     result = s.tx(db, p.notebookId, "rename", () => {
-      db.prepare("UPDATE notebook_meta SET name=?").run(p.title);
+      db.prepare(
+        "UPDATE notebook_meta SET name=?,icon=COALESCE(?,icon),cover_color=COALESCE(?,cover_color)",
+      ).run(p.title, p.icon ?? null, p.coverColor ?? null);
       return db.prepare("SELECT * FROM notebook_meta").get();
     });
     if (s.externalDirectories.has(p.notebookId)) {
       s.externalDirectories.get(p.notebookId)!.name = p.title;
       persistDirectories(s);
     }
-    return { handled: true, result };
+    return {
+      handled: true,
+      result: {
+        ...result,
+        path: s.directory(p.notebookId),
+        external: s.externalDirectories.has(p.notebookId),
+      },
+    };
   }
 
   if (op === "addResource") {

@@ -1,6 +1,6 @@
 /** Notebook metadata schema. Resource bytes live in immutable content-addressed files. */
 export const schema = `
-CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,schema_version INTEGER NOT NULL DEFAULT 4,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
+CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,icon TEXT NOT NULL DEFAULT '❦',cover_color TEXT NOT NULL DEFAULT '#583a29',schema_version INTEGER NOT NULL DEFAULT 4,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
 CREATE TABLE nodes(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES nodes(id),kind TEXT NOT NULL CHECK(kind IN ('folder','note')),title TEXT NOT NULL,sort_key INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,deleted_by TEXT,favorite INTEGER NOT NULL DEFAULT 0,tags TEXT NOT NULL DEFAULT '[]');
 CREATE INDEX nodes_parent ON nodes(parent_id,sort_key,id);
 CREATE TABLE assets(hash TEXT PRIMARY KEY,size INTEGER NOT NULL,mime TEXT NOT NULL);

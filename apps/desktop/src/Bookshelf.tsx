@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { request } from "./api";
+import type { Snapshot } from "@anynote/types";
 import type { Notebook } from "@anynote/types";
 import { BookOpen, Moon, Plus, Sun, Upload } from "./icons";
 import { Button } from "./components/ui/button";
@@ -44,6 +46,51 @@ export default function Bookshelf({
   onImport,
   onTheme,
 }: Props) {
+  const [snapshots, setSnapshots] = useState<Record<string, string>>({});
+  let visits: Record<string, number> = {};
+  try {
+    const stored: unknown = JSON.parse(
+      localStorage.getItem("anynote.notebooks.visits") || "{}",
+    );
+    if (stored && typeof stored === "object" && !Array.isArray(stored))
+      visits = Object.fromEntries(
+        Object.entries(stored).filter(
+          ([, value]) => typeof value === "number" && Number.isFinite(value),
+        ),
+      );
+  } catch {
+    /* Invalid local preferences do not prevent opening books. */
+  }
+  const recent = books
+    .filter((b) => visits[b.id])
+    .sort((a, b) => visits[b.id] - visits[a.id])
+    .slice(0, 5);
+  const recentIds = recent.map((b) => b.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    for (const id of recentIds.split(",").filter(Boolean)) {
+      void request<Snapshot[]>("listSnapshots", { notebookId: id })
+        .then((rows) => {
+          if (!cancelled)
+            setSnapshots((previous) => ({
+              ...previous,
+              [id]: rows?.length
+                ? `本地快照：${new Date(rows.reduce((latest, r) => Math.max(latest, r.createdAt), 0)).toLocaleString("zh-CN")}`
+                : "尚无本地快照",
+            }));
+        })
+        .catch(() => {
+          if (!cancelled)
+            setSnapshots((previous) => ({
+              ...previous,
+              [id]: "快照状态不可用",
+            }));
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [recentIds]);
   return (
     <div className="bookshelf">
       <header className="library-header">
@@ -69,7 +116,12 @@ export default function Bookshelf({
           <button
             key={book.id}
             className="book-volume"
-            style={binding(book.id)}
+            style={
+              {
+                ...binding(book.id),
+                ...(book.cover_color ? { "--binding": book.cover_color } : {}),
+              } as CSSProperties
+            }
             title={`${book.name}${book.unavailable ? " · 目录不可用，点击恢复" : book.external ? " · 外部藏书" : ""}`}
             disabled={busy}
             onClick={() => onOpen(book)}
@@ -81,7 +133,7 @@ export default function Bookshelf({
             </span>
             <span className="spine-title">{book.name}</span>
             <span className="spine-ornament" aria-hidden="true">
-              ❦
+              {book.icon || "❦"}
             </span>
             <span className="spine-footer">
               {book.unavailable ? "待恢复" : book.external ? "外部" : "ANYNOTE"}
@@ -95,6 +147,24 @@ export default function Bookshelf({
           <small>待续</small>
         </button>
       </div>
+      {!!recent.length && (
+        <section className="recent-notebooks" aria-label="最近 Notebook">
+          <h2>最近翻阅</h2>
+          {recent.map((book) => (
+            <button key={book.id} disabled={busy} onClick={() => onOpen(book)}>
+              <strong>
+                {book.icon || "❦"} {book.name}
+              </strong>
+              <span>{new Date(visits[book.id]).toLocaleString("zh-CN")}</span>
+              <small>{book.path || "默认知识库目录"}</small>
+              <small>
+                {snapshots[book.id] || "正在读取快照状态…"} ·
+                云端及磁盘备份见工作区备份页
+              </small>
+            </button>
+          ))}
+        </section>
+      )}
       <footer className="library-footer">
         <span>EX LIBRIS · ANYNOTE</span>
         <span>一本一世界，一页一时光。</span>

@@ -170,6 +170,7 @@ export default function PdfReader({
     } | null>(null),
     [thumbsOpen, setThumbsOpen] = useState(false),
     [error, setError] = useState(""),
+    [focusedAnnotation, setFocusedAnnotation] = useState<string | null>(null),
     [annotations, setAnnotations] = useState<Annotation[]>([]),
     [quote, setQuote] = useState(""),
     [rects, setRects] = useState<Rect[]>([]),
@@ -299,6 +300,12 @@ export default function PdfReader({
           viewport,
         });
         await Promise.all([render.promise, layer.render()]);
+        if (!cancelled && focusedAnnotation)
+          pageRef.current
+            ?.querySelector<HTMLElement>(
+              `[data-annotation-id="${CSS.escape(focusedAnnotation)}"]`,
+            )
+            ?.scrollIntoView({ block: "center" });
       })
       .catch((e) => {
         if (!cancelled && e.name !== "RenderingCancelledException")
@@ -309,7 +316,7 @@ export default function PdfReader({
       render?.cancel();
       layer?.cancel();
     };
-  }, [doc, page, scale, key]);
+  }, [doc, page, scale, key, focusedAnnotation]);
   useEffect(() => {
     if (fit === "custom" || !baseSize || !scroll.current) return;
     // Fit is derived from the live container size; a resize recomputes it.
@@ -344,7 +351,8 @@ export default function PdfReader({
       return;
     }
     const target = annotations.find((a) => a.id === parsed.annotationId);
-    if (target) {
+    if (target && target.target_asset_hash === assetHash) {
+      setFocusedAnnotation(target.id);
       setPage(Math.min(Math.max(1, target.page), doc.numPages));
       onAnchorConsumed?.();
     }
@@ -782,7 +790,12 @@ export default function PdfReader({
               .flatMap((a) =>
                 a.selector.map((r, i) => (
                   <div
-                    className={"pdf-highlight " + a.color}
+                    className={
+                      "pdf-highlight " +
+                      a.color +
+                      (focusedAnnotation === a.id ? " search-hit" : "")
+                    }
+                    data-annotation-id={a.id}
                     key={a.id + i}
                     title={a.quote + " " + a.body}
                     style={{
@@ -877,14 +890,18 @@ export default function PdfReader({
           <div
             className={
               "annotation-card" +
-              (a.target_asset_hash === assetHash ? "" : " stale")
+              (a.target_asset_hash === assetHash ? "" : " stale") +
+              (focusedAnnotation === a.id ? " search-hit" : "")
             }
             key={a.id}
           >
             <Button
               variant="ghost"
               size="layout"
-              onClick={() => setPage(a.page)}
+              onClick={() => {
+                setPage(a.page);
+                setFocusedAnnotation(a.id);
+              }}
             >
               第 {a.page} 页
               {a.target_asset_hash === assetHash ? "" : " · 旧版本"}

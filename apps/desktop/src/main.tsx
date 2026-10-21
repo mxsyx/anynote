@@ -62,8 +62,15 @@ import type {
   Snapshot,
   SearchResult,
   SearchResponse,
+  SearchLocation,
 } from "@anynote/types";
 import { request, base64, download } from "./api";
+import {
+  recordVisit,
+  repairLink,
+  type Navigation,
+  type Visit,
+} from "./navigation";
 import { seed } from "./seed";
 import ImportReport from "./ImportReport";
 import Bookshelf from "./Bookshelf";
@@ -83,6 +90,7 @@ import RecoveryWizard from "./RecoveryWizard";
 import NotebookTransferDialog from "./NotebookTransferDialog";
 import { appearanceKey, readAppearance, toggleAppearance } from "./appearance";
 import "./styles.css";
+const SearchPreview = lazy(() => import("./SearchPreview"));
 const DocumentEditor = lazy(() => import("./DocumentEditor"));
 const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
 const PdfReader = lazy(() => import("./PdfReader"));
@@ -146,6 +154,30 @@ function App() {
       noteId: string;
       anchor: string;
     } | null>(null);
+  const [navigation, setNavigation] = useState<Navigation>({
+    entries: [],
+    index: -1,
+  });
+  const navigationRef = useRef(navigation);
+  const [tabs, setTabs] = useState<Visit[]>([]);
+  const [tabsVisible, setTabsVisible] = useState(
+    () => localStorage.getItem("anynote.navigation.tabs") !== "hidden",
+  );
+  const [textLocation, setTextLocation] = useState<{
+    noteId: string;
+    query: string;
+    token: number;
+  } | null>(null);
+  const [repair, setRepair] = useState<{
+    notebookId: string;
+    noteId: string;
+    href: string;
+    message: string;
+  } | null>(null);
+  const [bookIcon, setBookIcon] = useState("❦");
+  const [coverColor, setCoverColor] = useState("#583a29");
+  const [bookDirectory, setBookDirectory] = useState("");
+  const navigating = useRef(false);
   const imageInput = useRef<HTMLInputElement>(null);
   const [books, setBooks] = useState<Notebook[]>([]),
     [book, setBook] = useState<Notebook | null>(null),
@@ -154,7 +186,9 @@ function App() {
     [active, setActive] = useState<NoteNode | null>(null),
     [view, setView] = useState<View>("notes"),
     [expanded, setExpanded] = useState<Set<string>>(new Set()),
-    [panel, setPanel] = useState<"outline" | "history" | null>(null),
+    [panel, setPanel] = useState<"outline" | "history" | "properties" | null>(
+      null,
+    ),
     [revisions, setRevisions] = useState<Revision[]>([]),
     [snapshots, setSnapshots] = useState<Snapshot[]>([]),
     [status, setStatus] = useState("已保存至本地"),
@@ -400,7 +434,13 @@ function App() {
    * @param anchor Optional PDF return anchor to restore in the reader.
    */
   const openNote = useCallback(
-    async (n: NoteNode, b = bookRef.current, anchor = "") => {
+    async (
+      n: NoteNode,
+      b = bookRef.current,
+      anchor = "",
+      location?: SearchLocation,
+      record = true,
+    ) => {
       if (!b) return;
       try {
         await flush();
@@ -408,8 +448,44 @@ function App() {
           notebookId: b.id,
           id: n.id,
         });
+        if (note.deleted_at) throw Error("笔记已移入回收站");
         current.current = note;
         dirty.current = false;
+        const visit = {
+          notebookId: b.id,
+          id: n.id,
+          title: note.title,
+          anchor,
+          location,
+        };
+        if (record) {
+          navigationRef.current = recordVisit(navigationRef.current, visit);
+          setNavigation(navigationRef.current);
+        }
+        setTabs((previous) =>
+          previous.some((t) => t.notebookId === b.id && t.id === n.id)
+            ? previous.map((t) =>
+                t.notebookId === b.id && t.id === n.id ? visit : t,
+              )
+            : [...previous, visit].slice(-20),
+        );
+        try {
+          const visits = JSON.parse(
+            localStorage.getItem("anynote.notebooks.visits") || "{}",
+          );
+          localStorage.setItem(
+            "anynote.notebooks.visits",
+            JSON.stringify({ ...visits, [b.id]: Date.now() }),
+          );
+        } catch {
+          /* Local preferences do not prevent opening a note. */
+        }
+        setTextLocation(
+          location?.kind === "text"
+            ? { noteId: n.id, query: location.query, token: Date.now() }
+            : null,
+        );
+        if (location?.kind === "metadata") setPanel("properties");
         // Anchor is keyed by note so a later tree-navigation cannot consume a
         // stale PDF return position.
         setPdfAnchor(anchor ? { noteId: n.id, anchor } : null);
@@ -437,6 +513,7 @@ function App() {
           }
           return next;
         });
+        return true;
       } catch (e) {
         report(e);
       }
@@ -465,6 +542,18 @@ function App() {
     );
     const first = items.find((n) => n.kind === "note" && !n.deleted_at);
     if (enter) {
+      try {
+        const visits = JSON.parse(
+          localStorage.getItem("anynote.notebooks.visits") || "{}",
+        );
+        visits[b.id] = Date.now();
+        localStorage.setItem(
+          "anynote.notebooks.visits",
+          JSON.stringify(visits),
+        );
+      } catch {
+        /* Local preferences do not prevent navigation. */
+      }
       setShelf(false);
       setSidebar(!window.matchMedia("(max-width: 760px)").matches);
       setTreeScroll(0);
@@ -502,7 +591,12 @@ function App() {
     notebookId: string,
     noteId: string,
     anchor = "",
+    location?: SearchLocation,
+    record = true,
+    brokenHref?: string,
   ) => {
+    if (navigating.current) return false;
+    navigating.current = true;
     try {
       const targetBook = books.find((b) => b.id === notebookId);
       if (!targetBook) throw Error("链接所属 Notebook 尚未打开");
@@ -511,12 +605,114 @@ function App() {
         id: noteId,
       });
       if (target.deleted_at) throw Error("链接目标已在回收站");
-      if (bookRef.current?.id !== notebookId) await switchBook(targetBook);
-      await openNote(target, targetBook, anchor);
+      if (bookRef.current?.id !== notebookId)
+        await switchBook(targetBook, false);
+      return await openNote(target, targetBook, anchor, location, record);
     } catch (e) {
       report(e);
+      if (
+        brokenHref &&
+        bookRef.current &&
+        current.current?.note_type === "markdown"
+      ) {
+        setRepair({
+          notebookId: bookRef.current.id,
+          noteId: current.current.id,
+          href: brokenHref,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        setSearchScope("all");
+        setSearchFolder("");
+        setSearchTag("");
+        setSearchType("");
+        setSearchAge("");
+        setQuery("");
+        setSearchOpen(true);
+      }
+      return false;
+    } finally {
+      navigating.current = false;
     }
   };
+  const travel = async (delta: number) => {
+    const index = navigationRef.current.index + delta;
+    const visit = navigationRef.current.entries[index];
+    if (
+      visit &&
+      (await openReference(
+        visit.notebookId,
+        visit.id,
+        visit.anchor,
+        visit.location,
+        false,
+      ))
+    ) {
+      navigationRef.current = { ...navigationRef.current, index };
+      setNavigation(navigationRef.current);
+    }
+  };
+  const closeTab = async (tab: Visit) => {
+    await task(async () => {
+      const remaining = tabs.filter((t) => t !== tab);
+      if (book?.id === tab.notebookId && active?.id === tab.id) {
+        const next =
+          remaining[Math.min(tabs.indexOf(tab), remaining.length - 1)];
+        if (next) {
+          if (!(await openReference(next.notebookId, next.id))) return;
+        } else {
+          current.current = null;
+          setActive(null);
+        }
+      }
+      setTabs(remaining);
+    });
+  };
+  const chooseResult = async (result: SearchResult) => {
+    if (repair) {
+      await task(async () => {
+        const source = await request<NoteNode>("getNote", {
+          notebookId: repair.notebookId,
+          id: repair.noteId,
+        });
+        const target = await request<NoteNode>("getNote", {
+          notebookId: result.notebookId,
+          id: result.id,
+        });
+        if (source.deleted_at || target.deleted_at)
+          throw Error("笔记已移入回收站，请重新选择");
+        const body = repairLink(
+          source.body || "",
+          repair.href,
+          `anynote://notebook/${result.notebookId}/note/${result.id}`,
+        );
+        if (body === source.body) throw Error("原链接已变化，请重新打开链接");
+        const saved = await request<NoteNode>("saveNote", {
+          notebookId: repair.notebookId,
+          id: source.id,
+          expectedRevision: source.revision,
+          body,
+        });
+        if (
+          bookRef.current?.id === repair.notebookId &&
+          current.current?.id === source.id
+        )
+          acceptSaved(saved);
+        setRepair(null);
+        setSearchOpen(false);
+        setToast("链接已修复");
+      });
+      return;
+    }
+    await openReference(
+      result.notebookId,
+      result.id,
+      result.location?.kind === "pdf" ? result.location.anchor : "",
+      result.location,
+    );
+  };
+  useEffect(() => {
+    if (!searchOpen) setRepair(null);
+  }, [searchOpen]);
   /**
    * Handle body links: internal anynote references, in-page anchors, or external links.
    *
@@ -527,7 +723,14 @@ function App() {
       /^anynote:\/\/notebook\/([a-f0-9-]{36})\/note\/([a-f0-9-]{36})(?:#([^\s]+))?$/i,
     );
     if (match) {
-      void openReference(match[1], match[2], match[3] || "");
+      void openReference(
+        match[1],
+        match[2],
+        match[3] || "",
+        undefined,
+        true,
+        href,
+      );
       return;
     }
     if (href.startsWith("#"))
@@ -721,6 +924,13 @@ function App() {
           ? target?.tags.join(", ") || ""
           : "",
     );
+    if (type === "notebook" || type === "renameNotebook") {
+      setBookIcon(type === "renameNotebook" ? book?.icon || "❦" : "❦");
+      setCoverColor(
+        type === "renameNotebook" ? book?.cover_color || "#583a29" : "#583a29",
+      );
+      setBookDirectory("");
+    }
     setModal({ type, target });
     setMenu(false);
   };
@@ -793,7 +1003,12 @@ function App() {
     if (!modal) return;
     await task(async () => {
       if (modal.type === "notebook") {
-        const b = await request<Notebook>("createNotebook", { title: field });
+        const b = await request<Notebook>("createNotebook", {
+          title: field,
+          icon: bookIcon,
+          coverColor,
+          ...(bookDirectory.trim() ? { directory: bookDirectory.trim() } : {}),
+        });
         setBooks(await request("listNotebooks"));
         setModal(null);
         await switchBook(b);
@@ -818,6 +1033,8 @@ function App() {
         const b = await request<Notebook>("renameNotebook", {
           notebookId: book.id,
           title: field,
+          icon: bookIcon,
+          coverColor,
         });
         setBooks(await request("listNotebooks"));
         bookRef.current = b;
@@ -1284,6 +1501,45 @@ function App() {
                 variant="ghost"
                 size="layout"
                 className="icon-button"
+                aria-label="后退"
+                disabled={navigation.index <= 0}
+                onClick={() => void travel(-1)}
+              >
+                <ChevronRight
+                  size={17}
+                  style={{ transform: "rotate(180deg)" }}
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="icon-button"
+                aria-label="前进"
+                disabled={navigation.index >= navigation.entries.length - 1}
+                onClick={() => void travel(1)}
+              >
+                <ChevronRight size={17} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="icon-button"
+                aria-label="显示文档标签页"
+                aria-pressed={tabsVisible}
+                onClick={() => {
+                  setTabsVisible(!tabsVisible);
+                  localStorage.setItem(
+                    "anynote.navigation.tabs",
+                    tabsVisible ? "hidden" : "visible",
+                  );
+                }}
+              >
+                <FileText size={17} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
+                className="icon-button"
                 aria-label="搜索笔记"
                 title="搜索笔记"
                 onClick={() => {
@@ -1489,6 +1745,60 @@ function App() {
             >
               <X size={16} />
             </Button>
+          </div>
+        )}
+        {!shelf && tabsVisible && tabs.length > 0 && (
+          <div
+            className="document-tabs"
+            role="tablist"
+            aria-label="打开的文档"
+            onKeyDown={(e) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+                return;
+              const buttons = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  '[role="tab"]',
+                ),
+              );
+              const index = buttons.indexOf(e.target as HTMLButtonElement);
+              if (index < 0) return;
+              e.preventDefault();
+              const next =
+                e.key === "Home"
+                  ? 0
+                  : e.key === "End"
+                    ? buttons.length - 1
+                    : (index +
+                        (e.key === "ArrowRight" ? 1 : -1) +
+                        buttons.length) %
+                      buttons.length;
+              buttons[next]?.focus();
+            }}
+          >
+            {tabs.map((t) => (
+              <div className="document-tab" key={t.notebookId + t.id}>
+                <Button
+                  variant="ghost"
+                  role="tab"
+                  aria-selected={
+                    book?.id === t.notebookId && active?.id === t.id
+                  }
+                  title={`${books.find((b) => b.id === t.notebookId)?.name || ""} / ${t.title}`}
+                  onClick={() => void openReference(t.notebookId, t.id)}
+                >
+                  {book?.id === t.notebookId && active?.id === t.id
+                    ? active.title
+                    : t.title}
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-label={`关闭标签：${t.title}`}
+                  onClick={() => void closeTab(t)}
+                >
+                  <X size={12} />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
         <div
@@ -1799,8 +2109,14 @@ function App() {
                         ) : (
                           <span className="tree-spacer" />
                         )}
-                        <span className="chapter-number" aria-hidden="true">
-                          {chapter}
+                        <span
+                          className="chapter-number"
+                          aria-hidden="true"
+                          title={chapter}
+                        >
+                          {depth > 3
+                            ? "…" + chapter.slice(chapter.lastIndexOf("."))
+                            : chapter}
                         </span>
                         <span className="chapter-title">
                           {depth > 4 && (
@@ -2402,6 +2718,11 @@ function App() {
                         key={book!.id + active.id}
                         notebookId={book!.id}
                         note={active}
+                        searchLocation={
+                          textLocation?.noteId === active.id
+                            ? textLocation
+                            : undefined
+                        }
                         onChange={(body) => edit({ body })}
                         insertionBlocked={
                           busy ||
@@ -2587,6 +2908,14 @@ function App() {
                 <Button
                   variant="ghost"
                   size="layout"
+                  className={panel === "properties" ? "active" : ""}
+                  onClick={() => setPanel("properties")}
+                >
+                  属性
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="layout"
                   className="icon-button"
                   onClick={() => setPanel(null)}
                   aria-label="关闭辅助面板"
@@ -2594,7 +2923,28 @@ function App() {
                   <X size={15} />
                 </Button>
               </div>
-              {panel === "outline" ? (
+              {panel === "properties" ? (
+                <dl className="note-properties">
+                  <dt>Notebook</dt>
+                  <dd>{book?.name}</dd>
+                  <dt>标题</dt>
+                  <dd>{active.title}</dd>
+                  <dt>类型</dt>
+                  <dd>{active.note_type}</dd>
+                  <dt>创建时间</dt>
+                  <dd>{new Date(active.created_at).toLocaleString("zh-CN")}</dd>
+                  <dt>修改时间</dt>
+                  <dd>{new Date(active.updated_at).toLocaleString("zh-CN")}</dd>
+                  <dt>标签</dt>
+                  <dd>{active.tags.join("、") || "无"}</dd>
+                  <dt>字数</dt>
+                  <dd>{Array.from(active.body || "").length}</dd>
+                  <dt>来源</dt>
+                  <dd>{active.source_uri || "本地笔记"}</dd>
+                  <dt>文件位置</dt>
+                  <dd>{book?.path || "当前 Notebook"}</dd>
+                </dl>
+              ) : panel === "outline" ? (
                 <>
                   <span className="section-label">在这篇笔记里</span>
                   {headings.length ? (
@@ -2762,11 +3112,12 @@ function App() {
                     e.preventDefault();
                     setSearchIndex((i) => Math.max(0, i - 1));
                   }
-                  if (e.key === "Enter" && results[searchIndex])
-                    void openReference(
-                      results[searchIndex].notebookId,
-                      results[searchIndex].id,
-                    );
+                  if (
+                    e.key === "Enter" &&
+                    !e.nativeEvent.isComposing &&
+                    results[searchIndex]
+                  )
+                    void chooseResult(results[searchIndex]);
                 }}
               />
               <Button
@@ -2777,6 +3128,15 @@ function App() {
                 <kbd>ESC</kbd>
               </Button>
             </div>
+            {repair && (
+              <div className="search-notice" role="alert">
+                <strong>修复失效链接</strong>
+                <p>
+                  {repair.message}。搜索并选择替代笔记，原文中的链接将被更新。
+                </p>
+                <code>{repair.href}</code>
+              </div>
+            )}
             <div className="search-filters">
               <NativeSelect
                 aria-label="搜索范围"
@@ -2869,7 +3229,8 @@ function App() {
                   className={i === searchIndex ? "selected" : ""}
                   key={n.notebookId + n.id}
                   onMouseEnter={() => setSearchIndex(i)}
-                  onClick={() => void openReference(n.notebookId, n.id)}
+                  onFocus={() => setSearchIndex(i)}
+                  onClick={() => void chooseResult(n)}
                 >
                   {icon(n, 20)}
                   <span>
@@ -2889,6 +3250,9 @@ function App() {
                 </div>
               )}
             </div>
+            <Suspense fallback={null}>
+              <SearchPreview result={results[searchIndex]} />
+            </Suspense>
             {book && (
               <ExtensionCommands
                 notebookId={book.id}
@@ -3071,6 +3435,42 @@ function App() {
                   />
                 )}
               </label>
+              {(modal.type === "notebook" ||
+                modal.type === "renameNotebook") && (
+                <div className="notebook-fields">
+                  <label>
+                    图标
+                    <Input
+                      aria-label="Notebook 图标"
+                      value={bookIcon}
+                      maxLength={16}
+                      required
+                      onChange={(e) => setBookIcon(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    封面色
+                    <input
+                      aria-label="Notebook 封面色"
+                      type="color"
+                      value={coverColor}
+                      onChange={(e) => setCoverColor(e.target.value)}
+                    />
+                  </label>
+                  {modal.type === "notebook" && (
+                    <label>
+                      创建位置
+                      <Input
+                        aria-label="Notebook 创建位置"
+                        placeholder="默认知识库目录；或填写已有文件夹的绝对路径"
+                        value={bookDirectory}
+                        onChange={(e) => setBookDirectory(e.target.value)}
+                      />
+                      <small>将在此位置新建独立目录，不覆盖已有内容。</small>
+                    </label>
+                  )}
+                </div>
+              )}
               {modal.type === "rename" && modal.target && (
                 <div className="dialog-actions">
                   <Button

@@ -36,6 +36,7 @@ import {
 
 type Props = {
   notebookId: string;
+  searchLocation?: { query: string; token: number };
   note: NoteNode;
   onChange: (body: string) => void;
   onInsertMedia: (kind: MediaCommand) => void;
@@ -327,6 +328,39 @@ export default function DocumentEditor(props: Props) {
       setSelected(0);
     },
   });
+
+  useEffect(() => {
+    if (!editor || !props.searchLocation) return;
+    const query = props.searchLocation.query.toLowerCase();
+    let found = false;
+    editor.state.doc.descendants((node, pos) => {
+      if (found) return false;
+      if (!node.isTextblock) return;
+      const text = node.textContent.toLowerCase();
+      const offset = text.indexOf(query);
+      if (offset < 0) return;
+      found = true;
+      requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        editor
+          .chain()
+          .focus()
+          .setTextSelection({
+            from: pos + 1 + offset,
+            to: pos + 1 + offset + query.length,
+          })
+          .scrollIntoView()
+          .run();
+        editor.view
+          .domAtPos(pos + 1 + offset)
+          .node.parentElement?.scrollIntoView({
+            block: "center",
+            behavior: "instant",
+          });
+      });
+      return false;
+    });
+  }, [editor, props.searchLocation]);
 
   useEffect(
     () =>

@@ -48,7 +48,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { z } from "zod";
 import { resourceIds } from "@anynote/protocol/markdown.js";
 import type { SqlDatabase, SqlRow, Task } from "@anynote/types/runtime.js";
@@ -71,6 +71,7 @@ import {
   detachDirectory,
   loadDirectories,
   registerDirectory,
+  persistDirectories,
   validateDirectory,
 } from "./workspace.js";
 
@@ -128,6 +129,12 @@ const inputSchema = z
     notebookId: uuid.optional(),
     id: uuid.optional(),
     parentId: uuid.nullable().optional(),
+    icon: z.string().trim().min(1).max(16).optional(),
+    coverColor: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/i)
+      .optional(),
+    directory: z.string().max(4096).optional(),
     title: z.string().trim().min(1).max(240).optional(),
     body: z.string().max(2_000_000).optional(),
     expectedRevision: z.number().int().positive().optional(),
@@ -528,12 +535,14 @@ export class Storage {
       try {
         return {
           ...this.read(entry.id).prepare("SELECT * FROM notebook_meta").get(),
+          path: this.directory(entry.id),
           external: entry.external,
         };
       } catch (e: any) {
         return {
           id: entry.id,
           name: entry.name,
+          path: this.directory(entry.id),
           external: entry.external,
           unavailable: true,
           error: e.message,
@@ -1083,16 +1092,42 @@ export class Storage {
     if (op === "listNotebooks") return this.registry();
 
     if (op === "createNotebook") {
+      if (p.directory && !isAbsolute(p.directory))
+        throw Error("创建位置必须是绝对路径");
+      if (p.directory && this.externalDirectories.size >= 1000)
+        throw Error("已登记 Notebook 数量超过预算");
       const id = randomUUID(),
-        dir = join(this.root, id);
-      mkdirSync(dir, { recursive: true });
+        parent = p.directory ? realpathSync(p.directory) : this.root,
+        dir = join(parent, id);
+      if (!lstatSync(parent).isDirectory()) throw Error("创建位置不是目录");
+      mkdirSync(dir);
       const db = new DatabaseSync(join(dir, "notebook.sqlite"));
       db.exec(schema);
       db.prepare(
-        "INSERT INTO notebook_meta(id,name,created_at,schema_version) VALUES(?,?,?,4)",
-      ).run(id, p.title || "我的知识库", Date.now());
+        "INSERT INTO notebook_meta(id,name,created_at,schema_version,icon,cover_color) VALUES(?,?,?,4,?,?)",
+      ).run(
+        id,
+        p.title || "我的知识库",
+        Date.now(),
+        p.icon || "❦",
+        p.coverColor || "#583a29",
+      );
       db.close();
-      return { id, name: p.title || "我的知识库" };
+      if (parent !== this.root) {
+        this.externalDirectories.set(id, {
+          id,
+          name: p.title || "我的知识库",
+          path: dir,
+        });
+        try {
+          persistDirectories(this);
+        } catch (e) {
+          this.externalDirectories.delete(id);
+          rmSync(dir, { recursive: true, force: true });
+          throw e;
+        }
+      }
+      return this.registry().find((b) => b.id === id);
     }
 
     if (op === "importArchive") return this.importArchive(p.data!);
