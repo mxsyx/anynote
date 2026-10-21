@@ -1,3 +1,4 @@
+import { loadWhiteboard } from "./whiteboard-assets";
 import { observeBackupEnvironment } from "./backup-environment";
 import {
   Dialog,
@@ -75,26 +76,33 @@ import { seed } from "./seed";
 import ImportReport from "./ImportReport";
 import Bookshelf from "./Bookshelf";
 import type { BoardBlock } from "./DocumentView";
-import TaskCenter from "./TaskCenter";
-import ExtensionCommands from "./ExtensionCommands";
-import ExtensionPage from "./ExtensionPage";
 import Backlinks from "./Backlinks";
-import LocalCleanup from "./LocalCleanup";
-import Diagnostics from "./Diagnostics";
-import BackupTargets from "./BackupTargets";
-import CloudBackup from "./CloudBackup";
-import LocalBackup from "./LocalBackup";
-import CloudRecovery from "./CloudRecovery";
-import RecoveryWizard from "./RecoveryWizard";
-import NotebookTransferDialog from "./NotebookTransferDialog";
 import { appearanceKey, readAppearance, toggleAppearance } from "./appearance";
 import "./styles.css";
+
+const TaskCenter = lazy(() => import("./TaskCenter"));
+const ExtensionCommands = lazy(() => import("./ExtensionCommands"));
+const ExtensionPage = lazy(() => import("./ExtensionPage"));
+const LocalCleanup = lazy(() => import("./LocalCleanup"));
+const Diagnostics = lazy(() => import("./Diagnostics"));
+const BackupTargets = lazy(() => import("./BackupTargets"));
+const CloudBackup = lazy(() => import("./CloudBackup"));
+const LocalBackup = lazy(() => import("./LocalBackup"));
+const CloudRecovery = lazy(() => import("./CloudRecovery"));
+const RecoveryWizard = lazy(() => import("./RecoveryWizard"));
+const NotebookTransferDialog = lazy(() => import("./NotebookTransferDialog"));
 const ImportDialog = lazy(() => import("./ImportDialog"));
 const SearchPreview = lazy(() => import("./SearchPreview"));
 const DocumentEditor = lazy(() => import("./DocumentEditor"));
-const WhiteboardEditor = lazy(() => import("./WhiteboardEditor"));
+const WhiteboardEditor = lazy(loadWhiteboard);
 const PdfReader = lazy(() => import("./PdfReader"));
 const ImageReader = lazy(() => import("./ImageReader"));
+const featureFallback = (
+  <p className="muted" role="status">
+    正在加载…
+  </p>
+);
+
 /** Main workspace view. */
 type View =
   | "notes"
@@ -1401,41 +1409,45 @@ function App() {
         </Suspense>
       )}
       {tasksOpen && (
-        <TaskCenter
-          onRestored={async (id) => {
-            const list = await request<Notebook[]>("listNotebooks");
-            setBooks(list);
-            await switchBook(list.find((b) => b.id === id)!);
-            setTasksOpen(false);
-          }}
-          onClose={() => setTasksOpen(false)}
-          onOpen={async (n, id) => {
-            if (book?.id !== id) {
-              const b = books.find((b) => b.id === id);
-              if (b) await switchBook(b);
-            }
-            await reload(id);
-            await openNote(
-              n,
-              books.find((b) => b.id === id),
-            );
-            setTasksOpen(false);
-          }}
-        />
+        <Suspense fallback={featureFallback}>
+          <TaskCenter
+            onRestored={async (id) => {
+              const list = await request<Notebook[]>("listNotebooks");
+              setBooks(list);
+              await switchBook(list.find((b) => b.id === id)!);
+              setTasksOpen(false);
+            }}
+            onClose={() => setTasksOpen(false)}
+            onOpen={async (n, id) => {
+              if (book?.id !== id) {
+                const b = books.find((b) => b.id === id);
+                if (b) await switchBook(b);
+              }
+              await reload(id);
+              await openNote(
+                n,
+                books.find((b) => b.id === id),
+              );
+              setTasksOpen(false);
+            }}
+          />
+        </Suspense>
       )}
       {recovery && (
-        <RecoveryWizard
-          notebook={recovery}
-          onClose={() => setRecovery(null)}
-          onStarted={() => setTasksOpen(true)}
-          onRestored={async (id) => {
-            const list = await request<Notebook[]>("listNotebooks");
-            setBooks(list);
-            setRecovery(null);
-            await switchBook(list.find((b) => b.id === id)!);
-            setToast("已从备份恢复为新的 Notebook");
-          }}
-        />
+        <Suspense fallback={featureFallback}>
+          <RecoveryWizard
+            notebook={recovery}
+            onClose={() => setRecovery(null)}
+            onStarted={() => setTasksOpen(true)}
+            onRestored={async (id) => {
+              const list = await request<Notebook[]>("listNotebooks");
+              setBooks(list);
+              setRecovery(null);
+              await switchBook(list.find((b) => b.id === id)!);
+              setToast("已从备份恢复为新的 Notebook");
+            }}
+          />
+        </Suspense>
       )}
       {board && active && book && (
         <Suspense
@@ -2407,54 +2419,64 @@ function App() {
                     还没有快照。创建第一份，让知识多一层保护。
                   </p>
                 )}
-                <LocalCleanup
-                  notebookId={book!.id}
-                  onCleaned={() => {
-                    void request<Snapshot[]>("listSnapshots", {
-                      notebookId: book!.id,
-                    })
-                      .then(setSnapshots)
-                      .catch(report);
-                  }}
-                />
-                <LocalBackup
-                  notebookId={book!.id}
-                  beforeBackup={async () => {
-                    if (composition.current)
-                      throw Error(
-                        "请完成当前输入后再立即备份；自动备份仅捕获已保存内容。",
-                      );
-                    await flush();
-                  }}
-                  onStarted={() => setTasksOpen(true)}
-                />
-                <BackupTargets
-                  notebookId={book!.id}
-                  onStarted={() => setTasksOpen(true)}
-                  onRestored={async (id) => {
-                    const list = await request<Notebook[]>("listNotebooks");
-                    setBooks(list);
-                    await switchBook(list.find((b) => b.id === id)!);
-                  }}
-                />
-                <CloudBackup
-                  notebookId={book!.id}
-                  onStarted={() => setTasksOpen(true)}
-                  onRestored={async (id) => {
-                    const list = await request<Notebook[]>("listNotebooks");
-                    setBooks(list);
-                    await switchBook(list.find((b) => b.id === id)!);
-                  }}
-                />
+                <Suspense fallback={featureFallback}>
+                  <LocalCleanup
+                    notebookId={book!.id}
+                    onCleaned={() => {
+                      void request<Snapshot[]>("listSnapshots", {
+                        notebookId: book!.id,
+                      })
+                        .then(setSnapshots)
+                        .catch(report);
+                    }}
+                  />
+                </Suspense>
+                <Suspense fallback={featureFallback}>
+                  <LocalBackup
+                    notebookId={book!.id}
+                    beforeBackup={async () => {
+                      if (composition.current)
+                        throw Error(
+                          "请完成当前输入后再立即备份；自动备份仅捕获已保存内容。",
+                        );
+                      await flush();
+                    }}
+                    onStarted={() => setTasksOpen(true)}
+                  />
+                </Suspense>
+                <Suspense fallback={featureFallback}>
+                  <BackupTargets
+                    notebookId={book!.id}
+                    onStarted={() => setTasksOpen(true)}
+                    onRestored={async (id) => {
+                      const list = await request<Notebook[]>("listNotebooks");
+                      setBooks(list);
+                      await switchBook(list.find((b) => b.id === id)!);
+                    }}
+                  />
+                </Suspense>
+                <Suspense fallback={featureFallback}>
+                  <CloudBackup
+                    notebookId={book!.id}
+                    onStarted={() => setTasksOpen(true)}
+                    onRestored={async (id) => {
+                      const list = await request<Notebook[]>("listNotebooks");
+                      setBooks(list);
+                      await switchBook(list.find((b) => b.id === id)!);
+                    }}
+                  />
+                </Suspense>
                 <p className="small-note">
                   本地快照保存在同一磁盘。建议定期导出至其他设备。远端备份状态独立于本地保存。
                 </p>
               </div>
             ) : view === "extensions" ? (
-              <ExtensionPage
-                notebookId={book!.id}
-                onCreated={acceptHostedNote}
-              />
+              <Suspense fallback={featureFallback}>
+                <ExtensionPage
+                  notebookId={book!.id}
+                  onCreated={acceptHostedNote}
+                />
+              </Suspense>
             ) : view === "settings" ? (
               <div className="page">
                 <span className="eyebrow">MAKE YOURSELF AT HOME</span>
@@ -2462,8 +2484,12 @@ function App() {
                 <p className="page-intro">
                   让每一次打开，都更接近你喜欢的样子。
                 </p>
-                <CloudRecovery onStarted={() => setTasksOpen(true)} />
-                <Diagnostics />
+                <Suspense fallback={featureFallback}>
+                  <CloudRecovery onStarted={() => setTasksOpen(true)} />
+                </Suspense>
+                <Suspense fallback={featureFallback}>
+                  <Diagnostics />
+                </Suspense>
                 <div className="setting-row">
                   <div>
                     <h3>Notebook</h3>
@@ -3256,38 +3282,43 @@ function App() {
               <SearchPreview result={results[searchIndex]} />
             </Suspense>
             {book && (
-              <ExtensionCommands
-                notebookId={book.id}
-                onHostedRun={async (extensionId, commandId) => {
-                  await flush();
-                  const note = await request<NoteNode>(
-                    "executeHostedExtensionCommand",
-                    { notebookId: book.id, extensionId, commandId },
-                  );
-                  if (bookRef.current?.id !== book.id) return;
-                  await acceptHostedNote(note);
-                  setSearchOpen(false);
-                }}
-                onRun={async (command) => {
-                  await flush();
-                  const note = current.current;
-                  if (!note || note.note_type !== "markdown")
-                    throw Error("请先打开 Markdown 笔记");
-                  const saved = await request<NoteNode>("runExtensionCommand", {
-                    notebookId: book.id,
-                    extensionId: command.extensionId,
-                    checksum: command.checksum,
-                    commandId: command.id,
-                    id: note.id,
-                    expectedRevision: note.revision,
-                    operationId: crypto.randomUUID(),
-                  });
-                  acceptSaved(saved);
-                  setSearchOpen(false);
-                  setView("notes");
-                  setToast("已运行扩展命令");
-                }}
-              />
+              <Suspense fallback={featureFallback}>
+                <ExtensionCommands
+                  notebookId={book.id}
+                  onHostedRun={async (extensionId, commandId) => {
+                    await flush();
+                    const note = await request<NoteNode>(
+                      "executeHostedExtensionCommand",
+                      { notebookId: book.id, extensionId, commandId },
+                    );
+                    if (bookRef.current?.id !== book.id) return;
+                    await acceptHostedNote(note);
+                    setSearchOpen(false);
+                  }}
+                  onRun={async (command) => {
+                    await flush();
+                    const note = current.current;
+                    if (!note || note.note_type !== "markdown")
+                      throw Error("请先打开 Markdown 笔记");
+                    const saved = await request<NoteNode>(
+                      "runExtensionCommand",
+                      {
+                        notebookId: book.id,
+                        extensionId: command.extensionId,
+                        checksum: command.checksum,
+                        commandId: command.id,
+                        id: note.id,
+                        expectedRevision: note.revision,
+                        operationId: crypto.randomUUID(),
+                      },
+                    );
+                    acceptSaved(saved);
+                    setSearchOpen(false);
+                    setView("notes");
+                    setToast("已运行扩展命令");
+                  }}
+                />
+              </Suspense>
             )}
             <div className="command-footer">
               <span>↑ ↓ 选择 · ↵ 打开</span>
@@ -3307,33 +3338,35 @@ function App() {
         </Dialog>
       )}
       {transfer && book && (
-        <NotebookTransferDialog
-          books={books}
-          source={book}
-          node={transfer.node}
-          mode={transfer.mode}
-          onClose={() => setTransfer(null)}
-          onComplete={async (result) => {
-            await reload(book.id);
-            if (
-              result.status === "completed" &&
-              transfer.mode === "move" &&
-              active &&
-              result.nodeMap[active.id]
-            ) {
-              setActive(null);
-              current.current = null;
-            }
-            setTransfer(null);
-            setToast(
-              result.status === "copied-source-changed"
-                ? "副本已保存，源条目有新修改，未移入回收站"
-                : result.status === "copied-target-changed"
-                  ? "目标副本已变化，源条目保留原位"
-                  : `${result.count} 个条目已${transfer.mode === "copy" ? "复制" : "移动"}到目标 Notebook`,
-            );
-          }}
-        />
+        <Suspense fallback={featureFallback}>
+          <NotebookTransferDialog
+            books={books}
+            source={book}
+            node={transfer.node}
+            mode={transfer.mode}
+            onClose={() => setTransfer(null)}
+            onComplete={async (result) => {
+              await reload(book.id);
+              if (
+                result.status === "completed" &&
+                transfer.mode === "move" &&
+                active &&
+                result.nodeMap[active.id]
+              ) {
+                setActive(null);
+                current.current = null;
+              }
+              setTransfer(null);
+              setToast(
+                result.status === "copied-source-changed"
+                  ? "副本已保存，源条目有新修改，未移入回收站"
+                  : result.status === "copied-target-changed"
+                    ? "目标副本已变化，源条目保留原位"
+                    : `${result.count} 个条目已${transfer.mode === "copy" ? "复制" : "移动"}到目标 Notebook`,
+              );
+            }}
+          />
+        </Suspense>
       )}
       {modal && (
         <Dialog

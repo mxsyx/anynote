@@ -1,3 +1,4 @@
+import { openNotebook } from "./acceptance/open-notebook.mjs";
 import { appMenu } from "./acceptance/app-menu.mjs";
 import { launchDesktop } from "./acceptance/electron-driver.mjs";
 import { spawn } from "node:child_process";
@@ -5,7 +6,13 @@ import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir, cpus, totalmem, platform, arch } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
@@ -43,7 +50,7 @@ if (
 } else {
   const root = mkdtempSync(join(tmpdir(), "anynote-performance-ui-"));
   const report = {
-    format: "anynote.performance-ui-acceptance.v1",
+    format: "anynote.performance-ui-acceptance.v2",
     startedAt: new Date().toISOString(),
     status: "running",
     environment: {
@@ -52,10 +59,21 @@ if (
       totalMemoryBytes: totalmem(),
       platform: platform(),
       arch: arch(),
-      node: process.versions.node,
+      harnessNode: process.versions.node,
       packaged: !!process.env.ANYNOTE_EXECUTABLE,
+      cache:
+        "Chromium HTTP/code cache cleared for offline first use; fresh process runs retain OS filesystem cache",
+      coldEditorCpuThrottle: Number(process.env.ANYNOTE_CPU_THROTTLE || 1),
+      deviceLabel:
+        process.env.ANYNOTE_DEVICE_LABEL ||
+        "local host (not low-end device evidence)",
     },
     measurements: {},
+    includedSuites: {
+      performance: true,
+      accessibility: process.argv.includes("--ui"),
+      backupLoad: process.argv.includes("--backup"),
+    },
     checks: [],
     accessibility: [],
     screenshots: [],
@@ -67,7 +85,8 @@ if (
       "Foreground scheduling flags prevent test-window occlusion throttling; startup measurements retain the OS file cache.",
     ],
   };
-  let app, page, server, daemon;
+  let app, page, server, daemon, requests;
+  const errors = [];
   const output = resolve(
     process.env.ANYNOTE_EXECUTABLE
       ? "test-results/performance-ui-packaged-acceptance.json"
@@ -82,9 +101,12 @@ if (
       op,
       input,
     });
-  async function launch() {
+  async function launch(options) {
     const started = performance.now();
-    ({ app, page } = await launchDesktop(root));
+    ({ app, page } = await launchDesktop(root, {
+      notebookTitle: "性能与界面验收库",
+      ...options,
+    }));
     await page.getByRole("button", { name: "切换侧栏", exact: true }).waitFor();
     return performance.now() - started;
   }
@@ -217,19 +239,145 @@ if (
     }
     const f = await fixture(root);
     report.fixture = {
-      notebooks: 1,
+      notebooks: 4,
       nodes: f.nodes,
-      markdownNotes: 10002,
+      markdownNotes: 10062,
       nestingDepth: 1000,
       ordinaryMarkdownBytes: f.markdownBytes,
       largeMarkdownBytes: f.largeMarkdownBytes,
       pdfBytes: f.pdfBytes,
       pdfPages: f.pages,
+      imageBytes: f.imageBytes,
+      imageDimensions: [f.imageEdge, f.imageEdge],
+      crossNotebookLinks: 60,
     };
     assert.ok(
       f.markdownBytes >= 50 * 1024,
       "ordinary Markdown fixture must contain at least 50KiB",
     );
+    await check("cold-renderer-offline-first-edit-and-whiteboard", async () => {
+      ({ app, page, requests } = await launchDesktop(root, {
+        enterNotebook: false,
+        coldCache: true,
+        offline: true,
+      }));
+      page.on("pageerror", (e) => errors.push(e.message));
+      report.offlineConsole = { blockedFontFallbacks: 0, otherErrors: [] };
+      page.on("console", (message) => {
+        if (message.type() !== "error") return;
+        const text = message.text();
+        if (
+          text.startsWith("Loading the font 'https://esm.sh/") &&
+          text.includes("Content Security Policy")
+        )
+          report.offlineConsole.blockedFontFallbacks++;
+        else report.offlineConsole.otherErrors.push(text);
+      });
+      const cold = await page.context().newCDPSession(page);
+      await cold.send("Emulation.setCPUThrottlingRate", {
+        rate: report.environment.coldEditorCpuThrottle,
+      });
+      assert.ok(
+        requests.length > 0,
+        "cold navigation must record resource requests",
+      );
+      const initialFiles = JSON.parse(
+        readFileSync("dist/renderer-bundle.json", "utf8"),
+      )
+        .files.filter((file) => file.initial)
+        .map((file) => file.file);
+      assert.ok(
+        requests
+          .filter((url) => url.endsWith(".js"))
+          .every((url) =>
+            initialFiles.some((file) => url.endsWith("/" + file)),
+          ),
+        "shelf must only load the static entry closure",
+      );
+      const begin = performance.now();
+      await openNotebook(page, f.book.name);
+      const editor = page.getByRole("textbox", {
+        name: "文档内容",
+        exact: true,
+      });
+      await editor.waitFor();
+      report.measurements.offlineFirstEditorMs = +(
+        performance.now() - begin
+      ).toFixed(2);
+      await editor.click();
+      await page.keyboard.press("ControlOrMeta+End");
+      await page.keyboard.insertText("离线首用持久化");
+      await page.waitForFunction(
+        async ({ notebookId, id }) =>
+          (
+            await window.anynote.request("getNote", { notebookId, id })
+          ).body.includes("离线首用持久化"),
+        { notebookId: f.book.id, id: f.ids[0] },
+      );
+      await appMenu(page, "insert.whiteboard", app);
+      await page.locator(".excalidraw").first().waitFor({ timeout: 45000 });
+      report.whiteboardAssetPath = await page.evaluate(
+        () => window.EXCALIDRAW_ASSET_PATH,
+      );
+      await page.locator('label:has([data-testid="toolbar-text"])').click();
+      await page
+        .locator(".excalidraw canvas.interactive")
+        .click({ position: { x: 250, y: 200 } });
+      await page.locator(".excalidraw-wysiwyg").waitFor();
+      await page.keyboard.insertText("Offline first edit");
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(() =>
+        [...document.fonts].some(
+          (font) =>
+            font.family.includes("Excalifont") && font.status === "loaded",
+        ),
+      );
+      report.measurements.offlineDrawingFontLoaded = true;
+      await page.getByRole("button", { name: "保存白板", exact: true }).click();
+      await page.locator(".board-overlay").waitFor({ state: "hidden" });
+      await page.waitForFunction(
+        async ({ notebookId, id }) =>
+          (
+            await window.anynote.request("getNote", { notebookId, id })
+          ).body.includes("core.whiteboard"),
+        { notebookId: f.book.id, id: f.ids[0] },
+      );
+      assert.equal(new URL(page.url()).protocol, "file:");
+      await page.reload();
+      await openNotebook(page, f.book.name);
+      await editor.waitFor();
+      assert.ok((await editor.innerText()).includes("离线首用持久化"));
+      report.measurements.offlineResources = [
+        ...new Set(requests.filter((url) => !url.startsWith("data:"))),
+      ];
+      assert.deepEqual(report.offlineConsole.otherErrors, []);
+      assert.ok(
+        requests.some(
+          (url) =>
+            url.startsWith("file:") &&
+            url.includes("/excalidraw/fonts/Excalifont/"),
+        ),
+        "offline whiteboard must load its local drawing font",
+      );
+      assert.ok(
+        requests
+          .filter((url) => /\.js(?:$|\?)/.test(url))
+          .every((url) => url.startsWith("file:")),
+        "editor code must be local",
+      );
+      // Restore the 50KiB fixture before timed open/save runs.
+      const note = await rpc("getNote", {
+        notebookId: f.book.id,
+        id: f.ids[0],
+      });
+      await rpc("saveNote", {
+        notebookId: f.book.id,
+        id: note.id,
+        expectedRevision: note.revision,
+        body: f.regularBody,
+      });
+      await app.close();
+    });
     const starts = [];
     await check("fresh-process-startup-under-3s", async () => {
       for (let i = 0; i < 5; i++) {
@@ -250,11 +398,9 @@ if (
     ) {
       await page.getByRole("button", { name: "切换侧栏", exact: true }).click();
     }
-    const runtime = await app.evaluate(({ safeStorage }) => ({
+    const runtime = await app.evaluate(() => ({
       electron: process.versions.electron,
-      node: process.versions.node,
-      encryptionAvailable: safeStorage.isEncryptionAvailable(),
-      storageBackend: safeStorage.getSelectedStorageBackend(),
+      electronNode: process.versions.node,
     }));
     Object.assign(report.environment, runtime);
     report.memory = {
@@ -265,7 +411,6 @@ if (
         })),
       ),
     };
-    const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await check("10000-node-tree-window-and-last-node-navigation", async () => {
       assert.ok((await page.locator(".tree-row").count()) < 100);
@@ -308,24 +453,6 @@ if (
       assert.ok(report.measurements.search.p95Ms < 500);
     });
     await open("观测笔记 00000");
-    await check("first-source-editor-load-under-300ms", async () => {
-      report.measurements.firstSourceEditorMs = await page
-        .getByRole("button", { name: "源码", exact: true })
-        .evaluate(async (el) => {
-          const begin = performance.now();
-          el.click();
-          while (!document.querySelector(".cm-content"))
-            await new Promise((r) => requestAnimationFrame(r));
-          return +(performance.now() - begin).toFixed(2);
-        });
-      report.measurements.firstEditorDOMLines = await page
-        .locator(".cm-line")
-        .count();
-      assert.ok(
-        report.measurements.firstSourceEditorMs < 300,
-        JSON.stringify(report.measurements),
-      );
-    });
     await check("50KB-markdown-editable-open-under-300ms", async () => {
       const times = [];
       for (let i = 0; i < 10; i++) {
@@ -345,7 +472,7 @@ if (
           el.click();
           while (
             !document
-              .querySelector(".cm-content")
+              .querySelector('[aria-label="文档内容"]')
               ?.textContent.includes("普通文档")
           )
             await new Promise((r) => requestAnimationFrame(r));
@@ -380,15 +507,16 @@ if (
       );
     });
     await check(
-      "1MB-markdown-source-policy-and-bounded-editor-DOM",
+      "large-markdown-preserves-source-with-bounded-editor-DOM",
       async () => {
         await open(f.large.title);
-        await page
-          .getByText("文档超过 1MB，已使用源码模式以保持编辑流畅。")
-          .waitFor();
-        await page.locator(".cm-content").waitFor();
-        assert.ok((await page.locator(".cm-line").count()) < 300);
-        assert.equal(await page.locator(".markdown-body").count(), 0);
+        await page.locator(".document-preserved").waitFor();
+        assert.ok((await page.locator(".ProseMirror > *").count()) < 5);
+        const note = await rpc("getNote", {
+          notebookId: f.book.id,
+          id: f.large.id,
+        });
+        assert.equal(note.body, f.large.body);
       },
     );
     await check(
@@ -430,95 +558,332 @@ if (
           .waitFor();
       },
     );
-    await check("UI-responsive-during-streamed-100MiB-backup", async () => {
-      // A local Cloudflare Worker (D1/R2 adapters) backs the streamed upload so
-      // the UI responsiveness measurement does not depend on a real cloud.
-      const env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: randomUUID() },
-        uploads = [];
-      const bridge = createServer(async (req, res) => {
-        try {
-          const chunks = [];
-          for await (const chunk of req) chunks.push(chunk);
-          const body = chunks.length ? Buffer.concat(chunks) : undefined;
-          if (req.method === "PUT" && body) uploads.push(body.length);
-          const response = await worker.fetch(
-            new Request("https://backup.test" + req.url, {
-              method: req.method,
-              headers: req.headers,
-              ...(body ? { body } : {}),
-            }),
-            env,
+    if (process.argv.includes("--backup"))
+      await check("UI-responsive-during-streamed-100MiB-backup", async () => {
+        // A local Cloudflare Worker (D1/R2 adapters) backs the streamed upload so
+        // the UI responsiveness measurement does not depend on a real cloud.
+        const env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: randomUUID() },
+          uploads = [];
+        const bridge = createServer(async (req, res) => {
+          try {
+            const chunks = [];
+            for await (const chunk of req) chunks.push(chunk);
+            const body = chunks.length ? Buffer.concat(chunks) : undefined;
+            if (req.method === "PUT" && body) uploads.push(body.length);
+            const response = await worker.fetch(
+              new Request("https://backup.test" + req.url, {
+                method: req.method,
+                headers: req.headers,
+                ...(body ? { body } : {}),
+              }),
+              env,
+            );
+            res.writeHead(
+              response.status,
+              Object.fromEntries(response.headers),
+            );
+            res.end(Buffer.from(await response.arrayBuffer()));
+          } catch (e) {
+            res.writeHead(500);
+            res.end(e.message);
+          }
+        });
+        await new Promise((r) => bridge.listen(0, "127.0.0.1", r));
+        server = {
+          close: async () => {
+            bridge.closeAllConnections();
+            await new Promise((r) => bridge.close(r));
+            env.DB.db.close();
+          },
+        };
+        const target = await rpc("configureBackup", {
+          notebookId: f.book.id,
+          name: "本地性能验收",
+          endpoint: `http://127.0.0.1:${bridge.address().port}`,
+          allowInsecure: true,
+          token: env.APP_TOKEN,
+        });
+        const job = await rpc("startBackup", {
+          notebookId: f.book.id,
+          targetId: target.id,
+        });
+        const times = [];
+        let done = false;
+        for (let i = 0; i < 180; i++) {
+          const t = performance.now();
+          await appMenu(page, "theme", app);
+          await page.evaluate(
+            () =>
+              new Promise((r) =>
+                requestAnimationFrame(() => requestAnimationFrame(r)),
+              ),
           );
-          res.writeHead(response.status, Object.fromEntries(response.headers));
-          res.end(Buffer.from(await response.arrayBuffer()));
-        } catch (e) {
-          res.writeHead(500);
-          res.end(e.message);
+          times.push(performance.now() - t);
+          const task = (await rpc("listTasks")).find((x) => x.id === job.id);
+          if (task.status === "failed") throw Error(task.error);
+          if (task.status === "completed") {
+            done = true;
+            break;
+          }
+          await page.waitForTimeout(100);
         }
-      });
-      await new Promise((r) => bridge.listen(0, "127.0.0.1", r));
-      server = {
-        close: async () => {
-          bridge.closeAllConnections();
-          await new Promise((r) => bridge.close(r));
-          env.DB.db.close();
-        },
-      };
-      const target = await rpc("configureBackup", {
-        notebookId: f.book.id,
-        name: "本地性能验收",
-        endpoint: `http://127.0.0.1:${bridge.address().port}`,
-        allowInsecure: true,
-        token: env.APP_TOKEN,
-      });
-      const job = await rpc("startBackup", {
-        notebookId: f.book.id,
-        targetId: target.id,
-      });
-      const times = [];
-      let done = false;
-      for (let i = 0; i < 180; i++) {
-        const t = performance.now();
-        await appMenu(page, "theme", app);
-        await page.evaluate(
-          () =>
-            new Promise((r) =>
-              requestAnimationFrame(() => requestAnimationFrame(r)),
-            ),
+        assert.ok(done, "backup must complete");
+        report.measurements.backupUI = stats(times);
+        assert.ok(report.measurements.backupUI.p95Ms < 150);
+        assert.ok(
+          uploads.some((size) => size === 16 * 1024 ** 2),
+          "the 100MiB asset must stream in 16MiB chunks",
         );
-        times.push(performance.now() - t);
-        const task = (await rpc("listTasks")).find((x) => x.id === job.id);
-        if (task.status === "failed") throw Error(task.error);
-        if (task.status === "completed") {
-          done = true;
-          break;
-        }
-        await page.waitForTimeout(100);
+        report.memory.afterBackup = await app.evaluate(({ app }) =>
+          app.getAppMetrics().map((p) => ({
+            type: p.type,
+            workingSetKiB: p.memory.workingSetSize,
+          })),
+        );
+      });
+    await check("multi-notebook-search-and-backlinks", async () => {
+      const search = [],
+        backlinks = [];
+      for (let i = 0; i < 10; i++) {
+        let begin = performance.now();
+        const found = await rpc("searchWorkspace", {
+          requestId: randomUUID(),
+          query: "跨库性能链接",
+        });
+        search.push(performance.now() - begin);
+        assert.equal(found.results.length, 60);
+        begin = performance.now();
+        const links = await rpc("getBacklinks", {
+          notebookId: f.book.id,
+          id: f.ids[0],
+        });
+        backlinks.push(performance.now() - begin);
+        assert.equal(links.length, 60);
+        assert.equal(new Set(links.map((link) => link.notebookId)).size, 3);
       }
-      assert.ok(done, "backup must complete");
-      report.measurements.backupUI = stats(times);
-      assert.ok(report.measurements.backupUI.p95Ms < 150);
-      assert.ok(
-        uploads.some((size) => size === 16 * 1024 ** 2),
-        "the 100MiB asset must stream in 16MiB chunks",
-      );
-      report.memory.afterBackup = await app.evaluate(({ app }) =>
-        app.getAppMetrics().map((p) => ({
-          type: p.type,
-          workingSetKiB: p.memory.workingSetSize,
-        })),
+      report.measurements.multiNotebookSearch = stats(search);
+      report.measurements.backlinks = stats(backlinks);
+      assert.ok(report.measurements.multiNotebookSearch.p95Ms < 500);
+      assert.ok(report.measurements.backlinks.p95Ms < 500);
+    });
+    await check("large-image-and-sustained-memory", async () => {
+      const durationMs = Number(process.env.ANYNOTE_SOAK_SECONDS || 60) * 1000;
+      assert.ok(Number.isFinite(durationMs) && durationMs >= 1000);
+      const memorySession = await page.context().newCDPSession(page);
+      report.memory.heapSource = "CDP Runtime.getHeapUsage.usedSize";
+      report.memory.samples = [];
+      const start = performance.now();
+      let cycles = 0;
+      do {
+        await open(f.image.title);
+        await page.waitForFunction(() => {
+          const image = document.querySelector(".image-rotator img");
+          return image?.complete && image.naturalWidth > 0;
+        });
+        await open(f.pdf.title);
+        await waitPdfPaint(2);
+        await open("观测笔记 00000");
+        await page
+          .getByRole("textbox", { name: "文档内容", exact: true })
+          .waitFor();
+        await rpc("getBacklinks", { notebookId: f.book.id, id: f.ids[0] });
+        const processes = await app.evaluate(({ app }) =>
+          app.getAppMetrics().map((p) => ({
+            pid: p.pid,
+            type: p.type,
+            workingSetKiB: p.memory.workingSetSize,
+          })),
+        );
+        report.memory.samples.push({
+          elapsedMs: Math.round(performance.now() - start),
+          processes,
+          totalKiB: processes.reduce((sum, p) => sum + p.workingSetKiB, 0),
+          heapBytes: (await memorySession.send("Runtime.getHeapUsage"))
+            .usedSize,
+        });
+        cycles++;
+        save();
+      } while (performance.now() - start < durationMs);
+      await memorySession.detach();
+      const samples = report.memory.samples;
+      report.memory.soak = {
+        requestedMs: durationMs,
+        actualMs: Math.round(performance.now() - start),
+        cycles,
+        growthKiB: samples.at(-1).totalKiB - samples[0].totalKiB,
+        peakKiB: Math.max(...samples.map((s) => s.totalKiB)),
+      };
+      report.limitations.push(
+        "Memory samples are observational, include allocator/GC/cache effects, and are not a leak-free or long-session claim; use ANYNOTE_SOAK_SECONDS=3600 on a representative device.",
       );
     });
-    await check(
-      "themes-three-window-sizes-long-Chinese-deep-tree-missing-media-plugins",
-      async () => {
-        await open(f.complex.title);
-        await page.getByRole("button", { name: "阅读", exact: true }).click();
-        await page.locator(".missing-image").waitFor();
-        mkdirSync("docs/screenshots/acceptance", { recursive: true });
+    await check("deferred-feature-pages", async () => {
+      for (const [command, heading] of [
+        ["backup", "本地磁盘备份"],
+        ["extensions", "为你的书桌，添一些可能"],
+        ["settings", "诊断日志与指标"],
+      ]) {
+        await appMenu(page, command, app);
+        await page
+          .getByRole("heading", { name: heading, exact: true })
+          .waitFor();
+      }
+      await open("观测笔记 00000");
+      await page
+        .getByRole("textbox", { name: "文档内容", exact: true })
+        .waitFor();
+      const screenshot = process.env.ANYNOTE_EXECUTABLE
+        ? "test-results/performance-packaged-editor.png"
+        : "test-results/performance-editor.png";
+      await page.screenshot({ path: screenshot });
+      report.screenshots.push(screenshot);
+    });
+    if (process.argv.includes("--ui")) {
+      await check(
+        "themes-three-window-sizes-long-Chinese-deep-tree-missing-media-plugins",
+        async () => {
+          await open(f.complex.title);
+          await page.locator(".missing-image").waitFor();
+          mkdirSync("docs/screenshots/acceptance", { recursive: true });
+          for (const theme of ["light", "dark"]) {
+            if (
+              (await page.locator("html").getAttribute("data-theme")) !== theme
+            )
+              await appMenu(page, "theme", app);
+            for (const [width, height] of [
+              [1280, 800],
+              [1440, 900],
+              [1920, 1080],
+            ]) {
+              await resize(width, height);
+              await page.waitForTimeout(100);
+              assert.equal(
+                await page.evaluate(
+                  () => document.documentElement.scrollWidth > innerWidth,
+                ),
+                false,
+              );
+              const path = `docs/screenshots/acceptance/${theme}-${width}x${height}.png`;
+              await page.screenshot({ path, animations: "disabled" });
+              report.screenshots.push(path);
+              await audit(`editor-${theme}-${width}`);
+            }
+          }
+        },
+      );
+      await check(
+        "keyboard-search-dialog-focus-return-and-tree-controls",
+        async () => {
+          await page
+            .getByRole("button", { name: "搜索笔记", exact: true })
+            .focus();
+          await page.keyboard.press("Control+k");
+          const search = page.getByPlaceholder("寻找一个想法，或一篇笔记…");
+          await search.fill("观测笔记 00001");
+          await page.locator(".command-results button").first().waitFor();
+          await page.keyboard.press("ArrowDown");
+          await page.keyboard.press("Enter");
+          await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
+          await page.waitForFunction(
+            () =>
+              document.querySelector('[aria-label="笔记标题"]')?.value ===
+              "观测笔记 00001",
+          );
+          await page.locator(".tree-row.active .tree-main").focus();
+          await page.keyboard.press("Home");
+          await page.waitForFunction(
+            (id) => document.activeElement?.getAttribute("data-node-id") === id,
+            f.folders[0],
+          );
+          await page.keyboard.press("ArrowLeft");
+          await page.waitForFunction(
+            (id) =>
+              document
+                .querySelector(`[data-node-id="${id}"]`)
+                ?.getAttribute("aria-expanded") === "false",
+            f.folders[0],
+          );
+          await page.keyboard.press("ArrowRight");
+          await page.waitForFunction(
+            (id) =>
+              document
+                .querySelector(`[data-node-id="${id}"]`)
+                ?.getAttribute("aria-expanded") === "true",
+            f.folders[0],
+          );
+          await page.keyboard.press("ArrowDown");
+          await page.waitForFunction(
+            (id) => document.activeElement?.getAttribute("data-node-id") === id,
+            f.folders[1],
+          );
+          await page.keyboard.press("End");
+          await page.waitForFunction(
+            (id) => document.activeElement?.getAttribute("data-node-id") === id,
+            f.pdf.id,
+          );
+
+          await page
+            .getByRole("button", { name: "新建笔记", exact: true })
+            .focus();
+          await page.keyboard.press("Enter");
+          const dialog = page.getByRole("dialog");
+          await dialog.waitFor();
+          await audit("create-dialog");
+          await page.keyboard.press("Shift+Tab");
+          assert.ok(
+            await dialog.evaluate((el) => el.contains(document.activeElement)),
+          );
+          await page.keyboard.press("Escape");
+          await dialog.waitFor({ state: "hidden" });
+          assert.equal(
+            await page.evaluate(() =>
+              document.activeElement?.getAttribute("aria-label"),
+            ),
+            "新建笔记",
+          );
+        },
+      );
+      await check("core-pages-WCAG-AA-light-dark", async () => {
         for (const theme of ["light", "dark"]) {
           if ((await page.locator("html").getAttribute("data-theme")) !== theme)
             await appMenu(page, "theme", app);
+          for (const name of ["backup", "extensions", "settings"]) {
+            await appMenu(page, name, app);
+            await page.waitForTimeout(150);
+            for (const [width, height] of [
+              [1280, 800],
+              [1440, 900],
+              [1920, 1080],
+            ]) {
+              await resize(width, height);
+              await page.waitForTimeout(100);
+              assert.equal(
+                await page.evaluate(
+                  () => document.documentElement.scrollWidth > innerWidth,
+                ),
+                false,
+              );
+              const path = `docs/screenshots/acceptance/${name}-${theme}-${width}x${height}.png`;
+              await page.screenshot({ path, animations: "disabled" });
+              report.screenshots.push(path);
+              await audit(`${name}-${theme}-${width}`);
+            }
+          }
+          await page
+            .getByRole("button", { name: "网页 / HTML 导入", exact: true })
+            .click();
+          await page.getByRole("dialog").waitFor();
+          await audit("import-" + theme);
+          await page.getByRole("button", { name: "关闭", exact: true }).click();
+        }
+      });
+      await check("PDF-and-source-editor-WCAG-AA-light-dark", async () => {
+        for (const theme of ["light", "dark"]) {
+          if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+            await appMenu(page, "theme", app);
+          await open(f.pdf.title);
+          await page.locator(".pdf-page canvas").waitFor();
+          await waitPdfPaint(2);
           for (const [width, height] of [
             [1280, 800],
             [1440, 900],
@@ -532,205 +897,74 @@ if (
               ),
               false,
             );
-            const path = `docs/screenshots/acceptance/${theme}-${width}x${height}.png`;
+            const path = `docs/screenshots/acceptance/pdf-${theme}-${width}x${height}.png`;
             await page.screenshot({ path, animations: "disabled" });
             report.screenshots.push(path);
-            await audit(`editor-${theme}-${width}`);
+            await audit(`pdf-${theme}-${width}`);
           }
-        }
-      },
-    );
-    await check(
-      "keyboard-search-dialog-focus-return-and-tree-controls",
-      async () => {
-        await page
-          .getByRole("button", { name: "搜索笔记", exact: true })
-          .focus();
-        await page.keyboard.press("Control+k");
-        const search = page.getByPlaceholder("寻找一个想法，或一篇笔记…");
-        await search.fill("观测笔记 00001");
-        await page.locator(".command-results button").first().waitFor();
-        await page.keyboard.press("ArrowDown");
-        await page.keyboard.press("Enter");
-        await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
-        await page.waitForFunction(
-          () =>
-            document.querySelector('[aria-label="笔记标题"]')?.value ===
-            "观测笔记 00001",
-        );
-        await page.locator(".tree-row.active .tree-main").focus();
-        await page.keyboard.press("Home");
-        await page.waitForFunction(
-          (id) => document.activeElement?.getAttribute("data-node-id") === id,
-          f.folders[0],
-        );
-        await page.keyboard.press("ArrowLeft");
-        await page.waitForFunction(
-          (id) =>
-            document
-              .querySelector(`[data-node-id="${id}"]`)
-              ?.getAttribute("aria-expanded") === "false",
-          f.folders[0],
-        );
-        await page.keyboard.press("ArrowRight");
-        await page.waitForFunction(
-          (id) =>
-            document
-              .querySelector(`[data-node-id="${id}"]`)
-              ?.getAttribute("aria-expanded") === "true",
-          f.folders[0],
-        );
-        await page.keyboard.press("ArrowDown");
-        await page.waitForFunction(
-          (id) => document.activeElement?.getAttribute("data-node-id") === id,
-          f.folders[1],
-        );
-        await page.keyboard.press("End");
-        await page.waitForFunction(
-          (id) => document.activeElement?.getAttribute("data-node-id") === id,
-          f.pdf.id,
-        );
-
-        await page
-          .getByRole("button", { name: "新建笔记", exact: true })
-          .focus();
-        await page.keyboard.press("Enter");
-        const dialog = page.getByRole("dialog");
-        await dialog.waitFor();
-        await audit("create-dialog");
-        await page.keyboard.press("Shift+Tab");
-        assert.ok(
-          await dialog.evaluate((el) => el.contains(document.activeElement)),
-        );
-        await page.keyboard.press("Escape");
-        await dialog.waitFor({ state: "hidden" });
-        assert.equal(
-          await page.evaluate(() =>
-            document.activeElement?.getAttribute("aria-label"),
-          ),
-          "新建笔记",
-        );
-      },
-    );
-    await check("core-pages-WCAG-AA-light-dark", async () => {
-      for (const theme of ["light", "dark"]) {
-        if ((await page.locator("html").getAttribute("data-theme")) !== theme)
-          await appMenu(page, "theme", app);
-        for (const name of ["backup", "extensions", "settings"]) {
-          await appMenu(page, name, app);
-          await page.waitForTimeout(150);
-          for (const [width, height] of [
-            [1280, 800],
-            [1440, 900],
-            [1920, 1080],
-          ]) {
-            await resize(width, height);
-            await page.waitForTimeout(100);
-            assert.equal(
-              await page.evaluate(
-                () => document.documentElement.scrollWidth > innerWidth,
-              ),
-              false,
-            );
-            const path = `docs/screenshots/acceptance/${name}-${theme}-${width}x${height}.png`;
-            await page.screenshot({ path, animations: "disabled" });
-            report.screenshots.push(path);
-            await audit(`${name}-${theme}-${width}`);
-          }
-        }
-        await page
-          .getByRole("button", { name: "网页 / HTML 导入", exact: true })
-          .click();
-        await page.getByRole("dialog").waitFor();
-        await audit("import-" + theme);
-        await page.getByRole("button", { name: "关闭", exact: true }).click();
-      }
-    });
-    await check("PDF-and-source-editor-WCAG-AA-light-dark", async () => {
-      for (const theme of ["light", "dark"]) {
-        if ((await page.locator("html").getAttribute("data-theme")) !== theme)
-          await appMenu(page, "theme", app);
-        await open(f.pdf.title);
-        await page.locator(".pdf-page canvas").waitFor();
-        await waitPdfPaint(2);
-        for (const [width, height] of [
-          [1280, 800],
-          [1440, 900],
-          [1920, 1080],
-        ]) {
-          await resize(width, height);
-          await page.waitForTimeout(100);
-          assert.equal(
-            await page.evaluate(
-              () => document.documentElement.scrollWidth > innerWidth,
-            ),
-            false,
-          );
-          const path = `docs/screenshots/acceptance/pdf-${theme}-${width}x${height}.png`;
+          await open("观测笔记 00000");
+          await page
+            .getByRole("textbox", { name: "文档内容", exact: true })
+            .waitFor();
+          await audit(`source-${theme}`);
+          const path = `docs/screenshots/acceptance/source-${theme}.png`;
           await page.screenshot({ path, animations: "disabled" });
           report.screenshots.push(path);
-          await audit(`pdf-${theme}-${width}`);
         }
-        await open("观测笔记 00000");
-        await page.getByRole("button", { name: "源码", exact: true }).click();
-        await page.locator(".cm-content").waitFor();
-        await audit(`source-${theme}`);
-        const path = `docs/screenshots/acceptance/source-${theme}.png`;
+        await appMenu(page, "settings", app);
+      });
+      await check("200-percent-zoom-reflow-and-reduced-motion", async () => {
+        await resize(1280, 800);
+        await app.evaluate(({ BrowserWindow }) => {
+          const w = BrowserWindow.getAllWindows()[0];
+          w.setContentSize(1280, 800);
+          w.webContents.setZoomFactor(2);
+        });
+        await page.waitForTimeout(200);
+        assert.equal(await page.evaluate(() => innerWidth), 640);
+        assert.equal(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth > innerWidth,
+          ),
+          false,
+        );
+        if (
+          await page
+            .getByRole("button", { name: "收起侧栏", exact: true })
+            .isVisible()
+        )
+          await page
+            .getByRole("button", { name: "收起侧栏", exact: true })
+            .click();
+        await page
+          .getByRole("heading", { name: "从云端恢复", exact: true })
+          .waitFor();
+        await audit("settings-200percent");
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        assert.equal(
+          await page
+            .getByRole("button", { name: "切换侧栏", exact: true })
+            .evaluate((el) => getComputedStyle(el).transitionDuration),
+          "0s",
+        );
+        const path = "docs/screenshots/acceptance/zoom-200.png";
         await page.screenshot({ path, animations: "disabled" });
         report.screenshots.push(path);
-      }
-      await appMenu(page, "settings", app);
-    });
-    await check("200-percent-zoom-reflow-and-reduced-motion", async () => {
-      await resize(1280, 800);
-      await app.evaluate(({ BrowserWindow }) => {
-        const w = BrowserWindow.getAllWindows()[0];
-        w.setContentSize(1280, 800);
-        w.webContents.setZoomFactor(2);
       });
-      await page.waitForTimeout(200);
-      assert.equal(await page.evaluate(() => innerWidth), 640);
-      assert.equal(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth > innerWidth,
-        ),
-        false,
-      );
-      if (
-        await page
-          .getByRole("button", { name: "收起侧栏", exact: true })
-          .isVisible()
-      )
-        await page
-          .getByRole("button", { name: "收起侧栏", exact: true })
-          .click();
-      await page
-        .getByRole("heading", { name: "从云端恢复", exact: true })
-        .waitFor();
-      await audit("settings-200percent");
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      assert.equal(
-        await page
-          .getByRole("button", { name: "切换侧栏", exact: true })
-          .evaluate((el) => getComputedStyle(el).transitionDuration),
-        "0s",
-      );
-      const path = "docs/screenshots/acceptance/zoom-200.png";
-      await page.screenshot({ path, animations: "disabled" });
-      report.screenshots.push(path);
-    });
+      assert.deepEqual(errors, []);
+      await check("WCAG-AA-no-automated-violations", async () => {
+        assert.equal(
+          report.accessibility.filter((x) => x.violations.length).length,
+          0,
+          "WCAG violations: " +
+            report.accessibility
+              .filter((x) => x.violations.length)
+              .map((x) => x.name)
+              .join(", "),
+        );
+      });
+    }
     assert.deepEqual(errors, []);
-    await check("WCAG-AA-no-automated-violations", async () => {
-      assert.equal(
-        report.accessibility.filter((x) => x.violations.length).length,
-        0,
-        "WCAG violations: " +
-          report.accessibility
-            .filter((x) => x.violations.length)
-            .map((x) => x.name)
-            .join(", "),
-      );
-    });
     report.status = "passed";
   } catch (e) {
     report.status = "failed";

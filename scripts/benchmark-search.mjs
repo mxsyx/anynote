@@ -1,7 +1,7 @@
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir, platform, arch, cpus } from "node:os";
+import { tmpdir, platform, arch, cpus, totalmem } from "node:os";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 const root = mkdtempSync(join(tmpdir(), "anynote-benchmark-"));
@@ -96,6 +96,7 @@ try {
     lastNote.id,
   );
   const report = {
+    measuredAt: new Date().toISOString(),
     fixture: {
       notebooks: 4,
       markdownNotes: size,
@@ -110,6 +111,8 @@ try {
       arch: arch(),
       cpu: cpus()[0]?.model,
       cpuCount: cpus().length,
+      totalMemoryBytes: totalmem(),
+      cache: "warm indexes and OS filesystem cache after fixture setup",
     },
     measurements: {
       globalUniquePhrase: await measure(async () =>

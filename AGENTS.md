@@ -25,6 +25,7 @@
 
 - Add detailed comments to code that is difficult to understand.
 - Do not add comments for self-explanatory code.
+- Use english comments.
 
 ## Component Usage
 

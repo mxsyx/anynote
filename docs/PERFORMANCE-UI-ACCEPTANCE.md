@@ -2,22 +2,44 @@
 
 > 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [G19 性能](todo/19-desktop-performance.md)、[G20 视觉](todo/20-visual-components.md)、[G06 人工原生 UI](todo/06-native-ui-acceptance.md) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
 
-> 存储与备份格式已改为SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
-> 依据设计文档 18.6、21 的性能与界面目标，验收运行真实 Electron 生产页面和 Linux 打包程序，使用正式 Preload、IPC、独立 SQLite 进程、PDF.js 阅读器和后台备份任务。每次生成临时工作区，测试结束后删除数据；不读取 `.env.cloud`，不修改日常 Notebook。
+验收使用真实 Electron 生产页面、正式 Preload/IPC 和独立 SQLite 进程。每次创建临时工作区，结束后删除，不读取 `.env.cloud`，不修改日常 Notebook。当前任务状态与本次实测见 [G19](todo/19-desktop-performance.md)。下方 2026-10-03 结果保留为历史证据，不代表当前连续编辑器或当前存储格式的性能。
 
 ## 运行
 
 ```sh
+# Node >= 24；包含生产构建、首屏体积预算、真实 Electron 性能验收
 pnpm run test:performance
+pnpm run benchmark:search
+
+# 当前机器的未签名目录包；macOS 示例
 pnpm run package
-ANYNOTE_EXECUTABLE=release/linux-unpacked/anynote node scripts/performance-ui-acceptance.mjs
+ANYNOTE_EXECUTABLE="$PWD/release/mac-arm64/Anynote.app/Contents/MacOS/Anynote" node scripts/performance-ui-acceptance.mjs
+
+# 单独记录长时负载；默认只采样 60 秒
+ANYNOTE_DEVICE_LABEL="设备型号与内存" ANYNOTE_SOAK_SECONDS=3600 node scripts/performance-ui-acceptance.mjs
+# 仅离线首次编辑阶段施加 renderer CPU 节流，不代表真实低配硬件
+ANYNOTE_CPU_THROTTLE=4 node scripts/performance-ui-acceptance.mjs
+
+# G20 界面/无障碍与单独的备份响应检查，按需运行
+pnpm run test:acceptance:ui
 ```
 
-Linux 需要可用显示会话、`dbus-run-session` 和 GNOME Keyring。脚本自动创建独立 D-Bus 会话与临时密钥目录，验证真实 `gnome_libsecret` 加密可用，不替换 safeStorage。Electron 验收启动参数包含 `--no-sandbox` 及禁止后台窗口限速的测试参数；应用窗口仍使用原有 renderer sandbox/contextIsolation。测试参数不加入正常启动流程。
+Linux 需要可用显示会话、`dbus-run-session` 和 GNOME Keyring。脚本为 Linux 创建独立 D-Bus 会话和临时密钥目录，不替换 safeStorage。测试启动参数包含 `--no-sandbox` 及禁止后台窗口限速的参数；应用 renderer sandbox/contextIsolation 保持原配置。测试参数不加入正常启动流程。
 
-报告写入 `test-results/performance-ui-acceptance.json` 和 `test-results/performance-ui-packaged-acceptance.json`。只有 `status: passed` 且所有检查通过的完整报告才可作为通过依据。归档报告见生产页面和 Linux 打包应用。
+报告生成到 `test-results/performance-ui-acceptance.json`、`test-results/performance-ui-packaged-acceptance.json`；格式为 `anynote.performance-ui-acceptance.v2`。先看 `includedSuites`，再核对 `status: passed` 和每项检查，默认性能通过不能替代 `--ui` 或 `--backup` 验收。搜索报告为 `docs/search-benchmark.json`，体积报告为 `dist/renderer-bundle.json`。这些生成文件不提交仓库，需要随运行归档，避免下一轮覆盖。
 
-## 最终结果（2026-10-03）
+## 当前测量与体积约束
+
+- 四个 Notebook，11,064 个节点：主库 10,000 篇索引语料、1,000 层目录、复杂文档、超大 Markdown、PDF 和图片；另三库各 20 篇跨库链接。验证跨库搜索返回 60 篇、反链来自三个库。
+- 普通文档 52,216 字节；连续编辑器打开 p95 < 300ms，真实 IPC 保存提交 p95 < 150ms（不包含自动保存防抖），万篇搜索与跨库反链 p95 < 500ms，虚拟树滚动 p95 < 150ms。
+- 五次新进程启动到固定 Notebook 可操作 p95 < 3s。固定 Notebook 避免书橱最近访问顺序污染样本。保留 OS 文件缓存，不宣称冷磁盘启动。
+- 首次使用另启进程，清除 Chromium HTTP/代码缓存、关闭网络后重新导航；在书橱检查大模块未加载，再验证首次文档输入、持久化、白板文字、本地 Excalifont 字体和预览导出。记录实际 `file:` 资源路径。Excalidraw 注册的 CDN 字体回退仍被 CSP 阻止，不放宽 CSP；验证实际本地字体加载成功。
+- PDF 为 104,887,221 字节、100 页的注释填充样本，验证范围读取、页面文字、绘制和单 canvas；图片为 4096×4096、约 3.3MB 的确定性渐变 PNG，验证真实解码与预览。两者都不代替复杂扫描件、嵌入字体、照片或矢量语料。
+- 持续循环打开图片、PDF、50KiB 文档并查询反链，记录每进程工作集、总工作集、renderer JS heap、峰值与首末增长。默认 60 秒是短时基线；不强制 GC，不据此声称没有泄漏。长任务与 G08 备份大清单单独记录。
+- 构建报告遍历入口的静态导入闭包，分开统计首屏 JS、gzip 与所有懒加载 JS；首屏预算为 400KiB / gzip 128KiB。体积检查同时阻止编辑器、PDF、白板、任务与恢复弹窗进入同步闭包，并检查动态模块与本地字体路径存在。
+- 保留 Vite 内容哈希文件名与 ESM 模块缓存。大型 Excalidraw、Mermaid、PDF 与文档编辑器按功能加载，不将整个 vendor 合并回首屏。备份、扩展、设置和对话框各自有 Suspense 边界，加载期间保留工作区。
+
+## 历史结果（2026-10-03）
 
 Linux x64，AMD Ryzen 7 H 255，16 逻辑核，约 29.2GiB RAM；Electron 41.9.1 / 内置 Node 24.17.0。测试启动器与语料生成使用 Node 24.11.1。两种运行方式各通过 15 项检查、36 次自动无障碍扫描，自动违规为零；最终截图共 33 张。前后端类型与合约检查、93 项完整回归、Linux 应用目录打包，以及两种运行方式的既有桌面功能测试均通过。
 
@@ -35,7 +57,7 @@ PDF 文件 104,887,221 字节；生产页面前两页范围读取 2,490,368 字�
 
 截图评审查看了长中文内容、千层目录、长代码与资源提示、备份、扩展、PDF 实际页面及 200% 缩放；PDF 截图在画布绘制与页码对应文字都就绪后采集。人工读屏器和跨平台待办仍按下文保留。
 
-## 语料与测量范围
+## 历史语料与测量范围（2026-10-03）
 
 单个 Notebook 包含 10,000 篇索引语料、1,000 层嵌套目录、复杂内容笔记、超过 1MiB 的 Markdown，以及超过 100MiB 的 100 页 PDF，总计 11,003 个节点。普通 Markdown 使用不少于 50KiB 的中文正文（52,216 字节）；准确字节数写入报告。
 
@@ -47,7 +69,7 @@ PDF 是有效的合成多页文件，通过注释填充到目标大小，验证�
 
 备份验收通过本地真实 HTTP Cloudflare Worker 适配器与正式任务上传 16MiB 分块，同时操作主题并记录界面反馈时间。它验证客户端流式任务期间可操作，不测真实云网络吞吐；真实云可靠性报告另见 [大文件云备份](./STREAMING-CLOUD-BACKUP.md)。报告另记录启动、PDF、备份后的进程工作集，供排查使用，没有将这些瞬时值设为内存上限保证。
 
-## 界面与无障碍范围
+## 历史界面与无障碍范围（2026-10-03）
 
 截图和检查覆盖浅色/深色主题、1280×800、1440×900、1920×1080 三档 CSS 视口，以及编辑预览、PDF、备份、扩展、设置页面。宿主窗口管理器可能限制真实窗口尺寸，脚本同时调整原生窗口并通过 CDP 固定 Chromium 视口，断言实际 `innerWidth/innerHeight`；截图不是其他屏幕硬件的原生窗口验收。
 
@@ -57,7 +79,7 @@ PDF 是有效的合成多页文件，通过注释填充到目标大小，验证�
 
 截图写入 `docs/screenshots/acceptance/`。人工读屏器、中文输入法、复杂 PDF 样本、长时间备份负载、清空系统缓存后的启动、低配置硬件和 Windows/macOS 仍需单独验收；此轮不代表完整 v1 发行验收。
 
-## 本轮修复
+## 历史修复（2026-10-03）
 
 - 源码编辑器随 Shell 加载，避免首次 Suspense 展示延迟；稳定配置、限制编辑视口，大 Markdown 自动进入源码模式。
 - 保存成功只更新对应节点概要，避免每次输入提交重新读取整棵目录；祖先查询使用 ID 映射。

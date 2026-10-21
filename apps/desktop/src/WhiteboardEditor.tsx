@@ -11,14 +11,6 @@ import type { BoardBlock } from "./DocumentView";
 import { request } from "./api";
 import { X, Save, LoaderCircle } from "./icons";
 
-declare global {
-  interface Window {
-    /** Base path for Excalidraw static assets. */
-    EXCALIDRAW_ASSET_PATH: string;
-  }
-}
-window.EXCALIDRAW_ASSET_PATH = new URL("./excalidraw/", document.baseURI).href;
-
 /**
  * Whiteboard editor (Excalidraw).
  *

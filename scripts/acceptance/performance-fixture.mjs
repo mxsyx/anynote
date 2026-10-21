@@ -1,7 +1,14 @@
+import { deflateSync, crc32 } from "node:zlib";
 import { putAssetFile } from "../../.build/packages/storage-sqlite/assets.js";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 import { randomUUID } from "node:crypto";
-import { openSync, writeSync, closeSync, statSync } from "node:fs";
+import {
+  openSync,
+  writeSync,
+  closeSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 export async function fixture(root) {
   const s = new Storage(join(root, "notebooks"));
@@ -154,9 +161,77 @@ export async function fixture(root) {
   ).run(resourceId, pdf.id);
   s.capture(db, pdf.head_revision_id, "", resourceId);
   db.exec("COMMIT");
+  // A deterministic 16-megapixel PNG exercises decode/preview memory, not photo entropy.
+  const edge = 4096;
+  const pixels = Buffer.alloc((edge * 3 + 1) * edge);
+  for (let y = 0; y < edge; y++) {
+    for (let x = 0; x < edge; x++) {
+      const offset = y * (edge * 3 + 1) + 1 + x * 3;
+      pixels[offset] = x % 256;
+      pixels[offset + 1] = y % 256;
+      pixels[offset + 2] = (x + y) % 256;
+    }
+  }
+  const chunk = (type, data) => {
+    const name = Buffer.from(type),
+      length = Buffer.alloc(4),
+      checksum = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    checksum.writeUInt32BE(crc32(Buffer.concat([name, data])));
+    return Buffer.concat([length, name, data, checksum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(edge, 0);
+  header.writeUInt32BE(edge, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const imagePath = join(root, "large.png");
+  writeFileSync(
+    imagePath,
+    Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(pixels)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+  const image = await s.run("createNode", {
+    notebookId: book.id,
+    kind: "note",
+    title: "16MP 大图性能样本",
+  });
+  const imageResource = randomUUID();
+  const imageHash = putAssetFile(db, imagePath, "image/png");
+  db.prepare(
+    "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+  ).run(imageResource, imageHash, "large.png");
+  db.prepare(
+    "UPDATE notes SET note_type='image',primary_resource_id=? WHERE node_id=?",
+  ).run(imageResource, image.id);
+  s.capture(db, image.head_revision_id, "", imageResource);
+  for (let b = 0; b < 3; b++) {
+    const other = await s.run("createNotebook", { title: "跨库性能 " + b });
+    for (let i = 0; i < 20; i++) {
+      const linked = await s.run("createNode", {
+        notebookId: other.id,
+        kind: "note",
+        title: `跨库性能链接 ${b}-${i}`,
+      });
+      await s.run("saveNote", {
+        notebookId: other.id,
+        id: linked.id,
+        expectedRevision: linked.revision,
+        body: `[跨库性能链接](anynote://notebook/${book.id}/note/${ids[0]})`,
+      });
+    }
+  }
   s.close();
   return {
     book,
+    regularBody,
+    image,
+    imageBytes: statSync(imagePath).size,
+    imageEdge: edge,
     ids,
     folders,
     complex,
@@ -167,7 +242,7 @@ export async function fixture(root) {
     pdfBytes: size,
     markdownBytes: Buffer.byteLength(regularBody),
     largeMarkdownBytes: Buffer.byteLength(large.body),
-    nodes: 11003,
+    nodes: 11064,
     pages,
   };
 }

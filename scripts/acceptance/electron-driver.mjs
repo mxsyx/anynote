@@ -1,9 +1,17 @@
 import { openNotebook } from "./open-notebook.mjs";
+import electron from "electron";
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { resolve } from "node:path";
-export async function launchDesktop(userData) {
+export async function launchDesktop(
+  userData,
+  {
+    enterNotebook = true,
+    coldCache = false,
+    offline = false,
+    notebookTitle,
+  } = {},
+) {
   let app, page;
   const env = {
     ...process.env,
@@ -20,9 +28,7 @@ export async function launchDesktop(userData) {
     delete env[key];
   // Launch the real application directly. Playwright's Electron loader forces
   // --password-store=basic, invalidating a system-vault acceptance test.
-  const executable =
-    process.env.ANYNOTE_EXECUTABLE ||
-    resolve("node_modules/electron/dist/electron");
+  const executable = process.env.ANYNOTE_EXECUTABLE || electron;
   const child = spawn(
     executable,
     [
@@ -54,127 +60,181 @@ export async function launchDesktop(userData) {
   let browser, inspector, storageInspector;
   app = {
     async close() {
-      await browser?.close();
+      // Quit through Electron so utility processes and the profile lock are released.
+      if (app.evaluate && inspector?.readyState === WebSocket.OPEN) {
+        await Promise.race([
+          app
+            .evaluate(({ app }) => {
+              setTimeout(() => app.quit(), 0);
+              return true;
+            })
+            .catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
+      }
       inspector?.close();
       storageInspector?.close();
+      await Promise.race([
+        browser?.close().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]);
       if (child.exitCode === null && !child.signalCode) {
-        child.kill("SIGTERM");
         await Promise.race([
           once(child, "close"),
-          new Promise((resolve) => setTimeout(resolve, 5000)),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
         ]);
-        if (child.exitCode === null && !child.signalCode) child.kill("SIGKILL");
+        if (child.exitCode === null && !child.signalCode) {
+          child.kill("SIGKILL");
+          await once(child, "close");
+        }
       }
     },
   };
-  for (let i = 0; i < 300 && (!inspectorURL || !browserURL); i++) {
-    if (child.exitCode !== null || child.signalCode)
-      throw Error("Electron 启动失败：" + logs);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  if (!inspectorURL || !browserURL)
-    throw Error("Electron 调试连接启动超时：" + logs);
-  inspector = new WebSocket(inspectorURL);
-  await once(inspector, "open");
-  let id = 0;
-  const pending = new Map();
-  inspector.addEventListener("message", (event) => {
-    const data = JSON.parse(String(event.data)),
-      entry = pending.get(data.id);
-    if (!entry) return;
-    pending.delete(data.id);
-    data.error || data.result?.exceptionDetails
-      ? entry.reject(
-          Error(data.error?.message || data.result.exceptionDetails.text),
-        )
-      : entry.resolve(data.result.result.value);
-  });
-  app.evaluate = (fn, argument) =>
-    new Promise((resolve, reject) => {
-      const callId = ++id;
-      pending.set(callId, { resolve, reject });
-      inspector.send(
-        JSON.stringify({
-          id: callId,
-          method: "Runtime.evaluate",
-          params: {
-            expression:
-              "(" +
-              fn.toString() +
-              ")(process.mainModule.require('electron')," +
-              JSON.stringify(argument ?? null) +
-              ")",
-            returnByValue: true,
-            awaitPromise: true,
-          },
-        }),
-      );
-    });
-  let storageCall = 0;
-  const storagePending = new Map();
-  const evaluateStorage = (expression) =>
-    new Promise((resolve, reject) => {
-      const id = ++storageCall;
-      storagePending.set(id, { resolve, reject });
-      storageInspector.send(
-        JSON.stringify({
-          id,
-          method: "Runtime.evaluate",
-          params: { expression, returnByValue: true, awaitPromise: true },
-        }),
-      );
-    });
-  app.evaluateStorage = async (fn, argument) => {
-    if (!storageInspector) {
-      const pid = await app.evaluate(({ app }) => {
-        const metric = app
-          .getAppMetrics()
-          .find((m) => m.type === "Utility" && m.name === "Anynote Storage");
-        if (!metric) throw Error("Storage 子进程未启动");
-        process._debugProcess(metric.pid);
-        return metric.pid;
-      });
-      let target;
-      for (let i = 0; i < 50 && !target; i++) {
-        try {
-          const targets = await (
-            await fetch("http://127.0.0.1:9229/json/list")
-          ).json();
-          target = targets.find(
-            (t) => t.title === "electron/js2c/utility_init",
-          );
-        } catch {}
-        if (!target) await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      if (!target) throw Error("Storage 测试调试端口未就绪");
-      storageInspector = new WebSocket(target.webSocketDebuggerUrl);
-      await once(storageInspector, "open");
-      storageInspector.addEventListener("message", (event) => {
-        const data = JSON.parse(String(event.data)),
-          entry = storagePending.get(data.id);
-        if (!entry) return;
-        storagePending.delete(data.id);
-        data.error || data.result?.exceptionDetails
-          ? entry.reject(
-              Error(data.error?.message || data.result.exceptionDetails.text),
-            )
-          : entry.resolve(data.result.result.value);
-      });
-      if ((await evaluateStorage("process.pid")) !== pid)
-        throw Error("Storage 测试调试进程身份不匹配");
+  try {
+    for (let i = 0; i < 300 && (!inspectorURL || !browserURL); i++) {
+      if (child.exitCode !== null || child.signalCode)
+        throw Error("Electron 启动失败：" + logs);
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    return evaluateStorage(
-      "(" + fn.toString() + ")(null," + JSON.stringify(argument ?? null) + ")",
+    if (!inspectorURL || !browserURL)
+      throw Error("Electron 调试连接启动超时：" + logs);
+    inspector = new WebSocket(inspectorURL);
+    await once(inspector, "open");
+    let id = 0;
+    const pending = new Map();
+    inspector.addEventListener("message", (event) => {
+      const data = JSON.parse(String(event.data)),
+        entry = pending.get(data.id);
+      if (!entry) return;
+      pending.delete(data.id);
+      data.error || data.result?.exceptionDetails
+        ? entry.reject(
+            Error(data.error?.message || data.result.exceptionDetails.text),
+          )
+        : entry.resolve(data.result.result.value);
+    });
+    app.evaluate = (fn, argument) =>
+      new Promise((resolve, reject) => {
+        const callId = ++id;
+        pending.set(callId, { resolve, reject });
+        inspector.send(
+          JSON.stringify({
+            id: callId,
+            method: "Runtime.evaluate",
+            params: {
+              expression:
+                "(" +
+                fn.toString() +
+                ")(process.mainModule.require('electron')," +
+                JSON.stringify(argument ?? null) +
+                ")",
+              returnByValue: true,
+              awaitPromise: true,
+            },
+          }),
+        );
+      });
+    let storageCall = 0;
+    const storagePending = new Map();
+    const evaluateStorage = (expression) =>
+      new Promise((resolve, reject) => {
+        const id = ++storageCall;
+        storagePending.set(id, { resolve, reject });
+        storageInspector.send(
+          JSON.stringify({
+            id,
+            method: "Runtime.evaluate",
+            params: { expression, returnByValue: true, awaitPromise: true },
+          }),
+        );
+      });
+    app.evaluateStorage = async (fn, argument) => {
+      if (!storageInspector) {
+        const pid = await app.evaluate(({ app }) => {
+          const metric = app
+            .getAppMetrics()
+            .find((m) => m.type === "Utility" && m.name === "Anynote Storage");
+          if (!metric) throw Error("Storage 子进程未启动");
+          process._debugProcess(metric.pid);
+          return metric.pid;
+        });
+        let target;
+        for (let i = 0; i < 50 && !target; i++) {
+          try {
+            const targets = await (
+              await fetch("http://127.0.0.1:9229/json/list")
+            ).json();
+            target = targets.find(
+              (t) => t.title === "electron/js2c/utility_init",
+            );
+          } catch {}
+          if (!target) await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (!target) throw Error("Storage 测试调试端口未就绪");
+        storageInspector = new WebSocket(target.webSocketDebuggerUrl);
+        await once(storageInspector, "open");
+        storageInspector.addEventListener("message", (event) => {
+          const data = JSON.parse(String(event.data)),
+            entry = storagePending.get(data.id);
+          if (!entry) return;
+          storagePending.delete(data.id);
+          data.error || data.result?.exceptionDetails
+            ? entry.reject(
+                Error(data.error?.message || data.result.exceptionDetails.text),
+              )
+            : entry.resolve(data.result.result.value);
+        });
+        if ((await evaluateStorage("process.pid")) !== pid)
+          throw Error("Storage 测试调试进程身份不匹配");
+      }
+      return evaluateStorage(
+        "(" +
+          fn.toString() +
+          ")(null," +
+          JSON.stringify(argument ?? null) +
+          ")",
+      );
+    };
+    browser = await chromium.connectOverCDP(browserURL);
+    const context = browser.contexts()[0];
+    for (let i = 0; i < 100 && !context.pages().length; i++)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    page = context.pages()[0];
+    page.setDefaultTimeout(30000);
+    const requests = [];
+    const network = await context.newCDPSession(page);
+    await network.send("Network.enable");
+    network.on("Network.requestWillBeSent", ({ request }) =>
+      requests.push(request.url),
     );
-  };
-  browser = await chromium.connectOverCDP(browserURL);
-  const context = browser.contexts()[0];
-  for (let i = 0; i < 100 && !context.pages().length; i++)
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  page = context.pages()[0];
-  await openNotebook(page);
-  await page
-    .getByRole("textbox", { name: "笔记标题" })
-    .waitFor({ timeout: 30000 });
-  return { app, page };
+    if (coldCache || offline) {
+      await app.evaluate(
+        async ({ session }, { coldCache, offline }) => {
+          if (coldCache) {
+            await session.defaultSession.clearCache();
+            await session.defaultSession.clearCodeCaches({});
+          }
+          if (offline)
+            session.defaultSession.enableNetworkEmulation({ offline: true });
+        },
+        { coldCache, offline },
+      );
+      await page.reload();
+    }
+    if (!enterNotebook) {
+      await page
+        .getByRole("button", { name: /^打开 Notebook：/ })
+        .first()
+        .waitFor();
+      return { app, page, requests };
+    }
+    await openNotebook(page, notebookTitle);
+    await page
+      .getByRole("textbox", { name: "笔记标题" })
+      .waitFor({ timeout: 30000 });
+    return { app, page, requests };
+  } catch (error) {
+    await app.close();
+    throw error;
+  }
 }

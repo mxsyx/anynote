@@ -14,7 +14,17 @@ const out = join(root, "artifacts/desktop");
 const rootManifest = JSON.parse(readFileSync("package.json", "utf8"));
 const desktop = JSON.parse(readFileSync("apps/desktop/package.json", "utf8"));
 const workspace = YAML.parse(readFileSync("pnpm-workspace.yaml", "utf8"));
-const lock = YAML.parse(readFileSync("pnpm-lock.yaml", "utf8"));
+// pnpm 12 stores package-manager dependencies in a separate YAML document.
+const lockDocuments = YAML.parseAllDocuments(
+  readFileSync("pnpm-lock.yaml", "utf8"),
+).map((document) => {
+  if (document.errors.length) throw document.errors[0];
+  return document.toJSON();
+});
+const lock = lockDocuments.find(
+  (document) => document.importers?.["apps/desktop"],
+);
+if (!lock) throw Error("Lockfile is missing the desktop workspace importer");
 const owners = Object.keys(lock.importers).filter((o) => o !== ".");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
@@ -60,7 +70,12 @@ writeFileSync(
   JSON.stringify(manifest, null, 2) + "\n",
 );
 lock.importers["."].dependencies = entries;
-writeFileSync(join(out, "pnpm-lock.yaml"), YAML.stringify(lock));
+writeFileSync(
+  join(out, "pnpm-lock.yaml"),
+  lockDocuments
+    .map((document) => "---\n" + YAML.stringify(document))
+    .join("\n"),
+);
 writeFileSync(
   join(out, "pnpm-workspace.yaml"),
   YAML.stringify({ ...workspace, packages: ["apps/*", "packages/*"] }),
