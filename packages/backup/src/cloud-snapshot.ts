@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import type { TransferSession } from "./transfer-session.js";
+import { cachedDownload, cachedChunk } from "./transfer-download.js";
 import { fileSource } from "@anynote/protocol/file-source.js";
 import { assetPath } from "@anynote/protocol/assets.js";
 import { randomUUID } from "node:crypto";
@@ -7,7 +9,6 @@ import type { BackupTarget, SnapshotManifest } from "@anynote/types/runtime.js";
 import type { FileManifest, FileSnapshot } from "./file-snapshot.js";
 import {
   prepareFiles,
-  readSource,
   restoreFile,
   verifyDirectoryBudget,
 } from "./file-snapshot.js";
@@ -70,6 +71,8 @@ export async function uploadSnapshotFiles(
   signal: AbortSignal,
   progress: (message: string) => void,
   onBytes: (bytes: number) => void,
+  session?: TransferSession,
+  onGeneration: (id: string) => Promise<void> = async () => {},
 ) {
   const capabilities = await client.call("/v1/capabilities", { signal });
   if (!capabilities.capabilities?.includes("sqlite-assets-v1"))
@@ -87,21 +90,74 @@ export async function uploadSnapshotFiles(
     expectedHead: target.lastGeneration || "",
     writerEpoch: target.writerEpoch || 1,
   });
+  if (session) {
+    if (!capabilities.capabilities?.includes("transfer-resume-v1"))
+      throw Error("服务端需升级以支持中断续传");
+    const fingerprint = digest(
+      Buffer.from(
+        JSON.stringify({ ...manifest, generationId: "", createdAt: "" }),
+      ),
+    );
+    const prior = session.read<{
+      fingerprint: string;
+      generationId: string;
+      createdAt: string;
+    }>("upload.cut");
+    if (prior?.fingerprint === fingerprint) {
+      generationId = prior.generationId;
+      manifest.generationId = generationId;
+      manifest.createdAt = prior.createdAt;
+    } else {
+      session.reset();
+      session.write("upload.cut", {
+        fingerprint,
+        generationId,
+        createdAt: manifest.createdAt,
+      });
+    }
+  }
+  await onGeneration(generationId);
   if (Buffer.byteLength(JSON.stringify(manifest)) > bytesLimit)
     throw Error("数据库清单超过5MiB预算");
   const path = `/v1/notebooks/${manifest.notebookId}/backup`;
-  const plan = await client.call(path + "/plan", {
-    method: "POST",
-    body: manifest,
-    signal,
-  });
+  let plan;
+  try {
+    plan = await client.call(path + "/plan", {
+      method: "POST",
+      body: manifest,
+      signal,
+    });
+  } catch (error: any) {
+    if (error.message !== "GENERATION_RETIRED" || !session) throw error;
+    const cut = session.read<{ fingerprint: string; createdAt: string }>(
+      "upload.cut",
+    )!;
+    session.reset();
+    generationId = randomUUID();
+    manifest.generationId = generationId;
+    session.write("upload.cut", { ...cut, generationId });
+    await onGeneration(generationId);
+    plan = await client.call(path + "/plan", {
+      method: "POST",
+      body: manifest,
+      signal,
+    });
+  }
+  const missing = new Set<string>(plan.missing);
+  for (const [hash, source] of objects)
+    if (!missing.has(hash)) onBytes(source.size);
   for (const hash of plan.missing) {
     signal.throwIfAborted();
     const source = objects.get(hash);
     if (!source) throw Error("计划要求不存在的本地对象");
     progress("正在上传备份对象 " + hash.slice(0, 10));
     if (source.size <= 20 * 1024 ** 2) {
-      const bytes = await readSource(source, signal);
+      const bytes = await fileSource(
+        source.file,
+        source.size,
+        source.offset,
+      ).read(0, source.size);
+      signal.throwIfAborted();
       if (digest(bytes) !== hash) throw Error("备份源文件在上传前改变");
       await client.uploadObject(
         path + `/${generationId}/objects/${hash}`,
@@ -115,6 +171,8 @@ export async function uploadSnapshotFiles(
         fileSource(source.file, source.size),
         signal,
         onBytes,
+        session,
+        hash,
       );
     }
   }
@@ -153,11 +211,14 @@ export async function restoreSnapshotFiles(
   signal: AbortSignal,
   onBytes: (bytes: number) => void,
   onTotal: (bytes: number) => void = () => {},
+  session?: TransferSession,
 ): Promise<FileManifest> {
   const book = target.remoteNotebookId || target.notebookId;
   const pinId = randomUUID(),
     pinPath = `/v1/notebooks/${book}/backups/${generationId}/pin`;
   const capabilities = await client.call("/v1/capabilities", { signal });
+  if (session && !capabilities.capabilities?.includes("transfer-resume-v1"))
+    throw Error("服务端需升级以支持中断续传");
   const pinned = capabilities.capabilities?.includes("restore-pin");
   if (pinned)
     await client.call(pinPath, { method: "POST", body: { pinId }, signal });
@@ -195,6 +256,13 @@ export async function restoreSnapshotFiles(
     )
       throw Error("数据库版本不兼容或身份不匹配");
     objectDescriptors(manifest);
+    if (session) {
+      const identity = digest(Buffer.from(JSON.stringify(manifest)));
+      if (session.read<string>("download.manifest") !== identity) {
+        session.reset();
+        session.write("download.manifest", identity);
+      }
+    }
     await verifyDirectoryBudget(
       dir,
       manifest.database.size + manifest.assets.reduce((n, a) => n + a.size, 0),
@@ -208,10 +276,14 @@ export async function restoreSnapshotFiles(
       database,
       async (c) => {
         check();
-        const bytes = await client.downloadObject(
-          `/v1/notebooks/${book}/objects/${c.sha256}`,
-          { maxBytes: c.size, signal },
-        );
+        const download = () =>
+          client.downloadObject(`/v1/notebooks/${book}/objects/${c.sha256}`, {
+            maxBytes: c.size,
+            signal,
+          });
+        const bytes = session
+          ? await cachedChunk(session, c, download, signal)
+          : await download();
         check();
         return bytes;
       },
@@ -221,7 +293,11 @@ export async function restoreSnapshotFiles(
     for (const asset of manifest.assets) {
       check();
       if (asset.path !== assetPath(asset.sha256)) throw Error("附件路径无效");
-      await client.downloadFile(
+      await (
+        session
+          ? cachedDownload.bind(null, session, client)
+          : client.downloadFile.bind(client)
+      )(
         `/v1/notebooks/${book}/objects/${asset.sha256}`,
         join(dir, asset.path),
         asset,

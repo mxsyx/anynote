@@ -1,3 +1,4 @@
+import { TransferSession } from "./transfer-session.js";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
@@ -22,6 +23,7 @@ export function startCloudRestore(
   target: BackupTarget,
   provider: CloudflareClient,
   generationId: string,
+  retry?: Task["retry"],
 ) {
   const id = randomUUID(),
     controller = new AbortController();
@@ -35,11 +37,14 @@ export function startCloudRestore(
     createdAt: Date.now(),
     controller,
     processedBytes: 0,
+    retry,
   };
   s.track(job);
   job.promise = (async () => {
     let dir: string | undefined, release: (() => void) | undefined;
+    let session: TransferSession | undefined;
     try {
+      session = new TransferSession(s.root, target, "download");
       const workspace = temporaryJob(s.root, "archive-jobs");
       dir = workspace.dir;
       release = workspace.release;
@@ -56,6 +61,7 @@ export function startCloudRestore(
         (bytes) => {
           job.totalBytes = bytes;
         },
+        session,
       );
       controller.signal.throwIfAborted();
       job.progress = "正在独立线程校验数据库与重建搜索";
@@ -78,6 +84,7 @@ export function startCloudRestore(
     } finally {
       if (dir) rmSync(dir, { recursive: true, force: true });
       release?.();
+      session?.close(job.status === "completed");
     }
   })();
   return { id };

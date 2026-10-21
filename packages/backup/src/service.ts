@@ -1,3 +1,4 @@
+import { TransferSession } from "./transfer-session.js";
 import {
   backupOperations,
   localOperations,
@@ -334,7 +335,14 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     if (!p.generationId) throw Error("请选择版本");
     return {
       handled: true,
-      result: startCloudRestore(s, target, provider, p.generationId),
+      result: startCloudRestore(s, target, provider, p.generationId, {
+        op: "restoreRemoteBackup",
+        payload: {
+          notebookId: p.notebookId,
+          targetId: target.id,
+          generationId: p.generationId,
+        },
+      }),
     };
   }
 
@@ -369,7 +377,9 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   job.promise = (async () => {
     let dir: string | undefined, release: (() => void) | undefined;
     let pinned = false;
+    let session: TransferSession | undefined;
     try {
+      session = new TransferSession(s.root, target, "upload");
       if (target.pendingGeneration) {
         job.progress = "正在确认上次提交结果";
         let confirmed;
@@ -451,16 +461,6 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           if (msg === "正在提交远端版本") job.status = "committing";
         },
         generationId = randomUUID();
-      await s.run("commitBackupCursor", {
-        notebookId: p.notebookId,
-        targetId: target.id,
-        // Remember the captured size so the large-task pause rule can reason
-        // about this target before the next run captures anything.
-        cursor: {
-          pendingGeneration: generationId,
-          lastTaskBytes: job.totalBytes,
-        },
-      });
       const onBytes = (bytes: number) => {
         job.processedBytes = (job.processedBytes || 0) + bytes;
       };
@@ -472,6 +472,14 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         controller.signal,
         progress,
         onBytes,
+        session,
+        async (id) => {
+          await s.run("commitBackupCursor", {
+            notebookId: p.notebookId,
+            targetId: target.id,
+            cursor: { pendingGeneration: id, lastTaskBytes: job.totalBytes },
+          });
+        },
       );
       await s.run("commitBackupCursor", {
         notebookId: p.notebookId,
@@ -515,6 +523,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     } finally {
       if (dir) rmSync(dir, { recursive: true, force: true });
       release?.();
+      session?.close(job.status === "completed");
       if (pinned) {
         const pins = s.pins.get(p.notebookId)! - 1;
         pins ? s.pins.set(p.notebookId, pins) : s.pins.delete(p.notebookId);

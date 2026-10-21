@@ -1,3 +1,4 @@
+import type { TransferSession, MultipartProgress } from "./transfer-session.js";
 import { multipartPartBytes } from "@anynote/protocol/cloud-objects.js";
 import { createHash } from "node:crypto";
 import { parseRetryAfter } from "./policy.js";
@@ -136,40 +137,85 @@ export class CloudflareClient {
     source: ScopedReadSource,
     signal: AbortSignal,
     onBytes: (n: number) => void = () => {},
+    session?: TransferSession,
+    hash = "",
   ) {
-    const { uploadId } = await this.call(path + "/multipart", {
-      method: "POST",
-      signal,
-    });
-    const parts = [];
-    try {
-      const partBytes = multipartPartBytes;
-      for (let offset = 0; offset < source.size; offset += partBytes) {
-        const bytes = await source.read(
-          offset,
-          Math.min(partBytes, source.size - offset),
-        );
-        if (bytes.length !== Math.min(partBytes, source.size - offset))
-          throw Error("附件读取不完整");
-        const part = await this.call(
-          path +
-            `/multipart/${encodeURIComponent(uploadId)}/${parts.length + 1}`,
-          { method: "PUT", bytes, signal, timeoutMs: 30 * 60000 },
-        );
-        parts.push(part);
-        onBytes(bytes.length);
+    const key = "upload.parts." + hash;
+    let reported = 0;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let saved = session?.read<MultipartProgress>(key);
+      if (!saved) {
+        const { uploadId } = await this.call(path + "/multipart", {
+          method: "POST",
+          signal,
+        });
+        saved = { uploadId, parts: [] };
+        session?.write(key, saved);
       }
-      await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
-        method: "POST",
-        body: { parts },
-        signal,
-        timeoutMs: 30 * 60000,
-      });
-    } catch (error) {
-      await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
-        method: "DELETE",
-      }).catch(() => {});
-      throw error;
+      const { uploadId } = saved;
+      const parts: MultipartProgress["parts"] = [];
+      try {
+        const partBytes = multipartPartBytes;
+        for (let offset = 0; offset < source.size; offset += partBytes) {
+          signal.throwIfAborted();
+          const bytes = await source.read(
+            offset,
+            Math.min(partBytes, source.size - offset),
+          );
+          if (bytes.length !== Math.min(partBytes, source.size - offset))
+            throw Error("附件读取不完整");
+          const prior = saved.parts[parts.length];
+          const sha256 = digest(bytes);
+          if (
+            prior &&
+            (prior.partNumber !== parts.length + 1 || prior.sha256 !== sha256)
+          )
+            throw Error("备份源切点改变，无法复用上传片段");
+          const part =
+            prior ||
+            (await this.call(
+              path +
+                `/multipart/${encodeURIComponent(uploadId)}/${parts.length + 1}`,
+              { method: "PUT", bytes, signal, timeoutMs: 30 * 60000 },
+            ));
+          parts.push({ ...part, sha256 });
+          if (!prior) {
+            saved.parts.push(parts.at(-1)!);
+            session?.write(key, saved);
+          }
+          const completed = offset + bytes.length;
+          if (completed > reported) onBytes(completed - reported);
+          reported = Math.max(reported, completed);
+        }
+        signal.throwIfAborted();
+        await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
+          method: "POST",
+          body: { parts },
+          signal,
+          timeoutMs: 30 * 60000,
+        });
+        return;
+      } catch (error) {
+        // Durable tasks keep acknowledged parts on interruption and cancellation.
+        // Stateless callers still abort immediately; registered abandoned sessions are reclaimable.
+        if (!session)
+          await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
+            method: "DELETE",
+          }).catch(() => {});
+        else if (
+          error instanceof Error &&
+          error.message === "UPLOAD_SESSION_MISSING"
+        )
+          session.write(key, null);
+        if (
+          session &&
+          error instanceof Error &&
+          error.message === "UPLOAD_SESSION_MISSING" &&
+          attempt === 0
+        )
+          continue;
+        throw error;
+      }
     }
   }
 
@@ -230,10 +276,20 @@ export class CloudflareClient {
     {
       maxBytes = 100 * 1024 ** 2,
       signal,
-    }: { maxBytes?: number; signal?: AbortSignal } = {},
+      range,
+    }: {
+      maxBytes?: number;
+      signal?: AbortSignal;
+      range?: { offset: number; size: number; total: number };
+    } = {},
   ) {
     const r = await fetch(this.url + path, {
-      headers: { Authorization: "Bearer " + this.token },
+      headers: {
+        Authorization: "Bearer " + this.token,
+        ...(range
+          ? { Range: `bytes=${range.offset}-${range.offset + range.size - 1}` }
+          : {}),
+      },
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
         : AbortSignal.timeout(60000),
@@ -241,6 +297,15 @@ export class CloudflareClient {
     if (!r.ok) {
       await r.body?.cancel();
       throw Error("远端对象下载失败");
+    }
+    if (
+      range &&
+      (r.status !== 206 ||
+        r.headers.get("content-range") !==
+          `bytes ${range.offset}-${range.offset + range.size - 1}/${range.total}`)
+    ) {
+      await r.body?.cancel();
+      throw Error("远端附件范围响应无效");
     }
     return boundedBody(r, maxBytes, signal);
   }

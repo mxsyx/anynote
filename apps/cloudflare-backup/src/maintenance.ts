@@ -1,3 +1,4 @@
+import { abortUpload } from "./upload-sessions.js";
 import { objectDescriptors } from "@anynote/protocol/cloud-objects.js";
 import type { SqlRow, WorkerEnv } from "@anynote/types/runtime.js";
 import {
@@ -299,7 +300,24 @@ async function snapshot(
       if (page === 9) fail("维护对象规划超过 10000 条预算");
     }
   }
-  const candidates = [...objects, ...garbage].slice(0, 1000);
+  const sessions = (
+    await env.DB.prepare(
+      "SELECT * FROM multipart_sessions WHERE notebook_id=? ORDER BY upload_id LIMIT 2001",
+    )
+      .bind(book)
+      .all()
+  ).results;
+  if (sessions.length > 2000) fail("上传会话超过 2000 条预算");
+  const uploads = sessions
+    .filter(
+      (s) =>
+        removed.has(s.generation_id) ||
+        ((!known.has(s.generation_id) ||
+          known.get(s.generation_id) === "committed") &&
+          reference - s.created_at >= grace),
+    )
+    .map((s) => ({ key: s.object_key, uploadId: s.upload_id, size: 0 }));
+  const candidates = [...uploads, ...objects, ...garbage].slice(0, 1000);
   const reclaimBytes = candidates.reduce(
     (sum, item) => sum + item.size,
     manifestBytes,
@@ -319,12 +337,14 @@ async function snapshot(
     staging: rows.filter((g) => g.status === "staging" && !removed.has(g.id))
       .length,
     expiredStaging: expired.length,
+    abandonedUploads: uploads.length,
     reclaimBytes,
     space: {
       totalBytes,
       retainedBytes: totalBytes - reclaimBytes,
       reclaimBytes,
-      deferredObjects: objects.length + garbage.length - candidates.length,
+      deferredObjects:
+        uploads.length + objects.length + garbage.length - candidates.length,
     },
     graceHours: 24,
   };
@@ -774,9 +794,13 @@ export async function maintenance(
       let objectCursor = cursors!.object_cursor,
         generationCursor = cursors!.generation_cursor;
       for (const entry of body.objects.slice(objectCursor, objectCursor + 8)) {
-        const head = await env.BUCKET.head(entry.key);
-        if (head && head.etag !== entry.etag) fail("对象在清理期间发生变化");
-        await env.BUCKET.delete(entry.key);
+        if (entry.uploadId) {
+          await abortUpload(env, book, entry.uploadId, entry.key);
+        } else {
+          const head = await env.BUCKET.head(entry.key);
+          if (head && head.etag !== entry.etag) fail("对象在清理期间发生变化");
+          await env.BUCKET.delete(entry.key);
+        }
         objectCursor++;
         await env.DB.batch([
           ...(entry.hash

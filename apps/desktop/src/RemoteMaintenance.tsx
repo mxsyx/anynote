@@ -38,7 +38,7 @@ interface Plan {
   sampled?: { id: string; reasons: string[] }[];
   lineageId?: string;
   remove: { id: string; createdAt: string }[];
-  objects: { size: number }[];
+  objects: { size: number; uploadId?: string }[];
   protected: string[];
   staging: number;
   reclaimBytes: number;
@@ -275,7 +275,10 @@ export default function RemoteMaintenance({
                 <p>
                   将删除 {plan.remove.length - (plan.expiredStaging || 0)}{" "}
                   个旧版本，取消 {plan.expiredStaging || 0} 个过期上传，并回收{" "}
-                  {plan.objects.length} 个无引用对象，预计释放{" "}
+                  {plan.objects.filter((o) => !o.uploadId).length}{" "}
+                  个无引用对象， 终止{" "}
+                  {plan.objects.filter((o) => o.uploadId).length}{" "}
+                  个遗留分段会话。 预计释放{" "}
                   {(plan.reclaimBytes / 1024 ** 2).toFixed(2)} MB。保护{" "}
                   {plan.protected.length} 个版本及 {plan.staging} 个上传中版本。
                 </p>

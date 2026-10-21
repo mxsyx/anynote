@@ -112,19 +112,24 @@ export class R2 {
     return this.resumeMultipartUpload(key, id);
   }
   resumeMultipartUpload(key, uploadId) {
-    const state = this.uploads.get(uploadId);
-    if (!state || state.key !== key) throw Error("unknown multipart upload");
+    const state = () => {
+      const upload = this.uploads.get(uploadId);
+      if (!upload || upload.key !== key)
+        throw Object.assign(Error("unknown multipart upload"), { code: 10024 });
+      return upload;
+    };
     return {
       uploadId,
+      key,
       uploadPart: async (partNumber, body) => {
         const bytes = Buffer.from(await new Response(body).arrayBuffer());
         const etag = createHash("md5").update(bytes).digest("hex");
-        state.parts.set(partNumber, { bytes, etag });
+        state().parts.set(partNumber, { bytes, etag });
         return { partNumber, etag };
       },
       complete: async (parts) => {
         const bytes = parts.map((p) => {
-          const actual = state.parts.get(p.partNumber);
+          const actual = state().parts.get(p.partNumber);
           if (actual?.etag !== p.etag) throw Error("multipart part missing");
           return actual.bytes;
         });

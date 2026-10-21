@@ -61,6 +61,57 @@ async function setup(t) {
   };
   return { root, source, fresh, book, note, target, config, vault, backup };
 }
+
+test("cold recovery retries retain chunks despite a new ephemeral device identity", async (t) => {
+  const f = await setup(t);
+  await f.backup(0);
+  const connection = await f.fresh.run("configureCloudRecovery", f.config);
+  const discovery = await f.fresh.run("discoverCloudBackups", {
+    connectionId: connection.id,
+  });
+  const version = discovery.backups[0];
+  const fetch = globalThis.fetch.getMockImplementation();
+  let interrupted = false,
+    downloads = 0;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts) => {
+    const result = await fetch(url, opts);
+    if (String(url).includes("/objects/")) {
+      downloads++;
+      if (!interrupted) {
+        interrupted = true;
+        // Cancel just after the cached chunk has been saved and the database reports progress.
+        const task = [...f.fresh.jobs.values()].find(
+          (j) => j.type === "restore" && j.status === "running",
+        );
+        Object.defineProperty(task, "processedBytes", {
+          configurable: true,
+          get: () => 0,
+          set: () => {
+            task.controller.abort();
+          },
+        });
+      }
+    }
+    return result;
+  });
+  const result = await f.fresh.run("restoreCloudBackup", {
+    connectionId: connection.id,
+    notebookId: version.notebookId,
+    lineageId: version.lineageId,
+    generationId: version.id,
+  });
+  await f.fresh.jobs.get(result.id).promise;
+  assert.equal(f.fresh.jobs.get(result.id).status, "cancelled");
+  const prior = downloads;
+  const retried = await f.fresh.run("retryTask", { id: result.id });
+  await f.fresh.jobs.get(retried.id).promise;
+  assert.equal(
+    f.fresh.jobs.get(retried.id).status,
+    "completed",
+    f.fresh.jobs.get(retried.id).error,
+  );
+  assert.equal(downloads, prior);
+});
 test("Cloudflare discovers paginated committed versions and restores into a completely empty workspace", async (t) => {
   const f = await setup(t);
   for (let n = 0; n < 12; n++) await f.backup(n);

@@ -61,7 +61,7 @@ try {
             status: "staging",
           },
         ],
-        objects: [],
+        objects: [{ uploadId: "abandoned-session", size: 0 }],
         protected: ["head"],
         staging: 1,
         expiredStaging: 1,
@@ -92,6 +92,7 @@ try {
   await page.getByLabel("每日采样保留天数").fill("14");
   await page.getByRole("button", { name: "预览清理", exact: true }).click();
   await expect(page.getByText(/当前数据占用 2.00 MB/)).toBeVisible();
+  await expect(page.getByText(/终止 1 个遗留分段会话/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "确认永久清理" }),
   ).toBeDisabled();

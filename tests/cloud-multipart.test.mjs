@@ -63,3 +63,55 @@ test("multipart abort discards transport parts without publishing an object", as
   assert.equal(bucket.uploads.size, 0);
   assert.equal(bucket.objects.size, 0);
 });
+
+test("interrupted verified-copy finalization reuses the private completed object", async () => {
+  const bucket = new R2(),
+    bytes = Buffer.from("verified copy retry");
+  const expected = {
+    hash: createHash("sha256").update(bytes).digest("hex"),
+    size: bytes.length,
+  };
+  const key = `objects/book/${expected.hash}`;
+  const create = bucket.createMultipartUpload.bind(bucket);
+  let fail = true;
+  bucket.createMultipartUpload = async (path) => {
+    const upload = await create(path);
+    if (path === key && fail)
+      return {
+        ...upload,
+        uploadPart: async () => {
+          fail = false;
+          throw Error("copy interrupted");
+        },
+      };
+    return upload;
+  };
+  const send = (method, body, token, part) =>
+    multipart(
+      new Request("https://backup.test/upload", { method, body }),
+      bucket,
+      key,
+      "staging/book",
+      expected,
+      token,
+      part,
+    );
+  const { uploadId } = await send("POST");
+  const part = await send("PUT", bytes, uploadId, 1);
+  await assert.rejects(
+    send("POST", JSON.stringify({ parts: [part] }), uploadId),
+    /copy interrupted/,
+  );
+  assert.equal(bucket.uploads.size, 0);
+  assert.equal(
+    bucket.objects.size,
+    1,
+    "private completed transport object remains resumable",
+  );
+  assert.deepEqual(
+    await send("POST", JSON.stringify({ parts: [part] }), uploadId),
+    { verified: true },
+  );
+  assert.deepEqual(bucket.objects.get(key), bytes);
+  assert.equal(bucket.objects.size, 1);
+});

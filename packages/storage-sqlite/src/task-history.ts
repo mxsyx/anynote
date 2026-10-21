@@ -102,6 +102,17 @@ const cloudReportSchema = z.object({
 /** Payload contract of every re-dispatchable operation. */
 const payloads = {
   startBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
+  restoreRemoteBackup: z
+    .object({ notebookId: uuid, targetId: uuid, generationId: uuid })
+    .strict(),
+  restoreCloudBackup: z
+    .object({
+      connectionId: uuid,
+      notebookId: uuid,
+      lineageId: uuid,
+      generationId: uuid,
+    })
+    .strict(),
   startLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
   verifyLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),
   restoreLocalBackup: z.object({ notebookId: uuid, targetId: uuid }).strict(),

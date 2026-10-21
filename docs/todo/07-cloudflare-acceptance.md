@@ -51,3 +51,7 @@
 ## G09 协议复测交接（2026-10-21）
 
 接收 [G09 T022/T023](09-remote-retention.md) 和 [ADR-013](../adr/013-remote-maintenance-lifecycle.md)：升级至 `0005.sql` / `maintenance-lifecycle-v1` 后，在独立命名空间补测实际超过 24h 的孤立 manifest/临时对象、连续 7 天无活动 staging、归档 R2 写失败后恢复、归档墓碑旧 ID 重放、2000 活动版本与 200000 引用的运行时配额/成本。记录永久归档增长及首次预览的实际请求量；空间估算不含 D1、维护归档及未完成 multipart 分段。本地受控时钟与 2000 版本合成回归不能替代 T021/T025 的真实老化和负载证据。
+
+## G10 协议复测交接（2026-10-21）
+
+接收 [G10 T024](10-cloudflare-resume.md) 和 [ADR-014](../adr/014-cloudflare-transfer-resume.md)：部署至 `0006.sql` / `transfer-resume-v1` 后执行 `pnpm run test:cloud:stream`。共用场景已加入上传/下载中断及 Storage 重启，并按实际请求字节证明复用。另需在独立真实命名空间核验创建后未登记的空 multipart 生命周期、默认/自定义桶到期清理、服务端复制中断及 abort 丢响应、7 天 staging 回收、短于 7 天的桶规则下重新申请会话、满会话预算和真实随机大文件吞吐。当前本地 workerd/SQLite/R2 结果不替代 T003/T021/T025；未完成分段字节不纳入空间估算，没有新增自动清理已提交备份授权。

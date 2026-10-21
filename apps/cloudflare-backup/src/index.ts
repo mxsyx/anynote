@@ -1,3 +1,4 @@
+import { uploadSessions } from "./upload-sessions.js";
 import { multipart } from "./multipart.js";
 import {
   cloudObjectLimit,
@@ -109,6 +110,7 @@ export default {
             "maintenance-admin-v1",
             "restore-pin",
             "sqlite-assets-v1",
+            "transfer-resume-v1",
             "backup-discovery-v1",
           ],
           objectMaxBytes: objectLimit,
@@ -388,6 +390,7 @@ export default {
             object,
             upload[3] ? decodeURIComponent(upload[3]) : undefined,
             upload[4] ? Number(upload[4]) : undefined,
+            uploadSessions(env, notebookId, upload[1]),
           );
           if ("verified" in result && result.verified)
             await env.DB.prepare(
@@ -442,7 +445,7 @@ export default {
         for (const d of descriptors(m).values()) {
           const head = await env.BUCKET.head(`objects/${notebookId}/${d.hash}`),
             catalog = await env.DB.prepare(
-              "SELECT verified FROM asset_catalog WHERE notebook_id=? AND hash=?",
+              "SELECT verified,size FROM asset_catalog WHERE notebook_id=? AND hash=?",
             )
               .bind(notebookId, d.hash)
               .first();
@@ -519,19 +522,44 @@ export default {
       const object = tail.match(/^\/objects\/([a-f0-9]{64})$/);
       if (object && request.method === "GET") {
         const verified = await env.DB.prepare(
-          "SELECT verified FROM asset_catalog WHERE notebook_id=? AND hash=?",
+          "SELECT verified,size FROM asset_catalog WHERE notebook_id=? AND hash=?",
         )
           .bind(notebookId, object[1])
           .first();
         if (!verified?.verified) return response({ error: "对象未验证" }, 404);
-        const data = await env.BUCKET.get(`objects/${notebookId}/${object[1]}`);
+        const range = request.headers.get("range");
+        const match = range?.match(/^bytes=(\d+)-(\d+)$/);
+        const offset = match ? Number(match[1]) : 0;
+        const end = match ? Number(match[2]) : verified.size - 1;
+        if (
+          range &&
+          (!match ||
+            !Number.isSafeInteger(offset) ||
+            !Number.isSafeInteger(end) ||
+            offset < 0 ||
+            end < offset ||
+            end >= verified.size)
+        )
+          return new Response(null, {
+            status: 416,
+            headers: { "Content-Range": `bytes */${verified.size}` },
+          });
+        const data = await env.BUCKET.get(
+          `objects/${notebookId}/${object[1]}`,
+          range ? { range: { offset, length: end - offset + 1 } } : undefined,
+        );
         if (!data) return response({ error: "对象缺失" }, 404);
         return new Response(
           data.body as unknown as ReadableStream<Uint8Array>,
           {
+            status: range ? 206 : 200,
             headers: {
               "Content-Type": "application/octet-stream",
-              "Content-Length": String(data.size),
+              "Accept-Ranges": "bytes",
+              ...(range
+                ? { "Content-Range": `bytes ${offset}-${end}/${data.size}` }
+                : {}),
+              "Content-Length": String(range ? end - offset + 1 : data.size),
               "Cache-Control": "private,no-store",
             },
           },

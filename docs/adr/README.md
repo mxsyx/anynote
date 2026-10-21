@@ -17,6 +17,7 @@
 | [ADR-011](011-extension-module-boundaries.md)  | 扩展契约、工具与存储实现的依赖方向           |
 | [ADR-012](012-backup-service-composition.md)   | 备份服务装配、Storage 单向依赖与快照边界     |
 | [ADR-013](013-remote-maintenance-lifecycle.md) | 远端维护生命周期、永久重放证据与手动保留配置 |
+| [ADR-014](014-cloudflare-transfer-resume.md)   | Cloudflare 持久上传、范围下载与遗留会话回收  |
 
 每项记录背景、决定、替代方案/取舍、源码和验证入口。变化时保留 ADR 编号及旧决定背景，注明替代日期和新证据；若彻底改换方案，新增 ADR 并双向标记替代关系。待产品确认的首发范围归 G00，不伪装成已采纳决定。
 

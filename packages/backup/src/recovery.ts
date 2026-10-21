@@ -130,7 +130,15 @@ export async function recoveryOperation(
     };
     return {
       handled: true,
-      result: startCloudRestore(s, target, provider, p.generationId),
+      result: startCloudRestore(s, target, provider, p.generationId, {
+        op: "restoreCloudBackup",
+        payload: {
+          connectionId: p.connectionId,
+          notebookId: p.notebookId,
+          lineageId: p.lineageId,
+          generationId: p.generationId,
+        },
+      }),
     };
   }
 

@@ -18,16 +18,47 @@ import { Storage } from "../../.build/packages/backend/index.js";
 
 export async function streamScenario({ settings, onStep = () => {} }) {
   const root = mkdtempSync(join(tmpdir(), "anynote-cloud-stream-"));
-  const storage = new Storage(join(root, "data"));
+  let storage = new Storage(join(root, "data"));
+  const fetch = globalThis.fetch;
+  let interruptUpload = true,
+    interruptDownload = true;
+  const puts = [],
+    ranges = [];
+  globalThis.fetch = async (url, options) => {
+    if (String(url).startsWith(settings.config.endpoint)) {
+      if (options?.method === "PUT") {
+        if (interruptUpload && /\/multipart\/[^/]+\/2$/.test(String(url))) {
+          interruptUpload = false;
+          throw Error("验收注入上传中断");
+        }
+        puts.push({ url: String(url), size: options.body.byteLength });
+      }
+      const range = options?.headers?.Range;
+      if (range) {
+        if (interruptDownload && range.startsWith("bytes=16777216-")) {
+          interruptDownload = false;
+          throw Error("验收注入下载中断");
+        }
+        ranges.push(range);
+      }
+    }
+    return fetch(url, options);
+  };
+  const restart = () => {
+    const secrets = storage.secretMemory;
+    storage.close();
+    storage = new Storage(join(root, "data"));
+    storage.secretMemory = secrets;
+  };
   const steps = [];
   const record = (name, details = {}) => {
     steps.push({ name, status: "passed", ...details });
     onStep(steps.at(-1), steps);
   };
-  async function complete(result) {
+  async function complete(result, status = "completed") {
     const job = storage.jobs.get(result.id);
     await job.promise;
-    assert.equal(job.status, "completed", job.error);
+    assert.equal(job.status, status, job.error);
     return job;
   }
   try {
@@ -89,16 +120,39 @@ export async function streamScenario({ settings, onStep = () => {} }) {
       fixture:
         "random 64KiB block repeated; transfers one whole 112MiB asset using multipart",
     });
+    await complete(
+      await call("startBackup", { targetId: target.id }),
+      "failed",
+    );
+    restart();
+    const priorPuts = puts.length;
     await complete(await call("startBackup", { targetId: target.id }));
+    const resumedBytes = puts.slice(priorPuts).reduce((n, p) => n + p.size, 0);
+    assert.equal(resumedBytes, size - 32 * 1024 ** 2);
+    record("restarted-upload-reused-32MiB", { resumedBytes });
     record("112MiB-file-backup-committed");
     const versions = await call("listRemoteBackups", { targetId: target.id });
     assert.equal(versions.length, 1);
+    await complete(
+      await call("restoreRemoteBackup", {
+        targetId: target.id,
+        generationId: versions[0].id,
+      }),
+      "failed",
+    );
+    restart();
+    const priorRanges = ranges.length;
     const restored = await complete(
       await call("restoreRemoteBackup", {
         targetId: target.id,
         generationId: versions[0].id,
       }),
     );
+    assert.equal(ranges.slice(priorRanges).length, 6);
+    assert.ok(
+      ranges.slice(priorRanges).every((range) => !range.startsWith("bytes=0-")),
+    );
+    record("restarted-download-reused-16MiB");
     assert.equal(verifyAsset(storage.open(restored.restoredId), hash), size);
     const data = await storage.run("getNote", {
       notebookId: restored.restoredId,
@@ -136,6 +190,7 @@ export async function streamScenario({ settings, onStep = () => {} }) {
     record("temporary-files-and-local-pins-released");
     return steps;
   } finally {
+    globalThis.fetch = fetch;
     for (const job of storage.jobs.values()) job.controller?.abort();
     await Promise.all([...storage.jobs.values()].map((j) => j.promise));
     storage.close();

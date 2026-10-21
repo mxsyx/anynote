@@ -33,6 +33,8 @@ Node 内置 `node:sqlite` 仍为实验 API；当前运行要求 Node 24，桌面
 
 Cloudflare 远端维护支持按目标保存数量/日周月配置和手动空间预览；过期 staging、孤立 manifest 与临时对象经确认回收，维护回执/墓碑先归档再回收 D1。保护和预算见 [远端维护契约](REMOTE-MAINTENANCE.md)，不执行定时删除。
 
+Cloudflare 正式传输支持重启后复用已验证对象、multipart 回执及附件下载范围；源切点或 manifest 改变时隔离旧进度。`transfer-resume-v1` / `0006.sql` 将遗留上传会话接入手动维护，见 [持久续传决策](adr/014-cloudflare-transfer-resume.md)。
+
 Cloudflare 保存有序数据库块及完整附件文件，D1 保存版本元数据；每个版本包含完整清单，可独立恢复，不依赖增量版本链。staging 不进入恢复列表，最终事务 guard + head CAS 原子发布。
 
 设备侧按目标保存 ack 游标及 pending generation，失败不推进游标；提交响应丢失后重试先查询固定版本状态，确认提交后修复本地游标。目标自动备份默认关闭，启用后仅应用运行时检查变更。同一目标不重复启动活动备份；远端列举和连接测试不占用知识修改队列。
