@@ -233,7 +233,7 @@ export default function LocalBackup({
               />
             </label>
             <label>
-              分块复制并发
+              文件复制并发
               <NativeSelect
                 disabled={busy}
                 value={t.concurrency}
@@ -366,7 +366,7 @@ export default function LocalBackup({
                   void act(async () => {
                     if (
                       window.confirm(
-                        `删除此目标中当前 Notebook 的备份？\n${t.path}\n这会删除备份清单与数据库分块，无法撤销。`,
+                        `删除此目标中当前 Notebook 的备份？\n${t.path}\n这会删除备份清单、数据库分块与附件，无法撤销。`,
                       )
                     )
                       await request("deleteLocalNotebookBackup", {

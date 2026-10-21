@@ -66,7 +66,8 @@ export default function LocalBackupReview({
           <>
             <p>
               预计复制 {preview.copyChunks} 个数据库分块，跳过{" "}
-              {preview.skipChunks} 个数据库分块；
+              {preview.skipChunks} 个数据库分块；新增 {preview.copyAssets}{" "}
+              个附件，复用 {preview.skipAssets} 个附件；
               {preview.databaseChanged ? "提交新备份" : "数据库内容未变"}。
             </p>
             <p>
@@ -75,7 +76,7 @@ export default function LocalBackupReview({
               {mb(preview.availableBytes)}。
             </p>
             <p>
-              新状态提交后清理 {preview.deleteFiles} 个旧分块，共{" "}
+              新状态提交后清理 {preview.deleteFiles} 个旧分块或附件，共{" "}
               {mb(preview.deleteBytes)}。
             </p>
             {!preview.enoughSpace && (
@@ -96,9 +97,9 @@ export default function LocalBackupReview({
                   最近完成：{new Date(m.completedAt).toLocaleString("zh-CN")}
                 </p>
                 <p>
-                  数据库 {mb(m.database.size)}；{m.files.length}{" "}
-                  个数据库分块，共 {mb(m.files.reduce((n, a) => n + a.size, 0))}
-                  。
+                  数据库 {mb(m.database.size)}，{m.database.chunks.length}{" "}
+                  个分块；附件 {m.assets.length} 个，共{" "}
+                  {mb(m.assets.reduce((n, a) => n + a.size, 0))}。
                 </p>
                 <p>
                   最近完整校验：

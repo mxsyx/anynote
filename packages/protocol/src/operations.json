@@ -152,6 +152,7 @@
   "startCloudBackup",
   "listCloudDevices",
   "listCloudRestorePoints",
+  "previewCloudRestore",
   "restoreCloudTargetBackup",
   "deleteCloudBackup"
 ]

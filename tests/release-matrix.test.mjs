@@ -188,15 +188,15 @@ test("兼容窗口内部自洽且可解析", () => {
 
 test("兼容判定在窗口内接受、越界明确拒绝", () => {
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 3).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", 4).compatible,
     true,
   );
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 4).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", 5).compatible,
     false,
   );
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 4).reason.includes(
+    checkReleaseCompatibility("desktop", "notebook-schema", 5).reason.includes(
       "超出兼容窗口",
     ),
     true,
@@ -217,7 +217,7 @@ test("兼容判定在窗口内接受、越界明确拒绝", () => {
     () => assertReleaseCompatibility("worker", "sqlite-backup", 9),
     /超出兼容窗口/,
   );
-  assert.equal(releaseVersion("notebook-schema"), "3");
+  assert.equal(releaseVersion("notebook-schema"), "4");
   assert.equal(releaseVersion("sdk"), "0.1.0");
 });
 

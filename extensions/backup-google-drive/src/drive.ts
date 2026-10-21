@@ -130,7 +130,7 @@ export async function createDriveClient(
         return { Authorization: `Bearer ${token.token}` };
       },
     } as unknown as import("googleapis").Auth.OAuth2Client,
-    drive = google.drive({ version: "v3", auth });
+    drive = google.drive({ version: "v3", auth, signal: ctx.tasks.signal });
 
   const map = (file: drive_v3.Schema$File): DriveFile => ({
     id: file.id!,

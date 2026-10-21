@@ -1,3 +1,4 @@
+import { assertAssets, assetPath } from "@anynote/protocol/assets.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   closeSync,
@@ -24,7 +25,7 @@ import type { ArchiveProgress } from "@anynote/types/runtime.js";
 /** Archive size, entry, and manifest budgets. */
 export const limits = {
   bytes: 20 * 1024 ** 3,
-  entries: 2,
+  entries: 100002,
   manifest: 16 * 1024 ** 2,
   containerBytes: 0,
 };
@@ -52,7 +53,11 @@ export function outputBudget(bytes: number, files: number) {
  * @returns True when the entry name is valid.
  */
 export function validEntry(name: string) {
-  return name === "manifest.json" || name === "notebook.sqlite";
+  return (
+    name === "manifest.json" ||
+    name === "notebook.sqlite" ||
+    /^assets\/sha256\/[a-f0-9]{2}\/[a-f0-9]{64}\.bin$/.test(name)
+  );
 }
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/),
@@ -62,14 +67,25 @@ const hash = z.string().regex(/^[a-f0-9]{64}$/),
 export const manifestSchema = z.object({
   format: z.literal("anynote.notebook"),
   formatVersion: z.literal(1),
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   notebookId: z.string().uuid(),
   database: z.object({
     path: z.literal("notebook.sqlite"),
     size,
     sha256: hash,
   }),
-  assets: z.tuple([]),
+  assets: z
+    .array(
+      z
+        .object({
+          path: z.string(),
+          size,
+          sha256: hash,
+          mimeType: z.string().optional(),
+        })
+        .refine((a) => a.path === assetPath(a.sha256)),
+    )
+    .max(100000),
 });
 
 /**
@@ -177,7 +193,8 @@ export async function writeArchive(
 ) {
   check(signal);
   const descriptors = manifestSchema.parse(manifest);
-  const declared = [descriptors.database];
+  const declared = [descriptors.database, ...descriptors.assets];
+  assertAssets(descriptors.assets);
   const total = declared.reduce((sum, item) => sum + item.size, 0);
   if (
     total > limits.bytes ||
@@ -224,7 +241,7 @@ export async function writeArchive(
     const metadata = Buffer.from(JSON.stringify(manifest));
     if (metadata.length > limits.manifest) throw Error("清单超过 16MB");
     zip.addBuffer(metadata, "manifest.json");
-    for (const entry of [descriptors.database]) {
+    for (const entry of [descriptors.database, ...descriptors.assets]) {
       if (!validEntry(entry.path)) throw Error("不安全的归档路径");
       zip.addReadStreamLazy(
         entry.path,
@@ -437,7 +454,7 @@ export async function extractArchive(
     const manifest = manifestSchema.parse(
       JSON.parse(Buffer.concat(parts).toString("utf8")),
     );
-    const declared = [manifest.database],
+    const declared = [manifest.database, ...manifest.assets],
       byName = new Map(all.map((e) => [e.fileName, e]));
     if (
       new Set(declared.map((e) => e.path)).size !== declared.length ||

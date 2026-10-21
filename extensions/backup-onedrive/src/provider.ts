@@ -1,5 +1,5 @@
-import { mapDatabaseChunks } from "@anynote/cloud-backup-common";
-import { randomUUID } from "node:crypto";
+import { mapDatabaseChunks, mapAssets } from "@anynote/cloud-backup-common";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   AccountContext,
   BackupHostContext,
@@ -22,11 +22,13 @@ import type {
   ReconcileResult,
   RestoreBundle,
   RestoreSelection,
+  ScopedReadSource,
   TargetCapabilities,
   TargetInput,
 } from "@anynote/types/cloud-backup.js";
 import {
   assertContentVerification,
+  manifestVerification,
   buildUploadPlan,
   parseHead,
   parseManifest,
@@ -45,7 +47,7 @@ import {
 } from "./graph.js";
 
 /** Provider protocol version; must match the core `cloudBackupProtocolVersion`. */
-export const oneDriveProtocolVersion = 1;
+export const oneDriveProtocolVersion = 2;
 
 const now = () => new Date().toISOString();
 
@@ -132,8 +134,14 @@ async function readHead(
 async function readManifest(
   client: GraphClient,
   manifestRef: string,
+  expectedHash?: string,
 ): Promise<CloudBackupManifest> {
   const bytes = await client.downloadBytes(manifestRef, 8 * 1024 * 1024);
+  if (
+    expectedHash &&
+    createHash("sha256").update(bytes).digest("hex") !== expectedHash
+  )
+    throw Error("云盘清单 SHA-256 校验失败");
   return parseManifest(JSON.parse(Buffer.from(bytes).toString("utf8")));
 }
 
@@ -390,6 +398,7 @@ export const oneDriveProvider: CloudBackupProvider = {
       commitId: randomUUID(),
       databaseSha256: input.capture.database.sha256,
       databaseSize: input.capture.database.size,
+      assets: input.capture.assets,
       databaseChunks: input.capture.database.chunks,
       previous,
       // When a remote object is deleted/moved, re-check and repair, not relying solely on a stale local cursor (design §8.1).
@@ -418,46 +427,53 @@ export const oneDriveProvider: CloudBackupProvider = {
       folders = await requireFolders(ctx);
     let transferredBytes = 0;
 
-    const database = await mapDatabaseChunks(
-      capture.database,
-      async (chunk) => {
-        const databaseItem = plan.items.find(
-            (item) => item.kind === "database" && item.sha256 === chunk.sha256,
-          ),
-          database = databaseItem
-            ? objectRef(
-                chunk.sha256,
-                chunk.size,
-                client.locate(
-                  folders.driveId,
-                  await client.uploadObject({
-                    driveId: folders.driveId,
-                    parentId: folders.deviceId,
-                    name: `${chunk.sha256}.bin`,
-                    source: chunk,
-                    size: chunk.size,
-                    mimeType: "application/octet-stream",
-                  }),
-                ),
-                "application/octet-stream",
-              )
-            : await reuseObject(
-                client,
+    const uploads = new Set(
+      plan.items.map((item) => `${item.kind}:${item.sha256}`),
+    );
+    const transfer = async (
+      chunk: ScopedReadSource & { sha256: string; mimeType?: string },
+      kind: "database" | "asset",
+    ) => {
+      const databaseItem = uploads.has(`${kind}:${chunk.sha256}`),
+        database = databaseItem
+          ? objectRef(
+              chunk.sha256,
+              chunk.size,
+              client.locate(
                 folders.driveId,
-                folders.deviceId,
-                `${chunk.sha256}.bin`,
-                chunk.sha256,
-              );
-        if (databaseItem) transferredBytes += chunk.size;
-        await trackManaged(ctx, database, "database");
+                await client.uploadObject({
+                  driveId: folders.driveId,
+                  parentId: folders.deviceId,
+                  name: `${kind === "asset" ? "asset-" : ""}${chunk.sha256}.bin`,
+                  source: chunk,
+                  size: chunk.size,
+                  mimeType: chunk.mimeType || "application/octet-stream",
+                }),
+              ),
+              chunk.mimeType || "application/octet-stream",
+            )
+          : await reuseObject(
+              client,
+              folders.driveId,
+              folders.deviceId,
+              `${kind === "asset" ? "asset-" : ""}${chunk.sha256}.bin`,
+              chunk.sha256,
+            );
+      if (databaseItem) transferredBytes += chunk.size;
+      await trackManaged(ctx, database, kind);
 
-        return database;
-      },
+      return database;
+    };
+    const database = await mapDatabaseChunks(capture.database, (chunk) =>
+      transfer(chunk, "database"),
+    );
+    const assets = await mapAssets(capture.assets, (asset) =>
+      transfer(asset, "asset"),
     );
 
     const manifestDraft: CloudBackupManifest = {
       format: "anynote.cloud-backup-manifest",
-      formatVersion: 2,
+      formatVersion: 3,
       notebookId: capture.notebookId,
       notebookName: capture.notebookName,
       deviceSlotId: folders.deviceSlotId,
@@ -471,12 +487,12 @@ export const oneDriveProvider: CloudBackupProvider = {
         schemaVersion: capture.schemaVersion,
         contentSeq: capture.contentSeq,
       },
-      assets: [],
+      assets,
     };
     return {
       commitId: plan.commitId,
       database,
-      assets: [],
+      assets,
       transferredBytes,
       complete: true,
       manifestDraft,
@@ -495,6 +511,11 @@ export const oneDriveProvider: CloudBackupProvider = {
         assertContentVerification(verified, "数据库分块");
         return verified;
       });
+    const assets = await mapAssets(input.assets, async (chunk) => {
+      const verified = await verifyObject(chunk, client, ctx, "附件");
+      assertContentVerification(verified, "附件");
+      return verified;
+    });
     const manifest: CloudBackupManifest = {
         ...input.manifestDraft,
         database: {
@@ -502,7 +523,7 @@ export const oneDriveProvider: CloudBackupProvider = {
           schemaVersion: input.manifestDraft.database.schemaVersion,
           contentSeq: input.manifestDraft.database.contentSeq,
         },
-        assets: [],
+        assets,
       },
       bytes = Buffer.from(JSON.stringify(manifest)),
       file = await client.uploadBytes({
@@ -617,25 +638,27 @@ export const oneDriveProvider: CloudBackupProvider = {
         () => null,
       );
       if (!head) continue;
-      const manifest = await readManifest(client, head.manifestRef).catch(
-        () => null,
-      );
+      const manifest = await readManifest(
+        client,
+        head.manifestRef,
+        head.manifestSha256,
+      ).catch(() => null);
       slots.push({
         deviceSlotId: device.name ?? device.id,
         deviceLabel: manifest?.deviceLabel,
         commitId: head.commitId,
         completedAt: head.completedAt,
         databaseBytes: manifest?.database.size,
-        verification: "download-sha256",
+        verification: manifest ? manifestVerification(manifest) : undefined,
       });
     }
     return { slots };
   },
 
-  async download(
+  async prepareRestore(
     input: RestoreSelection,
     ctx: BackupHostContext,
-  ): Promise<RestoreBundle> {
+  ): Promise<CloudBackupManifest> {
     const driveId = await ctx.state.get<string>(stateKeys.drive),
       notebookId = await ctx.state.get<string>(stateKeys.notebook),
       slots =
@@ -654,28 +677,50 @@ export const oneDriveProvider: CloudBackupProvider = {
     const head = await readHead(client, driveId, deviceId),
       manifestRef = input.manifestRef ?? head?.manifestRef;
     if (!manifestRef) throw Error("该设备槽没有可恢复的当前副本");
-    const manifest = await readManifest(client, manifestRef),
-      database = await mapDatabaseChunks(manifest.database, async (chunk) => {
-        const downloaded = await client.downloadToDest(
-          chunk.locator.ref,
-          `chunks/${chunk.sha256}.bin`,
-        );
-        if (
-          downloaded.sha256 !== chunk.sha256 ||
-          downloaded.bytes !== chunk.size
-        )
-          throw Error("下载数据库分块校验失败");
-        ctx.tasks.progress(downloaded.bytes);
-        return {
-          sha256: chunk.sha256,
-          size: downloaded.bytes,
-          filePath: downloaded.filePath,
-        };
+    if (!head || manifestRef !== head.manifestRef)
+      throw Error("云盘副本已变化，请重新选择恢复版本");
+    const manifest = await readManifest(
+      client,
+      manifestRef,
+      head.manifestSha256,
+    );
+    if (
+      manifest.commitId !== head.commitId ||
+      manifest.deviceSlotId !== input.deviceSlotId ||
+      manifest.notebookId !== ctx.notebookId
+    )
+      throw Error("云盘恢复清单身份不匹配");
+    return manifest;
+  },
+
+  async download(
+    manifest: CloudBackupManifest,
+    ctx: BackupHostContext,
+  ): Promise<RestoreBundle> {
+    const client = createGraphClient(ctx);
+    const download = async (object: CloudBackupObjectRef, path: string) => {
+      const result = await client.downloadToDest(object.locator.ref, path, {
+        maxBytes: object.size,
       });
+      if (result.sha256 !== object.sha256 || result.bytes !== object.size)
+        throw Error("下载备份对象校验失败");
+      ctx.tasks.progress(result.bytes);
+      return {
+        sha256: object.sha256,
+        size: object.size,
+        filePath: result.filePath,
+      };
+    };
+    const database = await mapDatabaseChunks(manifest.database, (chunk) =>
+      download(chunk, `chunks/${chunk.sha256}.bin`),
+    );
+    const assets = await mapAssets(manifest.assets, (asset) =>
+      download(asset, asset.path),
+    );
     return {
       manifest,
       databaseChunks: database.chunks,
-      assets: [],
+      assets,
       verification: "download-sha256",
     };
   },

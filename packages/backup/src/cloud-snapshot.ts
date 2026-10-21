@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { fileSource } from "@anynote/protocol/file-source.js";
+import { assetPath } from "@anynote/protocol/assets.js";
 import { randomUUID } from "node:crypto";
 import { objectDescriptors } from "@anynote/protocol/cloud-objects.js";
 import type { BackupTarget, SnapshotManifest } from "@anynote/types/runtime.js";
@@ -23,18 +26,26 @@ export async function snapshotFiles(
   const manifest: SnapshotManifest = {
     format: "anynote.sqlite",
     protocolVersion: 1,
-    schemaVersion: 3,
+    schemaVersion: 4,
     notebookId: target.remoteNotebookId || target.notebookId,
     sourceNotebookId: snapshot.manifest.notebookId,
     notebookName: snapshot.manifest.notebookName,
     snapshotSeq: snapshot.manifest.snapshotSeq,
     createdAt: snapshot.manifest.createdAt,
+    assets: snapshot.manifest.assets,
     database: {
+      chunkSize: snapshot.manifest.database.chunkSize!,
       size: snapshot.manifest.database.size,
       sha256: snapshot.manifest.database.sha256,
       chunks: snapshot.manifest.database.chunks!,
     },
   };
+  for (const asset of snapshot.manifest.assets)
+    objects.set(asset.sha256, {
+      file: snapshot.files.get(asset.path)!,
+      offset: 0,
+      size: asset.size,
+    });
   objectDescriptors(manifest);
   return { manifest, objects };
 }
@@ -61,7 +72,7 @@ export async function uploadSnapshotFiles(
   onBytes: (bytes: number) => void,
 ) {
   const capabilities = await client.call("/v1/capabilities", { signal });
-  if (!capabilities.capabilities?.includes("sqlite-chunks-v1"))
+  if (!capabilities.capabilities?.includes("sqlite-assets-v1"))
     throw Error("服务端需升级以支持 SQLite 分块备份");
   const { manifest, objects } = await snapshotFiles(
     snapshot,
@@ -88,15 +99,24 @@ export async function uploadSnapshotFiles(
     signal.throwIfAborted();
     const source = objects.get(hash);
     if (!source) throw Error("计划要求不存在的本地对象");
-    const bytes = await readSource(source, signal);
-    if (digest(bytes) !== hash) throw Error("备份源文件在上传前改变");
-    progress("正在上传数据库分块 " + hash.slice(0, 10));
-    await client.uploadObject(
-      path + `/${generationId}/objects/${hash}`,
-      bytes,
-      signal,
-    );
-    onBytes(bytes.length);
+    progress("正在上传备份对象 " + hash.slice(0, 10));
+    if (source.size <= 20 * 1024 ** 2) {
+      const bytes = await readSource(source, signal);
+      if (digest(bytes) !== hash) throw Error("备份源文件在上传前改变");
+      await client.uploadObject(
+        path + `/${generationId}/objects/${hash}`,
+        bytes,
+        signal,
+      );
+      onBytes(source.size);
+    } else {
+      await client.uploadFile(
+        path + `/${generationId}/objects/${hash}`,
+        fileSource(source.file, source.size),
+        signal,
+        onBytes,
+      );
+    }
   }
   signal.throwIfAborted();
   progress("正在提交远端版本");
@@ -168,15 +188,20 @@ export async function restoreSnapshotFiles(
       manifest.notebookId !== book ||
       manifest.lineageId !== target.lineageId ||
       manifest.generationId !== generationId ||
-      manifest.schemaVersion !== 3 ||
+      manifest.schemaVersion !== 4 ||
       manifest.protocolVersion !== 1 ||
       manifest.format !== "anynote.sqlite" ||
       !/^[a-f0-9-]{36}$/.test(manifest.sourceNotebookId)
     )
       throw Error("数据库版本不兼容或身份不匹配");
     objectDescriptors(manifest);
-    await verifyDirectoryBudget(dir, manifest.database.size);
-    onTotal(manifest.database.size);
+    await verifyDirectoryBudget(
+      dir,
+      manifest.database.size + manifest.assets.reduce((n, a) => n + a.size, 0),
+    );
+    onTotal(
+      manifest.database.size + manifest.assets.reduce((n, a) => n + a.size, 0),
+    );
     const database = { path: "notebook.sqlite", ...manifest.database };
     await restoreFile(
       dir,
@@ -193,18 +218,29 @@ export async function restoreSnapshotFiles(
       signal,
       onBytes,
     );
+    for (const asset of manifest.assets) {
+      check();
+      if (asset.path !== assetPath(asset.sha256)) throw Error("附件路径无效");
+      await client.downloadFile(
+        `/v1/notebooks/${book}/objects/${asset.sha256}`,
+        join(dir, asset.path),
+        asset,
+        signal,
+        onBytes,
+      );
+    }
     check();
     return {
       format: "anynote.notebook",
       formatVersion: 1,
-      schemaVersion: 3,
+      schemaVersion: 4,
       appVersion: "0.1.0",
       notebookId: manifest.sourceNotebookId,
       generationId,
       createdAt: manifest.createdAt,
       snapshotSeq: manifest.snapshotSeq,
       database,
-      assets: [],
+      assets: manifest.assets,
       includesHistory: true,
       includesTrash: true,
     };

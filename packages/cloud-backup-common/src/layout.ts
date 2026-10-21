@@ -1,4 +1,8 @@
-import { assertDatabaseChunks } from "@anynote/protocol/cloud-objects.js";
+import { assetPath, assertAssets } from "@anynote/protocol/assets.js";
+import {
+  assertDatabaseChunks,
+  transferChunkBytes,
+} from "@anynote/protocol/cloud-objects.js";
 import { z } from "zod";
 import {
   cloudBackupLayout,
@@ -73,16 +77,17 @@ export const headSchema = z
 export const manifestSchema = z
   .object({
     format: z.literal("anynote.cloud-backup-manifest"),
-    formatVersion: z.literal(2),
+    formatVersion: z.literal(3),
     notebookId: uuid,
     notebookName: z.string().max(240).optional(),
     deviceSlotId: uuid,
     deviceLabel: z.string().max(120).optional(),
     commitId: uuid,
     createdAt: timestamp,
-    schemaVersion: z.literal(3),
+    schemaVersion: z.literal(4),
     contentSeq: z.number().int().min(0),
     database: z.object({
+      chunkSize: z.literal(transferChunkBytes),
       sha256: sha256Schema,
       size: z
         .number()
@@ -90,10 +95,16 @@ export const manifestSchema = z
         .positive()
         .max(20 * 1024 ** 3),
       chunks: z.array(objectRefSchema).min(1).max(20480),
-      schemaVersion: z.literal(3),
+      schemaVersion: z.literal(4),
       contentSeq: z.number().int().min(0),
     }),
-    assets: z.tuple([]),
+    assets: z
+      .array(
+        objectRefSchema
+          .extend({ path: z.string() })
+          .refine((a) => a.path === assetPath(a.sha256)),
+      )
+      .max(100000),
     sourceDevice: z.string().max(240).optional(),
   })
   .strict();
@@ -139,6 +150,8 @@ export const parseHead = (value: unknown): CloudBackupHead =>
 export const parseManifest = (value: unknown): CloudBackupManifest => {
   const manifest = manifestSchema.parse(value) as CloudBackupManifest;
   assertDatabaseChunks(manifest.database);
+  if (assertAssets(manifest.assets) + manifest.database.size > 20 * 1024 ** 3)
+    throw Error("备份总大小超限");
   return manifest;
 };
 

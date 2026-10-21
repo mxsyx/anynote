@@ -1,10 +1,11 @@
+import type { AssetDescriptor } from "@anynote/protocol/assets.js";
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
 import {
   chunkFile,
   readChunk,
   assembleFile,
 } from "@anynote/protocol/file-chunks.js";
-import { verifyAssets } from "@anynote/storage-sqlite/assets.js";
+import { assertAssetClosure } from "@anynote/storage-sqlite/assets.js";
 
 import { lstatSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -34,13 +35,14 @@ export interface FileDescriptor {
   sha256: string;
   mimeType?: string;
   chunks?: FileChunk[];
+  chunkSize?: number;
 }
 
 /** Manifest of a file snapshot. */
 export interface FileManifest {
   format: "anynote.notebook";
   formatVersion: 1;
-  schemaVersion: 3;
+  schemaVersion: 4;
   appVersion: string;
   notebookId: string;
   notebookName?: string;
@@ -48,7 +50,7 @@ export interface FileManifest {
   createdAt: string;
   snapshotSeq: number;
   database: FileDescriptor;
-  assets: [];
+  assets: AssetDescriptor[];
   includesHistory: true;
   includesTrash: true;
 }
@@ -82,12 +84,11 @@ export async function createFileSnapshot(
       3 +
       transferChunkBytes,
   );
-  await snapshotDatabase(db, file);
+  const assets = await snapshotDatabase(db, file);
   const snapshot = new DatabaseSync(file, { readOnly: true });
   try {
     const meta = snapshot.prepare("SELECT * FROM notebook_meta").get()!;
-    verifyAssets(snapshot);
-    const assets: [] = [];
+    assertAssetClosure(snapshot, assets);
     const database = {
       path: "notebook.sqlite",
       size: lstatSync(file).size,
@@ -96,7 +97,7 @@ export async function createFileSnapshot(
     const manifest: FileManifest = {
       format: "anynote.notebook",
       formatVersion: 1,
-      schemaVersion: 3,
+      schemaVersion: 4,
       appVersion: "0.1.0",
       notebookId,
       notebookName: meta.name,
@@ -109,8 +110,11 @@ export async function createFileSnapshot(
       includesTrash: true,
     };
     // The database hash is computed outside the queue. No full ZIP or asset buffer is built.
-    const total = database.size;
-    const files = new Map([["notebook.sqlite", file]]);
+    const total = database.size + assets.reduce((n, a) => n + a.size, 0);
+    const files = new Map([
+      ["notebook.sqlite", file],
+      ...assets.map((a) => [a.path, join(dir, a.path)] as [string, string]),
+    ]);
     if (!Number.isSafeInteger(total) || total > limits.bytes)
       throw Error("备份超过20GiB预算");
     return { dir, manifest, files };

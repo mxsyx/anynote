@@ -1,5 +1,5 @@
-import { mapDatabaseChunks } from "@anynote/cloud-backup-common";
-import { randomUUID } from "node:crypto";
+import { mapDatabaseChunks, mapAssets } from "@anynote/cloud-backup-common";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   AccountContext,
   BackupHostContext,
@@ -29,6 +29,7 @@ import type {
 import { cloudBackupLayout } from "@anynote/types/cloud-backup.js";
 import {
   assertContentVerification,
+  manifestVerification,
   buildUploadPlan,
   databaseObjectPath,
   deviceDir as logicalDeviceDir,
@@ -48,7 +49,7 @@ import {
 } from "./dropbox.js";
 
 /** Provider protocol version; must match the core `cloudBackupProtocolVersion`. */
-export const dropboxProtocolVersion = 1;
+export const dropboxProtocolVersion = 2;
 
 const now = () => new Date().toISOString();
 
@@ -115,8 +116,14 @@ async function readHead(
 async function readManifest(
   client: DropboxClient,
   manifestRef: string,
+  expectedHash?: string,
 ): Promise<CloudBackupManifest> {
   const bytes = await client.downloadBytes(manifestRef, 8 * 1024 * 1024);
+  if (
+    expectedHash &&
+    createHash("sha256").update(bytes).digest("hex") !== expectedHash
+  )
+    throw Error("云盘清单 SHA-256 校验失败");
   return parseManifest(JSON.parse(Buffer.from(bytes).toString("utf8")));
 }
 
@@ -382,6 +389,7 @@ export const dropboxProvider: CloudBackupProvider = {
       commitId: randomUUID(),
       databaseSha256: input.capture.database.sha256,
       databaseSize: input.capture.database.size,
+      assets: input.capture.assets,
       databaseChunks: input.capture.database.chunks,
       previous,
       // When a remote object is moved/deleted, re-check and repair, not relying solely on a stale local cursor (design §8.1).
@@ -406,42 +414,52 @@ export const dropboxProvider: CloudBackupProvider = {
     if (!deviceSlotId) throw Error("云盘目标缺少设备槽身份，请重新配置该目标");
     let transferredBytes = 0;
 
-    const database = await mapDatabaseChunks(
-      capture.database,
-      async (chunk) => {
-        const databaseItem = plan.items.find(
-            (item) => item.kind === "database" && item.sha256 === chunk.sha256,
-          ),
-          databasePath = `${devicePath}/${databaseObjectPath(chunk.sha256)}`,
-          database = databaseItem
-            ? objectFromEntry(
-                chunk.sha256,
-                chunk.size,
-                await uploadImmutable(client, {
-                  path: databasePath,
-                  source: chunk,
-                  size: chunk.size,
-                }),
-                "application/octet-stream",
-              )
-            : await reuseObject(client, {
+    const uploads = new Set(
+      plan.items.map((item) => `${item.kind}:${item.sha256}`),
+    );
+    const previousObjects = new Map(
+      [...(previous?.database.chunks || []), ...(previous?.assets || [])].map(
+        (o) => [o.sha256, o],
+      ),
+    );
+    const transfer = async (
+      chunk: ScopedReadSource & { sha256: string; mimeType?: string },
+      kind: "database" | "asset",
+    ) => {
+      const databaseItem = uploads.has(`${kind}:${chunk.sha256}`),
+        databasePath = `${devicePath}/${kind === "asset" ? `assets/${chunk.sha256}.bin` : databaseObjectPath(chunk.sha256)}`,
+        database = databaseItem
+          ? objectFromEntry(
+              chunk.sha256,
+              chunk.size,
+              await uploadImmutable(client, {
                 path: databasePath,
-                sha256: chunk.sha256,
+                source: chunk,
                 size: chunk.size,
-                expected: previous?.database.chunks.find(
-                  (c) => c.sha256 === chunk.sha256,
-                )?.providerChecksum,
-              });
-        if (databaseItem) transferredBytes += chunk.size;
-        await trackManaged(ctx, database, "database");
+              }),
+              chunk.mimeType || "application/octet-stream",
+            )
+          : await reuseObject(client, {
+              path: databasePath,
+              sha256: chunk.sha256,
+              size: chunk.size,
+              expected: previousObjects.get(chunk.sha256)?.providerChecksum,
+            });
+      if (databaseItem) transferredBytes += chunk.size;
+      await trackManaged(ctx, database, kind);
 
-        return database;
-      },
+      return database;
+    };
+    const database = await mapDatabaseChunks(capture.database, (chunk) =>
+      transfer(chunk, "database"),
+    );
+    const assets = await mapAssets(capture.assets, (asset) =>
+      transfer(asset, "asset"),
     );
 
     const manifestDraft: CloudBackupManifest = {
       format: "anynote.cloud-backup-manifest",
-      formatVersion: 2,
+      formatVersion: 3,
       notebookId: capture.notebookId,
       notebookName: capture.notebookName,
       deviceSlotId,
@@ -455,12 +473,12 @@ export const dropboxProvider: CloudBackupProvider = {
         schemaVersion: capture.schemaVersion,
         contentSeq: capture.contentSeq,
       },
-      assets: [],
+      assets,
     };
     return {
       commitId: plan.commitId,
       database,
-      assets: [],
+      assets,
       transferredBytes,
       complete: true,
       manifestDraft,
@@ -479,6 +497,11 @@ export const dropboxProvider: CloudBackupProvider = {
         assertContentVerification(verified, "数据库分块");
         return verified;
       });
+    const assets = await mapAssets(input.assets, async (chunk) => {
+      const verified = await verifyObject(client, chunk, "附件");
+      assertContentVerification(verified, "附件");
+      return verified;
+    });
     const manifest: CloudBackupManifest = {
         ...input.manifestDraft,
         database: {
@@ -486,7 +509,7 @@ export const dropboxProvider: CloudBackupProvider = {
           schemaVersion: input.manifestDraft.database.schemaVersion,
           contentSeq: input.manifestDraft.database.contentSeq,
         },
-        assets: [],
+        assets,
       },
       bytes = Buffer.from(JSON.stringify(manifest)),
       // The manifest is named by commitId and unique per run; overwrite makes a retry of the same task idempotent,
@@ -591,25 +614,27 @@ export const dropboxProvider: CloudBackupProvider = {
       if (!device.isFolder) continue;
       const head = await readHead(client, device.pathLower).catch(() => null);
       if (!head) continue;
-      const manifest = await readManifest(client, head.manifestRef).catch(
-        () => null,
-      );
+      const manifest = await readManifest(
+        client,
+        head.manifestRef,
+        head.manifestSha256,
+      ).catch(() => null);
       slots.push({
         deviceSlotId: device.name,
         deviceLabel: manifest?.deviceLabel,
         commitId: head.commitId,
         completedAt: head.completedAt,
         databaseBytes: manifest?.database.size,
-        verification: "download-sha256",
+        verification: manifest ? manifestVerification(manifest) : undefined,
       });
     }
     return { slots };
   },
 
-  async download(
+  async prepareRestore(
     input: RestoreSelection,
     ctx: BackupHostContext,
-  ): Promise<RestoreBundle> {
+  ): Promise<CloudBackupManifest> {
     const notebookId = ctx.notebookId;
     if (!notebookId)
       throw Error("恢复需要已授权的 Notebook 上下文，请重新选择目标");
@@ -619,28 +644,50 @@ export const dropboxProvider: CloudBackupProvider = {
       head = await readHead(client, devicePath),
       manifestRef = input.manifestRef ?? head?.manifestRef;
     if (!manifestRef) throw Error("该设备槽没有可恢复的当前副本");
-    const manifest = await readManifest(client, manifestRef),
-      database = await mapDatabaseChunks(manifest.database, async (chunk) => {
-        const downloaded = await client.downloadToDest(
-          chunk.locator.ref,
-          `chunks/${chunk.sha256}.bin`,
-        );
-        if (
-          downloaded.sha256 !== chunk.sha256 ||
-          downloaded.bytes !== chunk.size
-        )
-          throw Error("下载数据库分块校验失败");
-        ctx.tasks.progress(downloaded.bytes);
-        return {
-          sha256: chunk.sha256,
-          size: downloaded.bytes,
-          filePath: downloaded.filePath,
-        };
+    if (!head || manifestRef !== head.manifestRef)
+      throw Error("云盘副本已变化，请重新选择恢复版本");
+    const manifest = await readManifest(
+      client,
+      manifestRef,
+      head.manifestSha256,
+    );
+    if (
+      manifest.commitId !== head.commitId ||
+      manifest.deviceSlotId !== input.deviceSlotId ||
+      manifest.notebookId !== ctx.notebookId
+    )
+      throw Error("云盘恢复清单身份不匹配");
+    return manifest;
+  },
+
+  async download(
+    manifest: CloudBackupManifest,
+    ctx: BackupHostContext,
+  ): Promise<RestoreBundle> {
+    const client = createDropboxClient(ctx);
+    const download = async (object: CloudBackupObjectRef, path: string) => {
+      const result = await client.downloadToDest(object.locator.ref, path, {
+        maxBytes: object.size,
       });
+      if (result.sha256 !== object.sha256 || result.bytes !== object.size)
+        throw Error("下载备份对象校验失败");
+      ctx.tasks.progress(result.bytes);
+      return {
+        sha256: object.sha256,
+        size: object.size,
+        filePath: result.filePath,
+      };
+    };
+    const database = await mapDatabaseChunks(manifest.database, (chunk) =>
+      download(chunk, `chunks/${chunk.sha256}.bin`),
+    );
+    const assets = await mapAssets(manifest.assets, (asset) =>
+      download(asset, asset.path),
+    );
     return {
       manifest,
       databaseChunks: database.chunks,
-      assets: [],
+      assets,
       verification: "download-sha256",
     };
   },

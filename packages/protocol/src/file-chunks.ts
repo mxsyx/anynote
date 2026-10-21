@@ -68,7 +68,13 @@ export async function chunkFile(file: string, signal?: AbortSignal) {
     chunks.push({ sha256, size: bytes.length });
     sources.set(sha256, source);
   }
-  return { size: stat.size, sha256: hash.digest("hex"), chunks, sources };
+  return {
+    chunkSize: transferChunkBytes,
+    size: stat.size,
+    sha256: hash.digest("hex"),
+    chunks,
+    sources,
+  };
 }
 
 /** Reassemble an ordered manifest, verifying both each chunk and the whole database. */

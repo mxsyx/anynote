@@ -1,3 +1,4 @@
+import { multipart } from "./multipart.js";
 import {
   cloudObjectLimit,
   objectDescriptors as descriptors,
@@ -96,7 +97,7 @@ export default {
       if (path === "/v1/capabilities" && request.method === "GET")
         return response({
           protocolVersion: 1,
-          schemaVersions: [3],
+          schemaVersions: [4],
           capabilities: [
             "conditional-head",
             "writer-takeover",
@@ -105,7 +106,7 @@ export default {
             ...(env.MAINTENANCE ? ["maintenance-recovery-v1"] : []),
             "maintenance-admin-v1",
             "restore-pin",
-            "sqlite-chunks-v1",
+            "sqlite-assets-v1",
             "backup-discovery-v1",
           ],
           objectMaxBytes: objectLimit,
@@ -210,7 +211,7 @@ export default {
         if (
           m.format !== "anynote.sqlite" ||
           m.protocolVersion !== 1 ||
-          m.schemaVersion !== 3 ||
+          m.schemaVersion !== 4 ||
           m.notebookId !== notebookId ||
           !uuid.test(m.generationId) ||
           !uuid.test(m.lineageId) ||
@@ -321,9 +322,9 @@ export default {
 
       // Object upload: validate length and SHA-256, write to R2, and record the verified object.
       const upload = tail.match(
-        /^\/backup\/([a-f0-9-]{36})\/objects\/([a-f0-9]{64})$/,
+        /^\/backup\/([a-f0-9-]{36})\/objects\/([a-f0-9]{64})(?:\/multipart(?:\/([^/]+)(?:\/(\d+))?)?)?$/,
       );
-      if (upload && request.method === "PUT") {
+      if (upload && ["PUT", "POST", "DELETE"].includes(request.method)) {
         const generation = await env.DB.prepare(
           "SELECT * FROM generations WHERE id=? AND notebook_id=?",
         )
@@ -349,6 +350,26 @@ export default {
         const manifest = await loadManifest(env, generation),
           object = descriptors(manifest).get(upload[2]);
         if (!object) throw Error("对象未获得此版本授权");
+        if (tail.includes("/multipart")) {
+          if (object.size <= objectLimit) throw Error("小对象不需要分段上传");
+          const result = await multipart(
+            request,
+            env.BUCKET,
+            `objects/${notebookId}/${upload[2]}`,
+            `staging/${notebookId}/${upload[1]}/${upload[2]}`,
+            object,
+            upload[3] ? decodeURIComponent(upload[3]) : undefined,
+            upload[4] ? Number(upload[4]) : undefined,
+          );
+          if ("verified" in result && result.verified)
+            await env.DB.prepare(
+              "INSERT INTO asset_catalog VALUES(?,?,?,1) ON CONFLICT(notebook_id,hash) DO UPDATE SET size=excluded.size,verified=1",
+            )
+              .bind(notebookId, upload[2], object.size)
+              .run();
+          return response(result);
+        }
+        if (request.method !== "PUT") throw Error("上传方法无效");
         if (Number(request.headers.get("content-length")) > objectLimit)
           throw Error("对象超过20MB");
         const bytes = await request.arrayBuffer();

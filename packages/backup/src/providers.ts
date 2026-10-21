@@ -1,6 +1,10 @@
+import { multipartPartBytes } from "@anynote/protocol/cloud-objects.js";
 import { createHash } from "node:crypto";
 import { parseRetryAfter } from "./policy.js";
 import type { BackupTarget, Credentials } from "@anynote/types/runtime.js";
+import type { ScopedReadSource } from "@anynote/types/cloud-backup.js";
+import { mkdir, open, unlink } from "node:fs/promises";
+import { dirname } from "node:path";
 
 /**
  * Compute the SHA-256 hex digest of a byte sequence.
@@ -73,11 +77,13 @@ export class CloudflareClient {
       body,
       bytes,
       signal,
+      timeoutMs = 60000,
     }: {
       method?: string;
       body?: unknown;
       bytes?: Uint8Array;
       signal?: AbortSignal;
+      timeoutMs?: number;
     } = {},
   ) {
     const r = await fetch(this.url + path, {
@@ -90,8 +96,8 @@ export class CloudflareClient {
         (bytes as BodyInit | undefined) ||
         (body ? JSON.stringify(body) : undefined),
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
-        : AbortSignal.timeout(60000),
+        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+        : AbortSignal.timeout(timeoutMs),
     });
     if (!r.ok) {
       let message;
@@ -122,6 +128,94 @@ export class CloudflareClient {
    */
   async uploadObject(path: string, bytes: Uint8Array, signal?: AbortSignal) {
     return this.call(path, { method: "PUT", bytes, signal });
+  }
+
+  /** Multipart is a transport detail; the committed resource remains one hash-addressed file. */
+  async uploadFile(
+    path: string,
+    source: ScopedReadSource,
+    signal: AbortSignal,
+    onBytes: (n: number) => void = () => {},
+  ) {
+    const { uploadId } = await this.call(path + "/multipart", {
+      method: "POST",
+      signal,
+    });
+    const parts = [];
+    try {
+      const partBytes = multipartPartBytes;
+      for (let offset = 0; offset < source.size; offset += partBytes) {
+        const bytes = await source.read(
+          offset,
+          Math.min(partBytes, source.size - offset),
+        );
+        if (bytes.length !== Math.min(partBytes, source.size - offset))
+          throw Error("附件读取不完整");
+        const part = await this.call(
+          path +
+            `/multipart/${encodeURIComponent(uploadId)}/${parts.length + 1}`,
+          { method: "PUT", bytes, signal, timeoutMs: 30 * 60000 },
+        );
+        parts.push(part);
+        onBytes(bytes.length);
+      }
+      await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
+        method: "POST",
+        body: { parts },
+        signal,
+        timeoutMs: 30 * 60000,
+      });
+    } catch (error) {
+      await this.call(path + `/multipart/${encodeURIComponent(uploadId)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+      throw error;
+    }
+  }
+
+  async downloadFile(
+    path: string,
+    file: string,
+    expected: { size: number; sha256: string },
+    signal: AbortSignal,
+    onBytes: (n: number) => void,
+  ) {
+    const response = await fetch(this.url + path, {
+      headers: { Authorization: "Bearer " + this.token },
+      signal,
+    });
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      throw Error("远端附件下载失败");
+    }
+    const reader = response.body.getReader(),
+      hash = createHash("sha256");
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    let size = 0,
+      success = false;
+    try {
+      await mkdir(dirname(file), { recursive: true });
+      handle = await open(file, "wx", 0o600);
+      while (true) {
+        signal.throwIfAborted();
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > expected.size) throw Error("附件超过清单预算");
+        hash.update(value);
+        await handle.writeFile(value);
+        onBytes(value.length);
+      }
+      if (size !== expected.size || hash.digest("hex") !== expected.sha256)
+        throw Error("附件 SHA-256 校验失败");
+      await handle.sync();
+      success = true;
+    } finally {
+      await handle?.close();
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+      if (handle && !success) await unlink(file);
+    }
   }
 
   /**

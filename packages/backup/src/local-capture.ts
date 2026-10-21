@@ -1,5 +1,5 @@
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
-import { verifyAssets } from "@anynote/storage-sqlite/assets.js";
+import { assertAssetClosure } from "@anynote/storage-sqlite/assets.js";
 import {
   readBackupRevision,
   hasRevisionMetadata,
@@ -12,11 +12,7 @@ import { DatabaseSync } from "@anynote/types/runtime.js";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Capture } from "@anynote/backup-local";
 
-/** Persistent resource-closure query spanning current resources, revisions, annotations, and PDF text. */
-export const resourceRoots = `SELECT asset_hash FROM resources
-  UNION SELECT asset_hash FROM revision_resources
-  UNION SELECT target_asset_hash FROM annotations
-  UNION SELECT asset_hash FROM note_text`;
+export { resourceRoots } from "@anynote/storage-sqlite/assets.js";
 
 /**
  * Run within the storage write queue; callers must pin the Notebook until all target I/O finishes.
@@ -39,13 +35,13 @@ export async function captureLocalNotebook(
   const space = await statfs(dir);
   if (space.bavail * space.bsize < bytes * 1.1 + 1024 ** 2)
     throw Error("本机临时空间不足，无法生成一致性数据库副本");
-  await snapshotDatabase(db, databasePath);
+  const assets = await snapshotDatabase(db, databasePath);
   const captured = new DatabaseSync(databasePath);
   try {
     captured.exec(
       "PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON; PRAGMA journal_mode=DELETE;",
     );
-    verifyAssets(captured);
+    assertAssetClosure(captured, assets);
     const revision = readBackupRevision(captured);
     if (hasRevisionMetadata(captured) && !revision)
       throw Object.assign(Error("源备份版本标记不完整，已保留目标副本"), {
@@ -56,7 +52,7 @@ export async function captureLocalNotebook(
         "SELECT id,name,schema_version,CAST(content_seq AS TEXT) AS content_seq FROM notebook_meta",
       )
       .get()!;
-    if (meta.schema_version !== 3)
+    if (meta.schema_version !== 4)
       throw Error("本地资源闭包不支持此数据库版本");
     if (
       captured.prepare("PRAGMA quick_check").get()!.quick_check !== "ok" ||
@@ -70,6 +66,7 @@ export async function captureLocalNotebook(
         ? { ...revision, lineageId: s.writeDbLineages.get(notebookId)! }
         : undefined,
       databasePath,
+      assets,
       name: meta.name,
       contentSeq: String(meta.content_seq),
       schemaVersion: meta.schema_version,

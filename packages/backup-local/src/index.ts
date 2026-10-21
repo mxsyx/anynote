@@ -1,4 +1,12 @@
-import { verifyAssets } from "@anynote/storage-sqlite/assets.js";
+import {
+  assetPath,
+  assertAssets,
+  type AssetDescriptor,
+} from "@anynote/protocol/assets.js";
+import {
+  verifyAssets,
+  assertAssetClosure,
+} from "@anynote/storage-sqlite/assets.js";
 import { schema } from "@anynote/storage-sqlite/schema.js";
 import { assertNotebookSchema } from "@anynote/storage-sqlite/backup-revision.js";
 import {
@@ -49,6 +57,7 @@ import {
   atomicJSON,
   canonical,
   digest,
+  copyVerified,
   exists,
   hashFile,
   optionalJSON,
@@ -74,7 +83,7 @@ const descriptor = z.object({
 
 /** Asset descriptor in a backup manifest (path must be content-addressed). */
 const asset = descriptor.refine(
-  (a) => a.path === `chunks/${a.sha256}.bin`,
+  (a) => a.path === `chunks/${a.sha256}.bin` || a.path === assetPath(a.sha256),
   "分块路径无效",
 );
 
@@ -82,7 +91,7 @@ const asset = descriptor.refine(
 export const manifestSchema = z
   .object({
     format: z.literal("anynote.local-backup"),
-    formatVersion: z.literal(2),
+    formatVersion: z.literal(3),
     targetId: uuid,
     notebookId: uuid,
     taskId: uuid,
@@ -96,6 +105,7 @@ export const manifestSchema = z
     name: z.string().max(240),
     database: descriptor
       .extend({
+        chunkSize: z.literal(transferChunkBytes),
         chunks: z
           .array(z.object({ sha256: sha, size: z.number().int().positive() }))
           .max(20480),
@@ -105,19 +115,29 @@ export const manifestSchema = z
       .literal("verified-new-files")
       .default("verified-new-files"),
     lastFullVerifiedAt: z.string().datetime().optional(),
+    assets: z
+      .array(descriptor.refine((a) => a.path === assetPath(a.sha256)))
+      .max(100000),
     files: z.array(asset).max(100000),
     cleanup: z.array(asset).max(100000).default([]),
   })
   .superRefine((m, ctx) => {
     try {
       assertDatabaseChunks(m.database);
+      const size = assertAssets(m.assets);
+      if (size + m.database.size > 20 * 1024 ** 3) throw Error("备份超限");
     } catch {
       ctx.addIssue({ code: "custom", message: "数据库分块清单无效" });
     }
-    const chunks = new Map(m.database.chunks.map((c) => [c.sha256, c.size]));
+    const chunks = new Map([
+      ...m.database.chunks.map(
+        (c) => [`chunks/${c.sha256}.bin`, c.size] as const,
+      ),
+      ...m.assets.map((a) => [a.path, a.size] as const),
+    ]);
     if (
       chunks.size !== m.files.length ||
-      m.files.some((f) => chunks.get(f.sha256) !== f.size)
+      m.files.some((f) => chunks.get(f.path) !== f.size)
     )
       ctx.addIssue({ code: "custom", message: "数据库分块集合不匹配" });
     const current = new Set(m.files.map((f) => f.path));
@@ -153,6 +173,7 @@ export interface Capture {
   revision?: BackupRevision;
   notebookId: string;
   databasePath: string;
+  assets: AssetDescriptor[];
   name: string;
   contentSeq: string;
   schemaVersion: number;
@@ -298,7 +319,11 @@ async function lock(target: LocalTarget) {
 }
 
 /** Check the reconstructed SQLite snapshot before making it recoverable. */
-function checkDatabase(file: string, m: { notebookId: string }) {
+function checkDatabase(
+  file: string,
+  m: { notebookId: string; assets: readonly AssetDescriptor[] },
+  full = true,
+) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec("PRAGMA trusted_schema=OFF;");
@@ -314,14 +339,15 @@ function checkDatabase(file: string, m: { notebookId: string }) {
     } finally {
       reference.close();
     }
-    verifyAssets(db);
+    assertAssetClosure(db, m.assets);
+    if (full) verifyAssets(db);
     const metas = db
       .prepare("SELECT id,schema_version FROM notebook_meta")
       .all();
     if (
       metas.length !== 1 ||
       metas[0].id !== m.notebookId ||
-      metas[0].schema_version !== 3
+      metas[0].schema_version !== 4
     )
       throw Error("数据库 Notebook 身份或版本不匹配");
   } finally {
@@ -437,7 +463,7 @@ async function planCapture(
     (c.revision && c.revision.notebookId !== notebookId)
   )
     throw Error("捕获 Notebook 身份不匹配");
-  checkDatabase(c.databasePath, { notebookId });
+  checkDatabase(c.databasePath, { notebookId, assets: c.assets }, false);
   const { sources, ...database } = await chunkFile(c.databasePath, signal);
   const root = join(target.path, "notebooks", notebookId),
     previous = await readManifest(target, notebookId);
@@ -446,11 +472,12 @@ async function planCapture(
     sha256,
     size: source.size,
   }));
+  files.push(...c.assets);
   const current = new Set(files.map((f) => f.path));
   const old = new Map(previous?.files.map((f) => [f.path, f]) || []);
   const m = manifestSchema.parse({
     format: "anynote.local-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     targetId: target.id,
     notebookId,
     name: c.name,
@@ -463,6 +490,7 @@ async function planCapture(
       storageEpoch: "capture-every-run",
     },
     database: { path: "notebook.sqlite", ...database },
+    assets: c.assets,
     files,
     cleanup: [
       ...new Map(
@@ -493,7 +521,7 @@ async function planCapture(
   const space = await statfs(target.path);
   requireLocalFilesystem(
     await inspectFilesystem(target.path),
-    transferChunkBytes,
+    Math.max(transferChunkBytes, ...c.assets.map((a) => a.size)),
   );
   const copyBytes = missing.reduce((n, f) => n + f.size, 0);
   const needed =
@@ -515,6 +543,8 @@ export interface BackupEstimate {
   notebookId: string;
   copyChunks: number;
   skipChunks: number;
+  copyAssets: number;
+  skipAssets: number;
   databaseChanged: boolean;
   deleteFiles: number;
   deleteBytes: number;
@@ -543,8 +573,16 @@ export class LocalBackupService {
       const p = await planCapture(target, notebookId, c, signal);
       return {
         notebookId,
-        copyChunks: p.missing.length,
-        skipChunks: p.m.files.length - p.missing.length,
+        copyChunks: p.missing.filter((f) => f.path.startsWith("chunks/"))
+          .length,
+        skipChunks:
+          p.m.files.filter((f) => f.path.startsWith("chunks/")).length -
+          p.missing.filter((f) => f.path.startsWith("chunks/")).length,
+        copyAssets: p.missing.filter((f) => f.path.startsWith("assets/"))
+          .length,
+        skipAssets:
+          p.m.assets.length -
+          p.missing.filter((f) => f.path.startsWith("assets/")).length,
         databaseChanged: p.previous?.database.sha256 !== p.m.database.sha256,
         deleteFiles: p.m.cleanup.length,
         deleteBytes: p.m.cleanup.reduce((n, f) => n + f.size, 0),
@@ -681,7 +719,7 @@ export class LocalBackupService {
       });
       await mkdir(await safePath(plan.root, ".backup"), { recursive: true });
       await probeReplacement(target.path, () => guard(target));
-      emit("复制数据库分块");
+      emit("复制数据库分块和附件");
       await atomicJSON(plan.root, ".backup/pending.json", {
         targetId: target.id,
         notebookId,
@@ -696,35 +734,57 @@ export class LocalBackupService {
           try {
             signal.throwIfAborted();
             await guard(target);
-            const source = plan.sources.get(f.sha256)!;
-            const bytes = await readChunk(source, signal);
-            if (digest(bytes) !== f.sha256)
-              throw Error("备份源分块在复制前改变");
             const file = await safePath(plan.root, f.path);
-            const temp = await safePath(plan.root, `${f.path}.${m.taskId}.tmp`);
-            await mkdir(join(file, ".."), { recursive: true });
-            try {
-              await writeFile(temp, bytes, {
-                flag: "wx",
-                mode: 0o600,
-                flush: true,
-              });
-              const verifying = performance.now();
-              if ((await hashFile(temp, signal)) !== f.sha256)
-                throw Error("分块写后 SHA-256 校验失败");
-              p.verificationMs += performance.now() - verifying;
-              signal.throwIfAborted();
-              await guard(target);
-              await replace(temp, file);
-            } finally {
-              await unlink(temp).catch((e) => {
-                if (e.code !== "ENOENT") throw e;
-              });
+            if (f.path.startsWith("assets/")) {
+              await copyVerified(
+                join(c!.databasePath, "..", f.path),
+                plan.root,
+                f.path,
+                f,
+                signal,
+                (n) => {
+                  p.copiedBytes += n;
+                  emit("复制数据库分块和附件");
+                },
+                () => guard(target),
+                `${f.path}.${m.taskId}.tmp`,
+                (ms) => {
+                  p.verificationMs += ms;
+                },
+              );
+            } else {
+              const source = plan.sources.get(f.sha256)!;
+              const bytes = await readChunk(source, signal);
+              if (digest(bytes) !== f.sha256)
+                throw Error("备份源分块在复制前改变");
+              const temp = await safePath(
+                plan.root,
+                `${f.path}.${m.taskId}.tmp`,
+              );
+              await mkdir(join(file, ".."), { recursive: true });
+              try {
+                await writeFile(temp, bytes, {
+                  flag: "wx",
+                  mode: 0o600,
+                  flush: true,
+                });
+                const verifying = performance.now();
+                if ((await hashFile(temp, signal)) !== f.sha256)
+                  throw Error("分块写后 SHA-256 校验失败");
+                p.verificationMs += performance.now() - verifying;
+                signal.throwIfAborted();
+                await guard(target);
+                await replace(temp, file);
+              } finally {
+                await unlink(temp).catch((e) => {
+                  if (e.code !== "ENOENT") throw e;
+                });
+              }
             }
             f.token = await token(file);
             p.copiedFiles++;
-            p.copiedBytes += f.size;
-            emit("复制数据库分块");
+            if (!f.path.startsWith("assets/")) p.copiedBytes += f.size;
+            emit("复制数据库分块和附件");
           } catch (error) {
             failed = true;
             throw error;
@@ -810,9 +870,15 @@ export class LocalBackupService {
       destination || (await mkdtemp(join(tmpdir(), "anynote-verify-")));
     const file = await safePath(temp, "notebook.sqlite");
     let success = false;
+    const restoredAssets: string[] = [];
     try {
       const space = await statfs(temp);
-      if (space.bavail * space.bsize < m.database.size + transferChunkBytes)
+      if (
+        space.bavail * space.bsize <
+        m.database.size +
+          m.assets.reduce((n, a) => n + a.size, 0) +
+          transferChunkBytes
+      )
         throw Error("恢复目录空间不足");
       const report = await inspectBackupFiles({
         root,
@@ -840,6 +906,20 @@ export class LocalBackupService {
             signal,
             onBytes,
           );
+          for (const asset of m.assets) {
+            if (await exists(temp, asset.path))
+              throw Error("恢复目录包含同名附件，禁止覆盖");
+            await copyVerified(
+              await safePath(root, asset.path),
+              temp,
+              asset.path,
+              asset,
+              signal,
+              onBytes,
+              () => guard(target),
+            );
+            restoredAssets.push(await safePath(temp, asset.path));
+          }
           checkDatabase(file, m);
         },
       });
@@ -848,10 +928,12 @@ export class LocalBackupService {
       return m;
     } finally {
       if (!destination) await rm(temp, { recursive: true, force: true });
-      else if (!success)
-        await unlink(file).catch((e) => {
-          if (e.code !== "ENOENT") throw e;
-        });
+      else if (!success) {
+        for (const path of [file, ...restoredAssets])
+          await unlink(path).catch((e) => {
+            if (e.code !== "ENOENT") throw e;
+          });
+      }
     }
   }
 

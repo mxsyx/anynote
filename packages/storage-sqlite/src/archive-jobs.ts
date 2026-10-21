@@ -1,3 +1,4 @@
+import { assetDescriptors } from "./assets.js";
 import { snapshotDatabase } from "./database-snapshot.js";
 import { temporaryJob } from "./temporary-jobs.js";
 import { randomUUID } from "node:crypto";
@@ -5,8 +6,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
-import type { Task } from "@anynote/types/runtime.js";
-import { DatabaseSync } from "@anynote/types/runtime.js";
+import type { SqlRow, Task } from "@anynote/types/runtime.js";
+import type { ArchiveValidationInput } from "./archive-validation-worker.js";
 import {
   diskBudget,
   extractArchive,
@@ -33,15 +34,16 @@ export function archiveBudget(s: Storage, notebookId: string) {
   const databaseBytes =
     db.prepare("PRAGMA page_count").get()!.page_count *
     db.prepare("PRAGMA page_size").get()!.page_size;
-  const bytes = databaseBytes;
+  const assets = assetDescriptors(db);
+  const bytes = databaseBytes + assets.reduce((n, a) => n + a.size, 0);
   if (!Number.isSafeInteger(bytes) || bytes > limits.bytes)
     throw Error("归档超过 20GiB 预算");
   return {
     bytes,
     databaseBytes,
-    files: 2,
-    temporaryBytes: databaseBytes,
-    estimatedDestinationBytes: outputBudget(bytes, 2),
+    files: 2 + assets.length,
+    temporaryBytes: bytes,
+    estimatedDestinationBytes: outputBudget(bytes, 2 + assets.length),
   };
 }
 
@@ -129,15 +131,15 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
         s.pins.set(p.notebookId!, (s.pins.get(p.notebookId!) || 0) + 1);
         pinned = true;
         const snapshot = join(temp, "notebook.sqlite");
-        await snapshotDatabase(s.open(p.notebookId!), snapshot);
+        const assets = await snapshotDatabase(s.open(p.notebookId!), snapshot);
         signal.throwIfAborted();
-        const db = new DatabaseSync(snapshot, { readOnly: true });
-        let meta;
-        try {
-          meta = db.prepare("SELECT * FROM notebook_meta").get()!;
-        } finally {
-          db.close();
-        }
+        job.progress = "检查数据库与附件完整性";
+        const meta = await validateInWorker(
+          { mode: "export", dir: temp, id: p.notebookId! },
+          job,
+          signal,
+        );
+        signal.throwIfAborted();
         const database = {
           path: "notebook.sqlite",
           ...(await hashFile(snapshot, signal)),
@@ -145,28 +147,25 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
         const manifest = {
           format: "anynote.notebook",
           formatVersion: 1,
-          schemaVersion: 3,
+          schemaVersion: 4,
           appVersion: "0.1.0",
           notebookId: p.notebookId!,
           generationId: randomUUID(),
           createdAt: new Date().toISOString(),
           snapshotSeq: meta.content_seq,
           database,
-          assets: [],
+          assets,
           includesHistory: true,
           includesTrash: true,
         };
-        const total = database.size;
+        const total = database.size + assets.reduce((n, a) => n + a.size, 0);
         if (total > limits.bytes) throw Error("快照超过归档预算");
         job.totalBytes = total;
-        diskBudget(dirname(p.path), outputBudget(total, 2));
+        diskBudget(dirname(p.path), outputBudget(total, 2 + assets.length));
         const result = await writeArchive(
           p.path,
           manifest,
-          (name) =>
-            name === "notebook.sqlite"
-              ? snapshot
-              : s.notebookPath(p.notebookId!, name),
+          (name) => (name === "notebook.sqlite" ? snapshot : join(temp!, name)),
           {
             signal,
             replaceExisting: p.replaceExisting,
@@ -181,7 +180,7 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
           onProgress: progress,
         });
         signal.throwIfAborted();
-        job.progress = "检查数据库、迁移并重建搜索索引";
+        job.progress = "检查数据库并重建搜索索引";
         const result = await validateAndPublish(s, temp, manifest, job, signal);
         temp = null;
         job.restoredId = result.id;
@@ -209,6 +208,46 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
   return { id: job.id, status: job.status };
 }
 
+/** Run snapshot validation off the storage thread and wait for exit before releasing its temporary files. */
+function validateInWorker(
+  input: ArchiveValidationInput,
+  job: Task,
+  signal: AbortSignal,
+): Promise<SqlRow> {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      new URL("./archive-validation-worker.js", import.meta.url),
+      { workerData: input },
+    );
+    job.worker = worker;
+
+    /** Terminate the validation thread on cancellation. */
+    const abort = () => {
+      void worker.terminate().catch(reject);
+    };
+    signal.addEventListener("abort", abort, { once: true });
+
+    let result: SqlRow | undefined, error: Error | undefined;
+    worker.once("message", (message) => {
+      if (message.error) error = Error(message.error);
+      else result = message.result;
+    });
+    worker.once("error", (cause) => {
+      error = cause;
+    });
+    worker.once("exit", (code) => {
+      signal.removeEventListener("abort", abort);
+      if (job.worker === worker) job.worker = undefined;
+      if (signal.aborted) reject(signal.reason);
+      else if (error) reject(error);
+      else if (code !== 0 || !result)
+        reject(Error("归档校验线程退出：" + code));
+      else resolve(result);
+    });
+  });
+}
+
 /**
  * Validate the archive directory and database in a separate thread, then publish it as a new Notebook.
  *
@@ -226,40 +265,12 @@ export async function validateAndPublish(
   job: Task,
   signal: AbortSignal,
 ): Promise<{ id: string }> {
-  signal.throwIfAborted();
   const newId = randomUUID();
-  await new Promise<void>((resolve, reject) => {
-    const worker = new Worker(
-      new URL("./archive-validation-worker.js", import.meta.url),
-      { workerData: { dir, manifest, id: newId } },
-    );
-    job.worker = worker;
-
-    /** Terminate the validation thread on cancellation. */
-    const abort = () => {
-      void worker.terminate().then(() => reject(signal.reason), reject);
-    };
-    signal.addEventListener("abort", abort, { once: true });
-
-    /**
-     * Finish waiting and clean up listeners.
-     *
-     * @param error Error to reject with, or `null` to resolve.
-     */
-    const finish = (error: Error | null) => {
-      signal.removeEventListener("abort", abort);
-      error ? reject(error) : resolve();
-    };
-    let delivered = false;
-    worker.once("message", (message) => {
-      delivered = true;
-      finish(message.error ? Error(message.error) : null);
-    });
-    worker.once("error", finish);
-    worker.once("exit", (code) => {
-      if (!delivered) finish(Error("归档校验线程退出：" + code));
-    });
-  });
+  await validateInWorker(
+    { mode: "import", dir, manifest, id: newId },
+    job,
+    signal,
+  );
   signal.throwIfAborted();
   job.status = "committing";
   job.progress = "注册新的 Notebook";

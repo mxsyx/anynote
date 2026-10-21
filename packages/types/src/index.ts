@@ -225,6 +225,7 @@ export type Operation =
   | "startCloudBackup"
   | "listCloudDevices"
   | "listCloudRestorePoints"
+  | "previewCloudRestore"
   | "restoreCloudTargetBackup"
   | "deleteCloudBackup";
 

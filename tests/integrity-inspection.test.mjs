@@ -1,3 +1,4 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { putAsset } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
@@ -6,6 +7,8 @@ import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
+  readFileSync,
+  symlinkSync,
   rmSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -76,12 +79,7 @@ test("inspection reports a healthy Notebook and persists the report without dele
   assert.equal(job.report.findings.length, 0);
   assert.ok(job.report.counts.assets >= 1);
   assert.ok(job.report.counts.referenced >= 1);
-  assert.ok(
-    f.s
-      .open(f.book.id)
-      .prepare("SELECT 1 FROM asset_chunks WHERE asset_hash=?")
-      .get(asset.hash),
-  );
+  assert.ok(existsSync(assetFile(f.s.open(f.book.id), asset.hash)));
 
   // The latest report survives in device data and is readable through its own operation.
   const stored = await f.call("getIntegrityReport");
@@ -98,7 +96,7 @@ test("inspection reports temp files, orphan resources and missing references wit
     }),
     asset = await f.call("getAsset", { id: image.primary_resource_id }),
     dir = f.s.directory(f.book.id);
-  // Unreferenced BLOBs remain registered and are reported without deleting them.
+  // Unreferenced files remain registered and are reported without deleting them.
   const orphan = putAsset(
     f.s.open(f.book.id),
     Buffer.from("orphan"),
@@ -108,10 +106,7 @@ test("inspection reports temp files, orphan resources and missing references wit
   writeFileSync(join(dir, "notebook.json.tmp"), "{}");
   mkdirSync(join(dir, "temp"), { recursive: true });
   writeFileSync(join(dir, "temp", "scratch.bin"), "x");
-  f.s
-    .open(f.book.id)
-    .prepare("DELETE FROM asset_chunks WHERE asset_hash=?")
-    .run(asset.hash);
+  rmSync(assetFile(f.s.open(f.book.id), asset.hash));
 
   const started = await f.call("inspectIntegrity");
   const job = await finish(f.s, started.id);
@@ -160,6 +155,50 @@ test("inspection protects staging under an active lease and flags stale staging"
   assert.ok(stale);
   // The protected staging directory keeps its files.
   assert.ok(existsSync(join(local, "archive-jobs", activeId, "part.bin")));
+});
+
+test("inspection finds device-local cleanup remnants after restart without crossing notebooks or following symlinks", async (t) => {
+  const f = await fixture(t),
+    other = await f.s.run("createNotebook", { title: "另一本" }),
+    quarantine = f.s.auxiliaryPath(
+      f.book.id,
+      "_local/cleanup-quarantine/" + randomUUID(),
+    ),
+    otherQuarantine = f.s.auxiliaryPath(
+      other.id,
+      "_local/cleanup-quarantine/" + randomUUID(),
+    );
+  mkdirSync(join(quarantine, "snapshots"), { recursive: true });
+  mkdirSync(otherQuarantine, { recursive: true });
+  const leftover = join(quarantine, "snapshots/100.anynote"),
+    otherFile = join(otherQuarantine, "other.anynote");
+  writeFileSync(leftover, "interrupted cleanup");
+  writeFileSync(otherFile, "other notebook");
+  symlinkSync(otherQuarantine, join(quarantine, "linked"), "dir");
+  const root = f.s.root;
+  f.s.close();
+
+  const restarted = new Storage(root);
+  try {
+    const started = await restarted.run("inspectIntegrity", {
+        notebookId: f.book.id,
+      }),
+      job = await finish(restarted, started.id);
+    assert.equal(job.status, "completed");
+    assert.equal(job.report.counts.tempFiles, 1);
+    assert.deepEqual(
+      job.report.findings.map((item) => item.path),
+      [leftover.slice(root.length + 1).replaceAll("\\", "/")],
+    );
+    assert.equal(
+      job.report.findings[0].size,
+      Buffer.byteLength("interrupted cleanup"),
+    );
+    assert.equal(readFileSync(leftover, "utf8"), "interrupted cleanup");
+    assert.equal(readFileSync(otherFile, "utf8"), "other notebook");
+  } finally {
+    restarted.close();
+  }
 });
 
 test("inspection is cancellable and returns a partial report", async (t) => {

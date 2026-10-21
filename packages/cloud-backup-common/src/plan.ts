@@ -10,6 +10,7 @@ export interface PlanInput {
   commitId: string;
   databaseSha256: string;
   databaseSize: number;
+  assets: readonly { path: string; sha256: string; size: number }[];
   databaseChunks: readonly { sha256: string; size: number }[];
   /** Manifest of the last successful commit; empty means a full upload is needed. */
   previous: CloudBackupManifest | null;
@@ -65,8 +66,22 @@ export async function buildUploadPlan(
     items.push({ kind: "database", sha256: chunk.sha256, size: chunk.size });
   }
 
+  const oldAssets = new Map(previous?.assets.map((a) => [a.sha256, a]) || []);
+  let assetsUnchanged = oldAssets.size === input.assets.length;
+  for (const asset of input.assets) {
+    const old = oldAssets.get(asset.sha256);
+    if (
+      old &&
+      old.size === asset.size &&
+      old.path === asset.path &&
+      (await reusable(old.locator))
+    )
+      continue;
+    assetsUnchanged = false;
+    items.push({ kind: "asset", sha256: asset.sha256, size: asset.size });
+  }
   const uploadBytes = items.reduce((total, item) => total + item.size, 0),
-    unchanged = databaseReused && items.length === 0,
+    unchanged = databaseReused && assetsUnchanged && items.length === 0,
     // The space budget includes the old current database (the old copy is not deleted before a successful commit) and the newly added objects.
     requiredBytes = uploadBytes;
 

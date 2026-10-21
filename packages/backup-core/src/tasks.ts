@@ -3,9 +3,9 @@ import { assertDatabaseChunks } from "@anynote/protocol/cloud-objects.js";
 import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
-import { open } from "node:fs/promises";
+import { hashFile } from "@anynote/storage-sqlite/archive-stream.js";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import { validateAndPublish } from "@anynote/storage-sqlite/archive-jobs.js";
 import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
@@ -13,11 +13,9 @@ import type { Task } from "@anynote/types/runtime.js";
 import type {
   CloudBackupAccount,
   CloudBackupHead,
-  CloudBackupManifest,
   CloudBackupTarget,
   CloudCaptureHandle,
   CloudRestoreResult,
-  CloudVerificationLevel,
 } from "@anynote/types/cloud-backup.js";
 import {
   assertContentVerification,
@@ -30,27 +28,11 @@ import { createBackupHostContext, createTempDir } from "./host.js";
 import { clearCloudFailureState, nextFailureState } from "./failure.js";
 import { getCloudProvider } from "./registry.js";
 import { patchTarget } from "./state.js";
-
-/** Single-threaded sequential hash of a file; used for whole-file verification after restore. */
-async function hashFile(
-  file: string,
-): Promise<{ sha256: string; size: number }> {
-  const hash = createHash("sha256"),
-    handle = await open(file, "r"),
-    buffer = Buffer.alloc(1024 * 1024);
-  let offset = 0;
-  try {
-    while (true) {
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
-      if (!bytesRead) break;
-      hash.update(buffer.subarray(0, bytesRead));
-      offset += bytesRead;
-    }
-  } finally {
-    await handle.close();
-  }
-  return { sha256: hash.digest("hex"), size: offset };
-}
+import {
+  prepareRestore,
+  previewRestoreBudget,
+  reserveRestoreBudget,
+} from "./restore-budget.js";
 
 /** Determine whether a target already has an in-progress task, to avoid duplicate triggers. */
 function activeJob(s: Storage, targetId: string): Task | undefined {
@@ -135,7 +117,8 @@ export function startCloudBackup(
       controller.signal.throwIfAborted();
       job.progress = "正在创建一致性备份切点";
       capture = await ctx.capture.capture(target.notebookId);
-      job.totalBytes = capture.database.size;
+      job.totalBytes =
+        capture.database.size + capture.assets.reduce((n, a) => n + a.size, 0);
       job.processedBytes = 0;
       controller.signal.throwIfAborted();
 
@@ -193,6 +176,7 @@ export function startCloudBackup(
         lastHeadCommitId: result.head?.commitId ?? null,
         lastHeadManifestSha256: result.head?.manifestSha256 ?? null,
         lastDatabaseSha256: capture.database.sha256,
+        lastVerification: result.verification,
         lastTaskBytes: job.totalBytes,
         pendingCleanup: result.cleanup?.failed ?? 0,
         ...clearCloudFailureState(),
@@ -201,7 +185,10 @@ export function startCloudBackup(
         format: "anynote.cloud-backup-report",
         formatVersion: 1,
         verification: result.verification,
-        assets: capture.assets.length,
+        uploadedBytes: result.uploadedBytes,
+        databaseBytes: capture.database.size,
+        assetBytes: capture.assets.reduce((n, a) => n + a.size, 0),
+        assetCount: capture.assets.length,
         cleanup: result.cleanup ?? null,
         capabilities,
       };
@@ -235,7 +222,7 @@ export function startCloudBackup(
 /**
  * Start a cloud restore task (design §5.3, §13.1).
  *
- * First download the manifest and objects to the core-private temp directory, verifying each with the application SHA-256, then via the archive
+ * Read the manifest and reserve a restore budget before downloading objects to the core-private temp directory. Verify SHA-256, then via the archive
  * verification thread rewrite the identity, rebuild search, and register as a new Notebook; on hash mismatch it will not register a normal
  * Notebook。
  *
@@ -249,7 +236,11 @@ export function startCloudRestore(
   s: Storage,
   target: CloudBackupTarget,
   account: CloudBackupAccount,
-  selection: { deviceSlotId: string; manifestRef?: string },
+  selection: {
+    deviceSlotId: string;
+    manifestRef?: string;
+    expectedCommitId?: string;
+  },
 ): { id: string } {
   const active = activeJob(s, target.id);
   if (active) return { id: active.id };
@@ -261,7 +252,7 @@ export function startCloudRestore(
       type: "cloud-restore",
       targetId: target.id,
       status: "running",
-      progress: "正在下载云盘备份",
+      progress: "正在读取备份清单并检查恢复空间",
       createdAt: Date.now(),
       controller,
       retry: {
@@ -271,15 +262,20 @@ export function startCloudRestore(
           targetId: target.id,
           deviceSlotId: selection.deviceSlotId,
           manifestRef: selection.manifestRef,
+          expectedCommitId: selection.expectedCommitId,
         },
       },
     };
   s.track(job);
 
   job.promise = (async () => {
-    const workspace = temporaryJob(s.root, "archive-jobs");
-    let dir: string | undefined = workspace.dir;
+    let releaseWorkspace: (() => void) | undefined;
+    let dir: string | undefined;
+    let releaseBudget: (() => void) | undefined;
     try {
+      const workspace = temporaryJob(s.root, "archive-jobs");
+      releaseWorkspace = workspace.release;
+      dir = workspace.dir;
       const { provider } = getCloudProvider(target.providerId),
         ctx = createBackupHostContext({
           s,
@@ -293,15 +289,24 @@ export function startCloudRestore(
             job.processedBytes = (job.processedBytes ?? 0) + bytes;
           },
         });
-      const bundle = await provider.download(
-        {
-          deviceSlotId: selection.deviceSlotId,
-          manifestRef: selection.manifestRef,
-        },
-        ctx,
-      );
+      const manifest = await prepareRestore(provider, ctx, selection);
+      if (
+        selection.expectedCommitId &&
+        selection.expectedCommitId !== manifest.commitId
+      )
+        throw Error("云盘副本已变化，请重新预估恢复空间");
+      const preview = previewRestoreBudget(workspace.dir, manifest);
+      job.totalBytes = preview.downloadBytes;
+      job.diskBudgetBytes = preview.diskBudgetBytes;
+      job.availableBytes = preview.availableBytes;
+      releaseBudget = reserveRestoreBudget(workspace.dir, preview);
       controller.signal.throwIfAborted();
-      const manifest: CloudBackupManifest = bundle.manifest;
+      job.progress = "空间检查通过，正在下载并校验云盘备份";
+      const expectedManifest = JSON.stringify(manifest);
+      const bundle = await provider.download(manifest, ctx);
+      controller.signal.throwIfAborted();
+      if (JSON.stringify(bundle.manifest) !== expectedManifest)
+        throw Error("下载结果与预检清单不一致");
       assertDatabaseChunks(manifest.database);
       const databasePath = join(workspace.dir, "notebook.sqlite");
       const chunks = new Map(bundle.databaseChunks.map((c) => [c.sha256, c]));
@@ -325,11 +330,31 @@ export function startCloudRestore(
         },
         controller.signal,
       );
+      const restoredAssets = new Map(bundle.assets.map((a) => [a.sha256, a]));
+      if (
+        restoredAssets.size !== manifest.assets.length ||
+        bundle.assets.length !== manifest.assets.length
+      )
+        throw Error("恢复附件集合不匹配");
+      for (const asset of manifest.assets) {
+        const restored = restoredAssets.get(asset.sha256);
+        const path = assertLocalPath(workspace.dir, asset.path);
+        if (
+          !restored ||
+          restored.path !== asset.path ||
+          restored.filePath !== path ||
+          restored.size !== asset.size
+        )
+          throw Error("恢复附件路径或身份无效");
+        const actual = await hashFile(path, controller.signal);
+        if (actual.sha256 !== asset.sha256 || actual.size !== asset.size)
+          throw Error("恢复附件 SHA-256 校验失败");
+      }
       rmSync(assertLocalPath(workspace.dir, "chunks"), {
         recursive: true,
         force: true,
       });
-      const database = await hashFile(databasePath);
+      const database = await hashFile(databasePath, controller.signal);
       if (
         database.sha256 !== manifest.database.sha256 ||
         database.size !== manifest.database.size
@@ -365,7 +390,7 @@ export function startCloudRestore(
             size: manifest.database.size,
             sha256: manifest.database.sha256,
           },
-          assets: [],
+          assets: manifest.assets,
           includesHistory: true,
           includesTrash: true,
         },
@@ -378,7 +403,17 @@ export function startCloudRestore(
         name: manifest.notebookName ?? published.id,
         databaseSha256: manifest.database.sha256,
         databaseBytes: manifest.database.size,
-        verification: bundle.verification as CloudVerificationLevel,
+        assetBytes: manifest.assets.reduce((n, a) => n + a.size, 0),
+        verification: "download-sha256",
+      };
+      job.report = {
+        format: "anynote.cloud-restore-report",
+        formatVersion: 1,
+        verification: "download-sha256",
+        databaseBytes: manifest.database.size,
+        assetBytes: manifest.assets.reduce((n, a) => n + a.size, 0),
+        diskBudgetBytes: preview.diskBudgetBytes,
+        downloadBytes: preview.downloadBytes,
       };
       s.settle(job, "completed", {
         restoredId: published.id,
@@ -387,13 +422,18 @@ export function startCloudRestore(
       });
     } catch (error: any) {
       s.settle(job, controller.signal.aborted ? "cancelled" : "failed", {
+        errorCode: typeof error?.code === "string" ? error.code : undefined,
         error: controller.signal.aborted
           ? "云盘恢复已取消"
           : (error?.message ?? String(error)),
       });
     } finally {
-      if (dir) rmSync(dir, { recursive: true, force: true });
-      workspace.release();
+      try {
+        if (dir) rmSync(dir, { recursive: true, force: true });
+      } finally {
+        releaseBudget?.();
+        releaseWorkspace?.();
+      }
     }
   })();
   return { id };

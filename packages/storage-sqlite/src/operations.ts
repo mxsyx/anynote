@@ -657,6 +657,7 @@ export async function advancedOperations(
       "startCloudBackup",
       "listCloudDevices",
       "listCloudRestorePoints",
+      "previewCloudRestore",
       "restoreCloudTargetBackup",
       "deleteCloudBackup",
     ].includes(op)

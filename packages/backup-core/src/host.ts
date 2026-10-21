@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { assertLocalPath } from "@anynote/storage-sqlite/workspace.js";
-import { Readable, Writable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type {
@@ -261,15 +261,15 @@ function createHttpClient(args: AuthorizedClientArgs) {
       if (!response.body) throw Error("云盘下载缺少响应体");
       let bytes = 0;
       const hash = options.hash ? createHash("sha256") : undefined;
-      const meter = new Writable({
-        write(chunk: Buffer, _encoding, callback) {
+      const meter = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
           bytes += chunk.length;
           if (bytes > (options.maxBytes ?? Number.MAX_SAFE_INTEGER)) {
             callback(Error("云盘下载超过预算"));
             return;
           }
           hash?.update(chunk);
-          callback();
+          callback(null, chunk);
         },
       });
       await pipeline(
@@ -278,6 +278,7 @@ function createHttpClient(args: AuthorizedClientArgs) {
         ),
         meter,
         createWriteStream(tempFile, { mode: 0o600 }),
+        { signal: init?.signal },
       );
       return {
         filePath: tempFile,
@@ -352,18 +353,30 @@ export function createBackupHostContext(
       refresh: async () => (await tokenProvider.getAccessToken()).token,
     });
 
+  const taskSignal = (signal?: AbortSignal) =>
+    signal ? AbortSignal.any([signal, args.signal]) : args.signal;
   const scopedAccounts: ScopedAccountAPI = {
     current: () => ref,
     tokenProvider: () => tokenProvider,
-    request: (url, init) => client.request(url, init),
-    upload: (url, init) => client.upload(url, init),
+    request: (url, init) =>
+      client.request(url, { ...init, signal: taskSignal(init?.signal) }),
+    upload: (url, init) =>
+      client.upload(url, { ...init, signal: taskSignal(init.signal) }),
     downloadToFile: async (url, init, options) => {
       const relative = options?.dest,
         filePath = relative
           ? assertLocalPath(args.tempDir, relative)
           : join(args.tempDir, `download-${randomUUID()}`);
       mkdirSync(dirname(filePath), { recursive: true });
-      return client.downloadToFile(url, init, options ?? {}, filePath);
+      return client.downloadToFile(
+        url,
+        {
+          ...init,
+          signal: taskSignal(init?.signal),
+        },
+        options ?? {},
+        filePath,
+      );
     },
   };
 

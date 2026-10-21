@@ -349,7 +349,7 @@ async function worker(sample) {
           await hashFile(join(path, "notebook.sqlite")),
           m.database.sha256,
         );
-        return { assets: m.files.length, databaseBytes: m.database.size };
+        return { assets: m.assets.length, databaseBytes: m.database.size };
       });
     rmSync(join(root, "restore"), { recursive: true, force: true });
     // Add a streamed 1GiB cancellation fixture without keeping its bytes in memory.
@@ -385,7 +385,7 @@ async function worker(sample) {
           onProgress: (p) => {
             if (
               !controller.signal.aborted &&
-              p.phase === "复制数据库分块" &&
+              p.phase === "复制数据库分块和附件" &&
               p.copiedBytes > 0
             ) {
               abortAt = performance.now();

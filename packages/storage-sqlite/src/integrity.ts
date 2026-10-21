@@ -1,4 +1,5 @@
-import { verifyAsset } from "./assets.js";
+import { verifyAsset, assetPath, resourceRoots } from "./assets.js";
+import { cleanupQuarantine } from "./cleanup.js";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -9,7 +10,7 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { IntegrityFinding, IntegrityReport } from "@anynote/types";
 import type { SqlDatabase, Task } from "@anynote/types/runtime.js";
@@ -211,11 +212,14 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
       if (lstatSync(absolute).isFile())
         leftover(name, lstatSync(absolute).size);
     }
-  for (const sub of ["temp", "_local/cleanup-quarantine"]) {
-    const dir = join(root, sub);
-    if (!existsSync(dir) || lstatSync(dir).isSymbolicLink()) continue;
-    walk(dir, sub + "/");
-  }
+  const temp = join(root, "temp");
+  if (existsSync(temp) && !lstatSync(temp).isSymbolicLink())
+    walk(temp, "temp/");
+
+  const quarantine = cleanupQuarantine(s, notebookId);
+  if (existsSync(quarantine))
+    walk(quarantine, relative(s.root, quarantine).split(sep).join("/") + "/");
+
   // 2. Device-level staging directories: keep the ones an active lease still protects.
   const localRoot = join(s.root, "_local"),
     leaseDir = join(localRoot, "job-leases"),
@@ -262,13 +266,12 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
   }
   report.readable = true;
   // Reuse the single authoritative resource-closure definition from the backup layer.
-  const { resourceRoots } = await import("@anynote/backup/local-capture.js"),
-    referenced = new Set(
-      db
-        .prepare(resourceRoots)
-        .all()
-        .map((r) => r.asset_hash as string),
-    );
+  const referenced = new Set(
+    db
+      .prepare(resourceRoots)
+      .all()
+      .map((r) => r.asset_hash as string),
+  );
   report.counts.referenced = referenced.size;
   const assets = db.prepare("SELECT hash,size FROM assets").all();
   report.counts.assets = assets.length;
@@ -280,7 +283,7 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
       report.counts.unreferencedAssets++;
       add(report, {
         kind: "unreferenced-asset",
-        path: `sqlite:assets/${a.hash}`,
+        path: assetPath(a.hash),
         hash: a.hash,
         size: a.size,
         message: "资源记录未被任何版本、批注或 PDF 文本引用",
@@ -302,7 +305,7 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
       report.counts.missingResources++;
       add(report, {
         kind: "missing-resource",
-        path: `sqlite:assets/${a.hash}`,
+        path: assetPath(a.hash),
         hash: a.hash,
         size: a.size,
         message: e.message,
@@ -314,7 +317,48 @@ async function scan(s: Storage, report: IntegrityReport, signal: AbortSignal) {
     }
   }
 
-  // Asset bytes are transactional SQLite rows; there are no separate orphan files.
+  // Interrupted imports can leave durable files whose SQL transaction never committed.
+  const registered = new Set(assets.map((a) => a.hash));
+  const assetRoot = join(root, "assets", "sha256");
+  if (
+    existsSync(assetRoot) &&
+    !lstatSync(join(root, "assets")).isSymbolicLink() &&
+    !lstatSync(assetRoot).isSymbolicLink()
+  ) {
+    for (const prefix of readdirSync(assetRoot, { withFileTypes: true })) {
+      if (!prefix.isDirectory() || !/^[a-f0-9]{2}$/.test(prefix.name)) continue;
+      for (const entry of readdirSync(join(assetRoot, prefix.name), {
+        withFileTypes: true,
+      })) {
+        await checkpoint();
+        if (overBudget()) {
+          report.truncated = true;
+          return;
+        }
+        if (!entry.isFile()) continue;
+        const path = `assets/sha256/${prefix.name}/${entry.name}`;
+        if (entry.name.endsWith(".tmp")) {
+          leftover(path, lstatSync(join(root, path)).size);
+          continue;
+        }
+        const hash = entry.name.replace(/\.bin$/, "");
+        if (
+          /^[a-f0-9]{64}$/.test(hash) &&
+          path === assetPath(hash) &&
+          !registered.has(hash)
+        ) {
+          report.counts.orphanResources++;
+          add(report, {
+            kind: "orphan-resource",
+            path,
+            hash,
+            size: lstatSync(join(root, path)).size,
+            message: "文件未被数据库登记，可能来自中断写入",
+          });
+        }
+      }
+    }
+  }
 }
 
 /**

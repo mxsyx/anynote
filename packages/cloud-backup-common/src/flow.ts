@@ -9,7 +9,11 @@ import type {
   CloudVerificationLevel,
 } from "@anynote/types/cloud-backup.js";
 import { assertPlanBudget, buildUploadPlan } from "./plan.js";
-import { assertManifestIntegrity } from "./verify.js";
+import {
+  assertContentVerification,
+  assertManifestIntegrity,
+  manifestVerification,
+} from "./verify.js";
 
 /** The final result of one chunked backup. */
 export interface CloudBackupFlowResult {
@@ -85,18 +89,30 @@ export async function runChunkedBackup(
           code: "head-mismatch",
         },
       );
+    const manifest = await provider.prepareRestore({ deviceSlotId }, ctx);
+    assertManifestIntegrity(manifest, {
+      notebookId: capture.notebookId,
+      deviceSlotId,
+      commitId: args.previousHead.commitId,
+      databaseSha256: capture.database.sha256,
+      databaseSize: capture.database.size,
+      assets: capture.assets,
+      databaseChunks: capture.database.chunks,
+    });
+    signal.throwIfAborted();
     return {
       commitId: args.previousHead.commitId,
       unchanged: true,
       uploadedBytes: 0,
-      verification: reconciled.verification ?? "accepted-size",
-      manifest: args.previous ?? null,
+      verification: manifestVerification(manifest),
+      manifest,
       head: reconciled.head ?? args.previousHead,
     };
   }
 
   const prepared = await provider.execute(plan, ctx);
   signal.throwIfAborted();
+
   if (!prepared.complete) throw Error("远端对象尚未全部上传，拒绝生成完整清单");
   ctx.tasks.progress(prepared.transferredBytes, "对象上传完成，正在校验");
 
@@ -107,9 +123,13 @@ export async function runChunkedBackup(
     commitId: plan.commitId,
     databaseSha256: capture.database.sha256,
     databaseSize: capture.database.size,
+    assets: capture.assets,
     databaseChunks: capture.database.chunks,
   });
   signal.throwIfAborted();
+
+  for (const chunk of [...manifest.database.chunks, ...manifest.assets])
+    assertContentVerification(chunk, "数据库分块");
 
   const committed = await provider.publish(
     {
@@ -130,7 +150,7 @@ export async function runChunkedBackup(
     commitId: committed.commitId,
     unchanged: false,
     uploadedBytes: prepared.transferredBytes,
-    verification: committed.verification,
+    verification: manifestVerification(manifest),
     manifest,
     head: committed.head,
     cleanup,

@@ -1,11 +1,87 @@
-import { openSync, closeSync, fstatSync, readSync } from "node:fs";
-import { createHash } from "node:crypto";
-import type { SqlDatabase, SqlRow } from "@anynote/types/runtime.js";
+import {
+  openSync,
+  closeSync,
+  fstatSync,
+  readSync,
+  writeSync,
+  mkdirSync,
+  linkSync,
+  unlinkSync,
+  fsyncSync,
+  lstatSync,
+  realpathSync,
+  copyFileSync,
+  constants,
+} from "node:fs";
+import { dirname } from "node:path";
+import {
+  assetPath,
+  assertAssets,
+  type AssetDescriptor,
+} from "@anynote/protocol/assets.js";
+import { assertLocalPath } from "./workspace.js";
+import { createHash, randomUUID } from "node:crypto";
+import type { SqlDatabase } from "@anynote/types/runtime.js";
 
-/** Bounded SQLite BLOBs keep range reads and verification independent of asset size. */
+/** Streaming buffer size; assets remain whole immutable files in the storage format. */
 export const assetChunkBytes = 1024 * 1024;
 
-/** Store metadata and bounded BLOBs atomically, including when no outer knowledge transaction exists. */
+export { assetPath } from "@anynote/protocol/assets.js";
+
+/** Every durable resource reference, including historical and trashed notes. */
+export const resourceRoots = `SELECT asset_hash FROM resources
+  UNION SELECT asset_hash FROM revision_resources
+  UNION SELECT target_asset_hash FROM annotations
+  UNION SELECT asset_hash FROM note_text`;
+
+export function assetFile(db: SqlDatabase, hash: string) {
+  const file = db
+    .prepare("PRAGMA database_list")
+    .all()
+    .find((d) => d.name === "main")?.file;
+  if (!file) throw Error("资源存储需要磁盘数据库");
+  return assertLocalPath(realpathSync(dirname(file)), assetPath(hash));
+}
+
+export function assetDescriptors(db: SqlDatabase) {
+  return db
+    .prepare("SELECT hash,size,mime FROM assets ORDER BY hash")
+    .all()
+    .map((a) => ({
+      path: assetPath(a.hash),
+      sha256: a.hash as string,
+      size: a.size as number,
+      mimeType: a.mime as string,
+    }));
+}
+
+/** Verify the manifest exactly covers the captured database's resource closure. */
+export function assertAssetClosure(
+  db: SqlDatabase,
+  assets: readonly AssetDescriptor[],
+) {
+  assertAssets(assets);
+  const rows = db
+    .prepare(
+      `SELECT hash,size FROM assets WHERE hash IN (${resourceRoots}) ORDER BY hash`,
+    )
+    .all();
+  const expected = new Map(assets.map((a) => [a.sha256, a.size]));
+  if (
+    rows.length !== expected.size ||
+    rows.some((a) => expected.get(a.hash) !== a.size) ||
+    db
+      .prepare(
+        `SELECT asset_hash FROM (${resourceRoots}) WHERE asset_hash NOT IN (SELECT hash FROM assets)`,
+      )
+      .get()
+  )
+    throw Error("附件清单与数据库引用不一致");
+}
+
+/** Publish durable immutable content before committing its database reference.
+ * A failed SQL transaction may leave an unreferenced file, never a committed missing resource.
+ */
 function storeAsset(
   db: SqlDatabase,
   hash: string,
@@ -18,37 +94,123 @@ function storeAsset(
     verifyAsset(db, hash);
     return hash;
   }
-  db.exec('SAVEPOINT "asset.write"');
+  const file = assetFile(db, hash);
+  const created = mkdirSync(dirname(file), { recursive: true });
+  const temp = file + "." + randomUUID() + ".tmp";
+  const handle = openSync(temp, "wx", 0o600);
+  const digest = createHash("sha256");
+  let written = 0;
   try {
+    try {
+      for (const bytes of chunks) {
+        let offset = 0;
+        while (offset < bytes.length)
+          offset += writeSync(handle, bytes, offset, bytes.length - offset);
+        digest.update(bytes);
+        written += bytes.length;
+      }
+      if (written !== size || digest.digest("hex") !== hash)
+        throw Error("资源 SHA-256 校验失败");
+      fsyncSync(handle);
+    } finally {
+      closeSync(handle);
+    }
+    // link is an atomic no-replace publication; another reference can never mutate existing content.
+    try {
+      linkSync(temp, file);
+    } catch (e: any) {
+      if (e.code === "EEXIST") verifyFile(file, hash, size);
+      else if (["EPERM", "ENOTSUP", "EOPNOTSUPP"].includes(e.code)) {
+        // Some portable volumes lack hard links. An exclusive copy is safe because the
+        // database cannot reference the new file until its bytes have been verified and synced.
+        try {
+          copyFileSync(temp, file, constants.COPYFILE_EXCL);
+        } catch (copyError: any) {
+          if (copyError.code !== "EEXIST") throw copyError;
+        }
+        verifyFile(file, hash, size);
+        const published = openSync(file, "r+");
+        try {
+          fsyncSync(published);
+        } finally {
+          closeSync(published);
+        }
+      } else throw e;
+    }
+    syncDirectory(dirname(file));
+    if (created) {
+      for (let dir = dirname(file); ; dir = dirname(dir)) {
+        syncDirectory(dirname(dir));
+        if (dir === created) break;
+      }
+    }
     db.prepare("INSERT INTO assets(hash,size,mime) VALUES(?,?,?)").run(
       hash,
       size,
       mime,
     );
-    const insert = db.prepare("INSERT INTO asset_chunks VALUES(?,?,?)"),
-      digest = createHash("sha256");
-    let offset = 0;
-    for (const bytes of chunks) {
-      if (
-        bytes.length !== Math.min(assetChunkBytes, size - offset) ||
-        bytes.length <= 0
-      )
-        throw Error("资源分块大小无效");
-      insert.run(hash, offset, bytes);
-      digest.update(bytes);
-      offset += bytes.length;
-    }
-    if (offset !== size || digest.digest("hex") !== hash)
-      throw Error("资源 SHA-256 校验失败");
-    db.exec('RELEASE "asset.write"');
     return hash;
-  } catch (error) {
-    db.exec('ROLLBACK TO "asset.write"; RELEASE "asset.write"');
-    throw error;
+  } finally {
+    unlinkSync(temp);
   }
 }
 
-/** Store immutable bytes inside the caller's transaction, deduplicated by SHA-256. */
+function syncDirectory(dir: string) {
+  let fd;
+  try {
+    fd = openSync(dir, "r");
+    fsyncSync(fd);
+  } catch (e: any) {
+    if (
+      ![
+        "EINVAL",
+        "ENOTSUP",
+        "EISDIR",
+        ...(process.platform === "win32" ? ["EPERM", "EACCES"] : []),
+      ].includes(e.code)
+    )
+      throw e;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function verifyFile(file: string, hash: string, size: number) {
+  if (!lstatSync(file).isFile()) throw Error("资源不是普通文件");
+  const fd = openSync(file, "r"),
+    digest = createHash("sha256"),
+    buffer = Buffer.alloc(assetChunkBytes);
+  try {
+    const before = fstatSync(fd);
+    if (before.size !== size) throw Error("资源大小不匹配");
+    let offset = 0;
+    while (offset < size) {
+      const n = readSync(
+        fd,
+        buffer,
+        0,
+        Math.min(buffer.length, size - offset),
+        offset,
+      );
+      if (!n) throw Error("资源读取不完整");
+      digest.update(buffer.subarray(0, n));
+      offset += n;
+    }
+    const after = fstatSync(fd);
+    if (
+      after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs ||
+      digest.digest("hex") !== hash
+    )
+      throw Error("资源 SHA-256 校验失败");
+    return size;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Store immutable file bytes, deduplicated by SHA-256. */
 export function putAsset(db: SqlDatabase, bytes: Uint8Array, mime: string) {
   const hash = createHash("sha256").update(bytes).digest("hex");
   function* chunks() {
@@ -95,7 +257,7 @@ export function putAssetFile(db: SqlDatabase, file: string, mime: string) {
   }
 }
 
-/** Read only the BLOBs intersecting a byte range; never load the entire attachment for a range request. */
+/** Read only the requested byte range from an immutable resource file. */
 export function readAssetRange(
   db: SqlDatabase,
   hash: string,
@@ -116,66 +278,42 @@ export function readAssetRange(
 
   const bytes = Buffer.alloc(length);
   if (!length) return bytes;
-  let position = 0;
-
-  for (const raw of db
-    .prepare(
-      "SELECT offset,data FROM asset_chunks WHERE asset_hash=? AND offset>=? AND offset<? ORDER BY offset",
-    )
-    .iterate(
-      hash,
-      Math.floor(offset / assetChunkBytes) * assetChunkBytes,
-      offset + length,
-    )) {
-    const row = raw as SqlRow;
-    const start = Math.max(offset, row.offset);
-    const end = Math.min(offset + length, row.offset + row.data.length);
-
-    if (start !== offset + position || end <= start)
-      throw Error("资源分块缺失或损坏");
-
-    bytes.set(
-      row.data.subarray(start - row.offset, end - row.offset),
-      position,
-    );
-    position += end - start;
+  const fd = openSync(assetFile(db, hash), "r");
+  try {
+    if (!fstatSync(fd).isFile() || fstatSync(fd).size !== asset.size)
+      throw Error("资源大小不匹配");
+    let position = 0;
+    while (position < length) {
+      const n = readSync(
+        fd,
+        bytes,
+        position,
+        length - position,
+        offset + position,
+      );
+      if (!n) throw Error("资源读取不完整");
+      position += n;
+    }
+  } finally {
+    closeSync(fd);
   }
-
-  if (position !== length) throw Error("资源读取不完整");
 
   return bytes;
 }
 
-/** Verify chunk continuity, lengths, and the full content hash with bounded memory. */
+/** Verify the full resource file with bounded memory. */
 export function verifyAsset(db: SqlDatabase, hash: string) {
   const asset = db.prepare("SELECT size FROM assets WHERE hash=?").get(hash);
 
   if (!asset || !/^[a-f0-9]{64}$/.test(hash)) throw Error("资源身份无效");
 
-  const digest = createHash("sha256");
-  let size = 0;
-
-  for (const raw of db
-    .prepare(
-      "SELECT offset,data FROM asset_chunks WHERE asset_hash=? ORDER BY offset",
-    )
-    .iterate(hash)) {
-    const row = raw as SqlRow;
-    if (
-      row.offset !== size ||
-      row.data.length !== Math.min(assetChunkBytes, asset.size - size) ||
-      row.data.length <= 0
-    )
-      throw Error("资源分块缺失或大小不匹配");
-
-    digest.update(row.data);
-    size += row.data.length;
+  try {
+    return verifyFile(assetFile(db, hash), hash, asset.size);
+  } catch (error: any) {
+    if (error.code === "ENOENT")
+      throw Object.assign(Error("资源文件缺失"), { code: "ENOENT" });
+    throw error;
   }
-
-  if (size !== asset.size || digest.digest("hex") !== hash)
-    throw Error("资源 SHA-256 校验失败");
-
-  return size;
 }
 
 /** Read and verify a complete resource for bounded import/editor operations. */

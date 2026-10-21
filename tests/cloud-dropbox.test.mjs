@@ -1,3 +1,4 @@
+import { assetPath } from "../.build/packages/protocol/assets.js";
 import { databaseCapture } from "./helpers/database-capture.mjs";
 import { test, afterAll } from "vitest";
 import assert from "node:assert/strict";
@@ -51,17 +52,17 @@ function sourceOf(bytes) {
 
 /** Minimal capture result handle. */
 function captureOf({ notebookId, database, assets = [] }) {
-  const bytes = Buffer.concat([
-    database,
-    ...assets.map((a) => Buffer.from(a.content)),
-  ]);
   return {
     notebookId,
     notebookName: "测试笔记库",
     contentSeq: 3,
-    schemaVersion: 3,
-    database: databaseCapture(bytes),
-    assets: [],
+    schemaVersion: 4,
+    database: databaseCapture(database),
+    assets: assets.map((a) => ({
+      ...sourceOf(a.content),
+      sha256: sha256(a.content),
+      path: assetPath(sha256(a.content)),
+    })),
     release: async () => {},
   };
 }
@@ -314,6 +315,8 @@ function createContext(server, notebookId, deviceLabel = "测试设备") {
     request: (url, init) => server.handleRpc(url, init ?? {}),
     upload: (url, init) => server.handleUpload(url, init),
     downloadToFile: (url, init, options) => {
+      if (options?.dest?.startsWith("chunks/"))
+        assert.ok(options.maxBytes > 0 && options.maxBytes <= 1024 ** 2);
       const dir = mkdtempSync(join(tempRoot, "dl-")),
         dest = options?.dest;
       assert.ok(!dest || !dest.includes(".."), "下载目标禁止路径逃逸");
@@ -468,7 +471,7 @@ test("文件级流程：首次上传、无变化跳过、数据库分块去重�
     first.manifest.database.chunks[0].verification,
     "provider-checksum",
   );
-  assert.equal(first.manifest.assets.length, 0);
+  assert.equal(first.manifest.assets.length, 1);
   assert.equal(first.head.deviceSlotId, deviceSlotId);
 
   // Unchanged: only confirm the pointer and object state, without re-uploading the database/assets.
@@ -484,7 +487,7 @@ test("文件级流程：首次上传、无变化跳过、数据库分块去重�
   assert.equal(second.unchanged, true);
   assert.equal(second.uploadedBytes, 0);
 
-  // Embedded asset edits change their containing database chunk.
+  // Adding an immutable file uploads only that file; the existing file and database are reused.
   const assetB = Buffer.from("asset-b-content"),
     captureB = captureOf({
       notebookId,
@@ -501,11 +504,8 @@ test("文件级流程：首次上传、无变化跳过、数据库分块去重�
     previousHead: first.head,
   });
   assert.equal(third.unchanged, false);
-  assert.equal(
-    third.uploadedBytes,
-    database.length + assetA.length + assetB.length,
-  );
-  assert.equal(third.manifest.assets.length, 0);
+  assert.equal(third.uploadedBytes, assetB.length);
+  assert.equal(third.manifest.assets.length, 2);
 
   // Restore: list device slots and read the database and assets back from the current copy.
   const page = await dropboxProvider.listCurrentBackups(ctx);
@@ -513,9 +513,12 @@ test("文件级流程：首次上传、无变化跳过、数据库分块去重�
     page.slots.map((slot) => slot.deviceSlotId),
     [deviceSlotId],
   );
-  const bundle = await dropboxProvider.download({ deviceSlotId }, ctx);
+  const bundle = await dropboxProvider.download(
+    await dropboxProvider.prepareRestore({ deviceSlotId }, ctx),
+    ctx,
+  );
   assert.equal(bundle.manifest.database.sha256, captureB.database.sha256);
-  assert.equal(bundle.assets.length, 0);
+  assert.equal(bundle.assets.length, 2);
   assert.equal(bundle.verification, "download-sha256");
 });
 

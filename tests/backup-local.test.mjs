@@ -1,3 +1,4 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import {
   putAsset,
   readAsset,
@@ -16,6 +17,7 @@ import {
   symlinkSync,
   renameSync,
   readdirSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -729,8 +731,10 @@ test("database chunks round-trip WAL content and attachments, reuse unchanged ch
   });
   const first = await f.run(),
     m = manifestOf(f);
-  assert.equal(m.formatVersion, 2);
-  assert.ok(m.database.chunks.length > 6);
+  assert.equal(m.formatVersion, 3);
+  assert.ok(m.database.size < bytes.length / 4);
+  assert.equal(m.assets.length, 1);
+  assert.equal(m.assets[0].size, bytes.length);
   assert.equal(first.copiedFiles, m.files.length);
   assert.equal(existsSync(join(f.dest, "notebook.sqlite")), false);
   assert.equal(existsSync(join(f.dest, "notebook.json")), false);
@@ -744,10 +748,8 @@ test("database chunks round-trip WAL content and attachments, reuse unchanged ch
     body: "WAL 中的新正文",
   });
   const changed = await f.run();
-  assert.ok(
-    changed.copiedBytes > 0 && changed.copiedBytes < m.database.size / 2,
-  );
-  assert.ok(changed.skippedFiles >= 4);
+  assert.ok(changed.copiedBytes > 0 && changed.copiedBytes < bytes.length / 2);
+  assert.ok(changed.skippedFiles >= 1);
   const { dir } = await restoreInto(f);
   const db = new DatabaseSync(join(dir, "notebook.sqlite"));
   try {
@@ -781,6 +783,103 @@ test("capture freezes both resource bytes and metadata while later edits continu
   } finally {
     db.close();
   }
+});
+
+test("attachment versions survive history and trash, and are collected only after a successful commit", async (t) => {
+  const f = await fixture(t),
+    db = f.s.open(f.book.id),
+    original = f.add("original attachment");
+  const note = await f.s.run("createNode", {
+    notebookId: f.book.id,
+    title: "document",
+  });
+  const resource = db
+    .prepare("SELECT id FROM resources WHERE asset_hash=?")
+    .get(original.hash).id;
+  const revision = db
+    .prepare("SELECT head_revision_id FROM notes WHERE node_id=?")
+    .get(note.id).head_revision_id;
+  db.prepare("INSERT INTO revision_resources VALUES(?,?,?)").run(
+    revision,
+    resource,
+    original.hash,
+  );
+  await f.run();
+  const oldAsset = manifestOf(f).assets[0],
+    oldPath = join(f.dest, oldAsset.path);
+  const oldStat = statSync(oldPath);
+
+  const folder = await f.s.run("createNode", {
+    notebookId: f.book.id,
+    kind: "folder",
+    title: "folder",
+  });
+  db.prepare("UPDATE nodes SET title=?,parent_id=? WHERE id=?").run(
+    "renamed",
+    folder.id,
+    note.id,
+  );
+  const preview = await f.engine.preview(f.target, f.book.id, f.capture);
+  assert.equal(preview.copyAssets, 0);
+  assert.equal(preview.skipAssets, 1);
+  await f.run();
+  assert.equal(statSync(oldPath).ino, oldStat.ino);
+  assert.equal(statSync(oldPath).mtimeMs, oldStat.mtimeMs);
+
+  const changed = putAsset(db, Buffer.from("edited attachment"), "text/plain");
+  db.prepare("UPDATE resources SET asset_hash=? WHERE id=?").run(
+    changed,
+    resource,
+  );
+  await f.s.run("trashNode", { notebookId: f.book.id, id: note.id });
+  await f.run();
+  assert.deepEqual(
+    new Set(manifestOf(f).assets.map((a) => a.sha256)),
+    new Set([original.hash, changed]),
+  );
+  const { dir } = await restoreInto(f),
+    restored = new DatabaseSync(join(dir, "notebook.sqlite"));
+  try {
+    assert.equal(
+      readAsset(restored, original.hash).toString(),
+      "original attachment",
+    );
+    assert.equal(readAsset(restored, changed).toString(), "edited attachment");
+    assert.ok(
+      restored.prepare("SELECT deleted_at FROM nodes WHERE id=?").get(note.id)
+        .deleted_at,
+    );
+  } finally {
+    restored.close();
+  }
+
+  db.prepare("DELETE FROM revision_resources WHERE revision_id=?").run(
+    revision,
+  );
+  const committed = manifestOf(f).taskId;
+  await assert.rejects(
+    f.run({
+      fault(point) {
+        if (point === "chunks-written") throw Error("commit interrupted");
+      },
+    }),
+    /commit interrupted/,
+  );
+  assert.equal(manifestOf(f).taskId, committed);
+  assert.ok(existsSync(oldPath));
+  await f.engine.verify(f.target, f.book.id);
+  await f.run();
+  assert.deepEqual(
+    manifestOf(f).assets.map((a) => a.sha256),
+    [changed],
+  );
+  assert.equal(existsSync(oldPath), false);
+  const unchanged = await f.run({
+    readRevision: () =>
+      f.s.run("readLocalBackupRevision", { notebookId: f.book.id }),
+  });
+  assert.equal(unchanged.captureSkipped, true);
+  assert.equal(unchanged.copiedBytes, 0);
 });
 
 test.each(["chunks-written", "manifest-published"])(
@@ -887,7 +986,8 @@ test("cancelled chunk copying preserves the prior manifest and retry cleans aban
   assert.deepEqual(
     readdirSync(join(f.dest, "chunks")).sort(),
     manifestOf(f)
-      .files.map((f) => f.path.slice(7))
+      .files.filter((f) => f.path.startsWith("chunks/"))
+      .map((f) => f.path.slice(7))
       .sort(),
   );
   await f.engine.verify(f.target, f.book.id);
@@ -926,6 +1026,11 @@ test("full verification reports missing and corrupted chunks and refuses to publ
 test("restore verifies ordered chunks and the whole-file hash, including repeated references", async (t) => {
   const f = await fixture(t);
   f.add(randomBytes(3 * 1024 ** 2));
+  await f.s.run("createNode", {
+    notebookId: f.book.id,
+    title: "large text",
+    body: randomBytes(900000).toString("hex"),
+  });
   await f.run();
   const original = manifestOf(f),
     changed = structuredClone(original);
@@ -971,21 +1076,22 @@ test("cleanup retries only obsolete managed chunks and keeps user files", async 
   assert.equal(readFileSync(join(f.dest, "user.txt"), "utf8"), "keep");
 });
 
-test("corrupt source BLOBs and untracked schema never replace an existing backup", async (t) => {
+test("corrupt new source files and untracked schema never replace an existing backup", async (t) => {
   const f = await fixture(t);
-  const asset = f.add("healthy");
+  f.add("healthy");
   await f.run();
   const before = manifestOf(f);
-  f.s
-    .open(f.book.id)
-    .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
-    .run(Buffer.from("corrupt"), asset.hash);
-  await assert.rejects(f.run(), /SHA-256/);
+  const added = f.add("new healthy");
+  writeFileSync(
+    assetFile(f.s.open(f.book.id), added.hash),
+    Buffer.from("bad content"),
+  );
+  await assert.rejects(f.run(), /SHA-256|大小/);
   assert.equal(manifestOf(f).database.sha256, before.database.sha256);
-  f.s
-    .open(f.book.id)
-    .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
-    .run(Buffer.from("healthy"), asset.hash);
+  writeFileSync(
+    assetFile(f.s.open(f.book.id), added.hash),
+    Buffer.from("new healthy"),
+  );
   f.s.open(f.book.id).exec("CREATE TABLE unknown(value TEXT)");
   await assert.rejects(f.run(), /版本|持久化|结构/);
   assert.equal(manifestOf(f).database.sha256, before.database.sha256);
@@ -1019,7 +1125,8 @@ test("preview is read-only and cancellation of verification leaves an incomplete
   const f = await fixture(t);
   f.add(randomBytes(3 * 1024 ** 2));
   const preview = await f.engine.preview(f.target, f.book.id, f.capture);
-  assert.ok(preview.copyChunks > 1);
+  assert.ok(preview.copyChunks >= 1);
+  assert.ok(preview.copyAssets >= 1);
   assert.equal(existsSync(join(f.dest, ".backup/manifest.json")), false);
   await f.run();
   const before = manifestOf(f),
@@ -1179,7 +1286,7 @@ test("SDK transport drives real backup, verify and restore jobs and can retrieve
   assert.equal((await api.preview(input)).copyChunks, 1);
   const handle = await api.run(input);
   await f.s.jobs.get(handle.id).promise;
-  assert.equal((await api.getTask(handle.id)).backupResult.copiedFiles, 1);
+  assert.equal((await api.getTask(handle.id)).backupResult.copiedFiles, 2);
   for (let i = 0; i < 110; i++) {
     const id = randomUUID();
     f.s.jobs.set(id, {
@@ -1199,7 +1306,7 @@ test("SDK transport drives real backup, verify and restore jobs and can retrieve
   await f.s.jobs.get(verified.id).promise;
   const verification = (await api.getTask(verified.id)).verificationReport;
   assert.equal(verification.status, "passed");
-  assert.equal(verification.verifiedFiles, 1);
+  assert.equal(verification.verifiedFiles, 2);
   const restored = await api.restore(input);
   await f.s.jobs.get(restored.id).promise;
   const task = await api.getTask(restored.id);

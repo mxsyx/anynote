@@ -32,6 +32,7 @@ export function createCloudBackupAPI(transport: Transport): CloudBackupAPI {
     run: (input) => task("startCloudBackup", input),
     listDevices: (input) => call("listCloudDevices", input),
     listRestorePoints: (input) => call("listCloudRestorePoints", input),
+    previewRestore: (input) => call("previewCloudRestore", input),
     restore: (input) => task("restoreCloudTargetBackup", input),
     deleteBackup: (input) => call("deleteCloudBackup", input),
     getTask: async (id) =>

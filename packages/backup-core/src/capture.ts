@@ -1,14 +1,13 @@
+import { fileSource } from "@anynote/protocol/file-source.js";
 import { chunkFile } from "@anynote/protocol/file-chunks.js";
 import { readAssetRange, verifyAsset } from "@anynote/storage-sqlite/assets.js";
 import { createHash } from "node:crypto";
-import { open } from "node:fs/promises";
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
 import type {
   BackupVerificationAPI,
   CloudCaptureHandle,
   NotebookCaptureAPI,
-  ScopedReadSource,
   ScopedReadStreamAPI,
 } from "@anynote/types/cloud-backup.js";
 
@@ -31,70 +30,7 @@ interface SnapshotShape {
   files: Map<string, string>;
 }
 
-/** Read chunk size for the sequential stream; unrelated to the protocol chunk budget, affecting only memory use. */
-const streamChunkBytes = 1024 * 1024;
-
-/**
- * Build a read-only byte source that reads by offset.
- *
- * @param file Absolute path of the source file (held only by the core, never given to extensions).
- * @param size File size.
- * @returns The read-only source.
- */
-export function fileSource(
-  file: string,
-  size: number,
-  base = 0,
-): ScopedReadSource {
-  return {
-    size,
-    async read(offset: number, length: number) {
-      if (offset < 0 || length <= 0 || offset >= size) return new Uint8Array();
-      const handle = await open(file, "r");
-      try {
-        const want = Math.min(length, size - offset),
-          buffer = Buffer.alloc(want);
-        let position = 0;
-        while (position < want) {
-          const { bytesRead } = await handle.read(
-            buffer,
-            position,
-            want - position,
-            base + offset + position,
-          );
-          if (!bytesRead) break;
-          position += bytesRead;
-        }
-        return buffer.subarray(0, position);
-      } finally {
-        await handle.close();
-      }
-    },
-    async *stream(signal?: AbortSignal) {
-      const handle = await open(file, "r");
-      try {
-        let offset = 0;
-        while (offset < size) {
-          signal?.throwIfAborted();
-          const buffer = Buffer.alloc(
-              Math.min(streamChunkBytes, size - offset),
-            ),
-            { bytesRead } = await handle.read(
-              buffer,
-              0,
-              buffer.length,
-              base + offset,
-            );
-          if (!bytesRead) break;
-          offset += bytesRead;
-          yield buffer.subarray(0, bytesRead);
-        }
-      } finally {
-        await handle.close();
-      }
-    },
-  };
-}
+export { fileSource } from "@anynote/protocol/file-source.js";
 
 /**
  * Release the Notebook pin held by a capture.
@@ -143,6 +79,7 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
           contentSeq: snapshot.manifest.snapshotSeq,
           schemaVersion: snapshot.manifest.schemaVersion,
           database: {
+            chunkSize: chunked.chunkSize,
             sha256: chunked.sha256,
             chunks: chunked.chunks.map((c, i) => ({
               sha256: c.sha256,
@@ -152,7 +89,12 @@ export function createNotebookCaptureAPI(s: Storage): NotebookCaptureAPI {
             read: databaseSource.read,
             stream: databaseSource.stream,
           },
-          assets: [],
+          assets: snapshot.manifest.assets.map((a) => ({
+            path: a.path,
+            sha256: a.sha256,
+            mimeType: a.mimeType,
+            ...fileSource(snapshot.files.get(a.path)!, a.size),
+          })),
           async release() {
             if (released) return;
             released = true;
@@ -200,13 +142,13 @@ export function createResourcesAPI(
           );
         },
         async *stream(signal?: AbortSignal) {
-          for (let offset = 0; offset < size; offset += streamChunkBytes) {
+          for (let offset = 0; offset < size; offset += 1024 ** 2) {
             signal?.throwIfAborted();
             yield readAssetRange(
               s.open(notebookId),
               sha256,
               offset,
-              Math.min(streamChunkBytes, size - offset),
+              Math.min(1024 ** 2, size - offset),
             );
           }
         },

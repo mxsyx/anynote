@@ -185,7 +185,13 @@ export interface SnapshotManifest {
   snapshotSeq: number;
   createdAt: string;
   sourceNotebookId: string;
-  database: { size: number; sha256: string; chunks: FileChunk[] };
+  database: {
+    chunkSize: number;
+    size: number;
+    sha256: string;
+    chunks: FileChunk[];
+  };
+  assets: { path: string; size: number; sha256: string; mimeType?: string }[];
   generationId?: string;
   lineageId?: string;
   deviceId?: string;

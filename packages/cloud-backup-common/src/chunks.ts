@@ -1,11 +1,19 @@
-import { assertDatabaseChunks } from "@anynote/protocol/cloud-objects.js";
+import {
+  assertDatabaseChunks,
+  transferChunkBytes,
+} from "@anynote/protocol/cloud-objects.js";
 
 /** Transform each distinct immutable chunk once, retaining the original order and repeated references. */
 export async function mapDatabaseChunks<
   T extends { sha256: string; size: number },
   R extends { sha256: string; size: number },
 >(
-  database: { sha256: string; size: number; chunks: readonly T[] },
+  database: {
+    chunkSize?: number;
+    sha256: string;
+    size: number;
+    chunks: readonly T[];
+  },
   transform: (chunk: T) => Promise<R>,
 ) {
   assertDatabaseChunks(database);
@@ -21,5 +29,25 @@ export async function mapDatabaseChunks<
     }
     chunks.push(value);
   }
-  return { sha256: database.sha256, size: database.size, chunks };
+  return {
+    chunkSize: transferChunkBytes,
+    sha256: database.sha256,
+    size: database.size,
+    chunks,
+  };
+}
+
+/** Transform whole immutable assets in bounded sequence and retain their canonical paths. */
+export async function mapAssets<
+  T extends { path: string; sha256: string; size: number },
+  R extends { sha256: string; size: number },
+>(assets: readonly T[], transform: (asset: T) => Promise<R>) {
+  const result: (R & { path: string })[] = [];
+  for (const asset of assets) {
+    const mapped = await transform(asset);
+    if (mapped.sha256 !== asset.sha256 || mapped.size !== asset.size)
+      throw Error("附件身份或大小不匹配");
+    result.push({ ...mapped, path: asset.path });
+  }
+  return result;
 }

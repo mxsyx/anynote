@@ -1,3 +1,4 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
@@ -70,28 +71,20 @@ test("diagnoseNotebook reports a healthy Notebook without modifying files", asyn
   assert.ok(report.counts.assets >= 1);
   assert.equal(report.counts.checkedAssets, report.counts.assets);
   assert.equal(report.meta.id, book.id);
-  assert.equal(report.meta.schemaVersion, 3);
+  assert.equal(report.meta.schemaVersion, 4);
 });
 
 test("diagnoseNotebook locates a missing asset and snapshot recovery restores it", async (t) => {
   const { s, book, image } = await fixture(t);
   await s.run("snapshot", { notebookId: book.id });
   const assetHash = firstAssetHash(s, book.id);
-  s.open(book.id)
-    .prepare("DELETE FROM asset_chunks WHERE asset_hash=?")
-    .run(assetHash);
+  rmSync(assetFile(s.open(book.id), assetHash));
 
   const report = await s.run("diagnoseNotebook", { notebookId: book.id });
   assert.equal(report.status, "issues");
   assert.equal(report.counts.corruptAssets, 1);
   assert.ok(report.issues.some((i) => i.code === "ASSET_HASH_MISMATCH"));
-  assert.equal(
-    s
-      .open(book.id)
-      .prepare("SELECT COUNT(*) AS n FROM asset_chunks WHERE asset_hash=?")
-      .get(assetHash).n,
-    0,
-  );
+  assert.equal(existsSync(assetFile(s.open(book.id), assetHash)), false);
 
   // Listing/restoring snapshots must work even though an asset is missing.
   const snapshots = await s.run("listSnapshots", { notebookId: book.id });
@@ -116,15 +109,9 @@ test("diagnoseNotebook detects a corrupted asset hash", async (t) => {
   const { s, book } = await fixture(t);
   const hash = firstAssetHash(s, book.id),
     db = s.open(book.id);
-  const bytes = Buffer.from(
-    db.prepare("SELECT data FROM asset_chunks WHERE asset_hash=?").get(hash)
-      .data,
-  );
+  const bytes = Buffer.from(readFileSync(assetFile(db, hash)));
   bytes[bytes.length - 1] ^= 1;
-  db.prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?").run(
-    bytes,
-    hash,
-  );
+  writeFileSync(assetFile(db, hash), bytes);
 
   const report = await s.run("diagnoseNotebook", { notebookId: book.id });
   assert.equal(report.status, "issues");

@@ -62,6 +62,11 @@ async function fixture(t, large = true) {
         putAssetFile(s.open(book.id), temp, "application/octet-stream"),
         hash,
       );
+      s.open(book.id)
+        .prepare(
+          "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+        )
+        .run(randomUUID(), hash, "large.bin");
       return { sha256: hash };
     });
     rmSync(temp);
@@ -116,7 +121,7 @@ async function verifyRestore(s, id, f) {
   assert.ok(nodes.find((n) => n.title === "已删除").deleted_at);
   if (f.hash) assert.equal(verifyAsset(s.open(id), f.hash), size);
 }
-test("Cloudflare public tasks split 112MiB, protect chunk references during GC and reject a damaged restore", async (t) => {
+test("Cloudflare public tasks transfer a whole 112MiB asset in resumable parts, protect chunk references during GC and reject a damaged restore", async (t) => {
   const f = await fixture(t),
     env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: "fixture" };
   t.onTestFinished(() => env.DB.db.close());
@@ -132,7 +137,7 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
   });
   forbidLegacy(f.s);
   await complete(f.s, await f.call("startBackup", { targetId: target.id }));
-  assert.ok(uploads.every((n) => n <= transferChunkBytes));
+  assert.ok(uploads.every((n) => n <= 32 * 1024 ** 2));
   const version = (
     await f.call("listRemoteBackups", { targetId: target.id })
   )[0];
@@ -140,8 +145,9 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
     env.BUCKET.objects.get(`manifests/${f.book.id}/${version.id}.json`),
   );
   const asset = manifest.database;
-  assert.ok(asset.chunks.length > size / transferChunkBytes);
-  assert.ok(asset.size > size);
+  assert.ok(asset.size < size / 4);
+  assert.equal(manifest.assets.length, 1);
+  assert.equal(manifest.assets[0].size, size);
   for (const info of env.BUCKET.metadata.values())
     info.uploaded = new Date(Date.now() - 48 * 3600000);
   const client = new CloudflareClient(target, { token: "fixture" });
@@ -157,7 +163,9 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
       },
     },
   );
-  const hashes = new Set(asset.chunks.map((c) => c.sha256));
+  const hashes = new Set(
+    [...asset.chunks, ...manifest.assets].map((c) => c.sha256),
+  );
   assert.ok(!preview.objects.some((o) => hashes.has(o.hash)));
   const restored = await complete(
     f.s,
@@ -188,7 +196,9 @@ test("Cloudflare public tasks split 112MiB, protect chunk references during GC a
 test("chunk metadata rejects inconsistent sizes, empty lists and hash conflicts before staging", () => {
   const hash = "a".repeat(64),
     base = {
+      assets: [],
       database: {
+        chunkSize: 1024 ** 2,
         sha256: hash,
         size: transferChunkBytes + 1,
         chunks: [
@@ -287,9 +297,10 @@ test("Cloudflare refuses to commit when an asset chunk is missing", async (t) =>
     full = hash(Buffer.concat([a, b]));
   const manifest = {
     format: "anynote.sqlite",
+    assets: [],
     createdAt: new Date().toISOString(),
     protocolVersion: 1,
-    schemaVersion: 3,
+    schemaVersion: 4,
     notebookId: book,
     sourceNotebookId: book,
     lineageId: randomUUID(),
@@ -299,6 +310,7 @@ test("Cloudflare refuses to commit when an asset chunk is missing", async (t) =>
     expectedHead: "",
     writerEpoch: 1,
     database: {
+      chunkSize: 1024 ** 2,
       sha256: full,
       size: a.length + b.length,
       chunks: [
@@ -392,7 +404,7 @@ test("an old Worker rejects large-file backup before staging and releases the lo
     if (String(url).endsWith("/v1/capabilities")) {
       const body = await response.json();
       body.capabilities = body.capabilities.filter(
-        (c) => c !== "sqlite-chunks-v1",
+        (c) => c !== "sqlite-assets-v1",
       );
       return Response.json(body);
     }

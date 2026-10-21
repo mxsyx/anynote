@@ -4,6 +4,10 @@ import { Check, Cloud, HardDriveDownload, Link2, Plus, Trash2 } from "./icons";
 import { request } from "./api";
 import CloudBackupAdd from "./CloudBackupAdd";
 import CloudRestoreWizard from "./CloudRestoreWizard";
+import {
+  formatCloudBytes as formatBytes,
+  verificationLabel,
+} from "./cloud-backup-display";
 
 /** A cloud-drive backup target as shown on its card. */
 export interface CloudTargetView {
@@ -13,6 +17,7 @@ export interface CloudTargetView {
     deviceSlotId: string;
     deviceLabel?: string;
     lastSuccess?: number;
+    lastVerification?: string;
     lastError?: string | null;
     pausedReason?: string | null;
     nextAttemptAt?: number | null;
@@ -25,6 +30,7 @@ export interface CloudTargetView {
   provider: { id: string; title: string; beta: boolean; installed: boolean };
   quotaBytes?: number | null;
   quotaUsedBytes?: number | null;
+  capabilities?: { providerChecksum: readonly string[] };
   state: string;
 }
 
@@ -49,19 +55,6 @@ function stateLabel(state: string): string {
       "cleanup-pending": "备份已更新，清理待重试",
     }[state] ?? state
   );
-}
-
-/** Human-readable size of used/total. */
-function formatBytes(bytes?: number | null) {
-  if (bytes == null) return "未知";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes,
-    unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 /**
@@ -160,6 +153,17 @@ export default function CloudBackup({
                   )} / ${formatBytes(view.quotaBytes)}`
                 : "厂商未提供"}
             </small>
+            <p className="small-note">
+              内容校验始终开启，包含正文、附件与历史。
+              {view.capabilities?.providerChecksum.length
+                ? "优先核对厂商内容校验和；无法使用时会下载并核对 SHA-256。"
+                : "新上传的数据分块会下载并核对 SHA-256，额外下载量约等于新上传数据量；无变化时不重复下载全部内容。"}
+            </p>
+            {view.target.lastSuccess && (
+              <p className="small-note">
+                最近备份校验：{verificationLabel(view.target.lastVerification)}
+              </p>
+            )}
             {view.target.lastError && (
               <p className="form-error">最近失败：{view.target.lastError}</p>
             )}

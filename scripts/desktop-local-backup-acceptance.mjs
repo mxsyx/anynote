@@ -204,7 +204,11 @@ try {
     await tasks.waitFor();
     const initial = await job((await latest("local-backup")).id);
     assert.equal(initial.status, "completed");
-    assert.equal(initial.backupResult.copiedFiles, 32);
+    const manifest = JSON.parse(
+      readFileSync(join(dest, ".backup/manifest.json")),
+    );
+    assert.equal(manifest.assets.length, 30);
+    assert.equal(initial.backupResult.copiedFiles, manifest.files.length);
     await closeTasks();
     await local.getByRole("button", { name: "立即备份", exact: true }).click();
     await tasks.waitFor();
@@ -227,8 +231,11 @@ try {
     assert.equal((await request("listTasks")).length, before);
     await navigateSource();
     await title.dispatchEvent("compositionend");
-    await page.getByRole("button", { name: "源码", exact: true }).click();
-    await page.locator(".cm-content").fill("# 备份正文\n\n备份前的新内容");
+    await page.getByRole("textbox", { name: "文档内容", exact: true }).click();
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+A" : "Control+A",
+    );
+    await page.keyboard.insertText("备份前的新内容");
     await backupPage();
     await local.getByRole("button", { name: "立即备份", exact: true }).click();
     await tasks.waitFor();
@@ -238,7 +245,11 @@ try {
     );
     const restored = join(root, "check-restore");
     mkdirSync(restored);
-    await new LocalBackupService().restore(target, first.id, restored);
+    await new LocalBackupService().restore(
+      { id: target.diskId, path: target.path },
+      first.id,
+      restored,
+    );
     const db = new DatabaseSync(join(restored, "notebook.sqlite"), {
       readOnly: true,
     });
@@ -249,7 +260,7 @@ try {
             "SELECT r.body FROM notes n JOIN note_revisions r ON r.id=n.head_revision_id WHERE n.node_id=?",
           )
           .get(note.id).body,
-        "# 备份正文\n\n备份前的新内容",
+        "# 备份前的新内容\n\n",
       );
     } finally {
       db.close();
@@ -274,7 +285,7 @@ try {
     await eventually(
       async () => (await request("listLocalBackupTargets")).length === 2,
     );
-    await local.getByLabel("附件复制并发").selectOption("1");
+    await local.getByLabel("文件复制并发").selectOption("1");
     await eventually(
       async () =>
         (await request("listLocalBackupTargets", { notebookId: first.id }))[0]
@@ -347,6 +358,8 @@ try {
       await restore
         .getByText("只有一份当前副本，没有历史版本。", { exact: true })
         .waitFor();
+      await restore.getByText(/附件 30 个/).waitFor();
+      await page.screenshot({ path: "/tmp/anynote-local-backup-review.png" });
       await restore
         .getByRole("button", { name: "校验并恢复为新 Notebook", exact: true })
         .click();
@@ -375,7 +388,7 @@ try {
             id: note.id,
           })
         ).body,
-        "# 备份正文\n\n备份前的新内容",
+        "# 备份前的新内容\n\n",
       );
     },
   );
@@ -452,6 +465,7 @@ try {
       manifest,
     );
   });
+  await page.screenshot({ path: "/tmp/anynote-local-backup-final.png" });
   const versions = await electron.evaluate(() => process.versions);
   mkdirSync(join(reportPath, ".."), { recursive: true });
   writeFileSync(

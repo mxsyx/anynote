@@ -58,7 +58,6 @@ async function snapshot(s, book, sourceBook = book) {
     "notes",
     "note_revisions",
     "assets",
-    "asset_chunks",
     "resources",
     "revision_resources",
     "changes",

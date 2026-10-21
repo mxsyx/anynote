@@ -1,5 +1,12 @@
 import { unzipSync, zipSync } from "fflate";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+  realpathSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -34,14 +41,21 @@ export function snapshotBundle(bundle: Buffer) {
   const manifest: SnapshotManifest = {
     format: "anynote.sqlite",
     protocolVersion: 1,
-    schemaVersion: 3,
+    schemaVersion: 4,
     notebookId: archive.notebookId,
     sourceNotebookId: archive.notebookId,
     snapshotSeq: JSON.parse(Buffer.from(files["manifest.json"]).toString())
       .snapshotSeq,
     createdAt: new Date().toISOString(),
-    database: { ...archive.database, chunks },
+    database: { ...archive.database, chunks, chunkSize: transferChunkBytes },
+    assets: archive.assets,
   };
+  for (const asset of archive.assets) {
+    const data = Buffer.from(files[asset.path] || []);
+    if (data.length !== asset.size || digest(data) !== asset.sha256)
+      throw Error("归档附件校验失败");
+    objects.set(asset.sha256, data);
+  }
   objectDescriptors(manifest);
   return { manifest, objects };
 }
@@ -59,13 +73,20 @@ export async function uploadSnapshot(
   const files = unzipSync(bundle),
     manifest = JSON.parse(Buffer.from(files["manifest.json"]).toString());
   manifestSchema.parse(manifest);
-  const dir = mkdtempSync(join(tmpdir(), "anynote-cloud-"));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "anynote-cloud-")));
   try {
     const file = join(dir, "notebook.sqlite");
     writeFileSync(file, files["notebook.sqlite"]);
+    const sources = new Map([["notebook.sqlite", file]]);
+    for (const asset of manifest.assets) {
+      const path = join(dir, asset.path);
+      mkdirSync(join(path, ".."), { recursive: true });
+      writeFileSync(path, files[asset.path]);
+      sources.set(asset.path, path);
+    }
     return await uploadSnapshotFiles(
       client,
-      { dir, manifest, files: new Map([["notebook.sqlite", file]]) },
+      { dir, manifest, files: sources },
       target,
       options.generationId,
       options.signal,
@@ -93,7 +114,7 @@ export async function restoreSnapshot(
   target: BackupTarget,
   generationId: string,
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "anynote-cloud-"));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "anynote-cloud-")));
   try {
     const manifest = await restoreSnapshotFiles(
       client,
@@ -107,6 +128,9 @@ export async function restoreSnapshot(
       zipSync({
         "manifest.json": Buffer.from(JSON.stringify(manifest)),
         "notebook.sqlite": readFileSync(join(dir, "notebook.sqlite")),
+        ...Object.fromEntries(
+          manifest.assets.map((a) => [a.path, readFileSync(join(dir, a.path))]),
+        ),
       }),
     );
   } finally {

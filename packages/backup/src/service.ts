@@ -437,7 +437,9 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         notebookId: p.notebookId,
         dir,
       });
-      job.totalBytes = snapshot.manifest.database.size;
+      job.totalBytes =
+        snapshot.manifest.database.size +
+        snapshot.manifest.assets.reduce((n, a) => n + a.size, 0);
       job.processedBytes = 0;
       controller.signal.throwIfAborted();
 

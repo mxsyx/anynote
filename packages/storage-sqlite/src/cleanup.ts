@@ -14,8 +14,20 @@ import type { Storage } from "./index.js";
 
 const uuid = z.string().uuid();
 
+/** Shared device-local quarantine location for cleanup and read-only inspection. */
+export function cleanupQuarantine(
+  s: Storage,
+  notebookId: string,
+  planId?: string,
+) {
+  return s.auxiliaryPath(
+    notebookId,
+    "_local/cleanup-quarantine" + (planId ? "/" + uuid.parse(planId) : ""),
+  );
+}
+
 /**
- * Collect cleanable candidates: unreferenced orphan resources and local snapshots beyond the retention policy.
+ * Collect local snapshots beyond the retention policy.
  *
  * @param s Storage service.
  * @param p Operation payload.
@@ -113,10 +125,7 @@ export function cleanupOperation(s: Storage, op: string, raw: unknown) {
       throw Error("文件或引用已改变，请重新预览");
   }
   const root = s.auxiliaryPath(p.notebookId, ""),
-    quarantine = s.auxiliaryPath(
-      p.notebookId,
-      "_local/cleanup-quarantine/" + p.planId,
-    ),
+    quarantine = cleanupQuarantine(s, p.notebookId, p.planId),
     moved = [];
   try {
     for (const f of plan.files) {

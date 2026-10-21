@@ -35,6 +35,7 @@ import {
   writeTargets,
 } from "./state.js";
 import { startCloudBackup, startCloudRestore } from "./tasks.js";
+import { prepareRestore, previewRestoreBudget } from "./restore-budget.js";
 
 /** Cloud backup core operations; one-to-one with the `Operation` union / `operations.json`. */
 export const cloudBackupOperations = [
@@ -53,6 +54,7 @@ export const cloudBackupOperations = [
   "startCloudBackup",
   "listCloudDevices",
   "listCloudRestorePoints",
+  "previewCloudRestore",
   "restoreCloudTargetBackup",
   "deleteCloudBackup",
 ] as const;
@@ -479,24 +481,37 @@ export async function cloudBackupOperation(
     };
   }
 
-  if (op === "restoreCloudTargetBackup") {
+  if (op === "previewCloudRestore" || op === "restoreCloudTargetBackup") {
     const p = z
         .object({
           notebookId: uuid,
           targetId: uuid,
           deviceSlotId: uuid,
           manifestRef: z.string().max(8192).optional(),
+          expectedCommitId: uuid.optional(),
         })
         .strict()
         .parse(raw),
       target = findTarget(s, p.notebookId, p.targetId),
       account = findAccount(s, target.accountRefId);
     if (!account) throw Error("云盘账号需要重新登录");
+    if (op === "previewCloudRestore") {
+      const { provider } = getCloudProvider(target.providerId);
+      const manifest = await withContext(
+        s,
+        account,
+        target.providerId,
+        { notebookId: target.notebookId },
+        (ctx) => prepareRestore(provider, ctx, p),
+      );
+      return { handled: true, result: previewRestoreBudget(s.root, manifest) };
+    }
     return {
       handled: true,
       result: startCloudRestore(s, target, account, {
         deviceSlotId: p.deviceSlotId,
         manifestRef: p.manifestRef,
+        expectedCommitId: p.expectedCommitId,
       }),
     };
   }
@@ -527,6 +542,7 @@ export async function cloudBackupOperation(
         lastHeadManifestSha256: null,
         lastDatabaseSha256: null,
         lastSuccess: undefined,
+        lastVerification: undefined,
         pendingCleanup: result.failed,
       });
     deleteProviderState(s, target.providerId, `slot.${p.deviceSlotId}`);

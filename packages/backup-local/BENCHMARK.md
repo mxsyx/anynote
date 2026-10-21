@@ -1,9 +1,15 @@
-# 本地备份 Linux/ext4 基准与验收结果
+# 本地备份基准与验收记录
 
-> 存储与备份格式已改为单 SQLite + 1MiB 分块，当前契约见 [存储设计](../../docs/SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
+> 存储与备份格式已改为 SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](../../docs/SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
 > 2026-10-04，设计文档 §16.3 的四组本机规模样本全部通过。首次备份、零变化、少量变更、全量校验、恢复及大文件取消均完成；零变化任务零复制并跳过捕获，恢复数据库哈希一致，取消后原清单和数据库保持不变。
 
-## 环境与数据
+## 2026-10-21：当前格式的 macOS/APFS 小样本
+
+Notebook schema v4、本地备份 v3，Node 24.22.0；同盘 APFS，100 个附件（含一个 8MiB 合成 PDF）与约 4MiB SQLite。单次热缓存样本，首次备份 1153ms、零变化 9.7ms、少量变更 139ms、完整校验 1155ms、恢复 1149ms。零变化复制 0 字节，少量变更只复制一个数据库块和一个新附件，复用其余 104 个对象。
+
+另以 1GiB 新附件验证复制期间取消：abort 到返回约 17ms，原清单及数据库保持完整。命令为 `node scripts/benchmark-local-backup.mjs --samples 100:4`，报告为 `artifacts/local-backup-benchmark.json`。这是当前格式的本机小样本，不代表十万附件、跨盘或真实断电性能；下面的 Linux 数据是旧格式历史记录。
+
+## 历史环境与数据
 
 - Linux x64，AMD Ryzen 7 H 255，16 个逻辑 CPU，29.17GiB 内存；基准 Node 24.11.1，附件复制并发 2。
 - 源、目标与恢复目录位于工作区同一 ext4 文件系统，测试目录为 `artifacts/local-backup-ext4`；未清空操作系统缓存，每阶段单次测量。
@@ -41,4 +47,4 @@ Linux/ext4 上真实 Electron 41.9.1 / 内嵌 Node 24.17.0 的九项桌面验收
 
 本地备份 53 项回归通过，包括清理与协调阶段连续两次真实 SIGKILL、附件流与数据库同步的 ENOSPC、数据库发布 EACCES 有限重试、错误根身份保护及重新接回协调。完整回归 35 个测试文件、295 项通过；工作区、类型、lint 与格式检查通过。
 
-原始报告为 `artifacts/local-backup-ext4-benchmark.json` 与 `artifacts/local-backup-ext4-acceptance.json`，运行命令和续跑方法见 [README](./README.md#ext4-与规模基准)。测试临时数据已清理。上述结果仅覆盖本机同盘、热缓存条件；SSD→HDD、USB、冷缓存、macOS/Windows、真实拔盘和断电仍待实测，原生对话框与输入法仍需人工验收。剩余任务见 [TODO](./TODO.md)。
+原始报告为 `artifacts/local-backup-ext4-benchmark.json` 与 `artifacts/local-backup-ext4-acceptance.json`，运行命令见 [README](./README.md)。测试临时数据已清理。上述结果仅覆盖本机同盘、热缓存条件；SSD→HDD、USB、冷缓存、macOS/Windows、真实拔盘和断电仍待实测，原生对话框与输入法仍需人工验收。剩余任务见 [G03 物理设备演练](../../docs/todo/03-disaster-recovery.md)、[G04 卷适配](../../docs/todo/04-volume-adapters.md)、[G06 原生交互验收](../../docs/todo/06-native-ui-acceptance.md)和 [G08 大清单性能](../../docs/todo/08-local-backup-performance.md)。

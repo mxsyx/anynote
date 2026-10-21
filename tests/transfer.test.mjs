@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -182,11 +184,8 @@ test("corrupt asset and stale revision do not create a target or trash source", 
   );
   const asset = await call("getAsset", { id: n.primary_resource_id }),
     db = s.open(a.id);
-  db.prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?").run(
-    Buffer.from("broken"),
-    asset.hash,
-  );
-  await assert.rejects(s.run("transferNode", p), /校验失败|分块缺失/);
+  writeFileSync(assetFile(db, asset.hash), Buffer.from("broken"));
+  await assert.rejects(s.run("transferNode", p), /校验失败|大小不匹配/);
   assert.equal((await dest("listNodes")).length, 0);
   assert.equal((await call("getNote", { id: n.id })).deleted_at, null);
 });
@@ -255,9 +254,7 @@ test("interrupted move never trashes source when destination asset bytes are cor
   };
   await assert.rejects(s.run("transferNode", p), /中断/);
   const asset = s.open(b.id).prepare("SELECT * FROM assets").get();
-  s.open(b.id)
-    .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
-    .run(Buffer.from("damaged"), asset.hash);
+  writeFileSync(assetFile(s.open(b.id), asset.hash), Buffer.from("damaged"));
   const result = await s.run("transferNode", p);
   assert.equal(result.status, "copied-target-changed");
   assert.equal((await call("getNote", { id: n.id })).deleted_at, null);

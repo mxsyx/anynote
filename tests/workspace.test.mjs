@@ -1,3 +1,4 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
@@ -10,6 +11,7 @@ import {
   renameSync,
   symlinkSync,
   cpSync,
+  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -115,7 +117,7 @@ test("external Notebook keeps identity, original storage, assets, history and ex
   const openZip = await host.run("exportMarkdown", { notebookId: book.id });
   assert.ok(openZip.data.length > 0);
   host.close();
-  assert.deepEqual(readdirSync(path), ["notebook.sqlite"]);
+  assert.deepEqual(readdirSync(path), ["assets", "notebook.sqlite"]);
   const restarted = make("host");
   assert.equal(
     restarted.registry().find((b) => b.id === book.id).name,
@@ -188,7 +190,7 @@ test("write lease rejects competing instances and releases on detach", async (t)
   await a.run("detachNotebookDirectory", { notebookId: book.id });
   assert.ok(existsSync(join(path, "notebook.sqlite")));
   assert.equal(a.registry().length, 0);
-  assert.deepEqual(readdirSync(path), ["notebook.sqlite"]);
+  assert.deepEqual(readdirSync(path), ["assets", "notebook.sqlite"]);
   await b.run("registerNotebookDirectory", { path });
   b.close();
   const release = acquireWriteLock(path);
@@ -247,7 +249,8 @@ test("external directory rejects schemas, missing assets and symlinks before reg
   const missing = join(root, "missing");
   cpSync(path, missing, { recursive: true });
   const missingDb = new DatabaseSync(join(missing, "notebook.sqlite"));
-  missingDb.exec("DELETE FROM asset_chunks");
+  for (const a of missingDb.prepare("SELECT hash FROM assets").all())
+    rmSync(assetFile(missingDb, a.hash));
   missingDb.close();
   await assert.rejects(
     host.run("registerNotebookDirectory", { path: missing }),
@@ -256,11 +259,12 @@ test("external directory rejects schemas, missing assets and symlinks before reg
   const corrupt = join(root, "corrupt");
   cpSync(path, corrupt, { recursive: true });
   const checkDb = new DatabaseSync(join(corrupt, "notebook.sqlite"));
-  checkDb.prepare("UPDATE asset_chunks SET data=?").run(Buffer.from("corrupt"));
+  for (const a of checkDb.prepare("SELECT hash FROM assets").all())
+    writeFileSync(assetFile(checkDb, a.hash), Buffer.from("corrupt"));
   checkDb.close();
   await assert.rejects(
     host.run("registerNotebookDirectory", { path: corrupt }),
-    /校验失败|分块缺失/,
+    /校验失败|大小不匹配/,
   );
   assert.equal(host.registry().length, 0);
 });

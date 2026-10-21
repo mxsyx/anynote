@@ -64,7 +64,7 @@ export const apiContractVersion = 1;
  *
  * The core and official extensions must interoperate within this version; the `protocolVersion` in an extension manifest must equal it.
  */
-export const cloudBackupProtocolVersion = 1;
+export const cloudBackupProtocolVersion = 2;
 
 /** Capabilities advertised by `api.contract()`. */
 export const apiCapabilities: readonly string[] = Object.freeze([

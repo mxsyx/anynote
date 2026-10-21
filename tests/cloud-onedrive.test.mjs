@@ -232,6 +232,8 @@ function createFakeGraph() {
     },
 
     downloadToFile(url, _init, options = {}) {
+      if (options.dest?.startsWith("chunks/"))
+        assert.ok(options.maxBytes > 0 && options.maxBytes <= 1024 ** 2);
       const parsed = new URL(url),
         segs = parsed.pathname
           .replace(/^\/v1\.0/, "")
@@ -356,6 +358,7 @@ test("OneDrive 端到端：分块去重、eTag 冲突拒绝、恢复读回", asy
     ctx = createContext(fake),
     notebookId = randomUUID(),
     deviceSlotId = randomUUID();
+  ctx.notebookId = notebookId;
 
   const handle = await oneDriveProvider.ensureTarget(
     { notebookId, notebookName: "Test", deviceSlotId },
@@ -373,7 +376,7 @@ test("OneDrive 端到端：分块去重、eTag 冲突拒绝、恢复读回", asy
       notebookId,
       notebookName: "Test",
       contentSeq: 3,
-      schemaVersion: 3,
+      schemaVersion: 4,
       database: databaseCapture(dbBytes),
       assets: [],
       release: async () => {},
@@ -409,7 +412,10 @@ test("OneDrive 端到端：分块去重、eTag 冲突拒绝、恢复读回", asy
   assert.equal(slots.slots.length, 1);
   assert.equal(slots.slots[0].deviceSlotId, deviceSlotId);
 
-  const bundle = await oneDriveProvider.download({ deviceSlotId }, ctx);
+  const bundle = await oneDriveProvider.download(
+    await oneDriveProvider.prepareRestore({ deviceSlotId }, ctx),
+    ctx,
+  );
   assert.equal(bundle.manifest.database.sha256, sha256(dbBytes));
   assert.equal(bundle.manifest.database.chunks.length, 4);
   assert.equal(new Set(bundle.databaseChunks.map((c) => c.sha256)).size, 3);
@@ -435,6 +441,7 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
     writerCtx = createContext(fake),
     notebookId = randomUUID(),
     deviceSlotId = randomUUID();
+  writerCtx.notebookId = notebookId;
   const handle = await oneDriveProvider.ensureTarget(
     { notebookId, notebookName: "Test", deviceSlotId },
     writerCtx,
@@ -444,7 +451,7 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
       notebookId,
       notebookName: "Test",
       contentSeq: 1,
-      schemaVersion: 3,
+      schemaVersion: 4,
       database: databaseCapture(dbBytes),
       assets: [],
       release: async () => {},
@@ -460,10 +467,14 @@ test("OneDrive 第二设备只读恢复按名称定位远端槽", async () => {
 
   // New device: the local slot table is empty, so remote slots can only be discovered by name under the Notebook directory.
   const readerCtx = createContext(fake);
+  readerCtx.notebookId = notebookId;
   await oneDriveProvider.ensureTarget(
     { notebookId, notebookName: "Test", deviceSlotId: randomUUID() },
     readerCtx,
   );
-  const bundle = await oneDriveProvider.download({ deviceSlotId }, readerCtx);
+  const bundle = await oneDriveProvider.download(
+    await oneDriveProvider.prepareRestore({ deviceSlotId }, readerCtx),
+    readerCtx,
+  );
   assert.equal(bundle.manifest.database.sha256, sha256(dbBytes));
 });

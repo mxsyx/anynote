@@ -1,4 +1,4 @@
-import { verifyAsset } from "./assets.js";
+import { verifyAsset, assetPath } from "./assets.js";
 
 import {
   copyFileSync,
@@ -265,7 +265,7 @@ export function diagnoseNotebook(
               path: "notebook.sqlite",
             }),
           );
-        if (meta.schema_version !== 3)
+        if (meta.schema_version !== 4)
           issues.push(issue("SCHEMA_UNSUPPORTED", "不支持的数据库版本"));
         else {
           const reference = new DatabaseSync(":memory:");
@@ -311,7 +311,7 @@ export function diagnoseNotebook(
         } catch (e: any) {
           issues.push(
             issue("ASSET_HASH_MISMATCH", e.message, {
-              path: `sqlite:assets/${a.hash}`,
+              path: assetPath(a.hash),
               expected: { size: a.size, sha256: a.hash },
             }),
           );

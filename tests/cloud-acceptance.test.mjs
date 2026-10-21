@@ -1,5 +1,8 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { createHash } from "node:crypto";
 import { acceptanceScenario } from "../scripts/cloud/scenarios.mjs";
 import { readCloudConfig, redact } from "../scripts/cloud/config.mjs";
 import { CloudflareClient } from "../.build/packages/backup/providers.js";
@@ -33,6 +36,18 @@ class LocalWorkerClient extends CloudflareClient {
   }
   async downloadObject(path) {
     return Buffer.from(await (await this.response(path)).arrayBuffer());
+  }
+  async downloadFile(path, file, expected, signal, onBytes) {
+    signal.throwIfAborted();
+    const bytes = await this.downloadObject(path);
+    assert.equal(bytes.length, expected.size);
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      expected.sha256,
+    );
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, bytes, { flag: "wx" });
+    onBytes(bytes.length);
   }
 }
 test("Cloudflare live-acceptance scenario exercises Worker protocol with local D1/R2 adapters", async (t) => {

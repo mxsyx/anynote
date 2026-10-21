@@ -8,7 +8,7 @@ import type {
 /** A managed object registered by this app. */
 export interface ManagedObject {
   locator: CloudObjectLocator;
-  kind: "database" | "manifest" | "pending";
+  kind: "database" | "asset" | "manifest" | "pending";
   sha256?: string;
   /** Registration time; used for the commit grace-period check. */
   registeredAt?: number;
@@ -51,7 +51,10 @@ export function planCleanup(input: CleanupInput): CleanupPlan {
     keep = new Set<string>();
   keep.add(`manifest\u0000${input.currentHead.manifestRef}`);
   if (input.currentManifest) {
-    for (const chunk of input.currentManifest.database.chunks)
+    for (const chunk of [
+      ...input.currentManifest.database.chunks,
+      ...input.currentManifest.assets,
+    ])
       keep.add(locatorKey(chunk.locator));
   }
   for (const locator of input.protectedLocators ?? [])

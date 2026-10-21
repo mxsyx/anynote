@@ -41,14 +41,15 @@ function manifestFor({
 } = {}) {
   return {
     format: "anynote.cloud-backup-manifest",
-    formatVersion: 2,
+    formatVersion: 3,
     notebookId,
     deviceSlotId,
     commitId,
     createdAt: new Date().toISOString(),
-    schemaVersion: 3,
+    schemaVersion: 4,
     contentSeq: 7,
     database: {
+      chunkSize: 1024 ** 2,
       sha256: databaseSha,
       size: databaseSize,
       chunks: [
@@ -56,9 +57,10 @@ function manifestFor({
           sha256: databaseSha,
           size: databaseSize,
           locator: { kind: "test", ref: "db-1" },
+          verification: "download-sha256",
         },
       ],
-      schemaVersion: 3,
+      schemaVersion: 4,
       contentSeq: 7,
     },
     assets: [],
@@ -289,6 +291,7 @@ test("清单完整性校验拒绝身份、哈希、大小与分块不符", () =>
     databaseSha256: manifest.database.sha256,
     databaseSize: manifest.database.size,
     databaseChunks: manifest.database.chunks,
+    assets: manifest.assets,
   };
   assert.equal(assertManifestIntegrity(manifest, expected).commitId, commitId);
   assert.throws(
@@ -499,8 +502,9 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
     notebookId: randomUUID(),
     notebookName: "n",
     contentSeq: 3,
-    schemaVersion: 3,
+    schemaVersion: 4,
     database: {
+      chunkSize: 1024 ** 2,
       sha256: sha("db"),
       size: 4,
       chunks: [{ sha256: sha("db"), size: 4 }],
@@ -530,7 +534,7 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
 
   const noChangeProvider = {
     id: "test",
-    protocolVersion: 1,
+    protocolVersion: 2,
     async plan() {
       return {
         commitId: randomUUID(),
@@ -542,6 +546,9 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
     },
     async reconcile() {
       return { committedCommitId: previousHead.commitId, head: previousHead };
+    },
+    async prepareRestore() {
+      return previousManifest;
     },
     async execute() {
       throw Error("无变化时不应执行上传");
@@ -558,11 +565,12 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
   });
   assert.equal(skipped.unchanged, true);
   assert.equal(skipped.uploadedBytes, 0);
+  assert.equal(skipped.verification, "download-sha256");
 
   /** Build a Provider that only fails during the publish phase. */
   const failingProvider = {
     id: "test",
-    protocolVersion: 1,
+    protocolVersion: 2,
     async plan() {
       return {
         commitId: randomUUID(),
@@ -576,6 +584,7 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
       return {
         commitId: plan.commitId,
         database: {
+          chunkSize: 1024 ** 2,
           sha256: sha("db"),
           size: 4,
           locator: { kind: "test", ref: "db-2" },
@@ -612,6 +621,36 @@ test("分块流程：无变化跳过、发布失败不更新成功指针", async
     }),
     /发布被拒绝/,
   );
+  let published = false;
+  const args = {
+    provider: {
+      ...failingProvider,
+      async verify(input) {
+        input.manifestDraft.database.chunks[0].verification = "accepted-size";
+        return input.manifestDraft;
+      },
+      async publish() {
+        published = true;
+      },
+    },
+    ctx,
+    capture,
+    target: { rootRef: "r", notebookRef: "n", deviceSlotRef: "d" },
+    deviceSlotId: previousHead.deviceSlotId,
+  };
+  await assert.rejects(runChunkedBackup(args), /尚未完成内容校验/);
+  assert.equal(published, false);
+  args.provider.verify = async (input) => {
+    input.manifestDraft.database.chunks[0].verification = "provider-checksum";
+    return input.manifestDraft;
+  };
+  args.provider.publish = async ({ prepared }) => ({
+    commitId: prepared.commitId,
+    head: { ...previousHead, commitId: prepared.commitId },
+    verification: "download-sha256",
+  });
+  const verified = await runChunkedBackup(args);
+  assert.equal(verified.verification, "provider-checksum");
 });
 
 test("占位 Provider 明确拒绝未实现的备份流程", async () => {

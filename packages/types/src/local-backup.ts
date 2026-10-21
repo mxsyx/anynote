@@ -21,16 +21,20 @@ export interface LocalBackupFile {
 /** Manifest file of a local disk backup (`anynote.local-backup`). */
 export interface LocalBackupManifest {
   format: "anynote.local-backup";
-  formatVersion: 2;
+  formatVersion: 3;
   targetId: string;
   notebookId: string;
   taskId: string;
   completedAt: string;
   revision: LocalBackupRevision;
   name: string;
-  database: LocalBackupFile & { chunks: { sha256: string; size: number }[] };
+  database: LocalBackupFile & {
+    chunkSize: number;
+    chunks: { sha256: string; size: number }[];
+  };
   verificationStatus: "verified-new-files";
   lastFullVerifiedAt?: string;
+  assets: LocalBackupFile[];
   files: LocalBackupFile[];
   cleanup: LocalBackupFile[];
 }
@@ -124,6 +128,8 @@ export interface LocalBackupEstimate {
   notebookId: string;
   copyChunks: number;
   skipChunks: number;
+  copyAssets: number;
+  skipAssets: number;
   databaseChanged: boolean;
   deleteFiles: number;
   deleteBytes: number;

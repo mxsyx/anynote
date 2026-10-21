@@ -703,7 +703,7 @@ export async function localBackupOperation(
               schemaVersion: m.revision.schemaVersion,
               notebookId: m.notebookId,
               database: m.database,
-              assets: [],
+              assets: m.assets,
             },
             job,
             signal,

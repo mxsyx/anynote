@@ -156,7 +156,7 @@ export function validateDirectory(
     const meta = metas[0];
     uuid.parse(meta.id);
     z.string().trim().min(1).max(240).parse(meta.name);
-    if (meta.schema_version !== 3) throw Error("不支持的数据库版本");
+    if (meta.schema_version !== 4) throw Error("不支持的数据库版本");
     const reference = new DatabaseSync(":memory:");
     try {
       reference.exec(schemas[meta.schema_version]);

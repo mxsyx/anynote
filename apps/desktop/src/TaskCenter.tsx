@@ -1,4 +1,6 @@
 import { Button } from "./components/ui/button";
+import type { CloudBackupTaskReport } from "@anynote/types/cloud-backup";
+import { formatCloudBytes, verificationLabel } from "./cloud-backup-display";
 import { useEffect, useState } from "react";
 import { request } from "./api";
 import LocalVerificationDetails from "./LocalVerificationDetails";
@@ -27,6 +29,16 @@ function isIntegrityReport(report: unknown): report is IntegrityReport {
     !!report &&
     typeof report === "object" &&
     (report as { format?: string }).format === "anynote.integrity-report"
+  );
+}
+
+function isCloudReport(report: unknown): report is CloudBackupTaskReport {
+  return (
+    !!report &&
+    typeof report === "object" &&
+    ["anynote.cloud-backup-report", "anynote.cloud-restore-report"].includes(
+      (report as { format?: string }).format ?? "",
+    )
   );
 }
 
@@ -67,11 +79,12 @@ export interface Task {
   }[];
   note?: NoteNode;
   restoredId?: string;
-  report?: ImportTaskReport | IntegrityReport;
+  report?: ImportTaskReport | IntegrityReport | CloudBackupTaskReport;
   createdAt: number;
   processedBytes?: number;
   totalBytes?: number;
   diskBudgetBytes?: number;
+  availableBytes?: number;
 }
 
 /** Result of a read-only pending generation query. */
@@ -196,9 +209,13 @@ export default function TaskCenter({
                                   ? "本地备份恢复"
                                   : j.type === "local-verify"
                                     ? "本地备份校验"
-                                    : j.type === "restore"
-                                      ? "云备份恢复"
-                                      : "备份任务"}
+                                    : j.type === "cloud-backup"
+                                      ? "云盘备份"
+                                      : j.type === "cloud-restore"
+                                        ? "云盘恢复"
+                                        : j.type === "restore"
+                                          ? "云备份恢复"
+                                          : "备份任务"}
               </strong>
               <small>{new Date(j.createdAt).toLocaleString("zh-CN")}</small>
             </div>
@@ -215,6 +232,9 @@ export default function TaskCenter({
                 {(j.totalBytes / 1024 ** 2).toFixed(1)} MB
                 {j.diskBudgetBytes !== undefined
                   ? ` · 预计目标磁盘预算 ${(j.diskBudgetBytes / 1024 ** 2).toFixed(1)} MB`
+                  : ""}
+                {j.type === "cloud-restore" && j.availableBytes !== undefined
+                  ? ` · 检查时本地可用 ${formatCloudBytes(j.availableBytes)}`
                   : ""}
               </p>
             )}
@@ -272,7 +292,22 @@ export default function TaskCenter({
                 ))}
               </details>
             )}
-            {isIntegrityReport(j.report) ? (
+            {isCloudReport(j.report) ? (
+              <p className="small-note">
+                内容校验：{verificationLabel(j.report.verification)}
+                {" · 备份内容 "}
+                {formatCloudBytes(
+                  j.report.databaseBytes + (j.report.assetBytes || 0),
+                )}
+                （含附件与历史）
+                {j.report.uploadedBytes !== undefined
+                  ? ` · 本次上传 ${formatCloudBytes(j.report.uploadedBytes)}`
+                  : ""}
+                {j.report.downloadBytes !== undefined
+                  ? ` · 下载 ${formatCloudBytes(j.report.downloadBytes)}`
+                  : ""}
+              </p>
+            ) : isIntegrityReport(j.report) ? (
               <>
                 <p>
                   只读巡检：临时文件 {j.report.counts.tempFiles} · 孤儿资源{" "}

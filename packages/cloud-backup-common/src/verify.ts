@@ -13,6 +13,19 @@ const levelRank: Record<CloudVerificationLevel, number> = {
   "download-sha256": 2,
 };
 
+/** Report the weakest database chunk evidence; a verified pointer is not proof of its contents. */
+export function manifestVerification(
+  manifest: CloudBackupManifest,
+): CloudVerificationLevel {
+  return [
+    ...manifest.database.chunks,
+    ...manifest.assets,
+  ].reduce<CloudVerificationLevel>((level, chunk) => {
+    const actual = chunk.verification ?? "accepted-size";
+    return levelRank[actual] < levelRank[level] ? actual : level;
+  }, "download-sha256");
+}
+
 /**
  * Compare two verification levels.
  *
@@ -83,6 +96,7 @@ export function assertManifestIntegrity(
     commitId: string;
     databaseSha256: string;
     databaseSize: number;
+    assets: readonly { path: string; sha256: string; size: number }[];
     databaseChunks: readonly { sha256: string; size: number }[];
   },
 ): CloudBackupManifest {
@@ -105,5 +119,14 @@ export function assertManifestIntegrity(
     )
   )
     throw Error("远端清单的数据库分块与本地捕获不一致");
+  const assets = new Map(expected.assets.map((a) => [a.sha256, a]));
+  if (
+    manifest.assets.length !== assets.size ||
+    manifest.assets.some((a) => {
+      const source = assets.get(a.sha256);
+      return !source || source.path !== a.path || source.size !== a.size;
+    })
+  )
+    throw Error("远端附件清单与本地捕获不一致");
   return manifest;
 }

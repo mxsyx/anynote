@@ -30,6 +30,7 @@ export {
   assertContentVerification,
   assertManifestIntegrity,
   meetsVerification,
+  manifestVerification,
   resolveVerificationLevel,
 } from "./verify.js";
 
@@ -53,4 +54,4 @@ export type { RetryableError } from "./upload.js";
 export { createPlaceholderProvider } from "./placeholder.js";
 export type { PlaceholderProviderOptions } from "./placeholder.js";
 
-export { mapDatabaseChunks } from "./chunks.js";
+export { mapDatabaseChunks, mapAssets } from "./chunks.js";

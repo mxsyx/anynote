@@ -1,4 +1,6 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import {
+  putAsset,
   putAssetFile,
   verifyAsset,
 } from "../.build/packages/storage-sqlite/assets.js";
@@ -15,6 +17,7 @@ import {
   closeSync,
   writeSync,
   statSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -141,6 +144,11 @@ test(
       putAssetFile(s.open(book.id), temporary, "application/octet-stream"),
       hash,
     );
+    s.open(book.id)
+      .prepare(
+        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+      )
+      .run(randomUUID(), hash, "large.bin");
     rmSync(temporary);
     const file = join(root, "large.anynote"),
       result = await s.run("startExportArchiveFile", {
@@ -187,6 +195,52 @@ test("corrupt source export preserves existing destination and removes partial a
   assert.equal(readFileSync(file).toString(), "old destination");
   assert.ok(!readdirSync(root).some((n) => n.endsWith(".partial")));
 });
+
+for (const damage of ["changed chunk", "missing chunk", "broken foreign key"])
+  test(`stream export rejects ${damage} before publishing or replacing an archive`, async (t) => {
+    const { root, s, book } = await fixture(t),
+      db = s.open(book.id),
+      hash = putAsset(db, Buffer.from("retained asset"), "text/plain");
+
+    db.prepare(
+      "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+    ).run(randomUUID(), hash, "asset.txt");
+    if (damage === "changed chunk")
+      writeFileSync(assetFile(db, hash), Buffer.from("modified asset"));
+    else if (damage === "missing chunk") rmSync(assetFile(db, hash));
+    else {
+      db.exec("PRAGMA foreign_keys=OFF");
+      db.prepare(
+        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+      ).run(randomUUID(), "0".repeat(64), "missing.txt");
+      db.exec("PRAGMA foreign_keys=ON");
+    }
+
+    for (const replaceExisting of [false, true]) {
+      const path = join(
+        root,
+        replaceExisting ? "existing.anynote" : "new.anynote",
+      );
+      if (replaceExisting) writeFileSync(path, "previous archive");
+      const result = await s.run("startExportArchiveFile", {
+          notebookId: book.id,
+          path,
+          replaceExisting,
+        }),
+        job = s.jobs.get(result.id);
+      await job.promise;
+      assert.equal(job.status, "failed");
+      assert.match(job.error, /SHA-256|缺失|大小|引用|完整性/);
+      if (replaceExisting)
+        assert.equal(readFileSync(path, "utf8"), "previous archive");
+      else assert.equal(existsSync(path), false);
+      assert.equal(s.pins.has(book.id), false);
+      assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
+      assert.deepEqual(readdirSync(join(s.root, "_local/job-leases")), []);
+      assert.ok(!readdirSync(root).some((name) => name.endsWith(".partial")));
+    }
+  });
+
 test("cancellation leaves no completed archive or temporary notebook", async (t) => {
   const { root, s, book, call } = await fixture(t);
   await call("createNode", { title: "正文" });
@@ -200,6 +254,28 @@ test("cancellation leaves no completed archive or temporary notebook", async (t)
   assert.equal(s.jobs.get(result.id).status, "cancelled");
   assert.ok(!readdirSync(root).includes("cancel.anynote"));
   assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
+});
+
+test("cancelling export validation preserves the destination and releases its lease", async (t) => {
+  const { root, s, book } = await fixture(t),
+    path = join(root, "cancel-validation.anynote");
+  writeFileSync(path, "previous archive");
+  const result = await s.run("startExportArchiveFile", {
+      notebookId: book.id,
+      path,
+      replaceExisting: true,
+    }),
+    job = s.jobs.get(result.id);
+  for (let n = 0; n < 1000 && !job.worker && job.status === "running"; n++)
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  assert.ok(job.worker);
+  await s.run("cancelTask", { id: job.id });
+  await job.promise;
+  assert.equal(job.status, "cancelled");
+  assert.equal(readFileSync(path, "utf8"), "previous archive");
+  assert.equal(s.pins.has(book.id), false);
+  assert.deepEqual(readdirSync(join(s.root, "_local/archive-jobs")), []);
+  assert.deepEqual(readdirSync(join(s.root, "_local/job-leases")), []);
 });
 test("stream importer rejects traversal, symlinks, duplicate entries, undeclared files and bad hashes", async (t) => {
   const { root, s, call } = await fixture(t);

@@ -368,6 +368,7 @@ test("staging references stay protected even after the object grace period", asy
   const manifestKey = `manifests/${b.id}/${generationId}.json`;
   const manifest = JSON.parse(env.BUCKET.objects.get(manifestKey));
   manifest.database = {
+    chunkSize: 1024 ** 2,
     sha256: hash,
     size: bytes.length,
     chunks: [{ sha256: hash, size: bytes.length }],

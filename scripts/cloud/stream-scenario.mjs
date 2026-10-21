@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { Storage } from "../../.build/packages/storage-sqlite/index.js";
 
 export async function streamScenario({ settings, onStep = () => {} }) {
@@ -56,6 +56,12 @@ export async function streamScenario({ settings, onStep = () => {} }) {
       "application/octet-stream",
     );
     assert.equal(hash, digest.digest("hex"));
+    storage
+      .open(book.id)
+      .prepare(
+        "INSERT INTO resources(id,asset_hash,original_name) VALUES(?,?,?)",
+      )
+      .run(randomUUID(), hash, "large.bin");
     rmSync(temp);
     await call("saveNote", {
       id: note.id,
@@ -81,7 +87,7 @@ export async function streamScenario({ settings, onStep = () => {} }) {
       lineageId: target.lineageId,
       assetBytes: size,
       fixture:
-        "random 64KiB block repeated; exercises dedup, not transfer throughput",
+        "random 64KiB block repeated; transfers one whole 112MiB asset using multipart",
     });
     await complete(await call("startBackup", { targetId: target.id }));
     record("112MiB-file-backup-committed");

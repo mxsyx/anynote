@@ -47,7 +47,7 @@ range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静�
 
 | 消费者        | 提供者                  | 接受范围 | 说明                                       |
 | ------------- | ----------------------- | -------- | ------------------------------------------ |
-| `desktop`     | `notebook-schema`       | `3`      | 仅支持单 SQLite schema 3                   |
+| `desktop`     | `notebook-schema`       | `4`      | SQLite 与独立附件 schema 4                 |
 | `desktop`     | `notebook-archive`      | `1`      | 完整归档 `anynote.notebook` v1             |
 | `desktop`     | `sqlite-backup`         | `1`      | 与 Worker 仅在同一物理分块协议版本内互操作 |
 | `worker`      | `sqlite-backup`         | `1`      | Worker 只接受 `anynote.sqlite` v1          |
@@ -56,9 +56,9 @@ range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静�
 | `desktop`     | `extension-package`     | `1`      | 签名扩展包                                 |
 | `desktop`     | `extension-directory`   | `1`      | 扩展目录                                   |
 | `desktop`     | `extension-settings`    | `1`      | 扩展设置                                   |
-| `desktop`     | `local-backup`          | `2`      | 本地磁盘备份清单                           |
+| `desktop`     | `local-backup`          | `3`      | 本地磁盘备份清单                           |
 | `desktop`     | `cloud-backup-head`     | `1`      | 云盘备份当前指针                           |
-| `desktop`     | `cloud-backup-manifest` | `2`      | 云盘备份完整清单                           |
+| `desktop`     | `cloud-backup-manifest` | `3`      | 云盘备份完整清单                           |
 
 `checkReleaseCompatibility(consumer, provider, version)` 返回 `{ compatible, window }`
 或 `{ compatible: false, reason }`；`assertReleaseCompatibility` 在越界时抛错。
@@ -106,5 +106,7 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema
-  导入旧桌面）的真机验收仍见 [TODO](../TODO.md) §1、§6。
+  导入旧桌面）的原验收范围见 [G02 跨平台验收](todo/02-platform-acceptance.md)，
+  实际首发要求按 [G00 范围决策](todo/00-release-scope.md) 与当前项目兼容性规则重审；
+  打包、签名和发行验收见 [G05 桌面发行](todo/05-desktop-distribution.md)。
 - 桌面以 GitHub Release 分发、Worker 以 Wrangler 部署，均不进入 npm。

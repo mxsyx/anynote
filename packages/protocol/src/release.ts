@@ -213,7 +213,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "notebook-schema",
     tag: "notebook.sqlite",
-    version: 3,
+    version: 4,
     owner: "format",
   },
   {
@@ -231,7 +231,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "local-backup",
     tag: "anynote.local-backup",
-    version: 2,
+    version: 3,
     owner: "format",
   },
   {
@@ -243,7 +243,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "cloud-backup-manifest",
     tag: "anynote.cloud-backup-manifest",
-    version: 2,
+    version: 3,
     owner: "format",
   },
   {
@@ -278,8 +278,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "notebook-schema",
-    accepts: "3",
-    note: "桌面仅接受包含资源 BLOB 的 schema 3",
+    accepts: "4",
+    note: "桌面仅接受数据库与不可变附件分离的 schema 4",
   },
   {
     consumer: "desktop",
@@ -332,8 +332,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "local-backup",
-    accepts: "2",
-    note: "本地磁盘备份清单 anynote.local-backup v2",
+    accepts: "3",
+    note: "本地磁盘备份清单 anynote.local-backup v3",
   },
   {
     consumer: "desktop",
@@ -344,8 +344,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "cloud-backup-manifest",
-    accepts: "2",
-    note: "云盘备份完整清单 anynote.cloud-backup-manifest v2",
+    accepts: "3",
+    note: "云盘备份完整清单 anynote.cloud-backup-manifest v3",
   },
 ];
 export const compatibilityWindows: readonly CompatibilityWindow[] =

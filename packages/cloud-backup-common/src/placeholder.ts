@@ -32,7 +32,7 @@ export function createPlaceholderProvider(
   };
   return {
     id: options.id,
-    protocolVersion: 1,
+    protocolVersion: 2,
     capabilities: options.capabilities,
     accountDescriptor: options.accountDescriptor,
     async probe(): Promise<TargetCapabilities> {
@@ -55,6 +55,7 @@ export function createPlaceholderProvider(
     async listCurrentBackups(): Promise<BackupPage> {
       return { slots: [] };
     },
+    prepareRestore: reject,
     download: reject,
     async cleanup() {
       return { deleted: 0, failed: 0 };

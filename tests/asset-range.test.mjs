@@ -1,6 +1,7 @@
+import { assetFile } from "../.build/packages/storage-sqlite/assets.js";
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
@@ -60,9 +61,7 @@ test("bounded asset reads enforce identity, ranges, revision reference and corru
       }),
       /未引用/,
     );
-    s.open(b.id)
-      .prepare("UPDATE asset_chunks SET data=? WHERE asset_hash=?")
-      .run(Buffer.alloc(png.length), info.hash);
+    writeFileSync(assetFile(s.open(b.id), info.hash), Buffer.alloc(png.length));
     await assert.rejects(s.run("getAssetInfo", input), /SHA-256/);
   } finally {
     s.close();

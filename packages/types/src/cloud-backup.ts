@@ -76,6 +76,8 @@ export interface CloudBackupTarget {
   nextAttemptAt?: number | null;
   pausedReason?: string | null;
   lastTaskBytes?: number;
+  /** Lowest content-verification level of the last successful snapshot, not the pointer read-back. */
+  lastVerification?: CloudVerificationLevel;
   /** Identity of the last successfully published head, used for no-change checks and commit confirmation. */
   lastHeadCommitId?: string | null;
   lastHeadManifestSha256?: string | null;
@@ -98,6 +100,7 @@ export interface CloudBackupDeviceSlot {
   commitId?: string;
   completedAt?: string;
   databaseBytes?: number;
+  assetBytes?: number;
   verification?: CloudVerificationLevel;
   /** Whether this slot was written by this device; cross-device slots are read-only candidates. */
   local?: boolean;
@@ -153,6 +156,7 @@ export interface CloudBackupObjectRef {
 
 /** Content-addressed ordered database chunks; the whole-file hash is verified on restore. */
 export interface CloudDatabaseRef {
+  chunkSize: number;
   sha256: string;
   size: number;
   chunks: CloudBackupObjectRef[];
@@ -161,7 +165,7 @@ export interface CloudDatabaseRef {
 /** Full manifest; all database chunk references must be resolvable. */
 export interface CloudBackupManifest {
   format: "anynote.cloud-backup-manifest";
-  formatVersion: 2;
+  formatVersion: 3;
   notebookId: string;
   notebookName?: string;
   deviceSlotId: string;
@@ -174,7 +178,7 @@ export interface CloudBackupManifest {
     schemaVersion: number;
     contentSeq: number;
   };
-  assets: [];
+  assets: (CloudBackupObjectRef & { path: string })[];
   /** Source device of this manifest; for diagnostics only, not used as identity. */
   sourceDevice?: string;
 }
@@ -250,10 +254,15 @@ export interface CloudCaptureHandle {
   contentSeq: number;
   schemaVersion: number;
   database: ScopedReadSource & {
+    chunkSize: number;
     sha256: string;
     chunks: (ScopedReadSource & { sha256: string })[];
   };
-  assets: [];
+  assets: (ScopedReadSource & {
+    path: string;
+    sha256: string;
+    mimeType?: string;
+  })[];
   release(): Promise<void>;
 }
 
@@ -422,7 +431,7 @@ export interface CapturedBackupInput {
 
 /** An item in the upload plan. */
 export interface CloudUploadItem {
-  kind: "database" | "manifest";
+  kind: "database" | "asset" | "manifest";
   sha256: string;
   size: number;
   /** Remote locator to reuse; if absent, the object needs uploading. */
@@ -451,7 +460,7 @@ export interface CloudBackupPlan {
 export interface PreparedRemoteBackup {
   commitId: string;
   database: CloudDatabaseRef;
-  assets: [];
+  assets: (CloudBackupObjectRef & { path: string })[];
   /** Bytes actually transferred this time. */
   transferredBytes: number;
   /** Whether all objects have been uploaded (true when unchanged). */
@@ -508,13 +517,26 @@ export interface RestoreSelection {
   manifestRef?: string;
 }
 
+/** Pre-download estimate for the complete SQLite snapshot, including separate immutable attachments. */
+export interface CloudRestorePreview {
+  commitId: string;
+  databaseBytes: number;
+  assetBytes: number;
+  downloadBytes: number;
+  diskBudgetBytes: number;
+  availableBytes: number;
+  reservedBytes: number;
+  sufficient: boolean;
+  verification: CloudVerificationLevel;
+}
+
 /** Restore bundle: objects downloaded into the core-private temp directory. */
 export interface RestoreBundle {
   manifest: CloudBackupManifest;
   /** Temporary database file (inside the core-private temp directory). */
   databaseChunks: { sha256: string; size: number; filePath: string }[];
   /** Temporary asset files; `path` is the relative path in the manifest. */
-  assets: [];
+  assets: { path: string; sha256: string; size: number; filePath: string }[];
   /** Verification level during download. */
   verification: CloudVerificationLevel;
 }
@@ -562,8 +584,13 @@ export interface CloudBackupProvider {
     ctx: BackupHostContext,
   ): Promise<ReconcileResult>;
   listCurrentBackups(ctx: BackupHostContext): Promise<BackupPage>;
-  download(
+  /** Read and validate metadata only. Object downloads must wait for the host's disk check. */
+  prepareRestore(
     input: RestoreSelection,
+    ctx: BackupHostContext,
+  ): Promise<CloudBackupManifest>;
+  download(
+    manifest: CloudBackupManifest,
     ctx: BackupHostContext,
   ): Promise<RestoreBundle>;
   cleanup(input: CleanupPlan, ctx: BackupHostContext): Promise<CleanupResult>;
@@ -615,7 +642,20 @@ export interface CloudRestoreResult {
   name: string;
   databaseSha256: string;
   databaseBytes: number;
+  assetBytes: number;
   verification: CloudVerificationLevel;
+}
+
+/** Bounded, credential-free evidence retained in task history. */
+export interface CloudBackupTaskReport {
+  format: "anynote.cloud-backup-report" | "anynote.cloud-restore-report";
+  formatVersion: 1;
+  verification: CloudVerificationLevel;
+  databaseBytes: number;
+  assetBytes: number;
+  uploadedBytes?: number;
+  downloadBytes?: number;
+  diskBudgetBytes?: number;
 }
 
 /** Public SDK surface for cloud backup. */
@@ -678,11 +718,19 @@ export interface CloudBackupAPI {
     targetId: string;
     deviceSlotId?: string;
   }): Promise<CloudBackupDeviceSlot[]>;
+  previewRestore(input: {
+    notebookId: string;
+    targetId: string;
+    deviceSlotId: string;
+    manifestRef?: string;
+  }): Promise<CloudRestorePreview>;
   restore(input: {
     notebookId: string;
     targetId: string;
     deviceSlotId: string;
     manifestRef?: string;
+    /** Reject a changed current snapshot after the user has reviewed its estimate. */
+    expectedCommitId?: string;
   }): Promise<{ id: string }>;
   deleteBackup(input: {
     notebookId: string;

@@ -5,6 +5,7 @@ import {
   readAssetRange,
   verifyAsset,
   verifyAssets,
+  assertAssetClosure,
 } from "./assets.js";
 import {
   initializeBackupRevision,
@@ -572,7 +573,7 @@ export class Storage {
       const meta = db
         .prepare("SELECT id,schema_version FROM notebook_meta")
         .get();
-      if (meta?.id !== id || meta.schema_version !== 3)
+      if (meta?.id !== id || meta.schema_version !== 4)
         throw Error("Notebook 身份或版本无效");
       this.readDbs.set(id, db);
       while (this.readDbs.size > this.maxReadConnections) {
@@ -624,7 +625,7 @@ export class Storage {
     this.readDbs.get(id)?.close();
     this.readDbs.delete(id);
     if (this.externalDirectories.has(id)) {
-      const meta = validateDirectory(dir, { 3: schema });
+      const meta = validateDirectory(dir, { 4: schema });
       if (meta.id !== id) throw Error("Notebook 身份与已登记目录不匹配");
     }
     const release = acquireWriteLock(dir),
@@ -632,7 +633,7 @@ export class Storage {
     this.writeLocks.set(id, release);
     try {
       const meta = db.prepare("SELECT * FROM notebook_meta").get();
-      if (!meta || meta.id !== id || meta.schema_version !== 3)
+      if (!meta || meta.id !== id || meta.schema_version !== 4)
         throw Error("Notebook 身份或版本无效");
       initializeBackupRevision(db);
       const identity = lstatSync(p, { bigint: true });
@@ -980,16 +981,16 @@ export class Storage {
     }
 
     if (op === "registerNotebookDirectory")
-      return registerDirectory(this, raw, { 3: schema });
+      return registerDirectory(this, raw, { 4: schema });
 
     if (op === "detachNotebookDirectory") return detachDirectory(this, raw);
 
     if (op === "diagnoseNotebook")
-      return diagnoseNotebook(this, raw, { 3: schema });
+      return diagnoseNotebook(this, raw, { 4: schema });
 
     if (op === "preserveNotebookEvidence")
       return preserveNotebookEvidence(this, raw, {
-        3: schema,
+        4: schema,
       });
 
     if (
@@ -1088,7 +1089,7 @@ export class Storage {
       const db = new DatabaseSync(join(dir, "notebook.sqlite"));
       db.exec(schema);
       db.prepare(
-        "INSERT INTO notebook_meta(id,name,created_at,schema_version) VALUES(?,?,?,3)",
+        "INSERT INTO notebook_meta(id,name,created_at,schema_version) VALUES(?,?,?,4)",
       ).run(id, p.title || "我的知识库", Date.now());
       db.close();
       return { id, name: p.title || "我的知识库" };
@@ -1435,7 +1436,7 @@ export class Storage {
       tmp = join(workspace.dir, "notebook.sqlite");
     this.pins.set(id, (this.pins.get(id) || 0) + 1);
     try {
-      await snapshotDatabase(db, tmp);
+      const assets = await snapshotDatabase(db, tmp);
       const snap = new DatabaseSync(tmp, { readOnly: true });
       let meta;
       try {
@@ -1446,13 +1447,18 @@ export class Storage {
       }
       const bytes = readFileSync(tmp);
       const files: Record<string, Uint8Array> = { "notebook.sqlite": bytes };
-      if (bytes.length > 100 * 1024 * 1024)
+      if (
+        bytes.length + assets.reduce((n, a) => n + a.size, 0) >
+        100 * 1024 * 1024
+      )
         throw Error("当前导出包上限为 100MB");
+      for (const asset of assets)
+        files[asset.path] = readFileSync(join(workspace.dir, asset.path));
       files["manifest.json"] = Buffer.from(
         JSON.stringify({
           format: "anynote.notebook",
           formatVersion: 1,
-          schemaVersion: 3,
+          schemaVersion: 4,
           appVersion: "0.1.0",
           notebookId: id,
           generationId: randomUUID(),
@@ -1463,7 +1469,7 @@ export class Storage {
             size: bytes.length,
             sha256: hash(bytes),
           },
-          assets: [],
+          assets,
           includesHistory: true,
           includesTrash: true,
         }),
@@ -1497,7 +1503,9 @@ export class Storage {
           f.name.startsWith("/") ||
           f.name.includes("..") ||
           f.name.includes("\\") ||
-          !/^(manifest\.json|notebook\.sqlite)$/.test(f.name)
+          !/^(manifest\.json|notebook\.sqlite|assets\/sha256\/[a-f0-9]{2}\/[a-f0-9]{64}\.bin)$/.test(
+            f.name,
+          )
         )
           throw Error("导入包包含不安全路径或重复文件");
         seen.add(f.name);
@@ -1511,7 +1519,7 @@ export class Storage {
       .object({
         format: z.literal("anynote.notebook"),
         formatVersion: z.literal(1),
-        schemaVersion: z.literal(3),
+        schemaVersion: z.literal(4),
         notebookId: uuid,
         database: z.object({
           path: z.literal("notebook.sqlite"),
@@ -1529,9 +1537,9 @@ export class Storage {
         ),
       })
       .parse(JSON.parse(Buffer.from(files["manifest.json"] || []).toString()));
-    if (m.assets.length || Object.keys(files).length !== 2)
+    if (Object.keys(files).length !== m.assets.length + 2)
       throw Error("不支持的归档格式");
-    for (const f of [m.database]) {
+    for (const f of [m.database, ...m.assets]) {
       const b = files[f.path];
       if (!b || b.length !== f.size || hash(b) !== f.sha256)
         throw Error("导入文件校验失败");
@@ -1590,8 +1598,8 @@ export class Storage {
         meta[0].id !== m.notebookId
       )
         throw Error("Notebook 元数据不匹配");
-      if (m.schemaVersion !== 3 || m.assets.length)
-        throw Error("不支持的归档格式");
+      if (m.schemaVersion !== 4) throw Error("不支持的归档格式");
+      assertAssetClosure(db, m.assets);
       verifyAssets(db);
       const rows = db.prepare("SELECT id,parent_id,kind FROM nodes").all(),
         map = new Map(rows.map((n) => [n.id, n])),

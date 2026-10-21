@@ -1,14 +1,16 @@
 # 实施记录
 
+> 当前存储为 SQLite schema v4 + 不可变附件文件，数据库按块增量、附件按文件增量，统一清单提交与恢复，见 [存储设计](SQLITE-STORAGE.md)。下文历史云端和平台验收不能作为新格式的验收结论。
+
 日期：2026-10-04。依据 Anynote-Design.md 0.1，保留 Markdown 为唯一正文真源。已完成 P2/P3 和部分 P4 功能，已补充块级富文本、排序、跨库反链、元数据历史与本地清理；已补充外部 Notebook 目录打开与写锁；已补充全局搜索、筛选、连接 LRU 和万篇后端基准；已完成桌面真实云验收及跨 Notebook 复制/移动；已完成桌面流式 ZIP/ZIP64 归档及 Cloudflare 远端清理/设备接管；已补齐 UTC 日/周/月采样及核心 TypeScript 迁移；已完成大文件云备份/恢复分块及真实 Cloudflare 验收；已补充客户端硬中断重启与源目录不可用恢复演练；已实现独立云连接、分页发现及全新设备恢复向导；已补齐 Linux 性能与界面验收、范围读取 PDF、超大 Markdown 策略和键盘/缩放修复；仍为预览版，未将完整设计标记为已验收。
 
 ## 架构与新增模块
 
 - `apps/desktop/electron/`：安全窗口、IPC 允许列表、SQLite Utility Process、系统加密凭据代理；知识库服务与窗口生命周期分离。
-- `packages/storage-sqlite/`：schema v3（附件 BLOB 内置）、事务、资源版本引用闭包、批注、反链、导入报告、扩展状态、归档与开放格式导出。
+- `packages/storage-sqlite/`：schema v4（SQLite 元数据与不可变附件文件）、事务、资源版本引用闭包、批注、反链、导入报告、扩展状态、归档与开放格式导出。
 - `packages/protocol/`：扩展块原文与位置、代码围栏保护、资源引用、YouTube 地址、HTML 编码识别及公共操作允许列表。
 - `packages/importer/`：独立 Worker Thread 执行 Readability、DOMPurify、Turndown 和受控下载；完成后排入单个知识事务。
-- `packages/backup/`：Cloudflare 逻辑实体对象、恢复、设备配置、凭据门面、自动备份调度。
+- `packages/backup/`：Cloudflare 数据库分块与完整附件对象、恢复、设备配置、凭据门面、自动备份调度。
 - `apps/cloudflare-backup/`：单用户自托管 Worker、D1 migration、R2 内容对象、staging 校验与分支 CAS 发布。
 - `packages/plugin-sdk/`：公共 API、权限及 Notebook 范围、命令生命周期、状态、幂等操作和示例。
 - `packages/extension-host/`：首方独立进程、惰性激活、消息代理、Notebook 会话授权、超时/崩溃回收。
@@ -20,21 +22,21 @@ Node 内置 `node:sqlite` 仍为实验 API；当前运行要求 Node 24，桌面
 
 ## 一致性与恢复规则
 
-schema v1 迁移前通过 VACUUM INTO 保存独立 SQLite 快照，再事务升级。v2 加入 revision_resources、annotations、note_links、note_text、extension_data 和 import_reports。
+当前 schema v4 不兼容旧 BLOB 数据库，也不自动迁移。SQLite 保存正文、历史、回收站和引用；图片、附件等二进制内容保存在同目录下的不可变内容哈希文件中。
 
 白板场景、预览和图片按 SHA-256 保存不可变字节；每个正文版本冻结 resourceId→assetHash 映射，并递归保存场景图片引用。普通正文编辑继承未换绑的资源版本；恢复历史复制所选版本的引用；不物理删除资源，避免破坏历史。
 
 导入任务的联网/解析与存储写入分离；资源先完成磁盘写入，笔记、引用、来源、报告及 changes 在一个事务中提交。失败文件最多形成未引用对象，不形成半成品笔记。
 
-Cloudflare 对每行知识实体生成不可变 JSON 对象，D1 保存版本、实体 delta 与删除记录；每个版本包含完整映射 checkpoint，可独立恢复，不依赖长链回放。staging 不进入恢复列表，最终事务 guard + head CAS 原子发布。
+Cloudflare 保存有序数据库块及完整附件文件，D1 保存版本元数据；每个版本包含完整清单，可独立恢复，不依赖增量版本链。staging 不进入恢复列表，最终事务 guard + head CAS 原子发布。
 
 设备侧按目标保存 ack 游标及 pending generation，失败不推进游标；提交响应丢失后重试先查询固定版本状态，确认提交后修复本地游标。目标自动备份默认关闭，启用后仅应用运行时检查变更。同一目标不重复启动活动备份；远端列举和连接测试不占用知识修改队列。
 
-完整归档保留批注、扩展状态、历史及回收站，不包含设备凭据、备份游标及缓存。Cloudflare 恢复从白名单表与字段重建本地 SQLite，再复用完整归档的 schema、哈希、外键和目录校验，创建新 Notebook。
+完整归档保留批注、扩展状态、历史及回收站，不包含设备凭据、备份游标及缓存。Cloudflare 恢复按有序块组装本地 SQLite，下载对应附件，再复用完整归档的 schema、哈希、外键和目录校验，创建新 Notebook。
 
 ## 工作区与目录写锁
 
-桌面设置页可选择含 notebook.sqlite 的原目录，在原位置打开，保留 Notebook UUID。目录登记保存在应用 `_local/notebook-directories.json`，不进入导出或远端备份。已登记但磁盘未连接的目录保留列表提示；重新连接后重新验证身份。数据库是唯一持久化知识文件，不生成引导 JSON，也不迁移旧 schema。
+桌面设置页可选择含 notebook.sqlite 的原目录，在原位置打开，保留 Notebook UUID。目录登记保存在应用 `_local/notebook-directories.json`，不进入导出或远端备份。已登记但磁盘未连接的目录保留列表提示；重新连接后重新验证身份。数据库和 assets 目录共同构成持久化知识数据，不生成引导 JSON，也不迁移旧 schema。
 
 每个被打开的目录使用独立 `.anynote-lease.sqlite` 连接持有 SQLite EXCLUSIVE 系统锁；另一存储实例拒绝打开，释放连接或进程退出后系统释放锁。租约文件保留，以避免删除/重建锁文件的竞争；它不是知识数据库，导出不会携带它。覆盖应用管理目录与外部目录；不支持把同一实体目录复制为同 UUID 的第二个可写位置。连接 LRU 回收可写连接时也释放该目录租约；下一次写入重新获取，冲突时拒绝写入并保留界面草稿。移出工作区不会删除原文件，活动任务或快照固定期间拒绝移出；未登记目录的自动备份不再启动，重新打开后恢复原配置。
 

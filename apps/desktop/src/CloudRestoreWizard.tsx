@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { HardDriveDownload, X } from "./icons";
 import { request } from "./api";
 import type { CloudTargetView } from "./CloudBackup";
+import type { CloudRestorePreview } from "@anynote/types/cloud-backup";
+import {
+  formatCloudBytes as formatBytes,
+  verificationLabel,
+} from "./cloud-backup-display";
 
 /** A restorable backup slot (device + current copy). */
 interface Slot {
@@ -11,6 +16,7 @@ interface Slot {
   commitId?: string;
   completedAt?: string;
   databaseBytes?: number;
+  assetBytes?: number;
   verification?: string;
   local?: boolean;
 }
@@ -22,26 +28,6 @@ interface TaskRow {
   progress?: string;
   error?: string;
   restoredId?: string;
-}
-
-/** Human-readable verification level. */
-const verificationLabels: Record<string, string> = {
-  "provider-checksum": "已上传并校验内容",
-  "download-sha256": "已完整校验",
-  "accepted-size": "已上传，尚未完整校验",
-};
-
-/** Human-readable byte count. */
-function formatBytes(bytes?: number) {
-  if (bytes == null) return "未知";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes,
-    unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 /**
@@ -63,6 +49,9 @@ export default function CloudRestoreWizard({
 }) {
   const [slots, setSlots] = useState<Slot[]>([]),
     [selected, setSelected] = useState<Slot | null>(null),
+    [preview, setPreview] = useState<CloudRestorePreview | null>(null),
+    [estimating, setEstimating] = useState(false),
+    [estimateVersion, setEstimateVersion] = useState(0),
     [taskId, setTaskId] = useState(""),
     [progress, setProgress] = useState(""),
     [error, setError] = useState(""),
@@ -76,6 +65,31 @@ export default function CloudRestoreWizard({
       .then(setSlots)
       .catch((e) => setError((e as Error).message));
   }, [notebookId, target.target.id]);
+
+  useEffect(() => {
+    setPreview(null);
+    if (!selected) return;
+    let active = true;
+    setEstimating(true);
+    setError("");
+    void request<CloudRestorePreview>("previewCloudRestore", {
+      notebookId,
+      targetId: target.target.id,
+      deviceSlotId: selected.deviceSlotId,
+    })
+      .then((value) => {
+        if (active) setPreview(value);
+      })
+      .catch((e) => {
+        if (active) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (active) setEstimating(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [notebookId, target.target.id, selected, estimateVersion]);
 
   // Restore is a background task: poll the task center and switch to the new Notebook when done.
   useEffect(() => {
@@ -142,7 +156,12 @@ export default function CloudRestoreWizard({
                   {slot.completedAt
                     ? new Date(slot.completedAt).toLocaleString("zh-CN")
                     : "未知时间"}{" "}
-                  · {formatBytes(slot.databaseBytes)}
+                  ·{" "}
+                  {formatBytes(
+                    slot.databaseBytes == null
+                      ? undefined
+                      : slot.databaseBytes + (slot.assetBytes || 0),
+                  )}
                 </small>
               </span>
               <Button
@@ -150,7 +169,10 @@ export default function CloudRestoreWizard({
                 size="layout"
                 className="secondary"
                 disabled={busy}
-                onClick={() => setSelected(slot)}
+                onClick={() => {
+                  setPreview(null);
+                  setSelected(slot);
+                }}
               >
                 选择
               </Button>
@@ -165,30 +187,76 @@ export default function CloudRestoreWizard({
                 ? new Date(selected.completedAt).toLocaleString("zh-CN")
                 : "所选时间"}{" "}
               的副本：
-              {formatBytes(selected.databaseBytes)}（包含正文、附件和历史）。
+              {formatBytes(
+                preview
+                  ? preview.databaseBytes + preview.assetBytes
+                  : selected.databaseBytes == null
+                    ? undefined
+                    : selected.databaseBytes + (selected.assetBytes || 0),
+              )}
+              （包含正文、附件和历史）。
             </p>
             <p className="small-note">
               校验状态：
-              {verificationLabels[selected.verification ?? ""] ??
-                selected.verification ??
-                "未知"}
+              {verificationLabel(
+                preview?.verification ?? selected.verification,
+              )}
               。恢复创建新
               Notebook，不覆盖当前工作库；缺少的插件内容会保留数据并降级预览。
             </p>
+            {estimating && <p role="status">正在读取备份清单并预估恢复空间…</p>}
+            {preview && (
+              <div className="small-note" role="status">
+                <p>
+                  预计下载 {formatBytes(preview.downloadBytes)} · 恢复所需空间约{" "}
+                  {formatBytes(preview.diskBudgetBytes)}
+                </p>
+                <p>
+                  本地可用 {formatBytes(preview.availableBytes)}
+                  {preview.reservedBytes > 0
+                    ? ` · 其他恢复任务预算 ${formatBytes(preview.reservedBytes)}`
+                    : ""}
+                </p>
+                <p>
+                  空间预算包含附件、临时分块、数据库组装和索引重建。开始时会重新检查；恢复后会重新核对内容哈希。
+                </p>
+                {!preview.sufficient && (
+                  <p className="form-error">
+                    可用磁盘空间不足，请释放空间或等待其他恢复任务结束后重新检查。
+                  </p>
+                )}
+              </div>
+            )}
             <div className="dialog-actions">
               <Button
                 variant="ghost"
                 size="layout"
                 className="secondary"
-                onClick={() => setSelected(null)}
+                disabled={busy}
+                onClick={() => {
+                  setPreview(null);
+                  setSelected(null);
+                }}
               >
                 返回
               </Button>
               <Button
                 variant="ghost"
                 size="layout"
+                className="secondary"
+                disabled={busy || estimating}
+                onClick={() => {
+                  setPreview(null);
+                  setEstimateVersion((version) => version + 1);
+                }}
+              >
+                重新检查空间
+              </Button>
+              <Button
+                variant="ghost"
+                size="layout"
                 className="primary"
-                disabled={busy}
+                disabled={busy || estimating || !preview?.sufficient}
                 onClick={() => {
                   setError("");
                   setBusy(true);
@@ -197,6 +265,7 @@ export default function CloudRestoreWizard({
                     targetId: target.target.id,
                     deviceSlotId: selected.deviceSlotId,
                     manifestRef: undefined,
+                    expectedCommitId: preview?.commitId,
                   })
                     .then((task) => {
                       setTaskId(task.id);

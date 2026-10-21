@@ -14,5 +14,5 @@ export function databaseCapture(bytes) {
   const chunks = [];
   for (let offset = 0; offset < buffer.length; offset += 1024 ** 2)
     chunks.push(source(buffer.subarray(offset, offset + 1024 ** 2)));
-  return { ...source(buffer), chunks };
+  return { ...source(buffer), chunks, chunkSize: 1024 ** 2 };
 }
