@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { getQuickJS } from "quickjs-emscripten";
-import { validateScriptState } from "./script-state.js";
+import { validateStatefulResult } from "./script-state.js";
 import type {
   MarkdownTransformInput,
   ScriptAsyncSearchRequest,
@@ -193,14 +193,15 @@ try {
       if (context.typeof(outputHandle) !== "string")
         throw Error("脚本结果必须是正文字符串");
       const text = context.getString(outputHandle);
-      const output = data.stateful ? JSON.parse(text) : { body: text };
+      const output = data.stateful
+        ? validateStatefulResult(JSON.parse(text))
+        : { body: text };
       const body = output.body;
       if (body.length > 2_000_000) throw Error("脚本正文超出 2MB 编辑预算");
-      if (data.stateful) validateScriptState(output.state);
       parentPort!.postMessage({
         ok: true,
         body,
-        ...(data.stateful ? { state: output.state } : {}),
+        ...("state" in output ? { state: output.state } : {}),
       });
     } finally {
       if (outputHandle !== result.value) outputHandle.dispose();

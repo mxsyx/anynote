@@ -72,25 +72,43 @@ try {
   collect("zod", join(root, "packages/extension-tools"));
   collect("quickjs-emscripten", join(root, "packages/plugin-sdk"));
   collect("typescript");
-  const depFiles = [...dependencies.values()].map(
-    (path) => pack(path).filename,
-  );
+  // npm can repack installed dependencies regardless of their contributor toolchain pin.
+  const depFiles = [...dependencies.values()].map((path) => {
+    const [packed] = JSON.parse(
+      execFileSync(
+        "npm",
+        [
+          "pack",
+          "--offline",
+          "--ignore-scripts",
+          "--pack-destination",
+          tmp,
+          "--json",
+        ],
+        {
+          cwd: path,
+          encoding: "utf8",
+          env: { ...process.env, npm_config_cache: join(tmp, "cache") },
+        },
+      ),
+    );
+    return join(tmp, packed.filename);
+  });
   const consumer = join(tmp, "consumer");
   mkdirSync(consumer);
   writeFileSync(
     join(consumer, "package.json"),
     JSON.stringify({ private: true, type: "module" }),
   );
-  writeFileSync(
-    join(consumer, "pnpm-workspace.yaml"),
+  const workspaceConfig =
     "nodeLinker: hoisted\nverifyDepsBeforeRun: false\noverrides:\n" +
-      [...dependencies.keys()]
-        .map(
-          (name, i) =>
-            `  ${JSON.stringify(name)}: ${JSON.stringify("file:" + depFiles[i])}\n`,
-        )
-        .join(""),
-  );
+    [...dependencies.keys()]
+      .map(
+        (name, i) =>
+          `  ${JSON.stringify(name)}: ${JSON.stringify("file:" + depFiles[i])}\n`,
+      )
+      .join("");
+  writeFileSync(join(consumer, "pnpm-workspace.yaml"), workspaceConfig);
   pnpm(
     [
       "add",
@@ -112,6 +130,18 @@ try {
     execFileSync(process.execPath, [cli, "init", project, id, kind], {
       cwd: consumer,
     });
+    writeFileSync(join(project, "pnpm-workspace.yaml"), workspaceConfig);
+    pnpm(
+      [
+        "add",
+        "--offline",
+        "--ignore-scripts",
+        tools.filename,
+        sdk.filename,
+        ...depFiles,
+      ],
+      project,
+    );
     pnpm(["run", "validate"], project);
     const fixture = readFileSync(join(project, "fixture.json"));
     const first = pnpm(["test"], project),

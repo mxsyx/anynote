@@ -228,7 +228,7 @@ test("GFM rich blocks preserve unsupported syntax, unchanged bytes and safe adja
 });
 test("trusted lifecycle revokes escaped contexts and an old disposer cannot remove a new session", async (t) => {
   const { createExtensionHost } = await import(
-    "../.build/packages/plugin-sdk/host.js"
+    "../.build/packages/storage-sqlite/extension-host.js"
   );
   const { s, b } = await setup(t),
     host = createExtensionHost(s, { trustedIds: ["garden.test"] });

@@ -3,7 +3,7 @@ import {
   declarativeAddition,
 } from "@anynote/extension-tools/commands.js";
 import { searchScriptContext } from "./search.js";
-import { validateScriptSearchContext } from "@anynote/extension-tools/search-context.js";
+import { validateScriptSearchContext } from "@anynote/plugin-sdk/script-search.js";
 import { extensionDataOperation } from "./extension-data.js";
 import { installableManifestSchema } from "@anynote/extension-tools/manifest.js";
 

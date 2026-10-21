@@ -1,6 +1,6 @@
 # Plugin SDK 0.1
 
-公开 SDK 的便携契约层不依赖 Node、Electron、数据库或 UI 框架；源码 workspace 还包含内部宿主，不应直接作为公共包发布。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
+公开 SDK 的便携契约层不依赖 Node、Electron、数据库或 UI 框架；源码 workspace 还包含 Node/QuickJS 执行器及输入/结果校验，不应直接作为公共包发布。存储权限门面和提案状态机归 `storage-sqlite`，SDK 不再反向依赖 Storage 或 CLI 工具包，见 [ADR-011](../../docs/adr/011-extension-module-boundaries.md)。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
 
 ## 扩展点与调用合约
 

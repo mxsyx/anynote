@@ -1,13 +1,13 @@
 import {
   scriptAsyncSearchSchema,
   validateScriptSearchContext,
-} from "@anynote/extension-tools/search-context.js";
+} from "./script-search.js";
 import {
   scriptNetworkRequestsSchema,
   validateScriptNetworkResult,
-} from "@anynote/extension-tools/network.js";
+} from "./script-network.js";
 import { Worker } from "node:worker_threads";
-import { validateScriptState } from "./script-state.js";
+import { validateScriptState, validateStatefulResult } from "./script-state.js";
 import type {
   MarkdownTransformInput,
   ScriptAsyncSearchRequest,
@@ -231,7 +231,10 @@ function runGuest(
           finish(
             undefined,
             stateful
-              ? { body: result.body, state: validateScriptState(result.state) }
+              ? validateStatefulResult({
+                  body: result.body,
+                  state: result.state,
+                })
               : result.body,
           );
         } catch (error) {

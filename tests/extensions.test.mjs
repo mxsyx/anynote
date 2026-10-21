@@ -565,6 +565,56 @@ test("AI proposal stale checks, explicit apply, duplicate apply and version-awar
     /版本冲突/,
   );
 });
+test("malformed persisted proposals and missing dispatch fields cannot mutate notes", async (t) => {
+  const { s, book, call } = await fixture(t);
+  const note = await call("createNode", {
+    title: "Proposal validation",
+    body: "original",
+  });
+  await assert.rejects(
+    call("proposePatch", { id: note.id, body: "replacement" }),
+  );
+  await assert.rejects(call("applyProposal", { id: note.id }));
+  const proposal = await call("proposePatch", {
+    id: note.id,
+    expectedRevision: 1,
+    body: "replacement",
+  });
+  const db = s.open(book.id);
+  const write = (value) =>
+    db
+      .prepare(
+        "UPDATE extension_data SET value_json=? WHERE extension_id=? AND key=?",
+      )
+      .run(value, "anynote.ai.proposals", proposal.id);
+  for (const value of [
+    "{",
+    "null",
+    JSON.stringify({ ...proposal, after: 1 }),
+    JSON.stringify({ ...proposal, status: "applied" }),
+    JSON.stringify({ ...proposal, id: randomUUID() }),
+    JSON.stringify({ ...proposal, noteId: randomUUID() }),
+    JSON.stringify({ ...proposal, status: "unknown" }),
+  ]) {
+    write(value);
+    await assert.rejects(
+      call("applyProposal", { id: note.id, proposalId: proposal.id }),
+    );
+    await assert.rejects(
+      call("undoProposal", { id: note.id, proposalId: proposal.id }),
+    );
+    const unchanged = await call("getNote", { id: note.id });
+    assert.equal(unchanged.body, "original");
+    assert.equal(unchanged.revision, 1);
+  }
+  write(JSON.stringify(proposal));
+  assert.equal(
+    (await call("applyProposal", { id: note.id, proposalId: proposal.id }))
+      .body,
+    "replacement",
+  );
+});
+
 class D1 {
   constructor() {
     this.db = new DatabaseSync(":memory:");

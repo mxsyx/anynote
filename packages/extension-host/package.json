@@ -27,7 +27,8 @@
   },
   "dependencies": {
     "@anynote/plugin-sdk": "workspace:*",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@anynote/storage-sqlite": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

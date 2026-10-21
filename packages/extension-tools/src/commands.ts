@@ -1,5 +1,5 @@
-import { validateScriptSearchContext } from "./search-context.js";
-import { validateScriptNetworkResult } from "./network.js";
+import { validateScriptSearchContext } from "@anynote/plugin-sdk/script-search.js";
+import { validateScriptNetworkResult } from "@anynote/plugin-sdk/script-network.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { extensionBlock, parseBlocks } from "@anynote/protocol/markdown.js";
@@ -12,6 +12,7 @@ import { validateSettings } from "./settings.js";
 import type {
   InstallableManifest,
   MarkdownTransformInput,
+  ScriptState,
 } from "@anynote/plugin-sdk/declarative.js";
 
 /**
@@ -201,7 +202,9 @@ export async function dryRunCommand(
   };
 
   const action = command.action;
-  let body: string, state: unknown, stateVersion: number | undefined;
+  let body: string,
+    state: ScriptState | undefined,
+    stateVersion: number | undefined;
   if (action.kind === "transformMarkdownWithState") {
     stateVersion =
       manifest.runtime === "quickjs-transform"

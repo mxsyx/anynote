@@ -1,3 +1,4 @@
+import type { ScriptSearchContext } from "./declarative.js";
 import { z } from "zod";
 
 /** One synchronous script search request (query of at least 3 characters, at most 20 results). */
@@ -43,7 +44,7 @@ export const scriptSearchContextSchema = z
  * @param raw Raw search context.
  * @returns The validated search context.
  */
-export function validateScriptSearchContext(raw: unknown) {
+export function validateScriptSearchContext(raw: unknown): ScriptSearchContext {
   const value = scriptSearchContextSchema.parse(raw);
   if (Buffer.byteLength(JSON.stringify(value)) > 32 * 1024)
     throw Error("搜索上下文超过 32KiB 预算");

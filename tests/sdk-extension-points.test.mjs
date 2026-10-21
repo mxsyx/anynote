@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Storage } from "../.build/packages/storage-sqlite/index.js";
-import { createExtensionHost } from "../.build/packages/plugin-sdk/host.js";
+import { createExtensionHost } from "../.build/packages/storage-sqlite/extension-host.js";
 import {
   createAPI,
   sdkVersion,

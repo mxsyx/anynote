@@ -2,7 +2,7 @@ import { safeDownload } from "@anynote/importer/network.js";
 import {
   scriptNetworkRequestsSchema,
   validateScriptNetworkResult,
-} from "@anynote/extension-tools/network.js";
+} from "@anynote/plugin-sdk/script-network.js";
 import type { ScriptNetworkRequest } from "@anynote/plugin-sdk/declarative.js";
 
 /** Number of currently in-flight plugin network requests. */

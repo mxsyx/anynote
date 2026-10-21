@@ -1953,10 +1953,12 @@ export async function advancedOperations(
     result = await exportMarkdown(s, p.notebookId);
   }
 
-  if (["proposePatch", "applyProposal", "undoProposal"].includes(op)) {
-    const { proposalOperation } = await import(
-      "@anynote/plugin-sdk/proposals.js"
-    );
+  if (
+    op === "proposePatch" ||
+    op === "applyProposal" ||
+    op === "undoProposal"
+  ) {
+    const { proposalOperation } = await import("./proposals.js");
     result = proposalOperation(s, op, raw, save);
   }
   return { handled: true, result };

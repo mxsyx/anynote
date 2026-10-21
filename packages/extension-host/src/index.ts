@@ -1,4 +1,4 @@
-import { createExtensionHost } from "@anynote/plugin-sdk/host.js";
+import { createExtensionHost } from "@anynote/storage-sqlite/extension-host.js";
 import type {
   AnynoteAPI,
   ExtensionContext,

@@ -594,6 +594,9 @@ importers:
 
   packages/extension-host:
     dependencies:
+      "@anynote/storage-sqlite":
+        specifier: workspace:*
+        version: link:../storage-sqlite
       "@anynote/plugin-sdk":
         specifier: workspace:*
         version: link:../plugin-sdk
@@ -686,12 +689,6 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
-      "@anynote/extension-tools":
-        specifier: workspace:*
-        version: link:../extension-tools
-      "@anynote/storage-sqlite":
-        specifier: workspace:*
-        version: link:../storage-sqlite
       "@anynote/types":
         specifier: workspace:*
         version: link:../types

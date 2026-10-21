@@ -14,7 +14,7 @@
 - `packages/importer/`：独立 Worker Thread 执行 Readability、DOMPurify、Turndown 和受控下载；完成后排入单个知识事务。
 - `packages/backup/`：Cloudflare 数据库分块与完整附件对象、恢复、设备配置、凭据门面、自动备份调度。
 - `apps/cloudflare-backup/`：单用户自托管 Worker、D1 migration、R2 内容对象、staging 校验与分支 CAS 发布。
-- `packages/plugin-sdk/`：公共 API、权限及 Notebook 范围、命令生命周期、状态、幂等操作和示例。
+- `packages/plugin-sdk/`：公共 API、命令注册、契约、QuickJS 执行器及搜索/网络/状态校验；Storage 权限门面和提案状态机归 `storage-sqlite`，依赖方向见 [ADR-011](adr/011-extension-module-boundaries.md)。
 - `packages/extension-host/`：首方独立进程、惰性激活、消息代理、Notebook 会话授权、超时/崩溃回收。
 - `packages/extension-tools/`：共用清单/设置/迁移/签名校验、TypeScript 工程模板、本地 CLI 与隔离示例命令试运行。
 - `packages/first-party-adapters/`：白板/视频/导入/备份首方适配器只依赖公开 SDK，独立打包并在干净外部项目安装运行验证。
@@ -64,7 +64,7 @@ Linux 历史与 macOS/APFS 镜像证据见 [P0 记录](P0-BACKUP-READINESS.md)�
 | 凭据安全                                          | 桌面系统加密，Linux keyring 缺失时拒绝；浏览器开发仅内存；真实隔离 GNOME Keyring 的加密与应用重启已验证；Windows/macOS 和系统重启未验证                                                                                          |
 | 连续文档编辑                                      | 已实现斜杠命令、Markdown 输入转换、任务与表格；复杂语法保留，不承诺任意 Markdown 全文无损往返；当前入口见 EDITOR-ECOSYSTEM                                                                                                       |
 | Notebook 外部路径                                 | 桌面原目录打开与工作区登记已实现；系统目录选择器授权、数据库结构/完整性、资源路径/大小/SHA-256 校验，拒绝重复 UUID 指向不同目录；移出工作区释放连接与写锁并保留原目录                                                            |
-| 包级 monorepo 发布                                | 已建立 pnpm workspace、包级构建与发布矩阵；2026-10-21 SDK 独立消费发现云盘模块漏打包，交 G05/T009，见 G18 报告                                                                                                                   |
+| 包级 monorepo 发布                                | 已建立 pnpm workspace、包级构建与发布矩阵；2026-10-21 G17 补齐 SDK 云盘模块闭包并通过独立离线消费；发行矩阵仍交 G05/T009，见 G17 交接                                                                                            |
 | 自定义同级拖拽排序                                | 已采纳稀疏整数 sort_key、索引邻居查询与事务内同级重排；完整元信息快照和虚拟树，见 ADR-001 / G14 决策                                                                                                                             |
 | 大文件归档                                        | 桌面已实现后台流式 ZIP/ZIP64 完整归档、磁盘预算、进度/取消及独立线程数据库校验；20GiB/100002 条目预算（含清单、数据库及附件）；浏览器、旧归档 API和本地快照仍为 100MB；正式云任务已使用 1MiB 分块                                |
 | 本地保留与资源清理                                | 已实现快照数量/天数预览及显式确认清理；只清理数据库未引用且超过 5 分钟的哈希文件，保护历史/回收站资源、最新快照和迁移快照；候选改变或新增引用则拒绝执行                                                                          |

@@ -50,3 +50,5 @@
 ## G18 交接发现（2026-10-21，归 T009）
 
 `e975c1c` / macOS arm64 / Node 24.22.0 / pnpm 12.14.0：`pnpm run test:sdk:package` 在干净离线消费者 TypeScript 编译失败。SDK 入口导出 `./cloud-backup.js` 和 `@anynote/types/cloud-backup.js`，但 `scripts/build-sdk.mjs` 未复制云盘实现/声明或改写其共享类型路径。应补齐公共产物闭包，再运行 SDK 消费与发行矩阵验证；本次 G18 仅核对并修正文档，不修改打包实现。证据见 [G18 报告](../G18-documentation-review.md)。状态沿用本文件 T009，不新建重复任务。
+
+G17 后续交接（2026-10-21）：已补齐 SDK 云盘模块、共享类型声明和路径改写，新增云盘 API 消费断言，干净离线 SDK 消费通过。当前证据与命令见 [G17 首批交接](17-module-boundaries.md#首批实施与交接2026-10-21)；此修复不完成 T009 的真实 CI/设备发行矩阵。

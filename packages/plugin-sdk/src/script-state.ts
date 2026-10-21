@@ -1,4 +1,7 @@
-import type { ScriptState } from "./declarative.js";
+import type {
+  StatefulMarkdownTransformResult,
+  ScriptState,
+} from "./declarative.js";
 
 /** Structure and size budgets for script state. */
 export const scriptStateLimits = Object.freeze({
@@ -50,4 +53,22 @@ export function validateScriptState(value: unknown): ScriptState {
   if (Buffer.byteLength(JSON.stringify(value)) > scriptStateLimits.bytes)
     throw Error("脚本状态超过 64KiB 预算");
   return value as ScriptState;
+}
+
+/** Validate the JSON result before it leaves the worker or resolves a host call. */
+export function validateStatefulResult(
+  raw: unknown,
+): StatefulMarkdownTransformResult {
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw) ||
+    Object.keys(raw).length !== 2 ||
+    !("body" in raw) ||
+    !("state" in raw) ||
+    typeof raw.body !== "string" ||
+    raw.body.length > 2_000_000
+  )
+    throw Error("脚本执行结果无效");
+  return { body: raw.body, state: validateScriptState(raw.state) };
 }

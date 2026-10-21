@@ -56,7 +56,7 @@ export default tseslint.config(
   {
     // Sanitizers deliberately match control characters.
     files: [
-      "packages/extension-tools/src/search-context.ts",
+      "packages/plugin-sdk/src/script-search.ts",
       "packages/storage-sqlite/src/open-export.ts",
       "scripts/cloud/deploy.mjs",
     ],

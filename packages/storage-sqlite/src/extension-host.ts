@@ -1,11 +1,15 @@
-import type { ExtensionContext } from "./contracts.js";
+import type { ExtensionContext } from "@anynote/plugin-sdk/contracts.js";
 
-export type { ExtensionContext } from "./contracts.js";
+export type { ExtensionContext } from "@anynote/plugin-sdk/contracts.js";
 
 import { z } from "zod";
-import type { Storage } from "@anynote/storage-sqlite/index.js";
+import type { Storage } from "./index.js";
 import type { SqlRow } from "@anynote/types/runtime.js";
-import { CommandRegistry, ExtensionError, createAPI } from "./index.js";
+import {
+  CommandRegistry,
+  ExtensionError,
+  createAPI,
+} from "@anynote/plugin-sdk/index.js";
 import type {
   APIBindings,
   Disposable,
@@ -16,7 +20,7 @@ import type {
   ProviderRegistration,
   TaskRegistration,
   UIContribution,
-} from "./contracts.js";
+} from "@anynote/plugin-sdk/contracts.js";
 
 const uuid = z.string().uuid(),
   key = z.string().regex(/^[a-zA-Z0-9._:-]{1,240}$/),

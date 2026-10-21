@@ -1,3 +1,4 @@
+import type { ScriptNetworkResult } from "./declarative.js";
 import { z } from "zod";
 import { isIP } from "node:net";
 
@@ -49,7 +50,7 @@ export const scriptNetworkRequestsSchema = z
  * @param raw Raw network result.
  * @returns The validated network result.
  */
-export function validateScriptNetworkResult(raw: unknown) {
+export function validateScriptNetworkResult(raw: unknown): ScriptNetworkResult {
   const value = z
     .object({
       url: scriptNetworkURL,

@@ -3,6 +3,7 @@ import { join, dirname, resolve, relative } from "node:path";
 import { builtinModules } from "node:module";
 import ts from "typescript";
 import YAML from "yaml";
+import { dependencyCycle } from "./workspace-graph.mjs";
 const root = resolve(".");
 const config = YAML.parse(readFileSync("pnpm-workspace.yaml", "utf8"));
 if (config.nodeLinker !== "isolated" || config.hoist !== false)
@@ -26,6 +27,48 @@ const manifests = new Map(
 );
 const byName = new Map([...manifests].map(([o, p]) => [p.name, o]));
 const errors = [];
+const graph = new Map();
+for (const [owner, manifest] of manifests) {
+  const dependencies = new Set(
+    Object.keys({
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+      ...manifest.peerDependencies,
+      ...manifest.optionalDependencies,
+    }).filter((name) => byName.has(name)),
+  );
+  const configPath = join(owner, "tsconfig.json");
+  if (existsSync(configPath)) {
+    const parsed = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (parsed.error)
+      throw Error(
+        ts.flattenDiagnosticMessageText(parsed.error.messageText, "\n"),
+      );
+    for (const reference of parsed.config.references ?? []) {
+      const target = resolve(owner, reference.path);
+      const match = [...manifests].find(
+        ([path]) =>
+          target === resolve(path) || target === resolve(path, "tsconfig.json"),
+      );
+      if (!match)
+        errors.push(`${configPath}: 未识别的项目引用 ${reference.path}`);
+      else dependencies.add(match[1].name);
+    }
+  }
+  graph.set(manifest.name, dependencies);
+}
+
+// G17 expands this boundary batch by batch; backup/storage cycles remain tracked there.
+for (const name of [
+  "@anynote/plugin-sdk",
+  "@anynote/extension-tools",
+  "@anynote/protocol",
+  "@anynote/types",
+]) {
+  const cycle = dependencyCycle(graph, name);
+  if (cycle)
+    errors.push(`G17 包依赖/TypeScript references 循环: ${cycle.join(" -> ")}`);
+}
 function files(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((f) =>
     [
@@ -52,6 +95,7 @@ for (const owner of owners) {
     ...p.dependencies,
     ...p.devDependencies,
     ...p.peerDependencies,
+    ...p.optionalDependencies,
   };
   for (const [name, version] of Object.entries(declared))
     if (byName.has(name) && !version.startsWith("workspace:"))
@@ -128,5 +172,5 @@ for (const owner of owners) {
 }
 if (errors.length) throw Error(errors.join("\n"));
 console.log(
-  `${owners.length - 1} workspaces: isolated 布局、包引用和直接依赖声明检查通过 (${relative(root, root) || "root"})`,
+  `${owners.length - 1} workspaces: isolated 布局、包引用、直接依赖及 G17 SDK/tools 无循环边界检查通过 (${relative(root, root) || "root"})`,
 );

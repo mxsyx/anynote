@@ -11,7 +11,7 @@
 ## 建议入口
 
 - [packages/storage-sqlite/src/script-network.ts](../../packages/storage-sqlite/src/script-network.ts)
-- [packages/extension-tools/src/network.ts](../../packages/extension-tools/src/network.ts)
+- [packages/plugin-sdk/src/script-network.ts](../../packages/plugin-sdk/src/script-network.ts)
 - [docs/EXTENSION-HOST.md](../../docs/EXTENSION-HOST.md)
 
 ## 执行顺序

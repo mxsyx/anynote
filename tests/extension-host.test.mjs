@@ -264,7 +264,7 @@ test("Notebook 撤权终止等待，运行清理钩子，迟到的回调无法�
 
 test("停用与激活并发时撤销能力，延迟返回 disposer 只清理一次", async () => {
   const { createExtensionHost } = await import(
-    "../.build/packages/plugin-sdk/host.js"
+    "../.build/packages/storage-sqlite/extension-host.js"
   );
   const manifest = bundledExtensions[0].manifest;
   const host = createExtensionHost(

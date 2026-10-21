@@ -14,13 +14,15 @@
 
 显式应用检查提案状态与笔记版本，经正常保存事务写入正文和提案状态；同一已应用提案重复应用不新增版本。撤销仅在笔记仍处于应用产生的版本时恢复旧正文，后续编辑存在则拒绝。
 
+2026-10-21 G17 补充：提案状态机归 Storage；SQL JSON 投影、操作分派和返回值使用专用类型，持久记录按状态校验字段、目标 ID 与修订号。缺失参数、畸形 JSON 和目标不匹配在正文写入前拒绝，见 [ADR-011](011-extension-module-boundaries.md)。
+
 ## 取舍与边界
 
 这些是受信核心操作，不表示已开放第三方自主 AI 权限，也不提供模型 Provider、自动模型调用或自主代理 UI。模型选择与首发范围仍由 G00 和 BACKLOG 决策；本 ADR 不替负责人作产品决定。
 
 ## 证据与验证
 
-[提案状态机](../../packages/plugin-sdk/src/proposals.ts)、[操作分派与保存](../../packages/storage-sqlite/src/operations.ts)。
+[提案状态机](../../packages/storage-sqlite/src/proposals.ts)、[操作分派与保存](../../packages/storage-sqlite/src/operations.ts)。
 
 [提案冲突、重复应用与撤销测试](../../tests/extensions.test.mjs)；[实施状态](../IMPLEMENTATION.md)。
 

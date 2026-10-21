@@ -7,8 +7,8 @@ import {
 import {
   scriptSearchRequestSchema,
   scriptAsyncSearchSchema,
-} from "./search-context.js";
-import { scriptNetworkRequestsSchema } from "./network.js";
+} from "@anynote/plugin-sdk/script-search.js";
+import { scriptNetworkRequestsSchema } from "@anynote/plugin-sdk/script-network.js";
 
 /** ID naming rule for extensions/contributions. */
 const id = z.string().regex(/^[a-z][a-z0-9.-]{2,80}$/);

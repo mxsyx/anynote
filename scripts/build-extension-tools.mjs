@@ -17,13 +17,16 @@ for (const file of [
     "settings",
     "signature",
     "commands",
-    "search-context",
-    "network",
     "templates",
   ].map((f) => `extension-tools/${f}`),
-  ...["declarative", "script-runner", "script-worker", "script-state"].map(
-    (f) => `plugin-sdk/${f}`,
-  ),
+  ...[
+    "declarative",
+    "script-runner",
+    "script-worker",
+    "script-state",
+    "script-network",
+    "script-search",
+  ].map((f) => `plugin-sdk/${f}`),
   "protocol/markdown",
 ])
   for (const ext of ["js", "d.ts"]) {
