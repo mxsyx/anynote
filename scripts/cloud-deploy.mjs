@@ -4,7 +4,7 @@ import { deployCloudflare } from "./cloud/deploy.mjs";
 try {
   const config = await deployCloudflare();
   const cli = fileURLToPath(new URL("./cloud-acceptance.mjs", import.meta.url));
-  const child = spawn(process.execPath, [cli, "--provider", "cloudflare"], {
+  const child = spawn(process.execPath, [cli], {
     stdio: "inherit",
     env: {
       ...process.env,

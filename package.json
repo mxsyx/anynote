@@ -31,6 +31,8 @@
     "benchmark:search": "node scripts/benchmark-search.mjs",
     "test:cloud": "node scripts/cloud-acceptance.mjs",
     "test:cloud:local": "node scripts/cloud-worker-local.mjs",
+    "test:cloud:aging": "node --env-file-if-exists=.env.cloud scripts/cloud-aging-acceptance.mjs",
+    "pretest:cloud:aging": "pnpm run build:backend",
     "cloud:check": "WRANGLER_SEND_METRICS=false wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc --dry-run --outdir /tmp/anynote-worker-dry-run",
     "test:cloud:stream": "node --env-file-if-exists=.env.cloud scripts/cloud-stream-acceptance.mjs",
     "pretest:cloud:stream": "pnpm run build:backend",
