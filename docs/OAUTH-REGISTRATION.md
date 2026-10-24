@@ -101,7 +101,7 @@ Client ID / App Key 是**公开应用标识**，不是密钥：桌面二进制�
 - 真实桌面环境验证：系统浏览器唤起、真实回环回调、真实厂商的 `state`/PKCE 行为、授权超时与端口占用
   状态；离开授权页后多次启动、token 过期、撤销、重新授权与第二设备只读恢复。
 - Google Drive 端到端（`drive.file` 下创建/发现/上传/下载/删除、resumable 上传、403 reason 分类）与
-  配额/限流分类见 [云盘备份设计](./Anynote-Cloud-Drive-Backup-Design.md) §10.4；相关待办见 [云盘授权与真实账号验收](todo/02-account-validation.md#a001)。
+  配额/限流分类见 [云盘备份设计](./Anynote-Cloud-Drive-Backup-Design.md) §10.4；相关待办见 [云盘授权与真实账号验收](todo/02-1-cloud-drive.md#a001)。
 
 在完成真实厂商与真机验收前，不宣称官方 OAuth 应用注册与跨设备授权已验证。
 

@@ -42,7 +42,7 @@
 
 ### F006 · 签名与更新逻辑
 
-- [ ] **P1 — 签名与更新逻辑**：接入打包签名/公证流程、安装包与更新签名验证、升级失败回退及不支持的 schema 版本拒绝。现有 GitHub Release/校验和流程不等于签名更新；本地实现和回归可以先行，真实签名/公证依赖 [A011](02-account-validation.md#a011)，最终发行验证归 [V011](01-platform-validation.md#v011)。
+- [ ] **P1 — 签名与更新逻辑**：接入打包签名/公证流程、安装包与更新签名验证、升级失败回退及不支持的 schema 版本拒绝。现有 GitHub Release/校验和流程不等于签名更新；本地实现和回归可以先行，真实签名/公证依赖 [A011](02-5-release-credentials.md#a011)，最终发行验证归 [V011](01-platform-validation.md#v011)。
 
 ## 范围决策与发布统筹
 
@@ -74,7 +74,7 @@
 
 - [ ] **P3 — Cloudflare checkpoint 策略优化**：评估从每代完整实体映射改为周期 checkpoint+delta，以及可选 SQLite 恢复加速点；测量链长、上传量和恢复成本，完整定义依赖保护。当前每代自包含 checkpoint 可正确恢复，不属于可靠性缺陷。
 
-启动条件与拆分边界：先取得 [A007](02-account-validation.md#a007)–[A009](02-account-validation.md#a009) 的负载数据；基于现有维护生命周期协议另行确定 delta 依赖保护，单独开展格式设计。
+启动条件与拆分边界：先取得 [A007](02-3-cloudflare.md#a007)–[A009](02-3-cloudflare.md#a009) 的负载数据；基于现有维护生命周期协议另行确定 delta 依赖保护，单独开展格式设计。
 
 <a id="f011"></a>
 

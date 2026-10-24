@@ -110,5 +110,5 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema
   导入旧桌面）的原验收范围见 [跨平台验收](todo/01-platform-validation.md#v001)，
   实际首发要求按 [范围决策](todo/03-feature-logic.md#f007) 与当前项目兼容性规则重审；
-  打包和发行验收见 [V010/V011](todo/01-platform-validation.md#v010)，签名身份见 [A011](todo/02-account-validation.md#a011)，更新逻辑见 [F006](todo/03-feature-logic.md#f006)。
+  打包和发行验收见 [V010/V011](todo/01-platform-validation.md#v010)，签名身份见 [A011](todo/02-5-release-credentials.md#a011)，更新逻辑见 [F006](todo/03-feature-logic.md#f006)。
 - 桌面以 GitHub Release 分发、Worker 以 Wrangler 部署，均不进入 npm。
