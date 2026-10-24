@@ -2154,56 +2154,9 @@
   width: 14px;
   margin: 0;
 }
-/* Settings use stacked form fields within the existing native dialog surface. */
-.cloud-settings {
-  width: min(600px, calc(100vw - 40px));
-}
-.cloud-settings .feature-card,
-.cloud-network {
-  display: block;
-}
-.cloud-settings .feature-card > label {
-  display: block;
-  margin-top: 0;
-}
-.cloud-settings input {
-  width: 100%;
-}
-.cloud-settings .feature-card > button {
-  margin-top: 8px;
-}
-.cloud-settings .small-note,
-.cloud-network .small-note {
-  line-height: 1.7;
-}
 .backup-target small,
 .backup-config .snapshot-row span {
   overflow-wrap: anywhere;
-}
-
-.cloud-target {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-}
-.cloud-target-actions {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.cloud-target .check-label,
-.cloud-network .check-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.6;
-}
-.cloud-target .check-label input,
-.cloud-network .check-label input {
-  flex-shrink: 0;
-  margin-top: 3px;
 }
 
 .backup-target {

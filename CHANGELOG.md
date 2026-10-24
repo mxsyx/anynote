@@ -2,9 +2,10 @@
 
 ## 开发中：单 SQLite 与分块备份
 
+- 移除 Google Drive、Dropbox、OneDrive 云盘备份及 OAuth 授权；保留本地磁盘和 Cloudflare 备份。
 - Notebook schema v3 将正文、附件、历史和元数据合并到 notebook.sqlite，资源支持事务 BLOB 写入和范围读取。
-- 本地/云盘/Cloudflare 备份统一按 1MiB SQLite 块去重，恢复逐块及整库校验后发布。
-- 本地清单 v2、云盘清单 v2、Cloudflare anynote.sqlite v1；移除旧目录、schema 迁移和旧备份兼容。
+- 本地/Cloudflare 备份统一按 1MiB SQLite 块去重，恢复逐块及整库校验后发布。
+- 本地清单 v3、Cloudflare anynote.sqlite v1；移除旧目录、schema 迁移和旧备份兼容。
 - 本地未提交块日志支持中断清理；SDK 预览字段改为 copyChunks/skipChunks/databaseChanged，移除 rebuildManifest 与附件删除审批。
 
 本文件记录各发布单元的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/)，

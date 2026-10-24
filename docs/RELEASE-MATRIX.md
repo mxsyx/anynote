@@ -26,17 +26,15 @@
 
 ## 格式与 schema
 
-| 格式                    | 标识                                  | 版本 | 归属     |
-| ----------------------- | ------------------------------------- | ---- | -------- |
-| `notebook-schema`       | `notebook.sqlite`（`schema_version`） | 4    | `format` |
-| `notebook-archive`      | `anynote.notebook`                    | 1    | `format` |
-| `sqlite-backup`         | `anynote.sqlite`                      | 1    | `format` |
-| `local-backup`          | `anynote.local-backup`                | 3    | `format` |
-| `cloud-backup-head`     | `anynote.cloud-backup-head`           | 1    | `format` |
-| `cloud-backup-manifest` | `anynote.cloud-backup-manifest`       | 3    | `format` |
-| `extension-package`     | `anynote.extension.v1`                | 1    | `format` |
-| `extension-directory`   | `anynote.extension-directory.v1`      | 1    | `format` |
-| `extension-settings`    | `anynote.extension-settings.v1`       | 1    | `format` |
+| 格式                  | 标识                                  | 版本 | 归属     |
+| --------------------- | ------------------------------------- | ---- | -------- |
+| `notebook-schema`     | `notebook.sqlite`（`schema_version`） | 4    | `format` |
+| `notebook-archive`    | `anynote.notebook`                    | 1    | `format` |
+| `sqlite-backup`       | `anynote.sqlite`                      | 1    | `format` |
+| `local-backup`        | `anynote.local-backup`                | 3    | `format` |
+| `extension-package`   | `anynote.extension.v1`                | 1    | `format` |
+| `extension-directory` | `anynote.extension-directory.v1`      | 1    | `format` |
+| `extension-settings`  | `anynote.extension-settings.v1`       | 1    | `format` |
 
 格式版本按整数独立演进；结构变更须核对矩阵与拒绝边界。开发期不保证历史数据兼容，也不要求自动迁移；当前 v4 字段扩充见 [G14 决策](G14-navigation-decision.md)。
 
@@ -45,20 +43,18 @@
 `compatibilityWindows` 声明“某消费者接受提供者处于哪个版本区间”，单元用 semver
 range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静默降级写入。
 
-| 消费者        | 提供者                  | 接受范围 | 说明                                       |
-| ------------- | ----------------------- | -------- | ------------------------------------------ |
-| `desktop`     | `notebook-schema`       | `4`      | SQLite 与独立附件 schema 4                 |
-| `desktop`     | `notebook-archive`      | `1`      | 完整归档 `anynote.notebook` v1             |
-| `desktop`     | `sqlite-backup`         | `1`      | 与 Worker 仅在同一物理分块协议版本内互操作 |
-| `worker`      | `sqlite-backup`         | `1`      | Worker 只接受 `anynote.sqlite` v1          |
-| `desktop`     | `sdk`                   | `^0.1.0` | 桌面宿主实现 SDK 0.1 契约                  |
-| `first-party` | `sdk`                   | `^0.1.0` | 首方适配器只使用 SDK 0.1 公开导出          |
-| `desktop`     | `extension-package`     | `1`      | 签名扩展包                                 |
-| `desktop`     | `extension-directory`   | `1`      | 扩展目录                                   |
-| `desktop`     | `extension-settings`    | `1`      | 扩展设置                                   |
-| `desktop`     | `local-backup`          | `3`      | 本地磁盘备份清单                           |
-| `desktop`     | `cloud-backup-head`     | `1`      | 云盘备份当前指针                           |
-| `desktop`     | `cloud-backup-manifest` | `3`      | 云盘备份完整清单                           |
+| 消费者        | 提供者                | 接受范围 | 说明                                       |
+| ------------- | --------------------- | -------- | ------------------------------------------ |
+| `desktop`     | `notebook-schema`     | `4`      | SQLite 与独立附件 schema 4                 |
+| `desktop`     | `notebook-archive`    | `1`      | 完整归档 `anynote.notebook` v1             |
+| `desktop`     | `sqlite-backup`       | `1`      | 与 Worker 仅在同一物理分块协议版本内互操作 |
+| `worker`      | `sqlite-backup`       | `1`      | Worker 只接受 `anynote.sqlite` v1          |
+| `desktop`     | `sdk`                 | `^0.1.0` | 桌面宿主实现 SDK 0.1 契约                  |
+| `first-party` | `sdk`                 | `^0.1.0` | 首方适配器只使用 SDK 0.1 公开导出          |
+| `desktop`     | `extension-package`   | `1`      | 签名扩展包                                 |
+| `desktop`     | `extension-directory` | `1`      | 扩展目录                                   |
+| `desktop`     | `extension-settings`  | `1`      | 扩展设置                                   |
+| `desktop`     | `local-backup`        | `3`      | 本地磁盘备份清单                           |
 
 `checkReleaseCompatibility(consumer, provider, version)` 返回 `{ compatible, window }`
 或 `{ compatible: false, reason }`；`assertReleaseCompatibility` 在越界时抛错。
@@ -104,7 +100,7 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 
 ## 当前边界
 
-2026-10-21 文档核对曾发现 SDK tarball 漏打包云盘模块，见 [历史核对报告](G18-documentation-review.md)；后续已修复并通过干净离线消费，见 [实施交接](history/todo-2026-10-24.md#g17)。最终真实 CI/设备发行矩阵仍归 [V011](todo/01-platform-validation.md#v011)。
+SDK tarball 的类型与运行时独立消费通过 `pnpm run test:sdk:package` 验证。最终真实 CI/设备发行矩阵仍归 [V011](todo/01-platform-validation.md#v011)。
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema

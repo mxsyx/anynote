@@ -91,7 +91,6 @@ const ExtensionPage = lazy(() => import("./ExtensionPage"));
 const LocalCleanup = lazy(() => import("./LocalCleanup"));
 const Diagnostics = lazy(() => import("./Diagnostics"));
 const BackupTargets = lazy(() => import("./BackupTargets"));
-const CloudBackup = lazy(() => import("./CloudBackup"));
 const LocalBackup = lazy(() => import("./LocalBackup"));
 const CloudRecovery = lazy(() => import("./CloudRecovery"));
 const RecoveryWizard = lazy(() => import("./RecoveryWizard"));
@@ -2466,17 +2465,6 @@ function App() {
                 </Suspense>
                 <Suspense fallback={featureFallback}>
                   <BackupTargets
-                    notebookId={book!.id}
-                    onStarted={() => setTasksOpen(true)}
-                    onRestored={async (id) => {
-                      const list = await request<Notebook[]>("listNotebooks");
-                      setBooks(list);
-                      await switchBook(list.find((b) => b.id === id)!);
-                    }}
-                  />
-                </Suspense>
-                <Suspense fallback={featureFallback}>
-                  <CloudBackup
                     notebookId={book!.id}
                     onStarted={() => setTasksOpen(true)}
                     onRestored={async (id) => {

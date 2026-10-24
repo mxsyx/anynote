@@ -203,8 +203,6 @@ test("backend workspace export is consumable from an isolated Node application",
     try {
       const book = await s.run('createNotebook', { title: 'Consumer' });
       assert.deepEqual(await s.run('listBackupTargets', { notebookId: book.id }), []);
-      assert.deepEqual(await s.run('listCloudAccounts', {}), []);
-      assert.ok((await s.run('listCloudProviders', {})).length > 0);
     } finally { s.close(); }
   `,
     ],

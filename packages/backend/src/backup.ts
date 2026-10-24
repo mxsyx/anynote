@@ -1,5 +1,4 @@
 import { backupOperations } from "@anynote/backup/operation-names.js";
-import { cloudBackupOperations } from "@anynote/backup-core/operation-names.js";
 import type { ServiceOperation } from "@anynote/storage-sqlite/services.js";
 
 const concurrent = new Set([
@@ -33,21 +32,6 @@ export const backupServices: Readonly<Record<string, ServiceOperation>> =
             "@anynote/backup/service.js"
           );
           return result(op, await backupOperation(s, op, raw));
-        },
-      },
-    ]),
-    ...cloudBackupOperations.map((op): [string, ServiceOperation] => [
-      op,
-      {
-        async run(s, raw) {
-          const { cloudBackupOperation } = await import(
-            "@anynote/backup-core/operations.js"
-          );
-          const { registerOfficialProviders } = await import(
-            "@anynote/backup-core/official.js"
-          );
-          await registerOfficialProviders();
-          return result(op, await cloudBackupOperation(s, op, raw));
         },
       },
     ]),

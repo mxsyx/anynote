@@ -1,5 +1,12 @@
 import { open } from "node:fs/promises";
-import type { ScopedReadSource } from "@anynote/types/cloud-backup.js";
+/** Read-only byte source; supports offset reads to reuse resumable transfers. */
+export interface ScopedReadSource {
+  size: number;
+  /** Read by offset/length; the returned byte count may be smaller than the requested length. */
+  read(offset: number, length: number): Promise<Uint8Array>;
+  /** Full sequential stream (for upload), cancellable via `signal`. */
+  stream(signal?: AbortSignal): AsyncIterable<Uint8Array>;
+}
 
 /** Read chunk size for the sequential stream; unrelated to the protocol chunk budget, affecting only memory use. */
 const streamChunkBytes = 1024 * 1024;

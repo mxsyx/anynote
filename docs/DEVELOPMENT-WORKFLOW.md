@@ -28,7 +28,7 @@ G17 已拆解扩展与备份两组包循环，`workspace:check` 检查所有 wor
 
 整仓后端继续使用统一 TypeScript 编译，再把产物放到各包 `dist/`；`.build` 为测试与 Electron 入口保留镜像，共享包镜像指向同一产物，避免加载两份模块。按包构建编译 `apps/*`、`packages/*`、`extensions/*` 中的源依赖闭包。构建会写共享输出，使用根 `pnpm run build` 编排，不并行运行多个构建命令；没有另建 composite/project references 编译流水线。
 
-桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；SDK 云盘产物闭包已由 G17 首批修复，独立消费证据与当前限制见 [历史实施证据](history/todo-2026-10-24.md#g17)；最终发行矩阵仍需 [V011](todo/01-platform-validation.md#v011) 验收。
+桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；独立消费通过 `pnpm run test:sdk:package` 验证；最终发行矩阵仍需 [V011](todo/01-platform-validation.md#v011) 验收。
 
 各发布单元的独立版本、兼容窗口、许可证与变更日志集中在 [公共包发布矩阵](RELEASE-MATRIX.md) 与 `packages/protocol/src/release.ts`；`pnpm run build:release` 生成 `artifacts/release/` 与发布清单，`pnpm run test:release:matrix` 校验兼容窗口与旧消费者。
 

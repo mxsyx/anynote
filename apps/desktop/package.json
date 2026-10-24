@@ -27,7 +27,6 @@
   },
   "dependencies": {
     "@anynote/backup": "workspace:*",
-    "@anynote/backup-core": "workspace:*",
     "@anynote/extension-host": "workspace:*",
     "@anynote/plugin-sdk": "workspace:*",
     "@anynote/protocol": "workspace:*",

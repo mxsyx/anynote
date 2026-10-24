@@ -25,10 +25,6 @@ import {
   firstPartyAdapterContractVersion,
   firstPartyAdapterVersion,
 } from "../.build/packages/first-party-adapters/index.js";
-import {
-  headSchema as cloudHeadSchema,
-  manifestSchema as cloudManifestSchema,
-} from "../.build/packages/cloud-backup-common/index.js";
 import { manifestSchema as archiveManifestSchema } from "../.build/packages/storage-sqlite/archive-stream.js";
 import { manifestSchema as localManifestSchema } from "../.build/packages/backup-local/index.js";
 import { signedPackageSchema } from "../.build/packages/extension-tools/signature.js";
@@ -114,22 +110,6 @@ test("发布格式版本与真实 schema / 表结构一致", () => {
   assert.equal(
     literalValue(localManifestSchema, "formatVersion"),
     format("local-backup").version,
-  );
-  assert.equal(
-    literalValue(cloudHeadSchema, "format"),
-    format("cloud-backup-head").tag,
-  );
-  assert.equal(
-    literalValue(cloudHeadSchema, "formatVersion"),
-    format("cloud-backup-head").version,
-  );
-  assert.equal(
-    literalValue(cloudManifestSchema, "format"),
-    format("cloud-backup-manifest").tag,
-  );
-  assert.equal(
-    literalValue(cloudManifestSchema, "formatVersion"),
-    format("cloud-backup-manifest").version,
   );
   // Extension formats embed the version in the form `anynote.<name>.v<version>`.
   const extensionTag = (id) => `${format(id).tag}.v${format(id).version}`;

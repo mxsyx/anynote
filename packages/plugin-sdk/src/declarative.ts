@@ -1,7 +1,5 @@
 /** Portable contribution contracts; executable transforms run only in the isolated guest interpreter. */
 
-import type { CloudBackupProviderContribution } from "./contracts.js";
-
 /** One field in an extension settings form. */
 export type ExtensionSettingField = {
   key: string;
@@ -115,11 +113,6 @@ export interface DeclarativeManifest {
     editorNodes: DeclarativeNode[];
     settings?: ExtensionSettingsContribution;
     dataMigrations?: ExtensionDataMigration[];
-    /**
-     * Cloud Provider ad slot: declarative extensions can only declare metadata; the executable backup flow belongs to
-     * trusted first-party extensions (`CloudBackupExtensionManifest`), which the core uses to discover targets in the backup center.
-     */
-    backupProviders?: CloudBackupProviderContribution[];
   };
 }
 

@@ -10,10 +10,6 @@ const allowed = new Set(
 import { Storage } from "../.build/packages/backend/index.js";
 import { startBackupScheduler } from "../.build/packages/backup/scheduler.js";
 import {
-  registerOfficialProviders,
-  startCloudBackupScheduler,
-} from "../.build/packages/backup-core/index.js";
-import {
   createProcessExtensionHost,
   bundledExtensions,
 } from "@anynote/extension-host";
@@ -24,10 +20,6 @@ import {
 } from "@anynote/extension-host/rpc.js";
 const storage = new Storage(process.env.ANYNOTE_DATA_DIR || ".anynote-dev");
 const scheduler = startBackupScheduler(storage);
-// The browser preview has no main process to launch the system browser, so openExternal is not injected: the authorization URL
-// is opened by the renderer itself, while PKCE and the loopback callback are still done by this process.
-await registerOfficialProviders();
-const cloudScheduler = startCloudBackupScheduler(storage);
 const extensionHost = createProcessExtensionHost({
   storage,
   extensions: bundledExtensions,
@@ -63,7 +55,6 @@ const server = createServer(async (req, res) => {
       : storage.run(op, input));
     res.end(JSON.stringify({ result }));
     if (op === "reportBackupEnvironment" || op === "setBackupPolicy") {
-      void cloudScheduler.tick();
       void scheduler.tick();
     }
   } catch (e) {
@@ -71,7 +62,6 @@ const server = createServer(async (req, res) => {
   }
 }).listen(4318, "127.0.0.1");
 process.on("SIGTERM", () => {
-  cloudScheduler.dispose();
   scheduler.dispose();
   extensionHost.dispose();
   storage.close();

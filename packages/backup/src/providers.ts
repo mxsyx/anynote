@@ -3,7 +3,7 @@ import { multipartPartBytes } from "@anynote/protocol/cloud-objects.js";
 import { createHash } from "node:crypto";
 import { parseRetryAfter } from "./policy.js";
 import type { BackupTarget, Credentials } from "@anynote/types/runtime.js";
-import type { ScopedReadSource } from "@anynote/types/cloud-backup.js";
+import type { ScopedReadSource } from "@anynote/protocol/file-source.js";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 

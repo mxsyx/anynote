@@ -155,43 +155,6 @@ export interface ProviderRegistration {
   title: string;
 }
 
-/** Permissions a cloud extension may request (design §15.3). */
-export type CloudBackupPermission =
-  | "backup:capture"
-  | "assets:read"
-  | "network:provider-approved"
-  | "tasks:register"
-  | `accounts:${string}`;
-
-/** A cloud Provider declared by an official extension in its manifest (design §15.3). */
-export interface CloudBackupProviderContribution {
-  /** Provider id, matching `CloudProviderId`, e.g. `google-drive`. */
-  id: string;
-  kind: "cloud-drive";
-  /** Provider protocol version; aligned with the core `cloudBackupProtocolVersion`. */
-  protocolVersion: number;
-  /** Logical layout format version. */
-  formatVersion: number;
-  title: string;
-  beta?: boolean;
-}
-
-/**
- * Manifest of an official cloud extension (Anynote custom declaration format, design §15.3).
- *
- * Network permissions ultimately map to the vendor's API/auth domains and upload/download redirect rules; `provider-approved`
- * does not mean any URL may carry the token.
- */
-export interface CloudBackupExtensionManifest {
-  id: string;
-  name: string;
-  version: string;
-  engines: { anynote: string };
-  runtime: "trusted-first-party";
-  permissions: CloudBackupPermission[];
-  contributes: { backupProviders: CloudBackupProviderContribution[] };
-}
-
 /** Version and capability contract returned by `api.contract()`. */
 export interface ExtensionContract {
   sdk: string;

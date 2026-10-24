@@ -41,27 +41,6 @@ export interface EnvironmentReport {
   online: boolean;
 }
 
-/**
- * Request to open a URL in the system browser.
- *
- * The OAuth authorization page must be hosted by the system browser: vendor pages never enter an
- * Electron WebView with preload or Node privileges (design §6.1). The loopback callback is handled by the storage process itself; the main process only
- * launches the browser and returns the result.
- */
-export interface OpenExternalRequest {
-  type: "open-external";
-  id: number;
-  url: string;
-}
-
-/** Result of an `open-external` request. */
-export interface OpenExternalResponse {
-  type: "open-external-response";
-  id: number;
-  result?: boolean;
-  error?: string;
-}
-
 /** One request awaiting a response (with timeout timer). */
 export interface PendingRequest {
   resolve: (value: unknown) => void;

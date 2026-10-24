@@ -8,21 +8,15 @@ import {
 const out = "artifacts/plugin-sdk";
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/examples`, { recursive: true });
-for (const file of [
-  "index",
-  "contracts",
-  "declarative",
-  "local-backup",
-  "cloud-backup",
-])
+for (const file of ["index", "contracts", "declarative", "local-backup"])
   for (const ext of ["js", "d.ts"])
     cpSync(
       `.build/packages/plugin-sdk/${file}.${ext}`,
       `${out}/${file}.${ext}`,
     );
-for (const kind of ["local", "cloud"]) {
-  const name = `${kind}-backup`;
-  const bundled = `${kind}-backup-contracts`;
+{
+  const name = "local-backup";
+  const bundled = "local-backup-contracts";
   for (const ext of ["js", "d.ts"])
     cpSync(`.build/packages/types/${name}.${ext}`, `${out}/${bundled}.${ext}`);
   for (const entry of ["index", name])

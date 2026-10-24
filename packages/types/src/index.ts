@@ -223,28 +223,7 @@ export type Operation =
   | "openNotebookDirectory"
   | "detachNotebookDirectory"
   | "searchWorkspace"
-  | "cancelSearch"
-  | "getCloudSettings"
-  | "setCloudClientId"
-  | "openCloudFolder"
-  | "listCloudProviders"
-  | "listCloudAccounts"
-  | "beginCloudAuthorization"
-  | "completeCloudAuthorization"
-  | "cancelCloudAuthorization"
-  | "disconnectCloudAccount"
-  | "listCloudTargets"
-  | "probeCloudTarget"
-  | "configureCloudTarget"
-  | "setCloudSchedule"
-  | "removeCloudTarget"
-  | "testCloudConnection"
-  | "startCloudBackup"
-  | "listCloudDevices"
-  | "listCloudRestorePoints"
-  | "previewCloudRestore"
-  | "restoreCloudTargetBackup"
-  | "deleteCloudBackup";
+  | "cancelSearch";
 
 /** Application actions dispatched by the native menu. */
 export type AppMenuCommand =
@@ -261,7 +240,6 @@ export interface AnynoteBridge {
   request<T>(op: Operation, input?: Record<string, unknown>): Promise<T>;
 }
 
-export type * from "./cloud-backup.js";
 export type * from "./local-backup.js";
 export type * from "./recovery.js";
 export type * from "./integrity.js";

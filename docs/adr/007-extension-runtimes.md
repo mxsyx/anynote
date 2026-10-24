@@ -16,7 +16,7 @@ QuickJS 只获得授权快照及声明的搜索/固定 HTTPS 桥接，设内存�
 
 ## 取舍与边界
 
-不把受信 Node 工厂视为恶意插件沙箱。签名验证、设备信任与 Notebook 授权分别执行；自动检查更新不会自动安装。G18 发现的 SDK 云盘模块漏打包已在 G17 修复并通过独立离线消费；当前执行证据见 [历史实施证据](../history/todo-2026-10-24.md#g17)，真实发行矩阵仍由 [V011](../todo/01-platform-validation.md#v011) 验收。
+不把受信 Node 工厂视为恶意插件沙箱。签名验证、设备信任与 Notebook 授权分别执行；自动检查更新不会自动安装。SDK 独立消费通过 `pnpm run test:sdk:package` 验证，真实发行矩阵仍由 [V011](../todo/01-platform-validation.md#v011) 验收。
 
 ## 证据与验证
 

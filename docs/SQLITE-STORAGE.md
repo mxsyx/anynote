@@ -14,7 +14,7 @@ SQLite 使用 WAL、外键、FULL 同步和独占写连接。备份通过 Online
 
 ## 数据库按块、附件按文件增量
 
-本地磁盘、Cloudflare、Google Drive、Dropbox、OneDrive 共用 1MiB 固定分块布局。先捕获 SQLite，再顺序计算每块 SHA-256 与整库 SHA-256；清单记录整库大小、哈希和有序块列表，相同块可在列表中重复引用。实际存储和上传按块哈希去重，未变化块复用。捕获后可继续编辑；下一次备份包含后续事务。
+本地磁盘和 Cloudflare 共用 1MiB 固定分块布局。先捕获 SQLite，再顺序计算每块 SHA-256 与整库 SHA-256；清单记录整库大小、哈希和有序块列表，相同块可在列表中重复引用。实际存储和上传按块哈希去重，未变化块复用。捕获后可继续编辑；下一次备份包含后续事务。
 
 附件以完整文件保存，按 SHA-256 和大小判定复用；仅新增或远端缺失的附件需要上传。数据库清单显式记录 `chunkSize: 1048576`。小幅编辑通常只改变部分块；大量页面重排可能导致较多块变化，不保证每次修改只上传固定数量。
 
@@ -24,13 +24,12 @@ SQLite 使用 WAL、外键、FULL 同步和独占写连接。备份通过 Online
 
 - 本地：写入并读回验证新增块和附件，持久化后原子替换 `.backup/manifest.json`。发布前失败保留原清单；发布后清理旧块或旧附件失败只标记待重试。`.backup/pending.json` 记录本次写入，下一次任务仅清理登记的残留块和临时文件，不扫描删除未知文件。
 - Cloudflare：完整清单加 staging/committed、分支 CAS 和 writer epoch；远端 GC 保护保留版本、上传中版本、其他分支与恢复 pin。没有实体 delta 或逻辑表重建。
-- 云盘：上传/校验所有缺失块、新附件及清单，再条件更新设备槽的 current 指针。清理保留 current 引用的每个块和附件。
 
 恢复在私有临时目录按顺序拼接，检查块大小/哈希和整库大小/哈希，再校验 schema、SQLite 完整性、外键、清单与数据库引用集合的一致性及每个附件的大小/哈希。身份重映射和索引重建完成后登记新的 Notebook。任何缺块、损坏或取消都不得注册不完整库。
 
 统一清单包含 Notebook 身份、目标/设备槽身份、备份提交 ID、数据库整体 SHA-256/大小/有序块及完整附件集合。恢复必须同时满足数据库哈希与资源闭包，缺失或多余附件均拒绝登记。
 
-Google Drive、Dropbox、OneDrive 沿用厂商断点续传，传输分片不写入附件格式。Cloudflare 使用 32MiB R2 multipart 传输，先在私有对象上验证完整 SHA-256，再发布单个不可变对象；数据库块仍为 1MiB。
+Cloudflare 使用 32MiB R2 multipart 传输，先在私有对象上验证完整 SHA-256，再发布单个不可变对象；数据库块仍为 1MiB。
 
 ## 格式
 
@@ -40,6 +39,5 @@ Google Drive、Dropbox、OneDrive 沿用厂商断点续传，传输分片不写�
 | 完整归档   | `anynote.notebook` v1，schemaVersion 4；ZIP 含 manifest.json、notebook.sqlite 和附件 |
 | 本地备份   | `anynote.local-backup` v3                                                            |
 | Cloudflare | `anynote.sqlite` v1；能力 `sqlite-assets-v1`                                         |
-| 云盘清单   | `anynote.cloud-backup-manifest` v3                                                   |
 
 旧目录格式、旧 schema、旧备份清单均不兼容，也不自动迁移。旧云端资源不通过新格式复用；部署应使用匹配的新客户端和新 Worker 数据库。历史验收与基准报告不代表此格式已完成真实云端、跨平台或断电验收。

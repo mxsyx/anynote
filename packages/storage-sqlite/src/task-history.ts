@@ -12,7 +12,6 @@ import type {
   LocalVerificationReport,
 } from "@anynote/types/local-backup.js";
 import type { Task } from "@anynote/types/runtime.js";
-import type { CloudBackupTaskReport } from "@anynote/types/cloud-backup.js";
 import type { Storage } from "./index.js";
 
 /** Maximum number of task records kept on device. */
@@ -48,7 +47,6 @@ export interface TaskRecord {
   totalBytes?: number;
   diskBudgetBytes?: number;
   availableBytes?: number;
-  report?: CloudBackupTaskReport;
   outputName?: string;
   outputSize?: number;
   verificationReport?: LocalVerificationReport;
@@ -80,24 +78,6 @@ const schema = z
       .passthrough(),
   )
   .max(limit);
-
-const cloudReportSchema = z.object({
-  format: z.enum([
-    "anynote.cloud-backup-report",
-    "anynote.cloud-restore-report",
-  ]),
-  formatVersion: z.literal(1),
-  verification: z.enum([
-    "provider-checksum",
-    "download-sha256",
-    "accepted-size",
-  ]),
-  databaseBytes: z.number().int().nonnegative(),
-  assetBytes: z.number().int().nonnegative(),
-  uploadedBytes: z.number().int().nonnegative().optional(),
-  downloadBytes: z.number().int().nonnegative().optional(),
-  diskBudgetBytes: z.number().int().nonnegative().optional(),
-});
 
 /** Payload contract of every re-dispatchable operation. */
 const payloads = {
@@ -209,7 +189,6 @@ function cap(record: TaskRecord): TaskRecord {
  * @returns The persisted record.
  */
 function view(job: Task): TaskRecord {
-  const report = cloudReportSchema.safeParse(job.report);
   return cap({
     id: job.id,
     notebookId: job.notebookId,
@@ -228,7 +207,6 @@ function view(job: Task): TaskRecord {
     totalBytes: job.totalBytes,
     diskBudgetBytes: job.diskBudgetBytes,
     availableBytes: job.availableBytes,
-    report: report.success ? report.data : undefined,
     outputName: job.outputName,
     outputSize: job.outputSize,
     verificationReport: job.verificationReport,

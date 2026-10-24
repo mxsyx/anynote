@@ -17,7 +17,7 @@ const owners = [
   "apps/desktop",
   "apps/cloudflare-backup",
   ...readdirSync(join(root, "packages")).map((n) => `packages/${n}`),
-  // Official cloud-drive extensions are workspace packages under extensions/.
+  // Additional extensions may be workspace packages under extensions/.
   ...(existsSync(join(root, "extensions"))
     ? readdirSync(join(root, "extensions")).map((n) => `extensions/${n}`)
     : []),

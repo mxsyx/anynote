@@ -76,7 +76,7 @@ try {
     );
   writeFileSync(
     join(tmp, "consumer.ts"),
-    `import {createCloudBackupAPI, type CloudBackupAPI, createLocalBackupAPI, type LocalBackupAPI, type LocalBackupTask, type LocalVerificationReport, createAPI, sdkVersion, CommandRegistry, type DeclarativeManifest, type ExtensionContext, type ScriptManifest, type SignedExtensionPackage, type ExtensionSource, type ExtensionDirectory, type SavedExtensionDirectory, type StatefulMarkdownTransformInput, type StatefulMarkdownTransformResult, type ExtensionSettingsContribution, type ExtensionSettingsSnapshot, type ExtensionDataMigration, type ExtensionDataReview, type ExtensionDataOverview, type ExtensionDataApplyResult, type ScriptSearchRequest, type ScriptSearchContext, type ScriptAsyncSearchRequest, type ScriptHostAPI, type ScriptNetworkAPI, type ScriptNetworkRequest, type ScriptNetworkResult} from '@anynote/plugin-sdk';
+    `import {createLocalBackupAPI, type LocalBackupAPI, type LocalBackupTask, type LocalVerificationReport, createAPI, sdkVersion, CommandRegistry, type DeclarativeManifest, type ExtensionContext, type ScriptManifest, type SignedExtensionPackage, type ExtensionSource, type ExtensionDirectory, type SavedExtensionDirectory, type StatefulMarkdownTransformInput, type StatefulMarkdownTransformResult, type ExtensionSettingsContribution, type ExtensionSettingsSnapshot, type ExtensionDataMigration, type ExtensionDataReview, type ExtensionDataOverview, type ExtensionDataApplyResult, type ScriptSearchRequest, type ScriptSearchContext, type ScriptAsyncSearchRequest, type ScriptHostAPI, type ScriptNetworkAPI, type ScriptNetworkRequest, type ScriptNetworkResult} from '@anynote/plugin-sdk';
 const manifest: DeclarativeManifest = {id:'garden.test',name:'Test',version:'0.1.0',engines:{anynote:'^0.1.0'},runtime:'declarative',permissions:['notes:write'],contributes:{commands:[],editorNodes:[]}};
 const context: ExtensionContext | undefined = undefined;
 const script:ScriptManifest={id:'garden.script',name:'Script',version:'0.1.0',engines:{anynote:'^0.1.0'},runtime:'quickjs-transform',permissions:['notes:read','notes:write'],contributes:{commands:[{id:'garden.script.command',title:'Transform',action:{kind:'transformMarkdown',script:'(note)=>note.body'}}],editorNodes:[]}};
@@ -121,10 +121,6 @@ const backupReport:LocalVerificationReport|undefined=backupTask?.verificationRep
 if(backupCalls[0].method!=='verifyLocalBackup'||backupCalls[1].method!=='listTasks'||backupReport?.status!=='passed')throw Error('backup SDK transport failed');
 await backup.configure({notebookId:'note'});
 if(backupCalls[2].method!=='configureLocalBackup'||'path' in (backupCalls[2].input as object))throw Error('backup directory authorization failed');
-const cloudCalls:string[]=[];
-const cloud:CloudBackupAPI=createCloudBackupAPI(async(method)=>{cloudCalls.push(method);return [];});
-await cloud.listProviders();
-if(cloudCalls[0]!=='listCloudProviders')throw Error('cloud SDK transport failed');
 const registry=new CommandRegistry();const old=registry.register('test',()=>1);old();const next=registry.register('test',()=>2);old();if(await registry.execute('test')!==2)throw Error('stale disposer');next();
 `,
   );

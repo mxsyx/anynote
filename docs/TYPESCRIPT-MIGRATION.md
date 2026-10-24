@@ -23,7 +23,7 @@ pnpm run package         # 为当前宿主平台生成 release 下的应用目�
 
 SDK 和协议声明由源码生成。`packages/plugin-sdk` 已是私有 workspace：源码在 `src/`，types 条件指向源码，运行时指向 `dist/`；`.build/packages/plugin-sdk/` 是运行与测试镜像。跨包使用 `@anynote/...` 包名，包内相对导入保留 `.js` 扩展名。
 
-便携 SDK 由 `pnpm run build:sdk` 生成到 `artifacts/plugin-sdk/`，与含内部宿主的源码 workspace 分开。当前构建脚本遗漏新云盘模块，`test:sdk:package` 失败，见 [G18 核对报告](G18-documentation-review.md)；不能将迁移时的消费成功当作当前发布验证。
+便携 SDK 由 `pnpm run build:sdk` 生成到 `artifacts/plugin-sdk/`，与含内部宿主的源码 workspace 分开。通过 `pnpm run test:sdk:package` 验证当前 tarball 的声明与运行时闭包；迁移时的消费成功不替代当前发布验证。
 
 ## 类型边界
 

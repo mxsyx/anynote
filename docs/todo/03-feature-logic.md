@@ -2,9 +2,9 @@
 
 [返回总入口](../../TODO.md)
 
-更新：2026-10-24。只保留未完成事项；本次按已有勾选与交接记录整理，未重新运行功能验收。
+更新：2026-10-24。只保留未完成事项；云盘备份已取消，移除 F003、F004、F011，其余编号保持稳定。
 
-包含尚未完成的代码逻辑、待确定的产品范围及发布统筹。前六条为现有范围内的实现工作；范围决策/证据汇总和可选后续能力分别列出。可选项保留 P3，未经范围确认不自动成为首发要求。
+包含尚未完成的代码逻辑、待确定的产品范围及发布统筹。当前实现共四条；范围决策/证据汇总和可选后续能力分别列出。可选项保留 P3，未经范围确认不自动成为首发要求。
 
 ## 当前实现
 
@@ -19,18 +19,6 @@
 ### F002 · 物理设备枚举与提示
 
 - [ ] **P2 — 物理设备枚举与提示**：实现 Linux 文件系统到物理设备的映射、未知/虚拟设备降级及 UI 提示，并提供其他平台适配接口与 fixture。`stat.dev` 只能识别文件系统/任务期间设备变化，不能证明两个分区属于独立物理设备，也不等于持久卷 UUID。
-
-<a id="f003"></a>
-
-### F003 · 上传会话跨进程续传
-
-- [ ] **P2 — 上传会话跨进程续传**：当前崩溃或重启后重新捕获并开启新会话（正确但浪费上传量）。评估在源切点未变时保留数据库临时副本以恢复会话，并补齐「源切点变化不得拼接旧会话」的回归。
-
-<a id="f004"></a>
-
-### F004 · 分页与索引成本
-
-- [ ] **P2 — 分页与索引成本**：`plan` 的 `exists` 逐个查询 file ID、`listCurrentBackups` 逐槽读取清单。评估分页索引、`appProperties` 批量查询与对象缓存的收益与实现成本。
 
 <a id="f005"></a>
 
@@ -75,14 +63,6 @@
 - [ ] **P3 — Cloudflare checkpoint 策略优化**：评估从每代完整实体映射改为周期 checkpoint+delta，以及可选 SQLite 恢复加速点；测量链长、上传量和恢复成本，完整定义依赖保护。当前每代自包含 checkpoint 可正确恢复，不属于可靠性缺陷。
 
 启动条件与拆分边界：先取得 [A007](02-3-cloudflare.md#a007)–[A009](02-3-cloudflare.md#a009) 的负载数据；基于现有维护生命周期协议另行确定 delta 依赖保护，单独开展格式设计。
-
-<a id="f011"></a>
-
-### F011 · appDataFolder 隐藏模式与跨设备共享对象
-
-- [ ] **P3 — appDataFolder 隐藏模式与跨设备共享对象**：按云盘备份设计 §10.1、§14.3 先补生命周期协议再评估；不得直接复用单写设备槽的受管 GC。实时同步、E2EE 与商业托管分别见 [F022](03-feature-logic.md#f022)、[F021](03-feature-logic.md#f021)、[F023](03-feature-logic.md#f023)。
-
-启动条件与拆分边界：先定义跨设备对象所有权与生命周期；不得直接复用现有单写设备槽 GC。
 
 <a id="f012"></a>
 
@@ -191,9 +171,8 @@
 ## 实施与验收入口
 
 - [F001](03-feature-logic.md#f001)–[F002](03-feature-logic.md#f002)：[卷适配](../../packages/backup-local/src/volume.ts)、[本地备份测试](../../tests/backup-local.test.mjs)、[卷 fixture](../../tests/fixtures/volume)。
-- [F003](03-feature-logic.md#f003)–[F004](03-feature-logic.md#f004)：[云盘计划](../../packages/cloud-backup-common/src/plan.ts)、[上传](../../packages/cloud-backup-common/src/upload.ts)、[捕获](../../packages/backup-core/src/capture.ts)，以及 cloud-backup、cloud-dropbox、cloud-onedrive 回归。
 - [F005](03-feature-logic.md#f005)：[Storage 操作](../../packages/storage-sqlite/src/operations.ts)、[类型回归](../../tests/types)，以及 `pnpm run typecheck`、`pnpm run workspace:check` 和受影响功能测试。
 - [F006](03-feature-logic.md#f006)：[桌面打包](../../scripts/package-desktop.mjs)、[发行 workflow](../../.github/workflows/release.yml)、[发行矩阵](../RELEASE-MATRIX.md)。
 - [F007](03-feature-logic.md#f007)–[F008](03-feature-logic.md#f008)：[产品设计](../Anynote-Design.md)、[发布证据](../P0-BACKUP-READINESS.md)。
 
-完成条件：实现、运行时校验、相关回归和文档同步完成；性能优化有前后数据。代码实现与真实账号/设备验收分别结项。[F003](03-feature-logic.md#f003) 先明确源切点和临时副本生命周期，再做 [F004](03-feature-logic.md#f004) 查询成本优化；[F005](03-feature-logic.md#f005) 与同包功能改造串行。后续能力先确定范围和契约，不能以“评估完成”代替“功能完成”。
+完成条件：实现、运行时校验、相关回归和文档同步完成；性能优化有前后数据。代码实现与真实账号/设备验收分别结项。[F005](03-feature-logic.md#f005) 与同包功能改造串行。后续能力先确定范围和契约，不能以“评估完成”代替“功能完成”。
