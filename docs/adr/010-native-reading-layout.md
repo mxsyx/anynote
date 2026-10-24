@@ -22,6 +22,6 @@
 
 [主题](../../apps/desktop/src/appearance.ts)、[token 与样式](../../apps/desktop/src/styles.css)、[工作区及懒加载](../../apps/desktop/src/main.tsx)。
 
-[主题测试](../../tests/appearance.test.ts)、[导航测试](../../tests/navigation.test.ts)；[G14 决策](../G14-navigation-decision.md)、[视觉验收任务](../todo/20-visual-components.md)。
+[主题测试](../../tests/appearance.test.ts)、[导航测试](../../tests/navigation.test.ts)；[G14 决策](../G14-navigation-decision.md)、[视觉实施证据](../history/todo-2026-10-24.md#g20)。
 
 本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。

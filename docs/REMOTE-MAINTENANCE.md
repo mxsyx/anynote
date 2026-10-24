@@ -91,4 +91,4 @@ pnpm run cloud:legacy-lock <远端NotebookUUID> --release <计划UUID> <执行UU
 
 日/周/月采样已通过官方 workerd、真实 Cloudflare、生产页面及 Linux 打包版验收；云端历史日期由独立测试分支的协议夹具指定，不改动用户既有版本。它验证采样版本的保留和恢复，不代表超过 24 小时 R2 孤立对象的真实老化回收。
 
-G09 的当前工作树验证、浏览器模拟 RPC 结果、全量回归限制和真实服务交接见 [G09 实施记录](todo/09-remote-retention.md)。本地生命周期回归另外覆盖 2000 活动版本回收、预算拒绝、归档失败重试、过期上传的服务端活动时间、迟到 commit、防止旧 ID 重放、配置重启持久化。`node scripts/remote-retention-smoke.mjs` 验证生产对话框的空间展示、保存、重新打开和确认失效；该浏览器脚本使用模拟 RPC，不替代真实 Electron/云端验收。
+G09 的当前工作树验证、浏览器模拟 RPC 结果、全量回归限制和真实服务交接见 [实施记录](history/todo-2026-10-24.md#g09)。本地生命周期回归另外覆盖 2000 活动版本回收、预算拒绝、归档失败重试、过期上传的服务端活动时间、迟到 commit、防止旧 ID 重放、配置重启持久化。`node scripts/remote-retention-smoke.mjs` 验证生产对话框的空间展示、保存、重新打开和确认失效；该浏览器脚本使用模拟 RPC，不替代真实 Electron/云端验收。

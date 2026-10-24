@@ -38,4 +38,4 @@ flowchart LR
 
 ## 证据与验证
 
-[装配入口](../../packages/backend/src/index.ts)、[服务接口](../../packages/storage-sqlite/src/services.ts)、[快照校验](../../packages/backup/src/snapshot-metadata.ts)、[回归与独立消费者](../../tests/backup-boundaries.test.mjs)、[类型负向断言](../../tests/types/backup-boundaries.ts)、[构建图检查](../../scripts/check-workspaces.mjs)。实际命令、环境、结果和未执行项见 [G17 交接](../todo/17-module-boundaries.md)。
+[装配入口](../../packages/backend/src/index.ts)、[服务接口](../../packages/storage-sqlite/src/services.ts)、[快照校验](../../packages/backup/src/snapshot-metadata.ts)、[回归与独立消费者](../../tests/backup-boundaries.test.mjs)、[类型负向断言](../../tests/types/backup-boundaries.ts)、[构建图检查](../../scripts/check-workspaces.mjs)。实际命令、环境、结果和未执行项见 [历史实施证据](../history/todo-2026-10-24.md#g17)。

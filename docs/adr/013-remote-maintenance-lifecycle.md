@@ -23,4 +23,4 @@
 
 [维护规划/确认](../../apps/cloudflare-backup/src/maintenance.ts)、[归档](../../apps/cloudflare-backup/src/maintenance-history.ts)、[迁移](../../apps/cloudflare-backup/migrations/0005.sql)、[客户端配置](../../packages/backup/src/manage.ts)。
 
-[维护契约测试](../../tests/remote-maintenance.test.mjs)、[可复用本地/真实服务场景](../../scripts/cloud/maintenance-scenarios.mjs)、[浏览器交互](../../scripts/remote-retention-smoke.mjs)。结果与剩余外部验证见 [G09 交接](../todo/09-remote-retention.md)。
+[维护契约测试](../../tests/remote-maintenance.test.mjs)、[可复用本地/真实服务场景](../../scripts/cloud/maintenance-scenarios.mjs)、[浏览器交互](../../scripts/remote-retention-smoke.mjs)。结果与剩余外部验证见 [历史实施证据](../history/todo-2026-10-24.md#g09)。

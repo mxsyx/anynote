@@ -1,8 +1,8 @@
 # 性能与界面验收
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [G19 性能](todo/19-desktop-performance.md)、[G20 视觉](todo/20-visual-components.md)、[G06 人工原生 UI](todo/06-native-ui-acceptance.md) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+> 状态归属：本文维护验收步骤和历史证据，剩余任务状态只在 [V014 性能](todo/01-platform-validation.md#v014)、[V012/V013 人工原生 UI](todo/01-platform-validation.md#v012) 维护；已完成视觉实现见 [历史证据](history/todo-2026-10-24.md#g20)。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
 
-验收使用真实 Electron 生产页面、正式 Preload/IPC 和独立 SQLite 进程。每次创建临时工作区，结束后删除，不读取 `.env.cloud`，不修改日常 Notebook。当前任务状态与本次实测见 [G19](todo/19-desktop-performance.md)。下方 2026-10-03 结果保留为历史证据，不代表当前连续编辑器或当前存储格式的性能。
+验收使用真实 Electron 生产页面、正式 Preload/IPC 和独立 SQLite 进程。每次创建临时工作区，结束后删除，不读取 `.env.cloud`，不修改日常 Notebook。当前任务状态见 [V014](todo/01-platform-validation.md#v014)，2026-10-21 实测见 [历史证据](history/todo-2026-10-24.md#g19)。下方 2026-10-03 结果保留为历史证据，不代表当前连续编辑器或当前存储格式的性能。
 
 ## 运行
 

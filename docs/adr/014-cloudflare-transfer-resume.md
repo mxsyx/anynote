@@ -29,4 +29,4 @@ R2 创建会话与 D1 登记无法组成原子事务。创建后、登记前进�
 
 [持久进度](../../packages/backup/src/transfer-session.ts)、[范围下载](../../packages/backup/src/transfer-download.ts)、[传输客户端](../../packages/backup/src/providers.ts)、[会话登记](../../apps/cloudflare-backup/src/upload-sessions.ts)、[维护流程](../../apps/cloudflare-backup/src/maintenance.ts)。
 
-[进程/缓存回归](../../tests/cloud-resume.test.mjs)、[公开任务回归](../../tests/cloud-stream.test.mjs)、[新设备恢复](../../tests/cloud-recovery.test.mjs)、[真实/本地共用场景](../../scripts/cloud/stream-scenario.mjs)。结果和外部边界见 [G10 交接](../todo/10-cloudflare-resume.md)。
+[进程/缓存回归](../../tests/cloud-resume.test.mjs)、[公开任务回归](../../tests/cloud-stream.test.mjs)、[新设备恢复](../../tests/cloud-recovery.test.mjs)、[真实/本地共用场景](../../scripts/cloud/stream-scenario.mjs)。结果和外部边界见 [历史实施证据](../history/todo-2026-10-24.md#g10)。

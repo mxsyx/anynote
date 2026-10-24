@@ -30,7 +30,7 @@ pnpm --dir artifacts/plugin-sdk pack --pack-destination ..
 
 目标产物位于 `artifacts/plugin-sdk/`，打包后为 `artifacts/anynote-plugin-sdk-0.1.0.tgz`；此命令只构建本地产物，不发布 npm。源码 workspace 的导出指向 `src/` 类型与 `dist/` 运行文件。
 
-2026-10-21 核对：入口已导出 `createCloudBackupAPI`，但 `scripts/build-sdk.mjs` 尚未复制 `cloud-backup.js/.d.ts` 或改写云盘共享类型引用，`pnpm run test:sdk:package` 的干净消费失败。因此当前 tarball 不能宣称可独立使用；复现与修复归属见 [G18 报告](../../docs/G18-documentation-review.md) 和 [G05/T009](../../docs/todo/05-desktop-distribution.md)。
+2026-10-21 核对曾发现云盘实现/声明及共享类型漏打包，见 [历史报告](../../docs/G18-documentation-review.md)。后续已修复并通过干净离线消费，证据见 [实施交接](../../docs/history/todo-2026-10-24.md#g17)；最终真实发行矩阵见 [V011](../../docs/todo/01-platform-validation.md#v011)。
 
 ```ts
 import { createAPI, type DeclarativeManifest } from "@anynote/plugin-sdk";

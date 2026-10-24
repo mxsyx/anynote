@@ -1,6 +1,6 @@
 # 客户端故障恢复演练
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [G03 灾难恢复](todo/03-disaster-recovery.md)、[G07 Cloudflare](todo/07-cloudflare-acceptance.md) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [灾难恢复](todo/01-platform-validation.md#v004)、[Cloudflare](todo/02-account-validation.md#a007) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
 
 正式云任务已通过真实子进程 SIGKILL 中断、重新启动和云端恢复测试。Cloudflare 使用已有 Wrangler 管理的独立 Worker/D1/R2；演练创建独立 Notebook/lineage，保留远端验收数据。
 

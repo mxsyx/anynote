@@ -23,7 +23,7 @@ APP_TOKEN 是独立应用 token，不使用 Cloudflare 管理凭据。所有接�
 
 单次缓冲上传上限 20MiB、控制请求上限 5MiB。当前协议是 `anynote.sqlite` v1（schema v4），正式任务要求能力 `sqlite-assets-v1` / `transfer-resume-v1`，并应用全部迁移至 `0006.sql`；数据库按 1MiB 分块，包含有序块列表和整库 SHA-256，附件作为独立的完整内容哈希文件与数据库共用一份清单。大附件使用 32MiB R2 multipart 传输，私有对象整文件校验通过后才发布。客户端持久保存切点、multipart 回执及 16MiB 下载范围，重启可复用已校验进度；遗留上传和复制会话经手动维护 abort。R2 桶必须保留未完成 multipart 生命周期规则，以兜底创建后登记前的空会话窗口。旧逻辑协议、实体 delta 与旧备份兼容已移除。上传验证真实哈希/长度，staging 对恢复列表不可见；使用事务 guard、分支 CAS 和 D1 batch 原子发布。失败可重试同一 generation，GC 保护保留版本、有效 staging 与恢复 pin。详见 [分块备份](../../docs/STREAMING-CLOUD-BACKUP.md)。此次 D1 结构面向新环境，已有旧格式部署不自动迁移。
 
-G09 的 `maintenance-lifecycle-v1` 需要 D1 迁移至 `0005.sql`，支持过期上传/孤立 manifest/临时对象的手动回收和维护证据归档，目标保留配置可持久化并预估空间。不会自动定时删除，真实老化及容量复测见 [G09 交接](../../docs/todo/09-remote-retention.md)。
+G09 的 `maintenance-lifecycle-v1` 需要 D1 迁移至 `0005.sql`，支持过期上传/孤立 manifest/临时对象的手动回收和维护证据归档，目标保留配置可持久化并预估空间。不会自动定时删除，真实老化及容量复测见 [历史实施证据](../../docs/history/todo-2026-10-24.md#g09)。
 
 目前提供完整 SQLite 快照清单、显式确认的数量/日周月保留与分批 GC、设备接管、恢复 pin，以及旧维护锁的只读诊断与受限释放（`maintenance-admin-v1`）。分块引用参与 GC 保护。尚未提供自动设备接管、动态租户管理或 E2EE；维护边界见 [远端维护](../../docs/REMOTE-MAINTENANCE.md)。真实 Cloudflare 上传/恢复、去重、客户端中断与响应丢失、幂等和并发 CAS 场景已通过，报告见 [cloudflare-acceptance.json](../../docs/cloudflare-acceptance.json)。本地合约测试使用 SQLite/R2 内存适配器；厂商级断网或区域故障演练尚未覆盖。
 

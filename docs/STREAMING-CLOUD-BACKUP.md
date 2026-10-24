@@ -20,4 +20,4 @@ pnpm run test:cloud:local
 pnpm run test:cloud:stream
 ```
 
-112MiB 流式场景还会注入上传/下载中断并重新打开 Storage，分别验证 32MiB 上传和 16MiB 下载数据不重复传输。该样本由随机 64KiB 块重复生成，不能代表随机大文件吞吐。进程 SIGKILL、缓存损坏、切点变化与 abort 丢响应由本地回归覆盖。真实服务证据与剩余故障/负载要求归 [G07](todo/07-cloudflare-acceptance.md)。
+112MiB 流式场景还会注入上传/下载中断并重新打开 Storage，分别验证 32MiB 上传和 16MiB 下载数据不重复传输。该样本由随机 64KiB 块重复生成，不能代表随机大文件吞吐。进程 SIGKILL、缓存损坏、切点变化与 abort 丢响应由本地回归覆盖。真实服务证据与剩余故障/负载要求归 [任务入口](todo/02-account-validation.md#a007)。

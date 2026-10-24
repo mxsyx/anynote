@@ -104,11 +104,11 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 
 ## 当前边界
 
-2026-10-21：矩阵定义存在，但 SDK tarball 漏打包云盘模块，干净消费失败，当前发布链不能宣称通过；结果见 [G18 核对报告](G18-documentation-review.md)，修复归 [G05/T009](todo/05-desktop-distribution.md)。
+2026-10-21 文档核对曾发现 SDK tarball 漏打包云盘模块，见 [历史核对报告](G18-documentation-review.md)；后续已修复并通过干净离线消费，见 [实施交接](history/todo-2026-10-24.md#g17)。最终真实 CI/设备发行矩阵仍归 [V011](todo/01-platform-validation.md#v011)。
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema
-  导入旧桌面）的原验收范围见 [G02 跨平台验收](todo/02-platform-acceptance.md)，
-  实际首发要求按 [G00 范围决策](todo/00-release-scope.md) 与当前项目兼容性规则重审；
-  打包、签名和发行验收见 [G05 桌面发行](todo/05-desktop-distribution.md)。
+  导入旧桌面）的原验收范围见 [跨平台验收](todo/01-platform-validation.md#v001)，
+  实际首发要求按 [范围决策](todo/03-feature-logic.md#f007) 与当前项目兼容性规则重审；
+  打包和发行验收见 [V010/V011](todo/01-platform-validation.md#v010)，签名身份见 [A011](todo/02-account-validation.md#a011)，更新逻辑见 [F006](todo/03-feature-logic.md#f006)。
 - 桌面以 GitHub Release 分发、Worker 以 Wrangler 部署，均不进入 npm。

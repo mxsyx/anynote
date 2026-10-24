@@ -74,7 +74,7 @@ pnpm run dev
 
 同一页面还可添加云盘目标：选择 Google Drive、Dropbox 或 OneDrive 并在系统浏览器完成授权，返回应用确认账号、设备标签与要备份的 Notebook；数据库按 1MiB 分块增量上传，未变化块会被复用，恢复默认创建新 Notebook。断开连接只清除本机凭据，不删除远端副本；「删除云端备份」是独立确认操作。设计说明见 [云盘备份设计](./docs/Anynote-Cloud-Drive-Backup-Design.md)。官方版本预置 OAuth 应用身份；自编译版本可通过 `ANYNOTE_OAUTH_APPS`（按 `ANYNOTE_OAUTH_STAGE` 区分开发/生产）或 `ANYNOTE_GOOGLE_CLIENT_ID`、`ANYNOTE_DROPBOX_APP_KEY`、`ANYNOTE_ONEDRIVE_CLIENT_ID` 提供自己的 Client ID。注册、注入与授权验收见 [官方 OAuth 应用注册](./docs/OAUTH-REGISTRATION.md)。
 
-Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。历史 Wrangler 部署及真实 Cloudflare 报告使用当时格式；当前 schema v4/独立附件协议需重新验收，状态见 [G07](docs/todo/07-cloudflare-acceptance.md)。
+Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。历史 Wrangler 部署及真实 Cloudflare 报告使用当时格式；当前 schema v4/独立附件协议需重新验收，状态见 [Cloudflare 验收](docs/todo/02-account-validation.md#a007)。
 
 历史 Cloudflare 生产页面及 Linux 打包应用记录了 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。该历史 Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启、其他平台或当前格式的重新验收。
 
@@ -117,7 +117,7 @@ pnpm run test:search
 pnpm run package
 ```
 
-按当前宿主平台生成 `release/` 下的应用目录；Linux 为 `release/linux-unpacked/`，可启动 `release/linux-unpacked/anynote`。其他平台产物见 [发行任务](docs/todo/05-desktop-distribution.md)；未签名构建不代表正式发行验收。
+按当前宿主平台生成 `release/` 下的应用目录；Linux 为 `release/linux-unpacked/`，可启动 `release/linux-unpacked/anynote`。其他平台产物见 [发行任务](docs/todo/01-platform-validation.md#v010)；未签名构建不代表正式发行验收。
 
 性能与界面验收覆盖万篇笔记、千层目录、100MiB PDF、备份期间界面响应，以及三档视口、浅深主题、键盘和自动无障碍检查；步骤、机器、报告和人工验收边界见 [性能与界面验收](./docs/PERFORMANCE-UI-ACCEPTANCE.md)。脚本使用临时数据和本地 Cloudflare Worker 适配器，不读取云凭据。
 
@@ -143,7 +143,7 @@ pnpm run package
 
 开发检查、提交钩子和 GitHub CI/CD 见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。
 
-各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 用于在干净离线项目中校验声明的契约窗口。SDK tarball 云盘模块闭包已由 G17 修复，独立消费证据见 [G17 交接](docs/todo/17-module-boundaries.md)；最终发行矩阵仍待验收。
+各发布单元（Desktop、Worker、SDK、开发工具、首方插件、格式/schema）的独立版本、兼容窗口与发布产物见 [公共包发布矩阵](./docs/RELEASE-MATRIX.md)。`pnpm run build:release` 汇集可发布产物并写出发布清单，`pnpm run test:release:matrix` 用于在干净离线项目中校验声明的契约窗口。SDK tarball 云盘模块闭包已由 G17 修复，独立消费证据见 [历史实施证据](docs/history/todo-2026-10-24.md#g17)；最终发行矩阵仍待验收。
 
 仓库包含多个 pnpm workspace（`apps/*`、`extensions/*`、`packages/*`），使用 isolated 且关闭依赖提升；包边界、无循环检查与筛选构建说明见 [开发工作流](./docs/DEVELOPMENT-WORKFLOW.md)。云盘官方扩展位于 `extensions/backup-google-drive`、`backup-dropbox`、`backup-onedrive`，与核心同进程注册；`googleapis` 懒加载，Dropbox/OneDrive 直连厂商 HTTP 端点、不引入厂商 SDK。
 

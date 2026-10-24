@@ -38,4 +38,4 @@ flowchart LR
 
 [依赖检查](../../scripts/check-workspaces.mjs)、[Storage 权限门面](../../packages/storage-sqlite/src/extension-host.ts)、[提案状态机](../../packages/storage-sqlite/src/proposals.ts)、[脚本结果校验](../../packages/plugin-sdk/src/script-state.ts)、[类型测试](../../tests/types/script-boundaries.ts)、[边界回归](../../tests/module-boundaries.test.mjs)。
 
-实际验证命令、结果、未执行项和跨组交接统一见 [G17](../todo/17-module-boundaries.md)。本批不改变 UI，不代表公网插件、最终发行或真实设备验收完成。
+实际验证命令、结果、未执行项和跨组交接统一见 [历史实施证据](../history/todo-2026-10-24.md#g17)。本批不改变 UI，不代表公网插件、最终发行或真实设备验收完成。
