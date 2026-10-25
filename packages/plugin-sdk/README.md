@@ -32,7 +32,7 @@ pnpm --dir artifacts/plugin-sdk pack --pack-destination ..
 
 目标产物位于 `artifacts/plugin-sdk/`，打包后为 `artifacts/anynote-plugin-sdk-0.1.0.tgz`；此命令只构建本地产物，不发布 npm。源码 workspace 的导出指向 `src/` 类型与 `dist/` 运行文件。
 
-通过 `pnpm run test:sdk:package` 验证 tarball 的类型与运行时独立消费；最终真实发行矩阵见 [V011](../../docs/todo/01-platform-validation.md#v011)。
+通过 `pnpm run test:sdk:package` 验证 tarball 的类型与运行时独立消费；最终真实发行矩阵见 [V011](../../TODO.md#v011)。
 
 ```ts
 import { createAPI, type DeclarativeManifest } from "@anynote/plugin-sdk";

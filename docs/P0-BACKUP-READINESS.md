@@ -1,6 +1,6 @@
 # P0：备份可靠性与发布验收
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [灾难恢复](todo/01-platform-validation.md#v004)、[真实 Cloudflare](todo/02-3-cloudflare.md#a007)、[卷适配](todo/03-feature-logic.md#f001) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [灾难恢复](../TODO.md#v004)、[真实 Cloudflare](../TODO.md#a007)、[卷适配](../TODO.md#f001) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
 
 更新：2026-10-08。这里区分代码完成、本机隔离实测和仍需外部设备的发布门槛；不会把不同临时目录当作另一台物理设备。
 

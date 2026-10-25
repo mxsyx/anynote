@@ -1,6 +1,6 @@
 # 真实云备份验收
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [Cloudflare](todo/02-3-cloudflare.md#a007) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](DOCUMENTATION.md)。
 
 2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。这些协议测试不代表完整产品发布验收通过。
 
@@ -128,4 +128,4 @@ pnpm exec wrangler r2 object get '<测试桶>/objects/<Notebook ID>/<hash>' \
   --remote --config .cloudflare-acceptance/wrangler.json --file /tmp/aging-object.bin
 ```
 
-只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 A008。样本身份、最早复验时间和剩余范围见 [Cloudflare 任务交接](todo/02-3-cloudflare.md#current-evidence)。
+只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 A008。样本身份、最早复验时间和剩余范围见 [Cloudflare 任务交接](history/todo-progress-2026-10-25.md#cloudflare)。

@@ -71,7 +71,7 @@ pnpm run dev
 
 通过桌面原生菜单进入备份页面，添加 Cloudflare 目标：填写部署好的 Worker URL 与应用 Token。先测试连接，再立即备份；任务中心展示结果，历史版本可恢复为新的 Notebook。
 
-Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。历史 Wrangler 部署及真实 Cloudflare 报告使用当时格式；当前 schema v4/独立附件协议需重新验收，状态见 [Cloudflare 验收](docs/todo/02-account-validation.md#a007)。
+Cloudflare 服务源码和部署步骤见 [apps/cloudflare-backup/README.md](./apps/cloudflare-backup/README.md)。Cloudflare 可直接运行 `pnpm run cloud:deploy`，通过现有 Wrangler 登录创建、迁移、部署并自动验收，无需手填 Endpoint/Token。真实云验收工具、环境变量和部署命令见 [真实云备份验收](./docs/CLOUD-ACCEPTANCE.md)。工具使用独立测试 Notebook，验证上传、恢复、去重、失败重试及并发提交并输出逐步报告。历史 Wrangler 部署及真实 Cloudflare 报告使用当时格式；当前 schema v4/独立附件协议需重新验收，状态见 [Cloudflare 验收](TODO.md#a007)。
 
 历史 Cloudflare 生产页面及 Linux 打包应用记录了 9 项真实桌面检查，涵盖系统加密、应用重启、正式自动备份、云端恢复和游标持久化：[验收说明](./docs/DESKTOP-CLOUD-ACCEPTANCE.md)。该历史 Linux 测试使用隔离的真实 GNOME Keyring，未覆盖系统重启、其他平台或当前格式的重新验收。
 
@@ -114,7 +114,7 @@ pnpm run test:search
 pnpm run package
 ```
 
-按当前宿主平台生成 `release/` 下的应用目录；Linux 为 `release/linux-unpacked/`，可启动 `release/linux-unpacked/anynote`。其他平台产物见 [发行任务](docs/todo/01-platform-validation.md#v010)；未签名构建不代表正式发行验收。
+按当前宿主平台生成 `release/` 下的应用目录；Linux 为 `release/linux-unpacked/`，可启动 `release/linux-unpacked/anynote`。其他平台产物见 [发行任务](TODO.md#v010)；未签名构建不代表正式发行验收。
 
 性能与界面验收覆盖万篇笔记、千层目录、100MiB PDF、备份期间界面响应，以及三档视口、浅深主题、键盘和自动无障碍检查；步骤、机器、报告和人工验收边界见 [性能与界面验收](./docs/PERFORMANCE-UI-ACCEPTANCE.md)。脚本使用临时数据和本地 Cloudflare Worker 适配器，不读取云凭据。
 

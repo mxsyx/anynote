@@ -102,11 +102,11 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 
 发行身份的本地准备、手动 CI 预检及真实验收记录见 [发行凭据准备与验收](RELEASE-CREDENTIALS.md)。`pnpm run test:release:credentials` 只检查配置完整性，不代表签名或公证通过。
 
-SDK tarball 的类型与运行时独立消费通过 `pnpm run test:sdk:package` 验证。最终真实 CI/设备发行矩阵仍归 [V011](todo/01-platform-validation.md#v011)。
+SDK tarball 的类型与运行时独立消费通过 `pnpm run test:sdk:package` 验证。最终真实 CI/设备发行矩阵仍归 [V011](../TODO.md#v011)。
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
   跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema
-  导入旧桌面）的原验收范围见 [跨平台验收](todo/01-platform-validation.md#v001)，
-  实际首发要求按 [范围决策](todo/03-feature-logic.md#f007) 与当前项目兼容性规则重审；
-  打包和发行验收见 [V010/V011](todo/01-platform-validation.md#v010)，签名身份见 [A011](todo/02-5-release-credentials.md#a011)，更新逻辑见 [F006](todo/03-feature-logic.md#f006)。
+  导入旧桌面）的原验收范围见 [跨平台验收](../TODO.md#v001)，
+  实际首发要求按 [范围决策](../TODO.md#f007) 与当前项目兼容性规则重审；
+  打包和发行验收见 [V010/V011](../TODO.md#v010)，签名身份见 [A011](../TODO.md#a011)，更新逻辑见 [F006](../TODO.md#f006)。
 - 桌面以 GitHub Release 分发、Worker 以 Wrangler 部署，均不进入 npm。

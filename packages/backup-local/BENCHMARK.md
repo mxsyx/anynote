@@ -47,4 +47,4 @@ Linux/ext4 上真实 Electron 41.9.1 / 内嵌 Node 24.17.0 的九项桌面验收
 
 本地备份 53 项回归通过，包括清理与协调阶段连续两次真实 SIGKILL、附件流与数据库同步的 ENOSPC、数据库发布 EACCES 有限重试、错误根身份保护及重新接回协调。完整回归 35 个测试文件、295 项通过；工作区、类型、lint 与格式检查通过。
 
-原始报告为 `artifacts/local-backup-ext4-benchmark.json` 与 `artifacts/local-backup-ext4-acceptance.json`，运行命令见 [README](./README.md)。测试临时数据已清理。上述结果仅覆盖本机同盘、热缓存条件；SSD→HDD、USB、冷缓存、macOS/Windows、真实拔盘和断电仍待实测，原生对话框与输入法仍需人工验收。剩余任务见 [物理设备演练](../../docs/todo/01-platform-validation.md#v004)、[卷适配](../../docs/todo/03-feature-logic.md#f001)、[原生交互验收](../../docs/todo/01-platform-validation.md#v012)；大清单优化已完成，见 [历史性能证据](../../docs/history/todo-2026-10-24.md#g08)。
+原始报告为 `artifacts/local-backup-ext4-benchmark.json` 与 `artifacts/local-backup-ext4-acceptance.json`，运行命令见 [README](./README.md)。测试临时数据已清理。上述结果仅覆盖本机同盘、热缓存条件；SSD→HDD、USB、冷缓存、macOS/Windows、真实拔盘和断电仍待实测，原生对话框与输入法仍需人工验收。剩余任务见 [物理设备演练](../../TODO.md#v004)、[卷适配](../../TODO.md#f001)、[原生交互验收](../../TODO.md#v012)；大清单优化已完成，见 [历史性能证据](../../docs/history/todo-2026-10-24.md#g08)。

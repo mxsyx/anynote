@@ -16,7 +16,7 @@ Cloudflare 用分支 CAS 发布，接管提升 epoch；恢复默认创建新 Not
 
 ## 取舍与边界
 
-不提供双向同步或冲突自动合并，也不假设应用退出后任务继续运行。Cloudflare 真实服务验收归 [A007–A009](../todo/02-3-cloudflare.md)，独立设备验收归 [V 类任务](../todo/01-platform-validation.md)。
+不提供双向同步或冲突自动合并，也不假设应用退出后任务继续运行。Cloudflare 真实服务验收归 [A007–A009](../../TODO.md#a007)，独立设备验收归 [V 类任务](../../TODO.md#platform-validation)。
 
 ## 证据与验证
 

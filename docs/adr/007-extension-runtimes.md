@@ -16,7 +16,7 @@ QuickJS 只获得授权快照及声明的搜索/固定 HTTPS 桥接，设内存�
 
 ## 取舍与边界
 
-不把受信 Node 工厂视为恶意插件沙箱。签名验证、设备信任与 Notebook 授权分别执行；自动检查更新不会自动安装。SDK 独立消费通过 `pnpm run test:sdk:package` 验证，真实发行矩阵仍由 [V011](../todo/01-platform-validation.md#v011) 验收。
+不把受信 Node 工厂视为恶意插件沙箱。签名验证、设备信任与 Notebook 授权分别执行；自动检查更新不会自动安装。SDK 独立消费通过 `pnpm run test:sdk:package` 验证，真实发行矩阵仍由 [V011](../../TODO.md#v011) 验收。
 
 ## 证据与验证
 
