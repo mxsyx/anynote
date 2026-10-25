@@ -1,3 +1,4 @@
+import { browseSchema, captureAckObjectSchema } from "./cloud-capture.js";
 import { assertAssets } from "./assets.js";
 /** R2 multipart transport part size; assets remain whole objects in the backup format. */
 export const multipartPartBytes = 32 * 1024 ** 2;
@@ -51,7 +52,7 @@ export const cloudBackupBytes = 20 * 1024 ** 3;
 export function objectDescriptors(
   m: Pick<
     import("@anynote/types/runtime.js").SnapshotManifest,
-    "database" | "assets"
+    "database" | "assets" | "browse" | "captureAcks"
   >,
 ) {
   assertDatabaseChunks(m.database);
@@ -74,5 +75,16 @@ export function objectDescriptors(
       throw Error("对象描述冲突");
     objects.set(asset.sha256, { hash: asset.sha256, size: asset.size });
   }
+  const extras = [
+    ...(m.browse ? browseSchema.parse(m.browse).objects : []),
+    ...(m.captureAcks ? [captureAckObjectSchema.parse(m.captureAcks)] : []),
+  ];
+  for (const extra of extras) {
+    if (objects.has(extra.hash) && objects.get(extra.hash)!.size !== extra.size)
+      throw Error("对象描述冲突");
+    objects.set(extra.hash, { hash: extra.hash, size: extra.size });
+  }
+  if ([...objects.values()].reduce((n, o) => n + o.size, 0) > cloudBackupBytes)
+    throw Error("备份对象总大小超限");
   return objects;
 }

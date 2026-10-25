@@ -583,7 +583,7 @@ export class Storage {
       const meta = db
         .prepare("SELECT id,schema_version FROM notebook_meta")
         .get();
-      if (meta?.id !== id || meta.schema_version !== 4)
+      if (meta?.id !== id || meta.schema_version !== 5)
         throw Error("Notebook 身份或版本无效");
       this.readDbs.set(id, db);
       while (this.readDbs.size > this.maxReadConnections) {
@@ -635,7 +635,7 @@ export class Storage {
     this.readDbs.get(id)?.close();
     this.readDbs.delete(id);
     if (this.externalDirectories.has(id)) {
-      const meta = validateDirectory(dir, { 4: schema });
+      const meta = validateDirectory(dir, { 5: schema });
       if (meta.id !== id) throw Error("Notebook 身份与已登记目录不匹配");
     }
     const release = acquireWriteLock(dir),
@@ -643,7 +643,7 @@ export class Storage {
     this.writeLocks.set(id, release);
     try {
       const meta = db.prepare("SELECT * FROM notebook_meta").get();
-      if (!meta || meta.id !== id || meta.schema_version !== 4)
+      if (!meta || meta.id !== id || meta.schema_version !== 5)
         throw Error("Notebook 身份或版本无效");
       initializeBackupRevision(db);
       const identity = lstatSync(p, { bigint: true });
@@ -994,16 +994,16 @@ export class Storage {
     }
 
     if (op === "registerNotebookDirectory")
-      return registerDirectory(this, raw, { 4: schema });
+      return registerDirectory(this, raw, { 5: schema });
 
     if (op === "detachNotebookDirectory") return detachDirectory(this, raw);
 
     if (op === "diagnoseNotebook")
-      return diagnoseNotebook(this, raw, { 4: schema });
+      return diagnoseNotebook(this, raw, { 5: schema });
 
     if (op === "preserveNotebookEvidence")
       return preserveNotebookEvidence(this, raw, {
-        4: schema,
+        5: schema,
       });
 
     if (
@@ -1111,7 +1111,7 @@ export class Storage {
       const db = new DatabaseSync(join(dir, "notebook.sqlite"));
       db.exec(schema);
       db.prepare(
-        "INSERT INTO notebook_meta(id,name,created_at,schema_version,icon,cover_color) VALUES(?,?,?,4,?,?)",
+        "INSERT INTO notebook_meta(id,name,created_at,schema_version,icon,cover_color) VALUES(?,?,?,5,?,?)",
       ).run(
         id,
         p.title || "我的知识库",
@@ -1508,7 +1508,7 @@ export class Storage {
         JSON.stringify({
           format: "anynote.notebook",
           formatVersion: 1,
-          schemaVersion: 4,
+          schemaVersion: 5,
           appVersion: "0.1.0",
           notebookId: id,
           generationId: randomUUID(),
@@ -1572,7 +1572,7 @@ export class Storage {
       .object({
         format: z.literal("anynote.notebook"),
         formatVersion: z.literal(1),
-        schemaVersion: z.literal(4),
+        schemaVersion: z.literal(5),
         notebookId: uuid,
         database: z.object({
           path: z.literal("notebook.sqlite"),
@@ -1651,7 +1651,7 @@ export class Storage {
         meta[0].id !== m.notebookId
       )
         throw Error("Notebook 元数据不匹配");
-      if (m.schemaVersion !== 4) throw Error("不支持的归档格式");
+      if (m.schemaVersion !== 5) throw Error("不支持的归档格式");
       assertAssetClosure(db, m.assets);
       verifyAssets(db);
       const rows = db.prepare("SELECT id,parent_id,kind FROM nodes").all(),

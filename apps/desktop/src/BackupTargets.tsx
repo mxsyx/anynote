@@ -1,3 +1,4 @@
+import CaptureDevices from "./CaptureDevices";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
@@ -84,6 +85,7 @@ export default function BackupTargets({
   onRestored: (id: string) => void;
 }) {
   const [targets, setTargets] = useState<Target[]>([]),
+    [captureTarget, setCaptureTarget] = useState<Target | null>(null),
     [maintenance, setMaintenance] = useState<Target | null>(null),
     [open, setOpen] = useState(false),
     [error, setError] = useState(""),
@@ -255,6 +257,13 @@ export default function BackupTargets({
           }
           <Button
             variant="ghost"
+            disabled={busy}
+            onClick={() => setCaptureTarget(t)}
+          >
+            采集设备
+          </Button>
+          <Button
+            variant="ghost"
             size="layout"
             className="primary"
             disabled={busy}
@@ -304,6 +313,13 @@ export default function BackupTargets({
         <p className="form-error" role="alert">
           {error}
         </p>
+      )}
+      {captureTarget && (
+        <CaptureDevices
+          notebookId={notebookId}
+          targetId={captureTarget.id}
+          onClose={() => setCaptureTarget(null)}
+        />
       )}
       {maintenance && (
         <RemoteMaintenance

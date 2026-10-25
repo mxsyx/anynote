@@ -265,7 +265,7 @@ export function diagnoseNotebook(
               path: "notebook.sqlite",
             }),
           );
-        if (meta.schema_version !== 4)
+        if (meta.schema_version !== 5)
           issues.push(issue("SCHEMA_UNSUPPORTED", "不支持的数据库版本"));
         else {
           const reference = new DatabaseSync(":memory:");

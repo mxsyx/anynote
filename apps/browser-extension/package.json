@@ -1,0 +1,22 @@
+{
+  "name": "@anynote/browser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build-browser-extension.mjs"
+  },
+  "dependencies": {
+    "@anynote/capture": "workspace:*",
+    "@anynote/importer": "workspace:*",
+    "@anynote/protocol": "workspace:*",
+    "dompurify": "3.2.7",
+    "turndown": "7.2.0",
+    "fflate": "0.8.2"
+  },
+  "devDependencies": {
+    "@types/turndown": "5.0.6",
+    "typescript": "5.9.2",
+    "vite": "6.3.6"
+  }
+}

@@ -71,7 +71,7 @@ test("diagnoseNotebook reports a healthy Notebook without modifying files", asyn
   assert.ok(report.counts.assets >= 1);
   assert.equal(report.counts.checkedAssets, report.counts.assets);
   assert.equal(report.meta.id, book.id);
-  assert.equal(report.meta.schemaVersion, 4);
+  assert.equal(report.meta.schemaVersion, 5);
 });
 
 test("diagnoseNotebook locates a missing asset and snapshot recovery restores it", async (t) => {

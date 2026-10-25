@@ -319,14 +319,51 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
 
+  apps/browser-extension:
+    dependencies:
+      "@anynote/capture":
+        specifier: workspace:*
+        version: link:../../packages/capture
+      "@anynote/importer":
+        specifier: workspace:*
+        version: link:../../packages/importer
+      "@anynote/protocol":
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      dompurify:
+        specifier: 3.2.7
+        version: 3.2.7
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
+      turndown:
+        specifier: 7.2.0
+        version: 7.2.0
+    devDependencies:
+      "@types/turndown":
+        specifier: 5.0.6
+        version: 5.0.6
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vite:
+        specifier: 6.3.6
+        version: 6.3.6(@types/node@24.19.0)(jiti@2.7.0)(lightningcss@1.32.0)(sass@1.51.0)(yaml@2.8.1)
+
   apps/cloudflare-backup:
     dependencies:
+      "@anynote/capture":
+        specifier: workspace:*
+        version: link:../../packages/capture
       "@anynote/protocol":
         specifier: workspace:*
         version: link:../../packages/protocol
       "@anynote/types":
         specifier: workspace:*
         version: link:../../packages/types
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
     devDependencies:
       "@cloudflare/workers-types":
         specifier: 5.20261003.1
@@ -349,6 +386,9 @@ importers:
       "@anynote/backup":
         specifier: workspace:*
         version: link:../../packages/backup
+      "@anynote/capture":
+        specifier: workspace:*
+        version: link:../../packages/capture
       "@anynote/extension-host":
         specifier: workspace:*
         version: link:../../packages/extension-host
@@ -480,6 +520,9 @@ importers:
       "@anynote/backup-local":
         specifier: workspace:*
         version: link:../backup-local
+      "@anynote/capture":
+        specifier: workspace:*
+        version: link:../capture
       "@anynote/cloudflare-backup":
         specifier: workspace:*
         version: link:../../apps/cloudflare-backup
@@ -521,6 +564,37 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
+      "@types/node":
+        specifier: 24.19.0
+        version: 24.19.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/capture:
+    dependencies:
+      "@anynote/protocol":
+        specifier: workspace:*
+        version: link:../protocol
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
+      remark-parse:
+        specifier: 11.0.0
+        version: 11.0.0(supports-color@10.2.2)
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
+    devDependencies:
+      "@types/mdast":
+        specifier: 4.0.4
+        version: 4.0.4
       "@types/node":
         specifier: 24.19.0
         version: 24.19.0
@@ -659,6 +733,9 @@ importers:
 
   packages/storage-sqlite:
     dependencies:
+      "@anynote/capture":
+        specifier: workspace:*
+        version: link:../capture
       "@anynote/extension-tools":
         specifier: workspace:*
         version: link:../extension-tools

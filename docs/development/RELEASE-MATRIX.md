@@ -28,7 +28,7 @@
 
 | 格式                  | 标识                                  | 版本 | 归属     |
 | --------------------- | ------------------------------------- | ---- | -------- |
-| `notebook-schema`     | `notebook.sqlite`（`schema_version`） | 4    | `format` |
+| `notebook-schema`     | `notebook.sqlite`（`schema_version`） | 5    | `format` |
 | `notebook-archive`    | `anynote.notebook`                    | 1    | `format` |
 | `sqlite-backup`       | `anynote.sqlite`                      | 1    | `format` |
 | `local-backup`        | `anynote.local-backup`                | 3    | `format` |
@@ -45,7 +45,7 @@ range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静�
 
 | 消费者        | 提供者                | 接受范围 | 说明                                       |
 | ------------- | --------------------- | -------- | ------------------------------------------ |
-| `desktop`     | `notebook-schema`     | `4`      | SQLite 与独立附件 schema 4                 |
+| `desktop`     | `notebook-schema`     | `5`      | SQLite 与独立附件 schema 5                 |
 | `desktop`     | `notebook-archive`    | `1`      | 完整归档 `anynote.notebook` v1             |
 | `desktop`     | `sqlite-backup`       | `1`      | 与 Worker 仅在同一物理分块协议版本内互操作 |
 | `worker`      | `sqlite-backup`       | `1`      | Worker 只接受 `anynote.sqlite` v1          |

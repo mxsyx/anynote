@@ -48,7 +48,7 @@ export interface FileDescriptor {
 export interface FileManifest {
   format: "anynote.notebook";
   formatVersion: 1;
-  schemaVersion: 4;
+  schemaVersion: 5;
   appVersion: string;
   notebookId: string;
   notebookName?: string;
@@ -75,7 +75,7 @@ export const fileSnapshotSchema = z.object({
   manifest: z.object({
     format: z.literal("anynote.notebook"),
     formatVersion: z.literal(1),
-    schemaVersion: z.literal(4),
+    schemaVersion: z.literal(5),
     appVersion: z.string(),
     notebookId: z.string().uuid(),
     notebookName: z.string().optional(),
@@ -129,7 +129,7 @@ export async function createFileSnapshot(
     const manifest: FileManifest = {
       format: "anynote.notebook",
       formatVersion: 1,
-      schemaVersion: 4,
+      schemaVersion: 5,
       appVersion: "0.1.0",
       notebookId,
       notebookName: meta.name,

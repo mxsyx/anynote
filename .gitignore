@@ -35,4 +35,4 @@ apps/cloudflare-backup/wrangler.ci.json
 .DS_Store
 
 # Disposable local outputs.
-/tmp/
+**/tmp/

@@ -1,6 +1,6 @@
 /** Notebook metadata schema. Resource bytes live in immutable content-addressed files. */
 export const schema = `
-CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,icon TEXT NOT NULL DEFAULT '❦',cover_color TEXT NOT NULL DEFAULT '#583a29',schema_version INTEGER NOT NULL DEFAULT 4,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
+CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,icon TEXT NOT NULL DEFAULT '❦',cover_color TEXT NOT NULL DEFAULT '#583a29',schema_version INTEGER NOT NULL DEFAULT 5,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
 CREATE TABLE nodes(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES nodes(id),kind TEXT NOT NULL CHECK(kind IN ('folder','note')),title TEXT NOT NULL,sort_key INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,deleted_by TEXT,favorite INTEGER NOT NULL DEFAULT 0,tags TEXT NOT NULL DEFAULT '[]');
 CREATE INDEX nodes_parent ON nodes(parent_id,sort_key,id);
 CREATE TABLE assets(hash TEXT PRIMARY KEY,size INTEGER NOT NULL,mime TEXT NOT NULL);
@@ -14,5 +14,6 @@ CREATE TABLE annotations(id TEXT PRIMARY KEY,note_id TEXT NOT NULL REFERENCES no
 CREATE TABLE note_links(source_note_id TEXT NOT NULL REFERENCES notes(node_id),target_notebook_id TEXT NOT NULL,target_note_id TEXT NOT NULL,anchor TEXT,PRIMARY KEY(source_note_id,target_notebook_id,target_note_id));
 CREATE TABLE note_text(note_id TEXT PRIMARY KEY REFERENCES notes(node_id),asset_hash TEXT NOT NULL REFERENCES assets(hash),body TEXT NOT NULL);
 CREATE TABLE extension_data(extension_id TEXT NOT NULL,key TEXT NOT NULL,value_json TEXT NOT NULL,schema_version INTEGER NOT NULL DEFAULT 1,revision INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(extension_id,key));
+CREATE TABLE capture_receipts(capture_id TEXT PRIMARY KEY,digest TEXT NOT NULL,note_id TEXT NOT NULL,applied_seq INTEGER NOT NULL);
 CREATE TABLE import_reports(note_id TEXT PRIMARY KEY REFERENCES notes(node_id),report_json TEXT NOT NULL);
 `;

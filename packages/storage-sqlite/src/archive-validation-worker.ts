@@ -43,7 +43,7 @@ try {
     currentContent(join(input.dir, "notebook.sqlite"));
     parentPort!.postMessage({ result: { id: input.id } });
   } else if (input.mode === "export") {
-    const meta = validateDirectory(input.dir, { 4: schema });
+    const meta = validateDirectory(input.dir, { 5: schema });
     if (meta.id !== input.id) throw Error("Notebook 元数据不匹配");
     const db = new DatabaseSync(join(input.dir, "notebook.sqlite"), {
       readOnly: true,

@@ -1,3 +1,4 @@
+import { browseSnapshot } from "./browse-snapshot.js";
 import { join } from "node:path";
 import type { TransferSession } from "./transfer-session.js";
 import { cachedDownload, cachedChunk } from "./transfer-download.js";
@@ -22,12 +23,13 @@ export async function snapshotFiles(
   target: BackupTarget,
   signal: AbortSignal,
   progress: (message: string) => void,
+  pendingAcks: string[] = [],
 ) {
   const objects = await prepareFiles(snapshot, signal, progress);
   const manifest: SnapshotManifest = {
     format: "anynote.sqlite",
     protocolVersion: 1,
-    schemaVersion: 4,
+    schemaVersion: 5,
     notebookId: target.remoteNotebookId || target.notebookId,
     sourceNotebookId: snapshot.manifest.notebookId,
     notebookName: snapshot.manifest.notebookName,
@@ -47,6 +49,14 @@ export async function snapshotFiles(
       offset: 0,
       size: asset.size,
     });
+  const view = await browseSnapshot(
+    snapshot.files.get("notebook.sqlite")!,
+    signal,
+    pendingAcks,
+  );
+  manifest.browse = view.browse;
+  manifest.captureAcks = view.captureAcks;
+  for (const [hash, source] of view.sources) objects.set(hash, source);
   objectDescriptors(manifest);
   return { manifest, objects };
 }
@@ -77,11 +87,22 @@ export async function uploadSnapshotFiles(
   const capabilities = await client.call("/v1/capabilities", { signal });
   if (!capabilities.capabilities?.includes("sqlite-assets-v1"))
     throw Error("服务端需升级以支持 SQLite 分块备份");
+  const pendingAcks = capabilities.capabilities?.includes("capture-v1")
+    ? await client.call("/v1/captures/pending-acks", {
+        method: "POST",
+        body: {
+          notebookId: target.remoteNotebookId || target.notebookId,
+          lineageId: target.lineageId,
+        },
+        signal,
+      })
+    : [];
   const { manifest, objects } = await snapshotFiles(
     snapshot,
     target,
     signal,
     progress,
+    pendingAcks,
   );
   Object.assign(manifest, {
     generationId,
@@ -146,7 +167,12 @@ export async function uploadSnapshotFiles(
   const missing = new Set<string>(plan.missing);
   for (const [hash, source] of objects)
     if (!missing.has(hash)) onBytes(source.size);
-  for (const hash of plan.missing) {
+  const ordered: string[] = [...plan.missing].sort(
+    (a, b) =>
+      Number(objects.get(a)!.size > 20 * 1024 ** 2) -
+      Number(objects.get(b)!.size > 20 * 1024 ** 2),
+  );
+  for (const hash of ordered) {
     signal.throwIfAborted();
     const source = objects.get(hash);
     if (!source) throw Error("计划要求不存在的本地对象");
@@ -249,7 +275,7 @@ export async function restoreSnapshotFiles(
       manifest.notebookId !== book ||
       manifest.lineageId !== target.lineageId ||
       manifest.generationId !== generationId ||
-      manifest.schemaVersion !== 4 ||
+      manifest.schemaVersion !== 5 ||
       manifest.protocolVersion !== 1 ||
       manifest.format !== "anynote.sqlite" ||
       !/^[a-f0-9-]{36}$/.test(manifest.sourceNotebookId)
@@ -309,7 +335,7 @@ export async function restoreSnapshotFiles(
     return {
       format: "anynote.notebook",
       formatVersion: 1,
-      schemaVersion: 4,
+      schemaVersion: 5,
       appVersion: "0.1.0",
       notebookId: manifest.sourceNotebookId,
       generationId,

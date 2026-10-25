@@ -108,7 +108,7 @@ test("composed snapshots retain the database identity, sequence and cancellation
   });
   assert.equal(capture.notebookId, book.id);
   assert.equal(capture.name, "Snapshot");
-  assert.equal(capture.schemaVersion, 4);
+  assert.equal(capture.schemaVersion, 5);
   const snapshot = await s.run("createBackupSnapshot", {
     notebookId: book.id,
     dir: snapshotDir,
@@ -142,7 +142,7 @@ test("SQL metadata validates row count, identity, version and exact sequences", 
   db.prepare("INSERT INTO notebook_meta VALUES(?,?,?,?)").run(
     id,
     "Notebook",
-    4,
+    5,
     7,
   );
   assert.equal(snapshotSequence(snapshotMetadata(db, id)), 7);

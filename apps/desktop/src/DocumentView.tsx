@@ -3,6 +3,7 @@ import { Input } from "./components/ui/input";
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { rehypeCaptureCards } from "@anynote/capture/chatgpt-components.js";
 import { parseBlocks } from "@anynote/protocol/markdown.js";
 import {
   videoCard,
@@ -97,6 +98,7 @@ export default function DocumentView({
             <Markdown
               key={i}
               remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeCaptureCards]}
               urlTransform={(url) =>
                 /^(https?:|mailto:|anynote:|anynote-resource:|#)/i.test(url)
                   ? url

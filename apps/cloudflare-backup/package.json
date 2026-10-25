@@ -32,7 +32,9 @@
   },
   "dependencies": {
     "@anynote/protocol": "workspace:*",
-    "@anynote/types": "workspace:*"
+    "@anynote/types": "workspace:*",
+    "@anynote/capture": "workspace:*",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261003.1",

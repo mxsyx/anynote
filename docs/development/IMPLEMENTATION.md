@@ -1,6 +1,6 @@
 # 实施记录
 
-> 当前存储为 SQLite schema v4 + 不可变附件文件，数据库按块增量、附件按文件增量，统一清单提交与恢复，见 [存储设计](../design/SQLITE-STORAGE.md)。下文历史云端和平台验收不能作为新格式的验收结论。
+> 当前存储为 SQLite schema v5 + 不可变附件文件，数据库按块增量、附件按文件增量，统一清单提交与恢复，见 [存储设计](../design/SQLITE-STORAGE.md)。下文历史云端和平台验收不能作为新格式的验收结论。
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
@@ -12,7 +12,7 @@
 
 - `apps/desktop/electron/`：安全窗口、IPC 允许列表、SQLite Utility Process、系统加密凭据代理；知识库服务与窗口生命周期分离。
 - `packages/backend/`：Electron、预览 API 与验收工具共用的服务装配入口；向基础 Storage 注入备份操作，保持快照串行与远端并发策略，包依赖全仓无循环，见 [ADR-012](../design/adr/012-backup-service-composition.md)。
-- `packages/storage-sqlite/`：schema v4（SQLite 元数据与不可变附件文件）、事务、资源版本引用闭包、批注、反链、导入报告、扩展状态、归档与开放格式导出。
+- `packages/storage-sqlite/`：schema v5（SQLite 元数据与不可变附件文件）、事务、资源版本引用闭包、批注、反链、导入报告、扩展状态、归档与开放格式导出。
 - `packages/protocol/`：扩展块原文与位置、代码围栏保护、资源引用、YouTube 地址、HTML 编码识别及公共操作允许列表。
 - `packages/importer/`：独立 Worker Thread 执行 Readability、DOMPurify、Turndown 和受控下载；完成后排入单个知识事务。
 - `packages/backup/`：Cloudflare 数据库分块与完整附件对象、恢复、设备配置、凭据门面、自动备份调度。
@@ -27,7 +27,7 @@ Node 内置 `node:sqlite` 仍为实验 API；当前运行要求 Node 24，桌面
 
 ## 一致性与恢复规则
 
-当前 schema v4 不兼容旧 BLOB 数据库，也不自动迁移。SQLite 保存正文、历史、回收站和引用；图片、附件等二进制内容保存在同目录下的不可变内容哈希文件中。
+当前 schema v5 不兼容旧 BLOB 数据库，也不自动迁移。SQLite 保存正文、历史、回收站和引用；图片、附件等二进制内容保存在同目录下的不可变内容哈希文件中。
 
 白板场景、预览和图片按 SHA-256 保存不可变字节；每个正文版本冻结 resourceId→assetHash 映射，并递归保存场景图片引用。普通正文编辑继承未换绑的资源版本；恢复历史复制所选版本的引用；不物理删除资源，避免破坏历史。
 
@@ -35,7 +35,7 @@ Node 内置 `node:sqlite` 仍为实验 API；当前运行要求 Node 24，桌面
 
 Cloudflare 远端维护支持按目标保存数量/日周月配置和手动空间预览；过期 staging、孤立 manifest 与临时对象经确认回收，维护回执/墓碑先归档再回收 D1。保护和预算见 [远端维护契约](../features/REMOTE-MAINTENANCE.md)，不执行定时删除。
 
-Cloudflare 正式传输支持重启后复用已验证对象、multipart 回执及附件下载范围；源切点或 manifest 改变时隔离旧进度。`transfer-resume-v1` / `0006.sql` 将遗留上传会话接入手动维护，见 [持久续传决策](../design/adr/014-cloudflare-transfer-resume.md)。
+Cloudflare 正式传输支持重启后复用已验证对象、multipart 回执及附件下载范围；源切点或 manifest 改变时隔离旧进度。`transfer-resume-v1` / `0007.sql` 将遗留上传会话接入手动维护，见 [持久续传决策](../design/adr/014-cloudflare-transfer-resume.md)。
 
 Cloudflare 保存有序数据库块及完整附件文件，D1 保存版本元数据；每个版本包含完整清单，可独立恢复，不依赖增量版本链。staging 不进入恢复列表，最终事务 guard + head CAS 原子发布。
 
@@ -66,7 +66,7 @@ Linux 历史与 macOS/APFS 镜像证据见 [P0 记录](validation/P0-BACKUP-READ
 | 首方扩展 SDK                                      | 有限公开接口及合约测试已实现；随应用受信工厂可用，声明式第三方安装、每库授权及命令/节点贡献已实现；通用 JS/React 宿主未开放；受限正文转换脚本、持久化状态、设置表单与显式数据迁移/备份恢复已接入                                 |
 | 首方功能独立发布                                  | 白板/视频/导入/备份适配器经公开 SDK 接入，独立 tarball 在干净离线项目安装、编译并运行通过；真实首方插件完整功能的外部运行待后续                                                                                                  |
 | AI 工具接口                                       | 提案/显式应用/幂等/版本条件撤销已实现；模型 Provider 未接入                                                                                                                                                                      |
-| 本地快照与 Cloudflare 备份/恢复                   | 当前为 schema v4、数据库分块与完整附件清单；本地契约有测试，旧真实云报告不覆盖当前格式，验收归 G07                                                                                                                               |
+| 本地快照与 Cloudflare 备份/恢复                   | 当前为 schema v5、数据库分块与完整附件清单；本地契约有测试，旧真实云报告不覆盖当前格式，验收归 G07                                                                                                                               |
 | 自动备份                                          | 可按目标启用，约每分钟检查变更；不作为系统常驻服务                                                                                                                                                                               |
 | 凭据安全                                          | 桌面系统加密，Linux keyring 缺失时拒绝；浏览器开发仅内存；真实隔离 GNOME Keyring 的加密与应用重启已验证；Windows/macOS 和系统重启未验证                                                                                          |
 | 连续文档编辑                                      | 已实现斜杠命令、Markdown 输入转换、任务与表格；复杂语法保留，不承诺任意 Markdown 全文无损往返；当前入口见 EDITOR-ECOSYSTEM                                                                                                       |
@@ -87,3 +87,23 @@ Linux 历史与 macOS/APFS 镜像证据见 [P0 记录](validation/P0-BACKUP-READ
 - [TODO](TODO.md) 是唯一未完成任务清单；本摘要不代替当前源码检查，不沿用历史通过状态。
 
 源码使用 Vitest；测试入口见 [开发工作流](DEVELOPMENT-WORKFLOW.md)。扩展及归档回归入口见 [功能验证](validation/FEATURES.md)。继续修改时先核对相关实现和契约，完成后记录交付范围与未解决的问题。
+
+## 浏览器采集开发版本（2026-10-25）
+
+配对接口故障核查：用户现有 `anynote-backup-acceptance-518ee6c2` 的真实 `/v1/capabilities` 返回 200、schema v4，未声明 `capture-v1`；远程 D1 只读查询确认迁移到 0006，有 93 个 committed、13 个 staging generation。此状态解释配对请求的“接口不存在”，不是 Token 失效。未改动该云端服务或数据。桌面三种采集设备操作现先检查能力，旧服务给出升级 Worker/迁移 0007 的明确提示，保留鉴权错误。后端构建、相关 ESLint、6 项云采集回归和 Worker dry-run 通过。因新版仅支持 schema v5，建议独立部署新服务，保留现有服务和旧备份；用户随后明确授权删除原资源并重建；已删除旧 Worker/D1/R2/维护状态，保留地址及 APP_TOKEN 同名部署 schema v5。9 项真实云采集协议检查通过，覆盖配对、目录/正文、图片与卡片上传、桌面后端归入/回执、防重复及撤销；用户 GUI 操作仍待验证。旧老化样本已失效，详见[重建与真实验证](validation/CLOUD-ACCEPTANCE.md#2026-10-25-重建与浏览器采集真实验证)。
+
+新增 `apps/browser-extension` 与共享 `packages/capture`。桌面导入采用原生文件选择、受预算限制的 ZIP 流式解包、哈希校验、Markdown AST 资源重映射和 SQLite 事务回执。Notebook schema 升至 v5，发行矩阵、归档/恢复与 Cloudflare 能力保持一致；旧版本不自动迁移。
+
+Cloudflare 新增受限设备配对、不可变浏览投影和独立采集箱。桌面备份任务先领取并归入，再从同一个 SQLite 切点导出浏览对象与待确认回执；只有 generation 原子提交能推进 backedUp。普通媒体逐个下载并验证；ChatGPT 搜索图片组可补充已渲染图片地址，其他尚未适配的多模态内容报告缺失。
+
+已执行：`pnpm run check`、桌面与扩展构建、Worker dry-run 均通过。最终回归 `vitest run --exclude tests/icons.test.ts`：64 个文件、453 项通过、1 项跳过；图标模块未改动，其 3 项测试仍期望旧的 48×48 自绘图标，与当前 Lucide 实现不一致，单独排除并保留记录，不宣称全套通过。采集、云采集与网页导入聚焦回归 26 项通过，包含共享表格内的图片/链接、防重复、目标失效、回执丢响应、授权与清理中断。隔离 Chromium 153 扩展 smoke 通过实际 Range 选区转换、合成 ChatGPT API 分支与凭据过滤、采集包下载、草稿恢复和布局检查；截图已人工查看。沙箱不允许启动子进程/本地端口，相关测试在获准的隔离临时环境执行。
+
+ChatGPT 缺失内容后续诊断：用户再次回报同一对话的两条未转换内容警告，原提示没有内容类型，无法判断是旧草稿、内部节点还是真实媒体。新增 `unsupportedTypes`：只携带最多 4 个、每个最多 48 字符的类型标识；缺失说明显示格式，不读取/保存特殊 part 的正文、附件指针或 session 凭据。适配器版本标识为 `web-experimental-2`，旧草稿需重新采集。10 项聚焦测试和扩展构建通过；用户随后确认这两条提示来自之前保存的记录；旧记录需重采，不扩大过滤范围或删除未知内容。
+
+扩展界面后续更新：右上角设置入口切换 `#settings`，Cloudflare 配对、目录、笔记阅读及采集箱全部移入设置页；返回采集保留原草稿和当前目录，未连接时“导入云端”跳转设置。移除顶部操作提示及手动开启 ChatGPT 按钮，使用限定 chatgpt.com 的固定权限与静态注入，已打开页面在安装/启动时补挂载。增加本地 Lucide SVG 子集（ISC 许可，来源为项目已有 lucide-react 1.59.0，不引入 React 运行时）、自绘笔记 A Logo 及 16/32/48/128px PNG 工具栏/管理页图标；Logo SVG 源文件在 `apps/browser-extension/public/icons/logo.svg`。完整 `pnpm run check`、扩展构建、ESLint、隔离 Chromium smoke 通过；验证了默认注入、刷新后不重复、真实 content script → service worker → MAIN world 链路（合成 API）、设置切换保留草稿/表单、设置直接打开、未连接引导，以及导出和采集/设置两页 320px 布局。截图已人工检查。真实 Cloudflare 账号验收仍未执行。
+
+ChatGPT 组件补充（适配器 `web-experimental-3`）：按消息 ID 提取实际搜索图片组，支持新 `data-dil-message-id` 页面结构；图片进入现有下载、哈希校验与采集包管线。共享 `chatgpt-components.ts` 使用 parse5 白名单解析及 Markdown AST 转换，将用户提供的四步卡片变为带内联样式的受限 HTML；桌面 `DocumentView` 仅重新校验并渲染带采集标记的卡片，普通 HTML 行为不变。卡片中的图片组移到其后供资源重映射；其他内嵌媒体明确提示缺失，代码示例保持原样。测试覆盖样式、代码保留、伪造标记、危险标签/CSS、图片组缺失/歧义及含媒体采集包的桌面导入。隔离 Chromium smoke 覆盖实际扩展消息链路、合成图片下载与完整包导出，卡片截图已检查。用户授权的“总结版本更新”页面已核对图片和消息 DOM，未将合成 API 测试声称为新版真实媒体采集验收。本轮最终 `pnpm run check`、桌面与扩展构建通过；采集包、组件转换、文档模型和网页导入 4 个文件共 32 项回归通过。安装 ZIP 已更新。
+
+临时扩展安装包：`tmp/browser-capture/anynote-browser-extension.zip`；解压后加载目录，或直接加载 `apps/browser-extension/dist`。2026-10-25 已连接用户 Chrome 并点击指定对话的采集按钮；用户回传的 Markdown 证实真实历史接口返回正文、表格和代码块。首次结果包含空消息、内部特殊消息及原始 Cite 标记，且导出因未确认缺失而受阻，提示位于侧栏末尾不可见。随后过滤已知 thoughts/reasoning_recap、工具定向消息与空文本；保留真正未知媒体缺失提示；正文引用标记替换为“引用来源见原对话”（代码示例保持原样，不虚构来源 URL）；导出操作旁显示状态并聚焦缺失确认框。切换草稿重置确认，冻结包也重新检查确认。修正后聚焦采集回归 10 项通过，隔离 Chromium smoke 覆盖缺失确认阻止导出、就地提示、确认后下载及冻结包取消确认后再次阻止导出；扩展构建通过。用户随后确认新版真实对话采集与 `.anyclip` 导出正常；这是用户操作回报，扩展侧栏未由工具直接读取。专有媒体与分支切换不计为通过。按用户最新要求，扩展侧栏与 ChatGPT 注入按钮改为白色背景、扁平化样式：移除渐变与阴影，统一浅灰边框、蓝色主操作、两列采集操作及键盘焦点状态。样式更新后扩展构建、相关 ESLint 和隔离 Chromium smoke 通过；440px 与 320px 侧栏截图已人工检查，320px 无横向溢出，导出与草稿恢复通过。没有部署或改变现有真实 Cloudflare 数据。
+
+`node scripts/capture-benchmark.mjs` 对 4×20 MiB 合成附件实测：Node 流式导出约 194 ms、导入约 118 ms、RSS 基线 73 MiB / 峰值 98 MiB。该测量不代表浏览器最终 Blob 内存或真实云性能。临时报告与截图在 `tmp/browser-capture`、`tmp/capture-benchmark`。后续状态统一见 [F025](TODO.md#f025)。

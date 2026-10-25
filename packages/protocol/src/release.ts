@@ -211,7 +211,7 @@ const formatList: readonly ReleaseFormat[] = [
   {
     id: "notebook-schema",
     tag: "notebook.sqlite",
-    version: 4,
+    version: 5,
     owner: "format",
   },
   {
@@ -264,8 +264,8 @@ const windowList: readonly CompatibilityWindow[] = [
   {
     consumer: "desktop",
     provider: "notebook-schema",
-    accepts: "4",
-    note: "桌面仅接受数据库与不可变附件分离的 schema 4",
+    accepts: "5",
+    note: "桌面仅接受数据库与不可变附件分离的 schema 5",
   },
   {
     consumer: "desktop",

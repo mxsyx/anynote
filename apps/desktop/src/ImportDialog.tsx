@@ -188,6 +188,33 @@ export default function ImportDialog({
     }
   };
 
+  const openCapture = async () => {
+    if (busy) return;
+    const current = ++generation.current;
+    setBusy(true);
+    setError("");
+    try {
+      const state = await request<PreviewState | null>("previewCaptureFile", {
+        notebookId,
+        parentId,
+      });
+      if (!state?.preview) return;
+      if (!alive.current || current !== generation.current) {
+        await request("discardImportPreview", {
+          notebookId,
+          id: state.preview.previewId,
+        });
+        return;
+      }
+      previewId.current = state.preview.previewId;
+      setPreview(state.preview);
+    } catch (error) {
+      if (alive.current) setError((error as Error).message);
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+
   /** Commit exactly the previewed result (no second fetch or conversion). */
   const confirm = async () => {
     if (busy || !preview) return;
@@ -275,6 +302,18 @@ export default function ImportDialog({
               <FileCode size={14} />
               HTML 文件
             </Button>
+            <Button
+              variant="ghost"
+              size="layout"
+              type="button"
+              disabled={busy || !window.anynote}
+              title={
+                !window.anynote ? "采集包文件导入需在桌面应用使用" : undefined
+              }
+              onClick={() => void openCapture()}
+            >
+              采集包 .anyclip
+            </Button>
           </div>
         )}
         {preview ? (
@@ -307,7 +346,11 @@ export default function ImportDialog({
               </dd>
               <dt>正文模式</dt>
               <dd>
-                {preview.mode === "page" ? "页面模式" : "正文模式"}
+                {preview.mode === "capture"
+                  ? "浏览器采集包"
+                  : preview.mode === "page"
+                    ? "页面模式"
+                    : "正文模式"}
                 {preview.fallback ? "（正文提取失败，已保留清洗后的页面）" : ""}
               </dd>
               <dt>原始 HTML</dt>

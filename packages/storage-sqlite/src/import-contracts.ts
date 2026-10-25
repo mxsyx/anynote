@@ -46,6 +46,10 @@ export const importCommitSchema = z
     sourceUri: z.string().nullable(),
     resources: z.array(resource).max(importLimits.mediaCount + 1),
     stagingDirectory: z.string(),
+    captureReceipt: z
+      .object({ captureId: uuid, digest: z.string().regex(/^[a-f0-9]{64}$/) })
+      .strict()
+      .optional(),
     report: importReportSchema,
   })
   .strict();

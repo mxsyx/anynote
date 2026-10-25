@@ -2,7 +2,7 @@
 
 ## 数据边界
 
-每个 Notebook 包含 `notebook.sqlite` 与 `assets/sha256/<前两位>/<SHA256>.bin`。schema v4 在 SQLite 中保存正文、元数据、历史、回收站、资源引用、批注、链接和扩展持久化状态；`assets` 表保存哈希、大小和 MIME，二进制内容不进入数据库。
+每个 Notebook 包含 `notebook.sqlite` 与 `assets/sha256/<前两位>/<SHA256>.bin`。schema v5 在 SQLite 中保存正文、元数据、历史、回收站、资源引用、批注、链接和扩展持久化状态；`assets` 表保存哈希、大小和 MIME，二进制内容不进入数据库。
 
 附件按内容哈希去重，发布后不可变。先将内容写到临时文件并校验、同步，再以不覆盖的方式发布，最后提交数据库引用。修改附件生成新哈希并更新引用，重命名或移动笔记只修改数据库。事务回滚可能留下无引用文件，巡检会报告它，不会自动删除未知文件。
 
@@ -35,8 +35,8 @@ Cloudflare 使用 32MiB R2 multipart 传输，先在私有对象上验证完整 
 
 | 内容       | 当前格式                                                                             |
 | ---------- | ------------------------------------------------------------------------------------ |
-| Notebook   | schema v4                                                                            |
-| 完整归档   | `anynote.notebook` v1，schemaVersion 4；ZIP 含 manifest.json、notebook.sqlite 和附件 |
+| Notebook   | schema v5                                                                            |
+| 完整归档   | `anynote.notebook` v1，schemaVersion 5；ZIP 含 manifest.json、notebook.sqlite 和附件 |
 | 本地备份   | `anynote.local-backup` v3                                                            |
 | Cloudflare | `anynote.sqlite` v1；能力 `sqlite-assets-v1`                                         |
 

@@ -432,6 +432,7 @@ flowchart TB
 - 对 DNS 解析和实际连接地址做一致性检查，防止仅校验一次 hostname 后被重绑定。
 - HTML 文件资源只读取已授权根目录；不开放任意 `file://`。
 - 不自动复用用户浏览器登录态，不尝试绕过付费/登录墙。
+- 用户主动触发的浏览器选区/ChatGPT 采集另见[浏览器采集设计](BROWSER-CAPTURE.md)：仅使用当前获准页面会话读取用户选择的内容，不把会话凭据转交桌面导入器或云端；该方案待实施，不改变普通 URL 导入的默认行为。
 - 动态站点可在后续首方插件中使用隔离浏览会话获取渲染后的 DOM；需要用户选择会话，获取内容仍需清洗。
 - MIME 与内容嗅探不匹配时降级为附件；压缩炸弹、超大 SVG、巨大像素图片需要解码预算。
 - 默认建议下载并发 4、页面超时 30s、单资源 100MB、每次导入总量 500MB；这是可配置产品初值，不是底层平台上限。
@@ -515,7 +516,7 @@ D1 不保存用于恢复重建的领域实体 delta，也不是本地 SQLite 文
 
 每一代都是完整恢复清单，独立于更早版本。checkpoint 表示完整引用集合，不表示每次重传整库；未变化对象复用。不再实施“每 100 代或每天生成逻辑 checkpoint”，不维护实体 delta 链或可选 SQLite 加速点。
 
-当前清单为 `anynote.sqlite` v1、schemaVersion 4，要求 `sqlite-assets-v1`；旧逻辑协议及 BLOB 格式不兼容。清单和空间预算见 [存储契约](SQLITE-STORAGE.md) 与 [流式备份](../features/STREAMING-CLOUD-BACKUP.md)。
+当前清单为 `anynote.sqlite` v1、schemaVersion 5，要求 `sqlite-assets-v1`；旧逻辑协议及 BLOB 格式不兼容。清单和空间预算见 [存储契约](SQLITE-STORAGE.md) 与 [流式备份](../features/STREAMING-CLOUD-BACKUP.md)。
 
 ### 12.4 原子发布与并发控制
 
@@ -607,7 +608,7 @@ manifest 示例：
 {
   "format": "anynote.notebook",
   "formatVersion": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 5,
   "appVersion": "0.1.0",
   "notebookId": "notebook-uuid",
   "generationId": "export-uuid",

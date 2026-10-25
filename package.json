@@ -94,7 +94,9 @@
     "benchmark:local-backup": "pnpm run build:backend && node scripts/benchmark-local-backup.mjs",
     "test:document": "pnpm run build && node scripts/document-editor-smoke.mjs",
     "pretest:ui": "pnpm run build",
-    "test:visual": "node scripts/visual-ui-smoke.mjs"
+    "test:visual": "node scripts/visual-ui-smoke.mjs",
+    "build:browser": "pnpm run build:backend && node scripts/build-browser-extension.mjs",
+    "test:browser": "pnpm run build:browser && node scripts/browser-capture-smoke.mjs"
   },
   "devDependencies": {
     "@anynote/extension-host": "workspace:*",

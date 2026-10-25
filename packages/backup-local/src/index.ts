@@ -410,7 +410,7 @@ async function checkDatabase(
     if (
       metas.length !== 1 ||
       metas[0].id !== m.notebookId ||
-      metas[0].schema_version !== 4
+      metas[0].schema_version !== 5
     )
       throw Error("数据库 Notebook 身份或版本不匹配");
   } finally {

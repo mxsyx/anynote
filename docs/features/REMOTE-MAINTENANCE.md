@@ -1,6 +1,6 @@
 # Cloudflare 远端维护
 
-备份目标的「远端维护」提供版本清理和设备接管。先用 `pnpm run cloud:deploy` 升级 Worker，并应用全部 D1 迁移（包括 G10 新增的 `0006.sql`）；Wrangler 管理的地址和 Token 继续自动取得。
+备份目标的「远端维护」提供版本清理和设备接管。先用 `pnpm run cloud:deploy` 升级 Worker，并应用全部 D1 迁移（当前至 `0007.sql`）；Wrangler 管理的地址和 Token 继续自动取得。
 
 ## 版本保留与清理
 

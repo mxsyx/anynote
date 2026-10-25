@@ -1,3 +1,4 @@
+import { captureRoutes, captureAcknowledgments } from "./capture.js";
 import { uploadSessions } from "./upload-sessions.js";
 import { multipart } from "./multipart.js";
 import {
@@ -90,6 +91,8 @@ export default {
       let mismatch = supplied.length ^ expected.length;
       for (let i = 0; i < expected.length; i++)
         mismatch |= (supplied.charCodeAt(i) || 0) ^ expected.charCodeAt(i);
+      const captureResponse = await captureRoutes(request, env, mismatch === 0);
+      if (captureResponse) return captureResponse;
       if (mismatch) return response({ error: "鉴权失败" }, 401);
 
       const url = new URL(request.url),
@@ -99,7 +102,7 @@ export default {
       if (path === "/v1/capabilities" && request.method === "GET")
         return response({
           protocolVersion: 1,
-          schemaVersions: [4],
+          schemaVersions: [5],
           capabilities: [
             "conditional-head",
             "writer-takeover",
@@ -112,6 +115,8 @@ export default {
             "sqlite-assets-v1",
             "transfer-resume-v1",
             "backup-discovery-v1",
+            "capture-v1",
+            "browse-snapshot-v1",
           ],
           objectMaxBytes: objectLimit,
         });
@@ -215,7 +220,7 @@ export default {
         if (
           m.format !== "anynote.sqlite" ||
           m.protocolVersion !== 1 ||
-          m.schemaVersion !== 4 ||
+          m.schemaVersion !== 5 ||
           m.notebookId !== notebookId ||
           !uuid.test(m.generationId) ||
           !uuid.test(m.lineageId) ||
@@ -452,6 +457,7 @@ export default {
           if (!head || head.size !== d.size || !catalog?.verified)
             return response({ error: "ASSET_MISSING" }, 409);
         }
+        const captureAcks = await captureAcknowledgments(env, m);
         // Each committed manifest describes the complete ordered database; no entity delta replay is needed.
         try {
           await env.DB.batch([
@@ -474,6 +480,7 @@ export default {
             env.DB.prepare(
               "UPDATE generations SET status='committed' WHERE id=?",
             ).bind(generation.id),
+            ...captureAcks,
             env.DB.prepare(
               "UPDATE notebook_state SET revision=revision+1 WHERE notebook_id=?",
             ).bind(notebookId),

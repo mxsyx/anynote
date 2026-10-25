@@ -7,14 +7,14 @@ export const backupRevisionSchema = z.object({
   notebookId: z.string().uuid(),
   lineageId: z.string().uuid(),
   contentSeq: z.string().regex(/^\d+$/),
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   storageEpoch: z.string().regex(/^\d+$/),
 });
 
 /** Backup revision type. */
 export type BackupRevision = z.infer<typeof backupRevisionSchema>;
 
-// All persisted v4 tables. FTS and its shadow tables are rebuildable caches.
+// All persisted v5 tables. FTS and its shadow tables are rebuildable caches.
 /** Persisted tables that participate in the backup revision contract. */
 const tables = [
   "notebook_meta",
@@ -30,6 +30,7 @@ const tables = [
   "note_text",
   "extension_data",
   "import_reports",
+  "capture_receipts",
 ];
 
 /** Definitions for the backup revision marker table and each persisted table's triggers. */

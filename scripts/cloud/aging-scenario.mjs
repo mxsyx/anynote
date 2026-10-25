@@ -34,7 +34,7 @@ async function preview(client, state, keep) {
 
 export async function agingCapabilities(client) {
   const caps = await client.call("/v1/capabilities");
-  assert.ok(caps.schemaVersions.includes(4), "需要 schema v4 部署");
+  assert.ok(caps.schemaVersions.includes(5), "需要 schema v5 部署");
   for (const name of ["maintenance-lifecycle-v1", "transfer-resume-v1"])
     assert.ok(caps.capabilities.includes(name), `服务缺少 ${name}`);
   return caps;

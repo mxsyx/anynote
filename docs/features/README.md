@@ -2,6 +2,7 @@
 
 长期维护已实现功能的用法、接口、权限、预算及限制，为后续产品文档、技术文档和官网提供素材；不直接把研发测试结果写成产品承诺。
 
+- [浏览器笔记采集](BROWSER-CAPTURE.md)：选区与对话采集、采集包、云端配对和归入边界。
 - [全新设备从云端恢复](CLOUD-RECOVERY.md)
 - [编辑器与扩展生态](EDITOR-ECOSYSTEM.md)
 - [Cloudflare 远端维护](REMOTE-MAINTENANCE.md)

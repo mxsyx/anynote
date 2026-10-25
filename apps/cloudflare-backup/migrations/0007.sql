@@ -1,0 +1,5 @@
+CREATE TABLE capture_devices(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL UNIQUE,notebook_id TEXT NOT NULL,lineage_id TEXT NOT NULL,expires_at INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE capture_pairings(code_hash TEXT PRIMARY KEY,notebook_id TEXT NOT NULL,lineage_id TEXT NOT NULL,expires_at INTEGER NOT NULL);
+CREATE TABLE captures(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,notebook_id TEXT NOT NULL,lineage_id TEXT NOT NULL,parent_id TEXT,observed_generation TEXT NOT NULL,target_version INTEGER NOT NULL DEFAULT 1,digest TEXT NOT NULL,manifest_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'uploading',created_at INTEGER NOT NULL,claim_id TEXT,claim_until INTEGER NOT NULL DEFAULT 0,writer_id TEXT,writer_epoch INTEGER,note_id TEXT,applied_seq INTEGER,backed_up_generation TEXT,cleared INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX captures_queue ON captures(notebook_id,lineage_id,status,created_at);
+CREATE TABLE capture_objects(capture_id TEXT NOT NULL,hash TEXT NOT NULL,size INTEGER NOT NULL,PRIMARY KEY(capture_id,hash));

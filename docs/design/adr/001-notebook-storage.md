@@ -10,7 +10,7 @@ Notebook 必须能单独携带、备份与恢复。设计曾推荐 better-sqlite
 
 ## 决定
 
-每库使用 `notebook.sqlite`（schema v4）与 `assets/sha256/`，身份以 `notebook_meta` 为准，不生成 `notebook.json`。设备配置放应用 `_local/`。
+每库使用 `notebook.sqlite`（schema v5）与 `assets/sha256/`，身份以 `notebook_meta` 为准，不生成 `notebook.json`。设备配置放应用 `_local/`。
 
 使用 Node 内置 `node:sqlite` 的 `DatabaseSync` 和 `backup`，由存储进程串行访问；要求 Node 24+。当前主数据库连接以 EXCLUSIVE 锁、WAL、FULL 同步及外键保护写入，关闭/LRU 回收时释放，不另建 `.anynote-lease.sqlite`。
 

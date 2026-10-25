@@ -331,6 +331,27 @@ else {
             },
           );
         }
+        if (op === "previewCaptureFile") {
+          if (
+            !input ||
+            Object.keys(input).some(
+              (key) => !["notebookId", "parentId"].includes(key),
+            ) ||
+            typeof input.notebookId !== "string"
+          )
+            throw Error("采集包请求无效");
+          const selected = await dialog.showOpenDialog(win, {
+            title: "导入浏览器采集包",
+            filters: [{ name: "AnyNote Capture", extensions: ["anyclip"] }],
+            properties: ["openFile"],
+          });
+          if (selected.canceled || !selected.filePaths.length) return null;
+          return callStore("prepareCaptureFile", {
+            notebookId: input.notebookId,
+            parentId: input.parentId ?? null,
+            path: selected.filePaths[0],
+          });
+        }
         if (op === "importArchiveFile") {
           if (input && Object.keys(input).length)
             throw Error("归档导入不接受渲染器路径");

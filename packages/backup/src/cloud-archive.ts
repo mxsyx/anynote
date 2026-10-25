@@ -41,7 +41,7 @@ export function snapshotBundle(bundle: Buffer) {
   const manifest: SnapshotManifest = {
     format: "anynote.sqlite",
     protocolVersion: 1,
-    schemaVersion: 4,
+    schemaVersion: 5,
     notebookId: archive.notebookId,
     sourceNotebookId: archive.notebookId,
     snapshotSeq: JSON.parse(Buffer.from(files["manifest.json"]).toString())

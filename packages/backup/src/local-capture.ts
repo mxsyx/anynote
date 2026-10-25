@@ -28,7 +28,7 @@ export const captureSchema = z.object({
   ),
   name: z.string(),
   contentSeq: z.string().regex(/^\d+$/),
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   release: z.function().args().returns(z.promise(z.void())),
 });
 

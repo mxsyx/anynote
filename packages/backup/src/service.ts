@@ -1,3 +1,4 @@
+import { consumeCaptures } from "./capture.js";
 import { TransferSession } from "./transfer-session.js";
 import {
   backupOperations,
@@ -258,6 +259,54 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     return { handled: true, result: target };
   }
 
+  if (
+    ["pairCaptureDevice", "listCaptureDevices", "revokeCaptureDevice"].includes(
+      op,
+    )
+  ) {
+    const p = z
+      .object({ notebookId: uuid, targetId: uuid, deviceId: uuid.optional() })
+      .strict()
+      .parse(raw);
+    const target = find(s, p),
+      client = new CloudflareClient(target, await secret(s, target.id));
+    const capabilities = await client.call("/v1/capabilities");
+    if (!capabilities.capabilities?.includes("capture-v1"))
+      throw Error(
+        "云端服务尚未支持浏览器采集。请升级 AnyNote Worker 并应用 D1 迁移 0007，然后重试。",
+      );
+    if (op === "pairCaptureDevice")
+      return {
+        handled: true,
+        result: {
+          endpoint: target.endpoint,
+          ...(await client.call("/v1/pairings", {
+            method: "POST",
+            body: {
+              notebookId: target.remoteNotebookId || target.notebookId,
+              lineageId: target.lineageId,
+            },
+          })),
+        },
+      };
+    if (op === "listCaptureDevices")
+      return {
+        handled: true,
+        result: (await client.call("/v1/devices")).filter(
+          (d: { notebookId: string; lineageId: string }) =>
+            d.notebookId === (target.remoteNotebookId || target.notebookId) &&
+            d.lineageId === target.lineageId,
+        ),
+      };
+    if (!p.deviceId) throw Error("请选择采集设备");
+    return {
+      handled: true,
+      result: await client.call(`/v1/devices/${p.deviceId}`, {
+        method: "DELETE",
+      }),
+    };
+  }
+
   const p = z
       .object({
         notebookId: uuid,
@@ -352,10 +401,6 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     };
   }
 
-  const seq = s
-    .open(p.notebookId)
-    .prepare("SELECT content_seq FROM notebook_meta")
-    .get()!.content_seq;
   const id = randomUUID(),
     controller = new AbortController(),
     job: Task = {
@@ -429,7 +474,18 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
           cursor: { pendingGeneration: null },
         });
       }
-      if (target.lastAckSeq === seq) {
+      job.progress = "正在归入云端采集";
+      const captures = await consumeCaptures(
+        s,
+        target,
+        provider,
+        controller.signal,
+      );
+      const seq = s
+        .open(p.notebookId)
+        .prepare("SELECT content_seq FROM notebook_meta")
+        .get()!.content_seq;
+      if (target.lastAckSeq === seq && captures === 0) {
         // A healthy no-op run still clears any pending backoff: the target is
         // reachable and consistent, so a future change should start fresh.
         await s.run("commitBackupCursor", {

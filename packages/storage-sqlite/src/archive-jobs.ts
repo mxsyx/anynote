@@ -233,7 +233,7 @@ export function startArchiveJob(s: Storage, op: string, raw: unknown) {
           const manifest = {
             format: "anynote.notebook",
             formatVersion: 1,
-            schemaVersion: 4,
+            schemaVersion: 5,
             appVersion: "0.1.0",
             notebookId: p.notebookId!,
             generationId: randomUUID(),

@@ -1,8 +1,30 @@
 # 真实云备份验收
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v4/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
+> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
 
 2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。这些协议测试不代表完整产品发布验收通过。
+
+## 2026-10-25 重建与浏览器采集真实验证
+
+用户明确授权“直接删除原资源，部署新方案”后，对 `anynote-backup-acceptance-518ee6c2` 核对账号、Worker 绑定、D1 UUID、R2 桶及维护命名空间归属。先停用旧业务入口、删除旧维护类，再中止 1 个未完成 multipart 上传、删除 1,380 个 R2 对象，随后删除 R2 桶、旧 D1（含 93 个 committed / 13 个 staging generation）和 Worker。删除按精确资源身份执行，没有清理账号其他项目。
+
+同名重建 Worker/D1/R2 与维护命名空间，保留原 endpoint 和 APP_TOKEN；D1 UUID 与维护命名空间 ID 已确认更新，迁移 0001–0007 全部生效。真实 `/v1/capabilities` 返回 schema v5、`capture-v1` 与 `browse-snapshot-v1`。旧数据已删除，不存在回迁或旧备份恢复承诺。
+
+2026-10-25 20:52–20:53（北京时间），通过真实网络及桌面后端 `Storage` 创建独立小型测试笔记本“浏览器采集真实验收（可删除）”，9 项检查通过：
+
+- schema v5/采集能力与无效 Token 拒绝。
+- 首次云备份。
+- 配对码生成、一次兑换成功和二次兑换拒绝。
+- 固定快照目录与正文读取。
+- 含 1×1 PNG 与内联样式卡片的采集上传。
+- 桌面归入及同快照 backedUp 回执。
+- 云端正文与图片字节回读一致。
+- 再次备份不重复归入。
+- 清理已备份采集副本、撤销设备后访问被拒绝。
+
+这是实际 Worker/D1/R2 与桌面后端的协议闭环，不代表用户桌面 GUI/浏览器侧栏交互已验收。测试 Notebook 与三个小型备份保留供核对，测试设备已撤销、采集副本已清理；未进行容量、费用或长时间压力测试。临时脱敏报告在 `tmp/browser-capture/cloud-reset/` 的 `reset-result.json`、`deployment-verification.json` 和 `capture-acceptance.json`；本节记录长期结论。
+
+旧老化样本随用户授权的资源删除失效，原本的 24h/7d 时间不能继续使用。本地旧状态及锁文件已移至 `.cloudflare-acceptance/retired-before-schema-v5/`，仅保留历史依据；没有为本轮任务重建老化样本或宣称通过老化验收。后续需重新 seed 并等待真实时间。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）
 
@@ -106,7 +128,7 @@ pnpm run cloud:check
 
 ## 跨会话老化样本
 
-`test:cloud:aging` 使用当前 schema v4 服务，生成小规模独立 Notebook，保存无凭据状态到 `.cloudflare-acceptance/aging.json`。它建立可回收旧版本对象、保留版本、其他分支和未提交 staging；先删除旧版本身份，留下仍受 24h 宽限保护的对象。创建时间来自实际操作，不改服务器时钟、对象上传时间或 staging 活动时间。
+`test:cloud:aging` 使用当前 schema v5 服务，生成小规模独立 Notebook，保存无凭据状态到 `.cloudflare-acceptance/aging.json`。它建立可回收旧版本对象、保留版本、其他分支和未提交 staging；先删除旧版本身份，留下仍受 24h 宽限保护的对象。创建时间来自实际操作，不改服务器时钟、对象上传时间或 staging 活动时间。
 
 ```sh
 # 只建立一次；已有文件会被拒绝覆盖。

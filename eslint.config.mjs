@@ -11,7 +11,7 @@ export default tseslint.config(
       "**/dist/**",
       "release/**",
       "artifacts/**",
-      "tmp/**",
+      "**/tmp/**",
       "public/excalidraw/**",
       ".anynote-dev/**",
       ".cloudflare-acceptance/**",

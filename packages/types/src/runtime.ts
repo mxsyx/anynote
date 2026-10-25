@@ -171,6 +171,11 @@ export interface Asset {
 
 /** Manifest of an ordered, self-contained SQLite snapshot. */
 export interface SnapshotManifest {
+  browse?: {
+    version: 1;
+    objects: { path: string; hash: string; size: number }[];
+  };
+  captureAcks?: { hash: string; size: number };
   notebookName?: string;
   format: string;
   protocolVersion: number;

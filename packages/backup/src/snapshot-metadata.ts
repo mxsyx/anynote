@@ -5,7 +5,7 @@ const metadataSchema = z
   .object({
     id: z.string().uuid(),
     name: z.string().min(1),
-    schema_version: z.literal(4),
+    schema_version: z.literal(5),
     content_seq: z.string().regex(/^(0|[1-9][0-9]*)$/),
   })
   .strict();

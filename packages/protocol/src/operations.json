@@ -35,6 +35,7 @@
   "getImportReport",
   "startImport",
   "previewImport",
+  "previewCaptureFile",
   "chooseImportDirectory",
   "revokeImportDirectory",
   "discardImportPreview",
@@ -140,5 +141,8 @@
   "previewLocalBackup",
   "getLocalBackupInfo",
   "setLocalBackupScope",
-  "startLocalBackupGroup"
+  "startLocalBackupGroup",
+  "pairCaptureDevice",
+  "listCaptureDevices",
+  "revokeCaptureDevice"
 ]

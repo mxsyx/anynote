@@ -1,3 +1,4 @@
+import { prepareCaptureFile } from "./capture-import.js";
 import {
   importMediaSchema,
   importReportSchema,
@@ -96,7 +97,7 @@ const importInput = z
 export interface ImportPreview {
   result: Awaited<
     ReturnType<typeof import("@anynote/importer/html.js").prepareImport>
-  >;
+  > & { captureReceipt?: { captureId: string; digest: string } };
   notebookId: string;
   parentId: string | null;
   /** Human-readable destination directory path inside the Notebook. */
@@ -707,6 +708,7 @@ export async function advancedOperations(
     "getImportReport",
     "startImport",
     "previewImport",
+    "prepareCaptureFile",
     "registerImportDirectory",
     "revokeImportDirectory",
     "discardImportPreview",
@@ -926,6 +928,42 @@ export async function advancedOperations(
     return { handled: true, result: { id: job.id, status: job.status } };
   }
 
+  if (op === "prepareCaptureFile") {
+    const p = z
+      .object({
+        notebookId: uuid,
+        parentId: uuid.nullable().optional(),
+        path: z.string().min(1),
+      })
+      .strict()
+      .parse(raw);
+    const db = s.open(p.notebookId);
+    s.parent(db, p.parentId);
+    const workspace = importWorkspace(s),
+      id = randomUUID();
+    try {
+      const prepared = await prepareCaptureFile(p.path, workspace.directory);
+      rememberImportPreview(s, id, {
+        result: prepared,
+        notebookId: p.notebookId,
+        parentId: p.parentId ?? null,
+        target: folderPath(db, p.parentId),
+        createdAt: Date.now(),
+        dispose: workspace.dispose,
+      });
+      return {
+        handled: true,
+        result: {
+          status: "completed",
+          preview: previewPayload(s.importPreviews.get(id)!, id),
+        },
+      };
+    } catch (error) {
+      workspace.dispose();
+      throw error;
+    }
+  }
+
   if (op === "previewImport") {
     const p = importInput.parse(raw);
     if (!p.url && !p.html) throw Error("请输入网页地址或 HTML");
@@ -1118,6 +1156,18 @@ export async function advancedOperations(
     const p = importCommitSchema.parse(raw),
       db = s.open(p.notebookId);
     s.parent(db, p.parentId);
+    if (p.captureReceipt) {
+      const prior = db
+        .prepare(
+          "SELECT digest,note_id FROM capture_receipts WHERE capture_id=?",
+        )
+        .get(p.captureReceipt.captureId);
+      if (prior) {
+        if (prior.digest !== p.captureReceipt.digest)
+          throw Error("采集 ID 已存在，但内容不同");
+        return { handled: true, result: s.get(db, prior.note_id) };
+      }
+    }
     const resources = p.resources,
       id = randomUUID(),
       rev = randomUUID(),
@@ -1155,6 +1205,10 @@ export async function advancedOperations(
         originalHtml ? [originalHtml] : [],
       );
       s.index(db, id);
+      if (p.captureReceipt)
+        db.prepare(
+          "INSERT INTO capture_receipts(capture_id,digest,note_id,applied_seq) SELECT ?,?,?,content_seq+1 FROM notebook_meta",
+        ).run(p.captureReceipt.captureId, p.captureReceipt.digest, id);
       return s.get(db, id);
     });
     return { handled: true, result };

@@ -317,7 +317,7 @@ test("Cloudflare refuses to commit when an asset chunk is missing", async (t) =>
     assets: [],
     createdAt: new Date().toISOString(),
     protocolVersion: 1,
-    schemaVersion: 4,
+    schemaVersion: 5,
     notebookId: book,
     sourceNotebookId: book,
     lineageId: randomUUID(),

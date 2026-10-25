@@ -68,7 +68,7 @@ const hash = z.string().regex(/^[a-f0-9]{64}$/),
 export const manifestSchema = z.object({
   format: z.literal("anynote.notebook"),
   formatVersion: z.literal(1),
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   notebookId: z.string().uuid(),
   includesHistory: z.boolean().optional(),
   includesTrash: z.boolean().optional(),

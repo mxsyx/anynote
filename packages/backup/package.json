@@ -28,7 +28,8 @@
     "@anynote/types": "workspace:*",
     "fflate": "0.8.2",
     "zod": "3.25.76",
-    "@anynote/backup-local": "workspace:*"
+    "@anynote/backup-local": "workspace:*",
+    "@anynote/capture": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.0",
