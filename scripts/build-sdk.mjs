@@ -8,7 +8,13 @@ import {
 const out = "artifacts/plugin-sdk";
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/examples`, { recursive: true });
-for (const file of ["index", "contracts", "declarative", "local-backup"])
+for (const file of [
+  "index",
+  "contracts",
+  "declarative",
+  "local-backup",
+  "transport",
+])
   for (const ext of ["js", "d.ts"])
     cpSync(
       `.build/packages/plugin-sdk/${file}.${ext}`,

@@ -1,3 +1,5 @@
+import { captureSchema } from "./local-capture.js";
+import { backupRevisionSchema } from "@anynote/storage-sqlite/backup-revision.js";
 import { localOperations } from "./operation-names.js";
 import { rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -28,15 +30,6 @@ import { clearFailureState, failureState, readPolicy } from "./policy.js";
 
 const uuid = z.string().uuid();
 
-/** Revision structure of a local backup target record. */
-const revisionSchema = z.object({
-  notebookId: uuid,
-  lineageId: uuid,
-  contentSeq: z.string(),
-  schemaVersion: z.number().int(),
-  storageEpoch: z.string(),
-});
-
 /** Persisted config of a local backup target. */
 const config = z.object({
   id: uuid,
@@ -48,7 +41,7 @@ const config = z.object({
   concurrency: z.number().int().min(1).max(4).default(2),
   intervalMinutes: z.number().int().min(2).max(1440).default(10),
   lastContentSeq: z.string().optional(),
-  lastRevision: revisionSchema.optional(),
+  lastRevision: backupRevisionSchema.optional(),
   lastAttempt: z.number().optional(),
   lastSuccess: z.number().optional(),
   lastVerified: z.number().optional(),
@@ -106,7 +99,10 @@ function write(s: Storage, targets: LocalBackupTarget[]) {
     s.root,
     "_local/local-backup-targets." + randomUUID() + ".tmp",
   );
-  writeFileSync(temp, JSON.stringify(targets), { flush: true, mode: 0o600 });
+  writeFileSync(temp, JSON.stringify(z.array(config).parse(targets)), {
+    flush: true,
+    mode: 0o600,
+  });
   renameSync(temp, path);
 }
 
@@ -192,11 +188,13 @@ async function captureOwned(
     }
   };
   try {
-    const capture = await s.run("createLocalBackupCapture", {
-      notebookId: t.notebookId,
-      dir: workspace.dir,
-      signal,
-    });
+    const capture = captureSchema.parse(
+      await s.run("createLocalBackupCapture", {
+        notebookId: t.notebookId,
+        dir: workspace.dir,
+        signal,
+      }),
+    );
     signal.throwIfAborted();
     return { ...capture, release };
   } catch (e) {
@@ -729,11 +727,13 @@ export async function localBackupOperation(
               workspace = temporaryJob(s.root, "backup-jobs");
               s.pins.set(t.notebookId, (s.pins.get(t.notebookId) || 0) + 1);
               pinned = true;
-              const capture = (await s.run("createLocalBackupCapture", {
-                notebookId: t.notebookId,
-                dir: workspace.dir,
-                signal,
-              })) as Capture;
+              const capture = captureSchema.parse(
+                await s.run("createLocalBackupCapture", {
+                  notebookId: t.notebookId,
+                  dir: workspace.dir,
+                  signal,
+                }),
+              );
               capturedSeq = capture.contentSeq;
               return capture;
             },
@@ -760,10 +760,10 @@ export async function localBackupOperation(
               : {}),
             ...(result.revision
               ? {
-                  lastRevision: {
+                  lastRevision: backupRevisionSchema.parse({
                     ...result.revision,
                     notebookId: t.notebookId,
-                  },
+                  }),
                   lastContentSeq: result.revision.contentSeq,
                 }
               : {}),

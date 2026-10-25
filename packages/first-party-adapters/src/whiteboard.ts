@@ -1,4 +1,4 @@
-import type { NoteSnapshot, Transport } from "@anynote/plugin-sdk";
+import type { NoteSnapshot, OperationTransport } from "@anynote/plugin-sdk";
 import type {
   FirstPartyWhiteboardAPI,
   FirstPartyWhiteboardGetInput,
@@ -17,7 +17,7 @@ import type {
  * @returns The frozen whiteboard API.
  */
 export function createWhiteboardAPI(
-  transport: Transport,
+  transport: OperationTransport,
 ): FirstPartyWhiteboardAPI {
   const call = <T>(op: string, input: object) =>
     transport(op, { ...input }) as Promise<T>;

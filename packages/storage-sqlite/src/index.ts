@@ -1,3 +1,16 @@
+import {
+  inputSchema,
+  nodeRowSchema,
+  nodeProjectionSchema,
+  nodeDetailSchema,
+  notebookSchema,
+  revisionSchema,
+  tagsSchema,
+  parseOperationInput,
+  parseOperationOutput,
+  type OperationArgs,
+  type OperationOutput,
+} from "./operation-contracts.js";
 import type {
   ServiceOperation,
   StorageOptions,
@@ -115,68 +128,25 @@ const assetOps: Record<string, "read" | "write"> = {
  */
 function throughput(
   op: string,
-  input: Record<string, any>,
-  result: any,
+  input: Record<string, unknown>,
+  result: unknown,
 ): { read: number; write: number } {
   const direction = assetOps[op];
   if (!direction) return { read: 0, write: 0 };
   const bytes =
     direction === "write"
       ? base64Bytes(input?.data)
-      : base64Bytes(result?.data);
+      : base64Bytes(
+          result && typeof result === "object" && "data" in result
+            ? result.data
+            : undefined,
+        );
   return direction === "write"
     ? { read: 0, write: bytes }
     : { read: bytes, write: 0 };
 }
 
 export { schema } from "./schema.js";
-
-/** Generic validation schema for operation input fields. */
-const inputSchema = z
-  .object({
-    notebookId: uuid.optional(),
-    id: uuid.optional(),
-    parentId: uuid.nullable().optional(),
-    icon: z.string().trim().min(1).max(16).optional(),
-    coverColor: z
-      .string()
-      .regex(/^#[0-9a-f]{6}$/i)
-      .optional(),
-    directory: z.string().max(4096).optional(),
-    title: z.string().trim().min(1).max(240).optional(),
-    body: z.string().max(2_000_000).optional(),
-    expectedRevision: z.number().int().positive().optional(),
-    kind: z.enum(["note", "folder"]).optional(),
-    noteType: z.enum(["markdown", "pdf", "image"]).optional(),
-    tags: z.array(z.string().min(1).max(40)).max(30).optional(),
-    favorite: z.boolean().optional(),
-    query: z.string().max(300).optional(),
-    data: z.string().max(140_000_000).optional(),
-    name: z.string().max(240).optional(),
-    mime: z
-      .enum([
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "image/svg+xml",
-        "application/pdf",
-      ])
-      .optional(),
-    revisionId: uuid.optional(),
-    noteId: uuid.optional(),
-    offset: z.number().int().nonnegative().optional(),
-    length: z
-      .number()
-      .int()
-      .min(1)
-      .max(1024 * 1024)
-      .optional(),
-    assetHash: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .optional(),
-  })
-  .strict();
 
 /**
  * Knowledge base storage service.
@@ -260,18 +230,25 @@ export class Storage {
    * @param input Operation input payload.
    * @returns The operation result.
    */
-  run(op: string, input: Record<string, unknown> = {}): Promise<any> {
+  run<K extends string>(
+    op: K,
+    ...args: OperationArgs<K>
+  ): Promise<OperationOutput<K>>;
+  run(op: string, input: Record<string, unknown> = {}): Promise<unknown> {
     const started = performance.now();
-    return this.dispatch(op, input, started).then(
-      (result) => {
-        this.observe(op, started, input, result);
-        return result;
-      },
-      (error) => {
-        this.observe(op, started, input, undefined, error);
-        throw error;
-      },
-    );
+    return Promise.resolve()
+      .then(() => this.dispatch(op, parseOperationInput(op, input), started))
+      .then((result) => parseOperationOutput(op, result))
+      .then(
+        (result) => {
+          this.observe(op, started, input, result);
+          return result;
+        },
+        (error) => {
+          this.observe(op, started, input, undefined, error);
+          throw error;
+        },
+      );
   }
 
   /**
@@ -290,7 +267,7 @@ export class Storage {
     op: string,
     input: Record<string, unknown>,
     started: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (op === "cancelExtensionUpdateCheck")
       return Promise.resolve().then(() => cancelExtensionUpdateCheck(this));
     if (op === "checkExtensionUpdates")
@@ -357,7 +334,7 @@ export class Storage {
         name: "queue.wait",
         durationMs: performance.now() - started,
       });
-      return this.execute(op, input);
+      return this.executeOperation(op, input);
     });
     this.queue = next.catch(() => {});
     return next;
@@ -383,7 +360,7 @@ export class Storage {
     op: string,
     started: number,
     input: Record<string, unknown>,
-    result?: any,
+    result?: unknown,
     error?: unknown,
   ) {
     const durationMs = performance.now() - started;
@@ -554,7 +531,11 @@ export class Storage {
     return this.notebookCatalog().map((entry) => {
       try {
         return {
-          ...this.read(entry.id).prepare("SELECT * FROM notebook_meta").get(),
+          ...notebookSchema.parse(
+            this.read(entry.id)
+              .prepare("SELECT * FROM notebook_meta")
+              .get<Record<string, unknown>>(),
+          ),
           path: this.directory(entry.id),
           external: entry.external,
         };
@@ -771,7 +752,7 @@ export class Storage {
       JSON.stringify({
         noteId,
         title: n.title,
-        tags: JSON.parse(n.tags),
+        tags: tagsSchema.parse(JSON.parse(n.tags)),
         favorite: n.favorite,
       }),
     );
@@ -790,7 +771,7 @@ export class Storage {
       .prepare(
         "SELECT value_json FROM extension_data WHERE extension_id=? AND key=?",
       )
-      .get("anynote.core.revision-meta", revisionId);
+      .get<{ value_json: string }>("anynote.core.revision-meta", revisionId);
     if (!row) return null;
     try {
       const p = z
@@ -820,7 +801,7 @@ export class Storage {
    * @param fn Mutation to run.
    * @returns Result of the mutation.
    */
-  tx(db: SqlDatabase, id: string, op: string, fn: () => any) {
+  tx<T>(db: SqlDatabase, id: string, op: string, fn: () => T) {
     const started = performance.now();
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -861,10 +842,14 @@ export class Storage {
    */
   node(db: SqlDatabase, id: string, includeDeleted = false) {
     uuid.parse(id);
-    const n = db.prepare("SELECT * FROM nodes WHERE id=?").get(id);
-    if (!n || (!includeDeleted && n.deleted_at))
+    const row = db
+      .prepare("SELECT * FROM nodes WHERE id=?")
+      .get<Record<string, unknown>>(id);
+    if (!row) throw Error("条目不存在或已在回收站");
+    const node = nodeRowSchema.parse(row);
+    if (!includeDeleted && node.deleted_at)
       throw Error("条目不存在或已在回收站");
-    return n;
+    return node;
   }
 
   /**
@@ -941,14 +926,20 @@ export class Storage {
    * @param id Note ID.
    * @returns The note detail row.
    */
-  get(db: SqlDatabase, id: string): SqlRow {
+  get(db: SqlDatabase, id: string) {
     const n = this.node(db, id, true);
     const detail = db
       .prepare(
         "SELECT t.note_type,t.primary_resource_id,t.head_revision_id,t.source_uri,r.body FROM notes t LEFT JOIN note_revisions r ON r.id=t.head_revision_id WHERE t.node_id=?",
       )
-      .get(id);
-    return { ...n, ...detail, tags: JSON.parse(n.tags) };
+      .get<Record<string, unknown>>(id);
+    return nodeDetailSchema.parse({
+      ...n,
+      ...(n.kind === "folder"
+        ? { body: "", head_revision_id: null, primary_resource_id: null }
+        : detail),
+      tags: tagsSchema.parse(JSON.parse(n.tags)),
+    });
   }
 
   /**
@@ -962,7 +953,24 @@ export class Storage {
    * @param raw Raw operation payload.
    * @returns The operation result.
    */
-  async execute(op: string, raw: Record<string, any>): Promise<any> {
+  execute<K extends string>(
+    op: K,
+    ...args: OperationArgs<K>
+  ): Promise<OperationOutput<K>>;
+  async execute(
+    op: string,
+    raw: Record<string, unknown> = {},
+  ): Promise<unknown> {
+    return parseOperationOutput(
+      op,
+      await this.executeOperation(op, parseOperationInput(op, raw)),
+    );
+  }
+
+  private async executeOperation(
+    op: string,
+    raw: Record<string, unknown>,
+  ): Promise<unknown> {
     if (
       [
         "listExtensionDataNamespaces",
@@ -1023,7 +1031,7 @@ export class Storage {
       const id = uuid.parse(raw.id);
       const dir = assertLocalPath(
         this.root,
-        "_local/archive-jobs/" + raw.dir.split(/[\\/]/).pop(),
+        "_local/archive-jobs/" + z.string().parse(raw.dir).split(/[\\/]/).pop(),
       );
       if (dir !== raw.dir) throw Error("归档暂存目录无效");
       renameSync(dir, join(this.root, id));
@@ -1162,8 +1170,8 @@ export class Storage {
         .prepare(
           "SELECT n.*,t.note_type FROM nodes n LEFT JOIN notes t ON t.node_id=n.id ORDER BY n.sort_key,n.id",
         )
-        .all()
-        .map((n) => ({ ...n, tags: JSON.parse(n.tags) }));
+        .all<Record<string, unknown>>()
+        .map((n) => nodeProjectionSchema.parse(n));
 
     if (op === "getNote") return this.get(db, id!);
 
@@ -1238,7 +1246,7 @@ export class Storage {
             db
               .prepare("SELECT primary_resource_id FROM notes WHERE node_id=?")
               .get(id!)?.primary_resource_id,
-            previousHead,
+            previousHead ?? undefined,
           );
         }
         this.index(db, id!);
@@ -1287,8 +1295,14 @@ export class Storage {
         .prepare(
           "SELECT * FROM note_revisions WHERE note_id=? ORDER BY created_at DESC,rowid DESC LIMIT 100",
         )
-        .all(id!)
-        .map((r) => ({ ...r, metadata: this.revisionMetadata(db, r.id, id!) }));
+        .all<Record<string, unknown>>(id!)
+        .map((row) => {
+          const revision = revisionSchema.parse(row);
+          return {
+            ...revision,
+            metadata: this.revisionMetadata(db, revision.id, id!),
+          };
+        });
 
     if (op === "restoreRevision") {
       const r = db
@@ -1338,14 +1352,14 @@ export class Storage {
             `SELECT n.*,t.note_type,snippet(fts_notes,2,'','', '…',24) AS snippet FROM fts_notes JOIN nodes n ON n.id=fts_notes.note_id JOIN notes t ON t.node_id=n.id WHERE fts_notes MATCH ? AND n.deleted_at IS NULL LIMIT 100`,
           )
           .all('"' + q.replaceAll('"', '""') + '"')
-          .map((n) => ({ ...n, tags: JSON.parse(n.tags) }));
+          .map((n) => nodeProjectionSchema.parse(n));
       }
       return db
         .prepare(
           `SELECT n.*,t.note_type,substr(r.body,1,160) AS snippet FROM nodes n JOIN notes t ON t.node_id=n.id JOIN note_revisions r ON r.id=t.head_revision_id JOIN fts_notes f ON f.note_id=n.id WHERE n.deleted_at IS NULL AND (instr(lower(n.title),lower(?))>0 OR instr(lower(f.body),lower(?))>0 OR instr(n.tags,?)>0) LIMIT 100`,
         )
         .all(q, q, q)
-        .map((n) => ({ ...n, tags: JSON.parse(n.tags) }));
+        .map((n) => nodeProjectionSchema.parse(n));
     }
 
     if (op === "importFile") {
@@ -1414,7 +1428,7 @@ export class Storage {
       if (!r) throw Error("资源不存在");
       if (p.noteId) {
         const note = this.get(db, p.noteId),
-          revision = p.revisionId || note.head_revision_id;
+          revision = p.revisionId || uuid.parse(note.head_revision_id);
         const pinned = db
           .prepare(
             "SELECT a.* FROM revision_resources r JOIN assets a ON a.hash=r.asset_hash WHERE r.revision_id=? AND r.resource_id=? AND EXISTS(SELECT 1 FROM note_revisions WHERE id=? AND note_id=?)",

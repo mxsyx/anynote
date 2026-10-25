@@ -142,6 +142,13 @@ test("SDK exposes Notebook/Node/event/task/UI/provider/secrets extension points"
   // History is readable; the other Notebook never leaks into this session.
   const history = await session.api.notes.history(third.id);
   assert.ok(Array.isArray(history) && history.length >= 1);
+  const hits = await session.api.search.query("乙");
+  assert.equal(hits[0].id, third.id);
+  assert.equal(hits[0].body, "");
+  assert.equal(hits[0].head_revision_id, third.head_revision_id);
+  const searchPage = await session.api.search.page("乙", { limit: 1 });
+  assert.equal(searchPage.items[0].head_revision_id, third.head_revision_id);
+
   assert.equal((await s.run("listNodes", { notebookId: other.id })).length, 0);
 
   // Provider-scoped secrets round-trip and truly delete.

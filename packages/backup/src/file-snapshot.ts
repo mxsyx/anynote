@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   snapshotMetadata,
   snapshotSequence,
@@ -66,6 +67,38 @@ export interface FileSnapshot {
   manifest: FileManifest;
   files: Map<string, string>;
 }
+
+/** Validate the unprepared capture before its files are read or uploaded. */
+export const fileSnapshotSchema = z.object({
+  dir: z.string().min(1),
+  files: z.map(z.string(), z.string()),
+  manifest: z.object({
+    format: z.literal("anynote.notebook"),
+    formatVersion: z.literal(1),
+    schemaVersion: z.literal(4),
+    appVersion: z.string(),
+    notebookId: z.string().uuid(),
+    notebookName: z.string().optional(),
+    generationId: z.literal(""),
+    createdAt: z.string().datetime(),
+    snapshotSeq: z.number().int().nonnegative().safe(),
+    includesHistory: z.literal(true),
+    includesTrash: z.literal(true),
+    database: z.object({
+      path: z.literal("notebook.sqlite"),
+      size: z.number().int().positive().safe(),
+      sha256: z.literal(""),
+    }),
+    assets: z.array(
+      z.object({
+        path: z.string(),
+        size: z.number().int().nonnegative().safe(),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/),
+        mimeType: z.string().optional(),
+      }),
+    ),
+  }),
+});
 
 /**
  * Call within the storage queue; the caller must hold a Notebook pin until all uploads finish.

@@ -4,7 +4,7 @@ export type { ExtensionContext } from "@anynote/plugin-sdk/contracts.js";
 
 import { z } from "zod";
 import type { Storage } from "./index.js";
-import type { SqlRow } from "@anynote/types/runtime.js";
+import { type StoredNode } from "./operation-contracts.js";
 import {
   CommandRegistry,
   ExtensionError,
@@ -92,7 +92,7 @@ interface ExtensionSession {
 }
 
 /** Map a storage node row into the portable directory-tree summary. */
-function toNodeSummary(n: SqlRow): NodeSummary {
+function toNodeSummary(n: StoredNode): NodeSummary {
   return {
     id: n.id,
     parentId: n.parent_id ?? null,
@@ -101,7 +101,7 @@ function toNodeSummary(n: SqlRow): NodeSummary {
     revision: n.revision,
     noteType: n.note_type ?? undefined,
     tags: Array.isArray(n.tags) ? n.tags : [],
-    favorite: n.favorite === 1 || n.favorite === true,
+    favorite: n.favorite === 1,
     updatedAt: n.updated_at,
     createdAt: n.created_at,
     deletedAt: n.deleted_at ?? null,
@@ -175,8 +175,8 @@ export function createExtensionHost(
      * @returns The activated session API.
      */
     async activate(
-      manifest: SqlRow,
-      grant: SqlRow,
+      manifest: unknown,
+      grant: { notebookId: string; permissions: readonly string[] },
       factory: (context: ExtensionContext) => unknown | Promise<unknown>,
     ) {
       const m = manifestSchema.parse(manifest),
@@ -270,10 +270,7 @@ export function createExtensionHost(
           z.object({})
             .strict()
             .parse(raw ?? {});
-          const books = (await storage.run("listNotebooks")) as {
-            id: string;
-            name: string;
-          }[];
+          const books = await storage.run("listNotebooks");
           const found = books.find((book) => book.id === notebookId);
           if (!found) throw new ExtensionError("not_found", "Notebook 不可用");
           return { id: found.id, name: found.name };
@@ -286,9 +283,7 @@ export function createExtensionHost(
             })
             .strict()
             .parse(raw ?? {});
-          const rows = (await storage.run("listNodes", {
-            ...base,
-          })) as SqlRow[];
+          const rows = await storage.run("listNodes", { ...base });
           const filtered = rows.filter(
             (row) =>
               row.deleted_at == null &&
@@ -353,10 +348,7 @@ export function createExtensionHost(
         }
         if (method === "notes.history") {
           const p = z.object({ id: uuid }).strict().parse(raw);
-          const rows = (await storage.run("history", {
-            ...base,
-            ...p,
-          })) as SqlRow[];
+          const rows = await storage.run("history", { ...base, ...p });
           return rows.map((row) => ({
             id: row.id,
             body: row.body,
@@ -364,24 +356,36 @@ export function createExtensionHost(
             actor: row.actor ?? "user",
           }));
         }
-        if (method === "search.query")
-          return storage.run("search", {
-            ...base,
-            ...z
-              .object({ query: z.string().max(300) })
-              .strict()
-              .parse(raw),
-          });
+        if (method === "search.query") {
+          const input = z
+            .object({ query: z.string().max(300) })
+            .strict()
+            .parse(raw);
+          const results = await storage.run("search", { ...base, ...input });
+          return Promise.all(
+            results.map((row) =>
+              storage.run("getNote", { ...base, id: row.id }),
+            ),
+          );
+        }
         if (method === "search.page") {
           const p = pageSchema
             .extend({ query: z.string().max(300) })
             .strict()
             .parse(raw);
-          const results = (await storage.run("search", {
+          const results = await storage.run("search", {
             ...base,
             query: p.query,
-          })) as { id: string }[];
-          return paginate(results, p);
+          });
+          const page = paginate(results, p);
+          return {
+            ...page,
+            items: await Promise.all(
+              page.items.map((row) =>
+                storage.run("getNote", { ...base, id: row.id }),
+              ),
+            ),
+          };
         }
         if (method === "assets.read")
           return storage.run("getAsset", {

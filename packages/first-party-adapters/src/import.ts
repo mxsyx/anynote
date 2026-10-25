@@ -1,4 +1,4 @@
-import type { NoteSnapshot, Transport } from "@anynote/plugin-sdk";
+import type { NoteSnapshot, OperationTransport } from "@anynote/plugin-sdk";
 import type {
   FirstPartyImportAPI,
   FirstPartyImportCommitInput,
@@ -20,7 +20,9 @@ import type {
  * @param transport Authorized host transport.
  * @returns The frozen import API.
  */
-export function createImportAPI(transport: Transport): FirstPartyImportAPI {
+export function createImportAPI(
+  transport: OperationTransport,
+): FirstPartyImportAPI {
   const call = <T>(op: string, input: object) =>
     transport(op, { ...input }) as Promise<T>;
   const payload = (input: FirstPartyImportInput) => ({

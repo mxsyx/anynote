@@ -129,9 +129,7 @@ export async function remoteDirectory(
 ) {
   if (op === "fetchExtensionDirectory") {
     const p = z.object({ directoryId: z.string().uuid() }).strict().parse(raw);
-    const entries: z.infer<typeof configEntry>[] = await s.run(
-      "listExtensionDirectories",
-    );
+    const entries = configSchema.parse(await s.run("listExtensionDirectories"));
     const entry = entries.find((e) => e.id === p.directoryId);
     if (!entry) throw Error("扩展目录已移除");
     let pending = fetching.get(s);
@@ -151,8 +149,8 @@ export async function remoteDirectory(
       );
       if (result.status !== "directory" || !result.directory)
         throw Error("目录响应无效");
-      const current: z.infer<typeof configEntry>[] = await s.run(
-        "listExtensionDirectories",
+      const current = configSchema.parse(
+        await s.run("listExtensionDirectories"),
       );
       if (
         pending.get(entry.id) !== generation ||

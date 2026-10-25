@@ -1,4 +1,4 @@
-import type { Transport } from "./index.js";
+import type { OperationTransport } from "./index.js";
 import type {
   LocalBackupAPI,
   LocalBackupTask,
@@ -7,10 +7,12 @@ import type {
 /**
  * Host integration providing an authorized transport channel for local backup; it grants no extension host capabilities.
  *
- * @param transport Transport function.
+ * @param transport OperationTransport function.
  * @returns The frozen local backup API.
  */
-export function createLocalBackupAPI(transport: Transport): LocalBackupAPI {
+export function createLocalBackupAPI(
+  transport: OperationTransport,
+): LocalBackupAPI {
   const call = <T>(op: string, input: object = {}) =>
     transport(op, { ...input }) as Promise<T>;
   const task = (op: string, input: object) => call<{ id: string }>(op, input);

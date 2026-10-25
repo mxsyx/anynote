@@ -110,9 +110,15 @@ const signed:SignedExtensionPackage={format:'anynote.extension.v1',algorithm:'Ed
 const directory:ExtensionDirectory={format:'anynote.extension-directory.v1',name:'Examples',entries:[{id:script.id,name:script.name,version:script.version,runtime:script.runtime,permissions:script.permissions,url:'https://example.com/script.json',checksum:'0'.repeat(64),fingerprint:'0'.repeat(64)}]};
 const saved:SavedExtensionDirectory={id:'directory-id',name:'Examples',url:'https://example.com/extensions.json'};
 void manifest; void context; void script; void source; void signed; void directory; void saved;
-const api=createAPI(async(method,input)=>({method,input}));
+const api=createAPI(async(method,input)=>{
+  if(method!=='notes.get'||!('id' in input)||input.id!=='note') throw Error('SDK transport input failed');
+  return {id:'note',title:'Title',body:'Body',revision:1,head_revision_id:'revision',tags:[],note_type:'markdown'};
+});
 const result=await api.notes.get('note');
-if((result as unknown as {method:string}).method!=='notes.get'||sdkVersion!=='0.1.0') throw Error('SDK transport failed');
+if(result.body!=='Body'||sdkVersion!=='0.1.0') throw Error('SDK transport failed');
+let rejected=false;
+try { await createAPI(async()=>({id:'note'})).notes.get('note'); } catch(error) { rejected=(error as {code:string}).code==='internal'; }
+if(!rejected) throw Error('SDK accepted an invalid transport result');
 const backupCalls:{method:string,input:unknown}[]=[];
 const backup:LocalBackupAPI=createLocalBackupAPI(async(method,input)=>{backupCalls.push({method,input});if(method==='listTasks')return [{id:'job',type:'local-verify',status:'done',verificationReport:{status:'passed',issues:[]}}];return {id:'job'};});
 const backupHandle=await backup.verify({notebookId:'note',targetId:'target'});

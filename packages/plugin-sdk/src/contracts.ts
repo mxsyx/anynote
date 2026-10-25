@@ -226,7 +226,8 @@ export interface AnynoteAPI {
     addImage(input: ImageInput, options?: CallOptions): Promise<NoteSnapshot>;
   };
   settings: {
-    get<T = unknown>(key: string, options?: CallOptions): Promise<T | null>;
+    /** Dynamic settings require validation by the consuming extension. */
+    get(key: string, options?: CallOptions): Promise<unknown>;
     set(key: string, value: unknown, options?: CallOptions): Promise<boolean>;
   };
   secrets: {

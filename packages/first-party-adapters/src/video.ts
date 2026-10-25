@@ -1,4 +1,4 @@
-import type { NoteSnapshot, Transport } from "@anynote/plugin-sdk";
+import type { NoteSnapshot, OperationTransport } from "@anynote/plugin-sdk";
 import type {
   FirstPartyVideoAPI,
   FirstPartyVideoInsertInput,
@@ -15,7 +15,9 @@ import type {
  * @param transport Authorized host transport.
  * @returns The frozen video API.
  */
-export function createVideoAPI(transport: Transport): FirstPartyVideoAPI {
+export function createVideoAPI(
+  transport: OperationTransport,
+): FirstPartyVideoAPI {
   const call = <T>(op: string, input: object) =>
     transport(op, { ...input }) as Promise<T>;
   return Object.freeze({

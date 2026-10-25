@@ -1,3 +1,17 @@
+import {
+  parseTransportResult,
+  type Transport,
+  type TransportMethod,
+  type TransportInputs,
+  type TransportResult,
+} from "./transport.js";
+export type {
+  OperationTransport,
+  Transport,
+  TransportMethod,
+  TransportInputs,
+  TransportResult,
+} from "./transport.js";
 import { ExtensionError } from "./contracts.js";
 import type {
   AnynoteAPI,
@@ -6,11 +20,6 @@ import type {
   ExtensionErrorCode,
   ExtensionEventHandler,
   ExtensionEventName,
-  NodeSummary,
-  NotebookInfo,
-  NoteRevision,
-  NoteSnapshot,
-  Page,
   PageRequest,
 } from "./contracts.js";
 
@@ -40,12 +49,6 @@ export type {
   UIContribution,
   UIContributionSlot,
 } from "./contracts.js";
-
-/** Transport function through which extensions call host methods. */
-export type Transport = (
-  method: string,
-  input: Record<string, unknown>,
-) => Promise<unknown>;
 
 /** Public SDK 0.1: this module has no storage, Electron, or Node dependencies. */
 export const sdkVersion = "0.1.0";
@@ -129,16 +132,16 @@ export function createAPI(
   transport: Transport,
   bindings: APIBindings = {},
 ): AnynoteAPI {
-  const call = async <T>(
-    method: string,
-    input: Record<string, unknown> = {},
+  const call = async <K extends TransportMethod>(
+    method: K,
+    input: TransportInputs[K],
     options?: CallOptions,
-  ): Promise<T> => {
+  ): Promise<TransportResult<K>> => {
     assertLive(options);
     try {
-      const value = (await transport(method, input)) as T;
+      const value = await transport(method, input);
       assertLive(options);
-      return value;
+      return parseTransportResult(method, value);
     } catch (error) {
       throw toExtensionError(error);
     }
@@ -163,7 +166,7 @@ export function createAPI(
       }),
     notebooks: Object.freeze({
       current: (options?: CallOptions) =>
-        call<NotebookInfo>("notebooks.current", {}, options),
+        call("notebooks.current", {}, options),
     }),
     nodes: Object.freeze({
       list: (
@@ -174,21 +177,21 @@ export function createAPI(
             })
           | null,
         options?: CallOptions,
-      ) => call<Page<NodeSummary>>("nodes.list", { ...(input ?? {}) }, options),
+      ) => call("nodes.list", { ...(input ?? {}) }, options),
       move: (
         input: { id: string; parentId: string | null },
         options?: CallOptions,
-      ) => call<NodeSummary>("nodes.move", { ...input }, options),
+      ) => call("nodes.move", { ...input }, options),
       trash: (id: string, options?: CallOptions) =>
-        call<boolean>("nodes.trash", { id }, options),
+        call("nodes.trash", { id }, options),
     }),
     notes: Object.freeze({
       get: (id: string, options?: CallOptions) =>
-        call<NoteSnapshot>("notes.get", { id }, options),
+        call("notes.get", { id }, options),
       create: (
         input: { title: string; body?: string; parentId?: string | null },
         options?: CallOptions,
-      ) => call<NoteSnapshot>("notes.create", input, options),
+      ) => call("notes.create", input, options),
       applyPatch: (
         input: {
           id: string;
@@ -197,51 +200,42 @@ export function createAPI(
           operationId: string;
         },
         options?: CallOptions,
-      ) => call<NoteSnapshot>("notes.applyPatch", input, options),
+      ) => call("notes.applyPatch", input, options),
       history: (id: string, options?: CallOptions) =>
-        call<NoteRevision[]>("notes.history", { id }, options),
+        call("notes.history", { id }, options),
     }),
     search: Object.freeze({
       query: (query: string, options?: CallOptions) =>
-        call<NoteSnapshot[]>("search.query", { query }, options),
+        call("search.query", { query }, options),
       page: (query: string, input?: PageRequest, options?: CallOptions) =>
-        call<Page<NoteSnapshot>>(
-          "search.page",
-          { query, ...(input ?? {}) },
-          options,
-        ),
+        call("search.page", { query, ...(input ?? {}) }, options),
     }),
     assets: Object.freeze({
       read: (
         input: { id: string; noteId: string; revisionId?: string },
         options?: CallOptions,
-      ) =>
-        call<{ data: string; mime: string; hash: string }>(
-          "assets.read",
-          input,
-          options,
-        ),
+      ) => call("assets.read", input, options),
       addImage: (
         input: Parameters<AnynoteAPI["assets"]["addImage"]>[0],
         options?: CallOptions,
-      ) => call<NoteSnapshot>("assets.addImage", { ...input }, options),
+      ) => call("assets.addImage", { ...input }, options),
     }),
     settings: Object.freeze({
-      get: <T = unknown>(key: string, options?: CallOptions) =>
-        call<T | null>("settings.get", { key }, options),
+      get: (key: string, options?: CallOptions) =>
+        call("settings.get", { key }, options),
       set: (key: string, value: unknown, options?: CallOptions) =>
-        call<boolean>("settings.set", { key, value }, options),
+        call("settings.set", { key, value }, options),
     }),
     secrets: Object.freeze({
       get: (ref: { provider: string; key: string }, options?: CallOptions) =>
-        call<string | null>("secrets.get", { ...ref }, options),
+        call("secrets.get", { ...ref }, options),
       set: (
         ref: { provider: string; key: string },
         value: string,
         options?: CallOptions,
-      ) => call<boolean>("secrets.set", { ...ref, value }, options),
+      ) => call("secrets.set", { ...ref, value }, options),
       delete: (ref: { provider: string; key: string }, options?: CallOptions) =>
-        call<boolean>("secrets.delete", { ...ref }, options),
+        call("secrets.delete", { ...ref }, options),
     }),
     events: Object.freeze({
       on: (name: ExtensionEventName, handler: ExtensionEventHandler) =>

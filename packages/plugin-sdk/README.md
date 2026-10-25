@@ -8,6 +8,8 @@
 
 - `api.contract()` 返回 `{ sdk, api, capabilities }`：`sdk` 是 SDK 版本，`api` 是调用面合约版本，`capabilities` 列出当前调用面方法，插件可据此判断可用能力。
 - 分页：`nodes.list`、`search.page` 接受 `{ cursor, limit }`，返回 `{ items, nextCursor }`；`limit` 由宿主钳制，未知游标返回 `invalid`。
+- Transport：`TransportInputs` 将方法名与入参关联；transport 返回 `unknown`，`createAPI` 验证固定结果结构（含分页元素、修订、资源及布尔结果），非法返回统一报告 `internal`。搜索返回完整 `NoteSnapshot`，摘要查询由宿主补齐为快照。
+- 动态设置：`settings.get(key)` 返回 `unknown`（缺失值为 `null`），不再允许使用泛型声称数据已校验；扩展应使用自身 schema 或类型守卫验证后读取。
 - 取消：所有方法接受可选 `CallOptions.signal`，取消后在调用前后抛出 `aborted`。
 - 错误码：宿主按 `denied` / `invalid` / `not_found` / `conflict` / `busy` / `aborted` / `unsupported` / `internal` 抛出 `ExtensionError`，插件无需解析文案即可分支。
 - 权限合约：受信首方宿主新增 `notebooks:read`、`nodes:read`、`nodes:write`、`secrets:read`、`secrets:write`、`events:subscribe`、`tasks:register`、`ui:contribute`、`providers:register`；每个调用与注册都在权限门面内校验并绑定当前 Notebook。
@@ -114,7 +116,7 @@ await api.notes.get(noteId);
 
 ## 宿主本地磁盘备份接口
 
-`createLocalBackupAPI(authorizedTransport)` 提供配置、范围、定时计划、预览、备份、完整校验、恢复、删除及任务查询的统一类型。由受信宿主提供已授权的核心操作 transport；此适配器独立于插件 `createAPI` 和 `ExtensionContext`，不会增加扩展权限。`configure` 通过宿主原生目录选择器授权目录，不接收调用方提供的路径，用户取消时返回 `null`。
+`createLocalBackupAPI(authorizedTransport)` 提供配置、范围、定时计划、预览、备份、完整校验、恢复、删除及任务查询的统一类型。由受信宿主提供已授权的 `OperationTransport` 核心操作通道（与插件 `Transport` 的方法契约分离）；此适配器独立于插件 `createAPI` 和 `ExtensionContext`，不会增加扩展权限。`configure` 通过宿主原生目录选择器授权目录，不接收调用方提供的路径，用户取消时返回 `null`。
 
 ```ts
 import { createLocalBackupAPI } from "@anynote/plugin-sdk";

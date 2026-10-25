@@ -4,10 +4,10 @@
  * Whiteboard, video, import and backup adapters are consumed only through
  * `@anynote/plugin-sdk`; this package is independently packaged so the same
  * ports can be installed and run in a clean external project. The adapters add
- * no capabilities: each one requires an authorized `Transport` supplied by a
+ * no capabilities: each one requires an authorized `OperationTransport` supplied by a
  * trusted host, exactly like the SDK's own adapter.
  */
-import type { Transport } from "@anynote/plugin-sdk";
+import type { OperationTransport } from "@anynote/plugin-sdk";
 import { createLocalBackupAPI } from "@anynote/plugin-sdk";
 import { createWhiteboardAPI } from "./whiteboard.js";
 import { createVideoAPI } from "./video.js";
@@ -79,7 +79,7 @@ export interface FirstPartyAdapters {
  * @returns The frozen adapter set.
  */
 export function createFirstPartyAdapters(
-  transport: Transport,
+  transport: OperationTransport,
 ): FirstPartyAdapters {
   return Object.freeze({
     whiteboard: createWhiteboardAPI(transport),

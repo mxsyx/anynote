@@ -1,3 +1,4 @@
+import { updateCheckSchema } from "./extension-results.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import {
@@ -252,11 +253,9 @@ export async function checkExtensionUpdates(
   const controller = new AbortController();
   r.controller = controller;
   try {
-    const prepared: {
-      token: string;
-      revision: string;
-      sources: InstalledExtension[];
-    } | null = await s.run("beginExtensionUpdateCheck", { force, now: now() });
+    const prepared = updateCheckSchema.parse(
+      await s.run("beginExtensionUpdateCheck", { force, now: now() }),
+    );
     if (!prepared) return false;
     const results: z.infer<typeof resultSchema>[] = [];
     for (const source of prepared.sources) {

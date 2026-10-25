@@ -1,3 +1,10 @@
+import {
+  importMediaSchema,
+  importReportSchema,
+  importCommitSchema,
+  assertImportRetry,
+} from "./import-contracts.js";
+import { nodeSchema } from "./operation-contracts.js";
 import type { OperationResult } from "./services.js";
 import { putAsset, putAssetFile } from "./assets.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -264,23 +271,7 @@ function startImportTask(
 }
 
 /** One media item recorded in an import report. */
-interface ImportMediaItem {
-  source: string;
-  status: string;
-  /** Media kind: image/embed/video/audio/attachment/unsupported. */
-  kind?: string;
-  resourceId?: string;
-  error?: string;
-  /** First failure reason, retained even after a successful retry. */
-  originalError?: string;
-  /** Stable placeholder marker the importer wrote for a failed item. */
-  marker?: string;
-  /** Original alt text, reused when the retried image is referenced. */
-  name?: string;
-  retriedAt?: number;
-  retryCount?: number;
-  lastRetryAt?: number;
-}
+type ImportMediaItem = z.infer<typeof importMediaSchema>;
 
 /**
  * Markdown reference for a localized media resource.
@@ -300,14 +291,7 @@ function mediaReference(item: ImportMediaItem, resourceId: string) {
 }
 
 /** Persisted import report (see `prepareImport`'s report shape). */
-interface ImportReport {
-  media: ImportMediaItem[];
-  localized: number;
-  failed: number;
-  source?: string | null;
-  finalUrl?: string | null;
-  [key: string]: unknown;
-}
+type ImportReport = z.infer<typeof importReportSchema>;
 
 /**
  * Recompute the localized/failed counters from the media list.
@@ -438,12 +422,21 @@ async function runImportMediaRetry(
       note: SqlRow;
     };
     try {
-      summary = await s.run("commitImportMediaRetry", {
-        notebookId: target.notebookId,
-        id: target.id,
-        report,
-        outcomes,
-      });
+      summary = z
+        .object({
+          applied: z.number().int().nonnegative(),
+          failed: z.number().int().nonnegative(),
+          skipped: z.number().int().nonnegative(),
+          note: nodeSchema,
+        })
+        .parse(
+          await s.run("commitImportMediaRetry", {
+            notebookId: target.notebookId,
+            id: target.id,
+            report,
+            outcomes,
+          }),
+        );
     } catch (e: any) {
       s.settle(job, "failed", { error: e.message });
       return;
@@ -638,7 +631,7 @@ export function save(
       db
         .prepare("SELECT primary_resource_id FROM notes WHERE node_id=?")
         .get(p.id)?.primary_resource_id,
-      previousHead,
+      previousHead ?? undefined,
       new Set(resources.map((r) => r.id)),
     );
     s.recordRevision(db, rev, p.id);
@@ -805,7 +798,14 @@ export async function advancedOperations(
         )
         .get(p.extensionId, key);
     if (prior) {
-      const result = JSON.parse(prior.value_json);
+      const result = z
+        .object({
+          id: uuid,
+          body: z.string(),
+          expectedRevision: z.number().int().positive(),
+          note: nodeSchema,
+        })
+        .parse(JSON.parse(z.string().parse(prior.value_json)));
       if (
         result.id !== p.id ||
         result.body !== p.body ||
@@ -901,11 +901,13 @@ export async function advancedOperations(
       if (m.result) {
         job.status = "committing";
         try {
-          job.note = await s.run("commitImport", {
-            ...m.result,
-            notebookId: p.notebookId,
-            parentId: p.parentId,
-          });
+          job.note = nodeSchema.parse(
+            await s.run("commitImport", {
+              ...m.result,
+              notebookId: p.notebookId,
+              parentId: p.parentId,
+            }),
+          );
           s.settle(job, "completed", {
             progress: "已导入并保存至本地",
             report: m.result.report,
@@ -1035,11 +1037,15 @@ export async function advancedOperations(
       note = s.get(db, p.id);
     if (note.note_type !== "markdown")
       throw Error("仅 Markdown 笔记可重试导入媒体");
-    const report = JSON.parse(
-      db
-        .prepare("SELECT report_json FROM import_reports WHERE note_id=?")
-        .get(p.id)?.report_json || "null",
-    ) as ImportReport | null;
+    const report = importReportSchema
+      .nullable()
+      .parse(
+        JSON.parse(
+          db
+            .prepare("SELECT report_json FROM import_reports WHERE note_id=?")
+            .get(p.id)?.report_json || "null",
+        ),
+      );
     if (!report || !Array.isArray(report.media))
       throw Error("此笔记没有可重试的导入报告");
     const failed = report.media.filter((m) => m.status === "failed");
@@ -1109,9 +1115,7 @@ export async function advancedOperations(
   }
 
   if (op === "commitImport") {
-    const p = raw as Awaited<
-        ReturnType<typeof import("@anynote/importer/html.js").prepareImport>
-      > & { notebookId: string; parentId?: string },
+    const p = importCommitSchema.parse(raw),
       db = s.open(p.notebookId);
     s.parent(db, p.parentId);
     const resources = p.resources,
@@ -1157,12 +1161,8 @@ export async function advancedOperations(
   }
 
   if (op === "commitImportMediaRetry") {
-    const p = raw as {
-      notebookId: string;
-      id: string;
-      report: ImportReport;
-      outcomes: { item: ImportMediaItem; resource?: SqlRow; error?: string }[];
-    };
+    assertImportRetry(raw);
+    const p = raw;
     const db = s.open(p.notebookId),
       // Re-read the note so edits made while the downloads ran are preserved;
       // only the recorded placeholder lines are rewritten.
@@ -1340,7 +1340,7 @@ export async function advancedOperations(
     if (digest(Buffer.from(p.data, "base64")) === p.assetHash)
       throw Error("图片内容未改变");
     const r = writeResource(s, db, p.notebookId, {
-      id: n.primary_resource_id,
+      id: uuid.parse(n.primary_resource_id),
       data: p.data,
       mime: p.mime,
       name: p.name,
@@ -1656,11 +1656,15 @@ export async function advancedOperations(
   if (op === "getImportReport") {
     const p = ref.strict().parse(raw),
       db = s.open(p.notebookId);
-    result = JSON.parse(
-      db
-        .prepare("SELECT report_json FROM import_reports WHERE note_id=?")
-        .get(p.id)?.report_json || "null",
-    );
+    result = importReportSchema
+      .nullable()
+      .parse(
+        JSON.parse(
+          db
+            .prepare("SELECT report_json FROM import_reports WHERE note_id=?")
+            .get<{ report_json: string }>(p.id)?.report_json ?? "null",
+        ),
+      );
   }
 
   if (op === "getWhiteboard") {

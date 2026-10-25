@@ -19,6 +19,7 @@ export async function sdkContracts() {
   const note: NoteSnapshot = await api.notes.get("note-id");
   const revision: number = note.revision;
   await api.settings.set("enabled", true);
+  // @ts-expect-error Dynamic settings must be validated by their consumer.
   const settings: { enabled: boolean } | null =
     await api.settings.get("options");
   const contract = api.contract();

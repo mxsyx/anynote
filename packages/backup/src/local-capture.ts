@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { backupRevisionSchema } from "@anynote/storage-sqlite/backup-revision.js";
 import { snapshotMetadata, databaseBytes } from "./snapshot-metadata.js";
 import { snapshotDatabase } from "@anynote/storage-sqlite/database-snapshot.js";
 import {
@@ -11,6 +13,24 @@ import { DatabaseSync } from "@anynote/types/runtime.js";
 
 import type { Storage } from "@anynote/storage-sqlite/index.js";
 import type { Capture } from "@anynote/backup-local";
+
+export const captureSchema = z.object({
+  notebookId: z.string().uuid(),
+  revision: backupRevisionSchema.optional(),
+  databasePath: z.string().min(1),
+  assets: z.array(
+    z.object({
+      path: z.string(),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/),
+      size: z.number().int().nonnegative().safe(),
+      mimeType: z.string().optional(),
+    }),
+  ),
+  name: z.string(),
+  contentSeq: z.string().regex(/^\d+$/),
+  schemaVersion: z.literal(4),
+  release: z.function().args().returns(z.promise(z.void())),
+});
 
 export { resourceRoots } from "@anynote/storage-sqlite/assets.js";
 

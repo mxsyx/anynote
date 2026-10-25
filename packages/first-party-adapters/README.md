@@ -4,8 +4,8 @@
 
 ## 依赖与边界
 
-- 只依赖 `@anynote/plugin-sdk` 的公开导出（`Transport`、`NoteSnapshot` 与本地备份契约）；不依赖 Node、Electron、存储或 UI 框架。
-- 适配器本身不授予任何扩展权限：每个工厂都需要调用方提供**已授权**的 `Transport`，与 SDK 自带的 `createLocalBackupAPI` 一致。
+- 只依赖 `@anynote/plugin-sdk` 的公开导出（`OperationTransport`、`NoteSnapshot` 与本地备份契约）；不依赖 Node、Electron、存储或 UI 框架。
+- 适配器本身不授予任何扩展权限：每个工厂都需要调用方提供**已授权**的 `OperationTransport`，与 SDK 自带的 `createLocalBackupAPI` 一致。
 - 备份适配器直接复用 `@anynote/plugin-sdk` 的实现，不重复实现。
 
 ## 调用面

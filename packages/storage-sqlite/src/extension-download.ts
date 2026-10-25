@@ -1,4 +1,8 @@
 import {
+  installedExtensionSchema,
+  extensionPreviewSchema,
+} from "./extension-results.js";
+import {
   extensionDirectorySchema,
   type DirectoryEntry,
 } from "@anynote/protocol/extension-directory.js";
@@ -11,11 +15,7 @@ import {
 } from "./extension-signature.js";
 import { extensionCatalog } from "./extension-catalog.js";
 import type { Storage } from "./index.js";
-import type {
-  ExtensionSource,
-  InstalledExtension,
-  InstallableManifest,
-} from "@anynote/plugin-sdk/declarative.js";
+import type { InstalledExtension } from "@anynote/plugin-sdk/declarative.js";
 
 /** One pending-review download. */
 interface Review {
@@ -81,18 +81,6 @@ export function cancelExtensionDownloads(s: Storage) {
   return true;
 }
 
-/** Preview result of one download. */
-interface Preview {
-  manifest: InstallableManifest;
-  checksum: string;
-  source: ExtensionSource;
-  installed: {
-    checksum: string;
-    version: string;
-    source: ExtensionSource;
-  } | null;
-}
-
 // Test transport injection is internal only; it is never selected by IPC arguments or environment variables.
 /**
  * Download and verify an extension package (or extension directory).
@@ -150,9 +138,13 @@ export async function downloadExtension(
     let url: string;
     if ("url" in p) url = new URL(p.url).href;
     else {
-      const entries: InstalledExtension[] = p.notebookId
-        ? await s.run("listExtensions", { notebookId: p.notebookId })
-        : await s.run("listExtensionUpdateSources");
+      const entries = z
+        .array(installedExtensionSchema)
+        .parse(
+          p.notebookId
+            ? await s.run("listExtensions", { notebookId: p.notebookId })
+            : await s.run("listExtensionUpdateSources"),
+        );
       installed = entries.find((e) => e.manifest.id === p.extensionId);
       if (!installed || installed.checksum !== p.checksum)
         throw Error("已安装扩展发生变化，请刷新");
@@ -201,7 +193,9 @@ export async function downloadExtension(
       };
     }
     verifyExtensionPackage(pack);
-    const preview: Preview = await s.run("previewExtension", { package: pack });
+    const preview = extensionPreviewSchema.parse(
+      await s.run("previewExtension", { package: pack }),
+    );
     state(s);
     controller.signal.throwIfAborted();
     const expected = options.expected;

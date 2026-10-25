@@ -1,6 +1,7 @@
+import { readBackupTargets } from "./service.js";
 import { guard } from "@anynote/backup-local";
 import { patchLocalTarget, readLocalTargets } from "./local.js";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   environmentPause,
@@ -77,10 +78,7 @@ export function startBackupScheduler(
       const { policy, environment: reported } = readPolicy(storage),
         env = environment?.() ?? reported,
         time = now(),
-        path = join(storage.root, "_local", "backup-targets.json"),
-        targets: BackupTarget[] = existsSync(path)
-          ? JSON.parse(readFileSync(path, "utf8"))
-          : [];
+        targets = readBackupTargets(storage);
       for (const target of readLocalTargets(storage)) {
         if (disposed) break;
         let online = false;

@@ -6,7 +6,7 @@ import {
   policyOperations,
 } from "./operation-names.js";
 import { localBackupOperation } from "./local.js";
-import { configSchema } from "./connection.js";
+import { configSchema, backupTargetsSchema } from "./connection.js";
 import { recoveryOperation } from "./recovery.js";
 import { startCloudRestore } from "./restore-task.js";
 import { temporaryJob } from "@anynote/storage-sqlite/temporary-jobs.js";
@@ -30,7 +30,7 @@ import {
   type Task,
 } from "@anynote/types/runtime.js";
 import { uploadSnapshotFiles } from "./cloud-snapshot.js";
-import type { FileSnapshot } from "./file-snapshot.js";
+import { fileSnapshotSchema } from "./file-snapshot.js";
 import { listBackups } from "./cloud-archive.js";
 import { manage } from "./manage.js";
 import {
@@ -62,9 +62,11 @@ function path(s: Storage) {
  * @param s Storage service.
  * @returns Configured backup targets.
  */
-function read(s: Storage): BackupTarget[] {
+export function readBackupTargets(s: Storage): BackupTarget[] {
   const p = path(s);
-  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : [];
+  return existsSync(p)
+    ? backupTargetsSchema.parse(JSON.parse(readFileSync(p, "utf8")))
+    : [];
 }
 
 /**
@@ -75,7 +77,9 @@ function read(s: Storage): BackupTarget[] {
  */
 function write(s: Storage, items: BackupTarget[]) {
   const p = path(s);
-  writeFileSync(p + ".tmp", JSON.stringify(items), { flush: true });
+  writeFileSync(p + ".tmp", JSON.stringify(backupTargetsSchema.parse(items)), {
+    flush: true,
+  });
   renameSync(p + ".tmp", p);
 }
 
@@ -145,7 +149,7 @@ async function readCommittedGeneration(
  * @returns The matching backup target.
  */
 function find(s: Storage, p: { notebookId: string; targetId?: string }) {
-  const target = read(s).find(
+  const target = readBackupTargets(s).find(
     (t) => t.id === p.targetId && t.notebookId === p.notebookId,
   );
   if (!target) throw Error("备份目标不存在");
@@ -183,7 +187,9 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
         save: (target) =>
           write(
             s,
-            read(s).map((item) => (item.id === target.id ? target : item)),
+            readBackupTargets(s).map((item) =>
+              item.id === target.id ? target : item,
+            ),
           ),
       }),
     };
@@ -200,7 +206,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       throw Error("默认要求 HTTPS；本机测试服务需明确允许 HTTP。");
     if (!p.token) throw Error("请填写应用 Token");
     s.open(p.notebookId);
-    const items = read(s),
+    const items = readBackupTargets(s),
       previous = p.targetId ? find(s, p) : null,
       id = previous?.id || randomUUID();
     await secret(s, id, { token: p.token });
@@ -225,7 +231,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     const p = z.object({ notebookId: uuid }).strict().parse(raw);
     return {
       handled: true,
-      result: read(s).filter((t) => t.notebookId === p.notebookId),
+      result: readBackupTargets(s).filter((t) => t.notebookId === p.notebookId),
     };
   }
 
@@ -247,7 +253,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     if (p.enabled) Object.assign(target, clearFailureState());
     write(
       s,
-      read(s).map((t) => (t.id === target.id ? target : t)),
+      readBackupTargets(s).map((t) => (t.id === target.id ? target : t)),
     );
     return { handled: true, result: target };
   }
@@ -267,7 +273,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
     Object.assign(target, p.cursor);
     write(
       s,
-      read(s).map((t) => (t.id === target.id ? target : t)),
+      readBackupTargets(s).map((t) => (t.id === target.id ? target : t)),
     );
     return { handled: true, result: true };
   }
@@ -372,7 +378,7 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
   target.lastAttempt = Date.now();
   write(
     s,
-    read(s).map((t) => (t.id === target.id ? target : t)),
+    readBackupTargets(s).map((t) => (t.id === target.id ? target : t)),
   );
   job.promise = (async () => {
     let dir: string | undefined, release: (() => void) | undefined;
@@ -441,10 +447,12 @@ export async function backupOperation(s: Storage, op: string, raw: unknown) {
       release = workspace.release;
       s.pins.set(p.notebookId, (s.pins.get(p.notebookId) || 0) + 1);
       pinned = true;
-      const snapshot: FileSnapshot = await s.run("createBackupSnapshot", {
-        notebookId: p.notebookId,
-        dir,
-      });
+      const snapshot = fileSnapshotSchema.parse(
+        await s.run("createBackupSnapshot", {
+          notebookId: p.notebookId,
+          dir,
+        }),
+      );
       job.totalBytes =
         snapshot.manifest.database.size +
         snapshot.manifest.assets.reduce((n, a) => n + a.size, 0);
