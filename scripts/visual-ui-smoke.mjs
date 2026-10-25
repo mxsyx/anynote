@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const output = resolve(
-  process.env.ANYNOTE_SCREENSHOTS || "docs/screenshots/g20",
+  process.env.ANYNOTE_SCREENSHOTS || "tmp/screenshots/g20",
 );
 mkdirSync(output, { recursive: true });
 const browser = await chromium.launch({

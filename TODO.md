@@ -104,7 +104,7 @@ Windows/macOS 真机和跨平台行为为主，保留 Linux 凭据、发行和�
 
 - [ ] **P2 — 性能代表性补齐**：补齐真实低配置机器、清空 OS 缓存后的启动、复杂 PDF/照片、小时级任务与内存增长测量，并在目标 Windows/macOS 最终包上确认适用性。已有本机多 Notebook 搜索/反链、50KiB 打开/保存、万节点树、万篇搜索、短时媒体循环和首屏预算证据，保留这些回归预算。CPU 节流不等于低配机器，短时工作集变化不证明无泄漏。
 
-平台实施与验收入口：[卷适配](packages/backup-local/src/volume.ts)、[本地备份测试](tests/backup-local.test.mjs)、[卷 fixture](tests/fixtures/volume)、[恢复演练](docs/RECOVERY-DRILLS.md)、[性能验收](docs/PERFORMANCE-UI-ACCEPTANCE.md)。F001/F002 共用卷接口，按语义 → Windows 适配 → 物理设备映射/UI 串行；新增探测开销需测量。按场景运行 `test:desktop`、`test:desktop:local-backup`、`test:desktop:cloud`、`test:recovery:portable verify`、`benchmark:local-backup`、`test:performance`、`benchmark:search` 对应的 pnpm 脚本，并补受影响类型/UI 回归。记录平台/架构、文件系统、设备、缓存条件和实际操作。
+平台实施与验收入口：[卷适配](packages/backup-local/src/volume.ts)、[本地备份测试](tests/backup-local.test.mjs)、[卷 fixture](tests/fixtures/volume)、[恢复演练](docs/validation/RECOVERY-DRILLS.md)、[性能验收](docs/validation/PERFORMANCE-UI-ACCEPTANCE.md)。F001/F002 共用卷接口，按语义 → Windows 适配 → 物理设备映射/UI 串行；新增探测开销需测量。按场景运行 `test:desktop`、`test:desktop:local-backup`、`test:desktop:cloud`、`test:recovery:portable verify`、`benchmark:local-backup`、`test:performance`、`benchmark:search` 对应的 pnpm 脚本，并补受影响类型/UI 回归。记录平台/架构、文件系统、设备、缓存条件和实际操作。
 
 <a id="release"></a>
 
@@ -140,7 +140,7 @@ Windows/macOS 真机和跨平台行为为主，保留 Linux 凭据、发行和�
 
 - [ ] **P1 — 签名与更新逻辑**：接入打包签名/公证流程、安装包与更新签名验证、升级失败回退及不支持的 schema 版本拒绝。现有 GitHub Release/校验和流程不等于签名更新；本地实现和回归可以先行，真实签名/公证依赖 [A011](#a011)，最终发行验证归 [V011](#v011)。
 
-按契约与测试输入 → 签名/公证及更新实现 → 与 A011 汇合验证真实身份 → V010/V011 最终包验收推进；补齐篡改签名、非法更新、缺失凭据、升级失败回退与 schema 拒绝回归。入口：[打包脚本](scripts/package-desktop.mjs)、[发行 workflow](.github/workflows/release.yml)、[发行矩阵](docs/RELEASE-MATRIX.md)。
+按契约与测试输入 → 签名/公证及更新实现 → 与 A011 汇合验证真实身份 → V010/V011 最终包验收推进；补齐篡改签名、非法更新、缺失凭据、升级失败回退与 schema 拒绝回归。入口：[打包脚本](scripts/package-desktop.mjs)、[发行 workflow](.github/workflows/release.yml)、[发行矩阵](docs/development/RELEASE-MATRIX.md)。
 
 <a id="a011"></a>
 
@@ -148,7 +148,7 @@ Windows/macOS 真机和跨平台行为为主，保留 Linux 凭据、发行和�
 
 - [ ] **P1 — 签名身份与发行凭据**：提供 Windows 代码签名身份、macOS 开发者身份及签名/公证凭据，配置真实 CI；在 [F006](#f006) 实现后验证签名、公证与更新产物的身份。最终安装/升级/回退实机验收归 [V011](#v011)。
 
-凭据预检和[手动 CI 入口](.github/workflows/release-credentials.yml)已实现；当时检查为 `blocked`，真实签名、公证及 CI 均未运行，见[阶段证据](docs/history/todo-progress-2026-10-25.md#release-credentials)。按[凭据规范](docs/RELEASE-CREDENTIALS.md)准备身份和 CI 配置，运行 `pnpm run test:release:credentials`；预检只检查配置，不能替代原生 runner 上的身份验收。
+凭据预检和[手动 CI 入口](.github/workflows/release-credentials.yml)已实现；当时检查为 `blocked`，真实签名、公证及 CI 均未运行，见[阶段证据](docs/history/todo-progress-2026-10-25.md#release-credentials)。按[凭据规范](docs/development/RELEASE-CREDENTIALS.md)准备身份和 CI 配置，运行 `pnpm run test:release:credentials`；预检只检查配置，不能替代原生 runner 上的身份验收。
 
 <a id="v010"></a>
 
@@ -180,7 +180,7 @@ Windows/macOS 真机和跨平台行为为主，保留 Linux 凭据、发行和�
 
 当前维护协议复测还需覆盖：超过 24h 的孤立 manifest/临时对象、连续 7 天无活动 staging、归档写失败后的恢复及墓碑旧 ID 重放；保护保留版本、分支和恢复任务。参见 [维护生命周期协议](docs/adr/013-remote-maintenance-lifecycle.md)。
 
-2026-10-24 已建立老化样本，当时状态为 `waiting`，本次未复验。后续先核对 `.cloudflare-acceptance/aging.json` 与[样本记录](docs/history/todo-progress-2026-10-25.md#cloudflare)：24h 最早复验为北京时间 2026-10-25 21:11:19，7 天最早复验为 2026-10-31 21:11:19。按[老化命令](docs/CLOUD-ACCEPTANCE.md#跨会话老化样本)接续并独立核实 R2 物理删除；等待期间不要重新 plan、上传或提交该样本，以免刷新活动时间或改变保护集合。`waiting`、时间到期或应用对象接口 404 均不代表已完成物理回收。
+2026-10-24 已建立老化样本，当时状态为 `waiting`，本次未复验。后续先核对 `.cloudflare-acceptance/aging.json` 与[样本记录](docs/history/todo-progress-2026-10-25.md#cloudflare)：24h 最早复验为北京时间 2026-10-25 21:11:19，7 天最早复验为 2026-10-31 21:11:19。按[老化命令](docs/validation/CLOUD-ACCEPTANCE.md#跨会话老化样本)接续并独立核实 R2 物理删除；等待期间不要重新 plan、上传或提交该样本，以免刷新活动时间或改变保护集合。`waiting`、时间到期或应用对象接口 404 均不代表已完成物理回收。
 
 <a id="a009"></a>
 
@@ -198,9 +198,9 @@ Windows/macOS 真机和跨平台行为为主，保留 Linux 凭据、发行和�
 
 - [ ] **P1 — 插件网络真实端点验收**：使用受控公网 HTTPS 服务验证证书/主机名、DNS/实际地址、超时、撤销和响应预算；现有 Electron 受控 DNS/HTTPS fixture 不作为公网端点验收。
 
-已提供 14 个场景、真实 Electron 验收脚本和本地回归；仍缺受控公网域名、公共/错误证书及各 DNS 场景。后续按[公网部署说明](docs/PLUGIN-NETWORK-ACCEPTANCE.md)准备资源并执行 `pnpm run test:plugin-network`，保存部署/DNS 配置和全部报告。[既有记录](docs/history/todo-progress-2026-10-25.md#plugin-network)中的 `.invalid`/NXDOMAIN 与本机 HTTP/TLS 验证不计公网通过。
+已提供 14 个场景、真实 Electron 验收脚本和本地回归；仍缺受控公网域名、公共/错误证书及各 DNS 场景。后续按[公网部署说明](docs/validation/PLUGIN-NETWORK-ACCEPTANCE.md)准备资源并执行 `pnpm run test:plugin-network`，保存部署/DNS 配置和全部报告。[既有记录](docs/history/todo-progress-2026-10-25.md#plugin-network)中的 `.invalid`/NXDOMAIN 与本机 HTTP/TLS 验证不计公网通过。
 
-发布与云验收入口：[发布证据](docs/P0-BACKUP-READINESS.md)、[发行矩阵](docs/RELEASE-MATRIX.md)、[真实云验收](docs/CLOUD-ACCEPTANCE.md)、[维护协议](docs/REMOTE-MAINTENANCE.md)、[云传输](docs/STREAMING-CLOUD-BACKUP.md)。Cloudflare 接续时先核对当前部署能力和备份/恢复基线；复用受控 Worker/D1/R2 与持续运行环境，按故障、老化复验、容量分阶段开展。按场景选用 `pnpm run test:cloud`、`pnpm run test:cloud:stream`、`pnpm run test:cloud:recovery`、`pnpm run test:cloud:aging`。不得用改时钟代替超过 24h 或连续 7 天的真实等待；同一命名空间内故障、清理和负载串行，独立资源与预算就绪后才能并行。
+发布与云验收入口：[发布证据](docs/validation/P0-BACKUP-READINESS.md)、[发行矩阵](docs/development/RELEASE-MATRIX.md)、[真实云验收](docs/validation/CLOUD-ACCEPTANCE.md)、[维护协议](docs/guides/REMOTE-MAINTENANCE.md)、[云传输](docs/guides/STREAMING-CLOUD-BACKUP.md)。Cloudflare 接续时先核对当前部署能力和备份/恢复基线；复用受控 Worker/D1/R2 与持续运行环境，按故障、老化复验、容量分阶段开展。按场景选用 `pnpm run test:cloud`、`pnpm run test:cloud:stream`、`pnpm run test:cloud:recovery`、`pnpm run test:cloud:aging`。不得用改时钟代替超过 24h 或连续 7 天的真实等待；同一命名空间内故障、清理和负载串行，独立资源与预算就绪后才能并行。
 
 <a id="future"></a>
 

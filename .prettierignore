@@ -4,6 +4,7 @@
 release/
 artifacts/
 test-results/
+tmp/
 playwright-report/
 public/excalidraw/
 .anynote-dev/
@@ -17,4 +18,4 @@ public/excalidraw/
 .aws/
 pnpm-lock.yaml
 # 用户提供的原始设计文档，不做重排
-docs/*-Design.md
+docs/design/*-Design.md

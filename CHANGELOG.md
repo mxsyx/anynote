@@ -10,7 +10,7 @@
 
 本文件记录各发布单元的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/)，
 版本号使用语义化版本。发布单元的独立版本与兼容窗口见
-[发布矩阵](./docs/RELEASE-MATRIX.md)；本文件随每个 tarball 一起发布。
+[发布矩阵](docs/development/RELEASE-MATRIX.md)；本文件随每个 tarball 一起发布。
 
 ## Unreleased
 

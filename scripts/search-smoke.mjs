@@ -79,7 +79,7 @@ try {
   assert.ok((await target.innerText()).includes("搜索资料"));
   assert.ok((await target.innerText()).includes("命中正文"));
   await page.screenshot({
-    path: "docs/screenshots/search.png",
+    path: "tmp/screenshots/search.png",
     fullPage: true,
   });
   await target.click();

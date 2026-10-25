@@ -844,10 +844,10 @@ async function acceptance() {
             .getByRole("button", { name: "保存连接并查询", exact: true })
             .click();
           await findVersion();
-          mkdirSync(resolve("docs/screenshots"), { recursive: true });
+          mkdirSync(resolve("tmp/screenshots"), { recursive: true });
           await page.locator(".cloud-recovery").screenshot({
             path: resolve(
-              "docs/screenshots/cloud-recovery-" + provider + ".png",
+              "tmp/screenshots/cloud-recovery-" + provider + ".png",
             ),
           });
           connection = (await request("listCloudRecoveryConnections"))[0];

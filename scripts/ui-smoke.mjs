@@ -22,7 +22,7 @@ let passed = false;
 page.on("pageerror", (e) => errors.push(e.message));
 // These captures use the real Electron renderer and isolated local storage.
 async function captureMatrix(name) {
-  const directory = "docs/screenshots/g20/desktop";
+  const directory = "tmp/screenshots/g20/desktop";
   mkdirSync(directory, { recursive: true });
   const original = await page.locator("html").getAttribute("data-theme");
   for (const [width, height] of [
@@ -65,8 +65,8 @@ try {
     .first()
     .click();
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
-  mkdirSync("docs/screenshots", { recursive: true });
-  await page.screenshot({ path: "docs/screenshots/light.png", fullPage: true });
+  mkdirSync("tmp/screenshots", { recursive: true });
+  await page.screenshot({ path: "tmp/screenshots/light.png", fullPage: true });
   await captureMatrix("document");
   await page.getByRole("button", { name: "新建笔记", exact: true }).click();
   await page.getByPlaceholder("输入一个名称…").fill(testName);
@@ -102,7 +102,7 @@ try {
     .first()
     .click();
   await appMenu(page, "theme", app);
-  await page.screenshot({ path: "docs/screenshots/dark.png", fullPage: true });
+  await page.screenshot({ path: "tmp/screenshots/dark.png", fullPage: true });
   await appMenu(page, "backup", app);
   await page.getByRole("button", { name: "创建快照", exact: true }).waitFor();
   await captureMatrix("backup");
@@ -215,7 +215,7 @@ try {
     .click();
   await page.getByText("桌面阅读批注测试", { exact: true }).waitFor();
   await page.locator(".pdf-highlight").first().waitFor();
-  await page.screenshot({ path: "docs/screenshots/pdf.png", fullPage: true });
+  await page.screenshot({ path: "tmp/screenshots/pdf.png", fullPage: true });
   await captureMatrix("pdf");
   const exportPath = join(root, "ui-export.anynote");
   await app.evaluate(({ dialog }, file) => {
@@ -265,14 +265,14 @@ try {
 } catch (e) {
   console.log((await page.locator("body").innerText()).slice(0, 6000));
   await page.screenshot({
-    path: "docs/screenshots/ui-failure.png",
+    path: "tmp/screenshots/ui-failure.png",
     fullPage: true,
   });
   throw e;
 } finally {
-  mkdirSync("docs/screenshots/g20/desktop", { recursive: true });
+  mkdirSync("tmp/screenshots/g20/desktop", { recursive: true });
   writeFileSync(
-    "docs/screenshots/g20/desktop/report.json",
+    "tmp/screenshots/g20/desktop/report.json",
     JSON.stringify(
       {
         status: passed ? "passed" : "failed",
@@ -285,7 +285,7 @@ try {
       2,
     ),
   );
-  writeVisualGallery("docs/screenshots/g20");
+  writeVisualGallery("tmp/screenshots/g20");
   await app.close();
   rmSync(root, { recursive: true, force: true });
 }

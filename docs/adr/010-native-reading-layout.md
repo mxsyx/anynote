@@ -16,12 +16,12 @@
 
 ## 取舍与边界
 
-不把主题枚举扩展成任意配色，也不把 CSS/测试通过当作人工视觉、真实 IME 或读屏验收。G20 已核对相关主入口的条件挂载并验证动态对话框；详细范围与样张见 [视觉报告](../G20-visual-review.md)。该核对不声明全仓库浮层或跨平台人工无障碍验收已达标。
+不把主题枚举扩展成任意配色，也不把 CSS/测试通过当作人工视觉、真实 IME 或读屏验收。G20 已核对相关主入口的条件挂载并验证动态对话框；详细范围与样张见 [视觉报告](../history/G20-visual-review.md)。该核对不声明全仓库浮层或跨平台人工无障碍验收已达标。
 
 ## 证据与验证
 
 [主题](../../apps/desktop/src/appearance.ts)、[token 与样式](../../apps/desktop/src/styles.css)、[工作区及懒加载](../../apps/desktop/src/main.tsx)。
 
-[主题测试](../../tests/appearance.test.ts)、[导航测试](../../tests/navigation.test.ts)；[G14 决策](../G14-navigation-decision.md)、[视觉实施证据](../history/todo-2026-10-24.md#g20)。
+[主题测试](../../tests/appearance.test.ts)、[导航测试](../../tests/navigation.test.ts)；[G14 决策](../history/G14-navigation-decision.md)、[视觉实施证据](../history/todo-2026-10-24.md#g20)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

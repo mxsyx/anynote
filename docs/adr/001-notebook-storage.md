@@ -24,6 +24,6 @@ Notebook 必须能单独携带、备份与恢复。设计曾推荐 better-sqlite
 
 [运行时封装](../../packages/types/src/runtime.ts)、[schema](../../packages/storage-sqlite/src/schema.ts)、[写锁](../../packages/storage-sqlite/src/workspace.ts)、[目录移动](../../packages/storage-sqlite/src/organization.ts)、[Storage](../../packages/storage-sqlite/src/index.ts)。
 
-[存储测试](../../tests/storage.test.mjs)、[目录测试](../../tests/organization.test.mjs)；[G14 决策与本机基准](../G14-navigation-decision.md)、[存储契约](../SQLITE-STORAGE.md)。
+[存储测试](../../tests/storage.test.mjs)、[目录测试](../../tests/organization.test.mjs)；[G14 决策与本机基准](../history/G14-navigation-decision.md)、[存储契约](../design/SQLITE-STORAGE.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

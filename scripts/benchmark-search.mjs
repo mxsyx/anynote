@@ -1,5 +1,5 @@
 import { Storage } from "../.build/packages/backend/index.js";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, platform, arch, cpus, totalmem } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -165,8 +165,9 @@ try {
     limitations:
       "Backend-only local synthetic Markdown corpus; excludes browser rendering, startup, attachment/PDF workload, cloud, and cold OS filesystem cache. Not a v1 performance acceptance.",
   };
+  mkdirSync("test-results", { recursive: true });
   writeFileSync(
-    "docs/search-benchmark.json",
+    "test-results/search-benchmark.json",
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report, null, 2));

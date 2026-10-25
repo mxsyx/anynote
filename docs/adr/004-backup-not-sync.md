@@ -22,6 +22,6 @@ Cloudflare 用分支 CAS 发布，接管提升 epoch；恢复默认创建新 Not
 
 [备份服务及游标确认](../../packages/backup/src/service.ts)、[Worker 发布](../../apps/cloudflare-backup/src/index.ts)。
 
-[云流式测试](../../tests/cloud-stream.test.mjs)；[远端维护](../REMOTE-MAINTENANCE.md)、[故障演练](../RECOVERY-DRILLS.md)。
+[云流式测试](../../tests/cloud-stream.test.mjs)；[远端维护](../guides/REMOTE-MAINTENANCE.md)、[故障演练](../validation/RECOVERY-DRILLS.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

@@ -22,6 +22,6 @@ D1 与 R2 没有跨服务事务，上传完成也不代表一个可恢复版本�
 
 [Worker plan/commit/status](../../apps/cloudflare-backup/src/index.ts)、[上传提交](../../packages/backup/src/cloud-snapshot.ts)、[响应丢失确认](../../packages/backup/src/service.ts)。
 
-[云流式测试](../../tests/cloud-stream.test.mjs)；[流式备份契约](../STREAMING-CLOUD-BACKUP.md)、[真实云验收入口](../CLOUD-ACCEPTANCE.md)。
+[云流式测试](../../tests/cloud-stream.test.mjs)；[流式备份契约](../guides/STREAMING-CLOUD-BACKUP.md)、[真实云验收入口](../validation/CLOUD-ACCEPTANCE.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

@@ -49,7 +49,7 @@ for (const file of [
 chmodSync(`${out}/packages/extension-tools/cli.js`, 0o755);
 writeFileSync(
   `${out}/README.md`,
-  readFileSync("docs/EXTENSION-DEVELOPMENT.md", "utf8").split(
+  readFileSync("docs/extensions/EXTENSION-DEVELOPMENT.md", "utf8").split(
     "\n## 本次验收记录",
   )[0],
 );

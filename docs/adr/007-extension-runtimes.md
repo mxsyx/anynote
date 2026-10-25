@@ -22,6 +22,6 @@ QuickJS 只获得授权快照及声明的搜索/固定 HTTPS 桥接，设内存�
 
 [首方宿主](../../packages/extension-host/src/index.ts)、[权限门面](../../packages/storage-sqlite/src/extension-host.ts)、[脚本调度](../../packages/plugin-sdk/src/script-runner.ts)、[QuickJS guest](../../packages/plugin-sdk/src/script-worker.ts)、[SDK 打包](../../scripts/build-sdk.mjs)。
 
-[SDK 合约测试](../../tests/sdk.test.mjs)、[脚本测试](../../tests/script-runtime.test.mjs)；[SDK 文档](../../packages/plugin-sdk/README.md)、[扩展宿主](../EXTENSION-HOST.md)、[G18 核对报告](../G18-documentation-review.md)。
+[SDK 合约测试](../../tests/sdk.test.mjs)、[脚本测试](../../tests/script-runtime.test.mjs)；[SDK 文档](../../packages/plugin-sdk/README.md)、[扩展宿主](../extensions/EXTENSION-HOST.md)、[G18 核对报告](../history/todo-2026-10-24.md#g18)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

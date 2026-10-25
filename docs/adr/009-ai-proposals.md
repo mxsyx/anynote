@@ -24,6 +24,6 @@
 
 [提案状态机](../../packages/storage-sqlite/src/proposals.ts)、[操作分派与保存](../../packages/storage-sqlite/src/operations.ts)。
 
-[提案冲突、重复应用与撤销测试](../../tests/extensions.test.mjs)；[实施状态](../IMPLEMENTATION.md)。
+[提案冲突、重复应用与撤销测试](../../tests/extensions.test.mjs)；[实施状态](../history/IMPLEMENTATION.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

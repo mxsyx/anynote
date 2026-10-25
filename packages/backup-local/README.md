@@ -1,6 +1,6 @@
 # 本地磁盘备份
 
-每个 Notebook 使用 SQLite 与独立的不可变附件；本地目标保存数据库块、完整附件文件和统一清单。存储、格式与恢复契约见 [存储与备份设计](../../docs/SQLITE-STORAGE.md)。
+每个 Notebook 使用 SQLite 与独立的不可变附件；本地目标保存数据库块、完整附件文件和统一清单。存储、格式与恢复契约见 [存储与备份设计](../../docs/design/SQLITE-STORAGE.md)。
 
 ```text
 AnynoteBackup/
@@ -49,6 +49,6 @@ pnpm run test:desktop:local-backup --scale --samples 10000,100000
 
 单元/集成测试覆盖 WAL、增量复用、捕获后编辑、发布前后 SIGKILL、取消、损坏块修复、空间/权限错误、独占锁及未知文件保护。规模基准还覆盖检查、捕获和计划阶段取消。`--scale` 使用真实 Electron、SQLite 和 IPC，在整个任务期间连续记录帧间隔、查询延迟、各进程采样 RSS、取消应答及终态时间，并执行两个 Notebook 的范围任务。阶段标签取自最近一次 IPC 观察，不能当作后端的精确阶段时间；后端阶段墙钟时间见 Node 基准。数据为确定性合成附件，样本生成和最终目录清理不计入任务耗时。
 
-当前 G08 证据与边界见 [性能交接](../../docs/G08-local-backup-performance.md)。[BENCHMARK.md](BENCHMARK.md) 保留旧格式历史记录，不能套用于当前实现。
+当前 G08 证据与边界见 [性能交接](../../docs/history/G08-local-backup-performance.md)。[BENCHMARK.md](BENCHMARK.md) 保留旧格式历史记录，不能套用于当前实现。
 
 Linux/macOS 文件系统探测与本地替换能力检查保留。数据库块小于 FAT32 单文件限制，但附件可能超过限制；计划检查最大的附件文件，恢复目录必须容纳完整 SQLite 和附件。Windows/NTFS、物理拔盘、真实断电与跨设备性能仍需实测；不支持 SMB/NFS/云盘挂载目标。

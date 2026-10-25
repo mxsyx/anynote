@@ -744,7 +744,7 @@ if (
         async () => {
           await open(f.complex.title);
           await page.locator(".missing-image").waitFor();
-          mkdirSync("docs/screenshots/acceptance", { recursive: true });
+          mkdirSync("tmp/screenshots/acceptance", { recursive: true });
           for (const theme of ["light", "dark"]) {
             if (
               (await page.locator("html").getAttribute("data-theme")) !== theme
@@ -763,7 +763,7 @@ if (
                 ),
                 false,
               );
-              const path = `docs/screenshots/acceptance/${theme}-${width}x${height}.png`;
+              const path = `tmp/screenshots/acceptance/${theme}-${width}x${height}.png`;
               await page.screenshot({ path, animations: "disabled" });
               report.screenshots.push(path);
               await audit(`editor-${theme}-${width}`);
@@ -863,7 +863,7 @@ if (
                 ),
                 false,
               );
-              const path = `docs/screenshots/acceptance/${name}-${theme}-${width}x${height}.png`;
+              const path = `tmp/screenshots/acceptance/${name}-${theme}-${width}x${height}.png`;
               await page.screenshot({ path, animations: "disabled" });
               report.screenshots.push(path);
               await audit(`${name}-${theme}-${width}`);
@@ -897,7 +897,7 @@ if (
               ),
               false,
             );
-            const path = `docs/screenshots/acceptance/pdf-${theme}-${width}x${height}.png`;
+            const path = `tmp/screenshots/acceptance/pdf-${theme}-${width}x${height}.png`;
             await page.screenshot({ path, animations: "disabled" });
             report.screenshots.push(path);
             await audit(`pdf-${theme}-${width}`);
@@ -907,7 +907,7 @@ if (
             .getByRole("textbox", { name: "文档内容", exact: true })
             .waitFor();
           await audit(`source-${theme}`);
-          const path = `docs/screenshots/acceptance/source-${theme}.png`;
+          const path = `tmp/screenshots/acceptance/source-${theme}.png`;
           await page.screenshot({ path, animations: "disabled" });
           report.screenshots.push(path);
         }
@@ -947,7 +947,7 @@ if (
             .evaluate((el) => getComputedStyle(el).transitionDuration),
           "0s",
         );
-        const path = "docs/screenshots/acceptance/zoom-200.png";
+        const path = "tmp/screenshots/acceptance/zoom-200.png";
         await page.screenshot({ path, animations: "disabled" });
         report.screenshots.push(path);
       });
@@ -971,9 +971,9 @@ if (
     report.error = { name: e.name, message: e.message, stack: e.stack };
     process.exitCode = 1;
     if (page) {
-      mkdirSync("docs/screenshots/acceptance", { recursive: true });
+      mkdirSync("tmp/screenshots/acceptance", { recursive: true });
       await page
-        .screenshot({ path: "docs/screenshots/acceptance/failure.png" })
+        .screenshot({ path: "tmp/screenshots/acceptance/failure.png" })
         .catch(() => {});
     }
   } finally {

@@ -22,6 +22,6 @@
 
 [文档转换](../../apps/desktop/src/document-model.ts)、[连续编辑器](../../apps/desktop/src/DocumentEditor.tsx)。
 
-[文档模型测试](../../tests/document-model.test.ts)；[编辑器说明及 test:document](../EDITOR-ECOSYSTEM.md)。
+[文档模型测试](../../tests/document-model.test.ts)；[编辑器说明及 test:document](../guides/EDITOR-ECOSYSTEM.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

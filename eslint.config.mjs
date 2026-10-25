@@ -12,6 +12,7 @@ export default tseslint.config(
       "release/**",
       "artifacts/**",
       "test-results/**",
+      "tmp/**",
       "playwright-report/**",
       "public/excalidraw/**",
       ".anynote-dev/**",

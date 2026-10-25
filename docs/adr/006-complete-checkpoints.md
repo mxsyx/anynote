@@ -22,6 +22,6 @@
 
 [数据库捕获](../../packages/storage-sqlite/src/database-snapshot.ts)、[物理快照](../../packages/backup/src/file-snapshot.ts)、[完整清单及恢复](../../packages/backup/src/cloud-snapshot.ts)。
 
-[SQLite/附件测试](../../tests/sqlite-assets.test.mjs)、[云流式测试](../../tests/cloud-stream.test.mjs)；[格式与预算](../SQLITE-STORAGE.md)、[流式备份说明](../STREAMING-CLOUD-BACKUP.md)。
+[SQLite/附件测试](../../tests/sqlite-assets.test.mjs)、[云流式测试](../../tests/cloud-stream.test.mjs)；[格式与预算](../design/SQLITE-STORAGE.md)、[流式备份说明](../guides/STREAMING-CLOUD-BACKUP.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

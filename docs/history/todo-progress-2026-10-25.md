@@ -30,7 +30,7 @@
 | 24h 最早复验                             | 2026-10-25 21:11:19（已留 1 分钟余量） |
 | 7 天最早复验                             | 2026-10-31 21:11:19（已留 1 分钟余量） |
 
-下一步按[老化验收命令](../CLOUD-ACCEPTANCE.md#跨会话老化样本)先执行 `pnpm run test:cloud:aging --verify 24h`，在 staging 满 7 天前完成该阶段；到期后再执行 `--verify 7d`，同时用管理端核实 R2 物理删除。等待期间不要对该样本重新 plan、上传或提交，以免刷新 staging 活动或改变保护集合。本次未启动后台调度器，需后续会话按期接续。
+下一步按[老化验收命令](../validation/CLOUD-ACCEPTANCE.md#跨会话老化样本)先执行 `pnpm run test:cloud:aging --verify 24h`，在 staging 满 7 天前完成该阶段；到期后再执行 `--verify 7d`，同时用管理端核实 R2 物理删除。等待期间不要对该样本重新 plan、上传或提交，以免刷新 staging 活动或改变保护集合。本次未启动后台调度器，需后续会话按期接续。
 
 剩余阻塞：A007 尚缺长期自动备份、多类真实故障/权限撤销/配额不足、multipart 生命周期/复制中断/abort 丢响应；A008 尚需真实等待及物理删除证据、孤立 manifest/临时对象、7 天 staging 到期和归档失败恢复；A009 需要另行明确负载费用范围。保持 A007–A009 未勾选。
 
@@ -56,7 +56,7 @@
 - 修复发行矩阵 smoke 仍断言旧 Notebook schema 2/3 的问题，改为读取当前矩阵版本并检查下一版本拒绝。`pnpm run test:release:matrix` 完整通过，包含后端构建、三份发布包组装、兼容窗口及干净离线消费者；报告：`test-results/release-matrix.json`。此结果不构成签名或更新验证。
 - 本地回归：`pnpm exec vitest run tests/release-credentials.test.mjs tests/release-matrix.test.mjs`，2 文件、19 项通过；变更脚本与测试的 ESLint、Prettier 和 `git diff --check` 通过。沙箱内 Node 子进程出现 `EPERM`，获准在沙箱外重跑后通过。
 - 剩余阻塞：真实 Windows/macOS 身份、公证授权、实际 CI 配置和执行，以及 F006 签名/更新实现。未运行真实签名、公证、更新身份或安装/升级/回退验收，A011 不勾选。
-- 下一步：账号所有者按 [准备说明](../RELEASE-CREDENTIALS.md)提供凭据并配置可信 CI environment，运行手动预检；F006 就绪后，在原生 runner 上核验签名、公证和更新产物身份，再交 V011 做实机验证。凭据值不写入交接文档或聊天。
+- 下一步：账号所有者按 [准备说明](../development/RELEASE-CREDENTIALS.md)提供凭据并配置可信 CI environment，运行手动预检；F006 就绪后，在原生 runner 上核验签名、公证和更新产物身份，再交 V011 做实机验证。凭据值不写入交接文档或聊天。
 
 <a id="type-boundaries"></a>
 

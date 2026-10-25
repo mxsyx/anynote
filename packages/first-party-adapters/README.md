@@ -40,4 +40,4 @@ pnpm run test:first-party:package   # 在干净 /tmp 项目离线安装并类型
 
 `test:first-party:package` 同时打包 `artifacts/plugin-sdk` 与本包，写入一个只有两个 tarball 依赖的干净项目，用 `tsc` 编译并实际运行，校验方法映射（`noteId` → `id`）、备份适配器不接受调用方路径，以及版本契约。报告写入 `test-results/first-party-package.json`。
 
-本包为 v1 预览，尚未发布到 npm；版本与兼容窗口见 [发布矩阵](../../docs/RELEASE-MATRIX.md)，首发范围与发布证据见 [任务入口](../../TODO.md#f007)。
+本包为 v1 预览，尚未发布到 npm；版本与兼容窗口见 [发布矩阵](../../docs/development/RELEASE-MATRIX.md)，首发范围与发布证据见 [任务入口](../../TODO.md#f007)。

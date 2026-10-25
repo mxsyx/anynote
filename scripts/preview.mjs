@@ -14,12 +14,12 @@ try {
   await openNotebook(page);
   await page.getByRole("textbox", { name: "笔记标题" }).waitFor();
   await page.screenshot({
-    path: "docs/screenshots/light.png",
+    path: "tmp/screenshots/light.png",
     animations: "disabled",
   });
   await appMenu(page, "theme");
   await page.screenshot({
-    path: "docs/screenshots/dark.png",
+    path: "tmp/screenshots/dark.png",
     animations: "disabled",
   });
   console.log("Clean preview screenshots saved.");

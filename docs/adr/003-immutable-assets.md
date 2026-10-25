@@ -22,6 +22,6 @@ Asset 用 SHA-256 内容寻址并以完整文件不可变保存；Resource 用�
 
 [资源发布与闭包](../../packages/storage-sqlite/src/assets.ts)、[资源换绑与保存](../../packages/storage-sqlite/src/operations.ts)、[快照](../../packages/storage-sqlite/src/database-snapshot.ts)。
 
-[SQLite/附件测试](../../tests/sqlite-assets.test.mjs)、[扩展及资源历史测试](../../tests/extensions.test.mjs)；[存储契约](../SQLITE-STORAGE.md)。
+[SQLite/附件测试](../../tests/sqlite-assets.test.mjs)、[扩展及资源历史测试](../../tests/extensions.test.mjs)；[存储契约](../design/SQLITE-STORAGE.md)。
 
-本轮执行结果统一见 [G18 核对报告](../G18-documentation-review.md)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+本轮执行结果统一见 [G18 核对报告](../history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。

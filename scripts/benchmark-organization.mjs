@@ -1,5 +1,5 @@
 import { Storage } from "../.build/packages/backend/index.js";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir, cpus } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -57,8 +57,9 @@ try {
     limitations:
       "Local warm synthetic folders, seven runs; excludes IPC, rendering and cold filesystem cache.",
   };
+  mkdirSync("test-results", { recursive: true });
   writeFileSync(
-    "docs/organization-benchmark.json",
+    "test-results/organization-benchmark.json",
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report, null, 2));

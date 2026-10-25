@@ -69,7 +69,7 @@ async function saved() {
 try {
   ({ app, page } = await launchDesktop(root));
   page.setDefaultTimeout(15000);
-  mkdirSync("docs/screenshots/editor", { recursive: true });
+  mkdirSync("tmp/screenshots/editor", { recursive: true });
   await page.setViewportSize({ width: 1440, height: 900 });
   if (
     !(await page
@@ -89,7 +89,7 @@ try {
         .getByRole("button", { name: "编辑此块", exact: true })
         .click();
       await scan("GFM-table-editor");
-      await page.screenshot({ path: "docs/screenshots/editor/gfm-table.png" });
+      await page.screenshot({ path: "tmp/screenshots/editor/gfm-table.png" });
       const cell = page.locator(".rich-input td").first();
       await cell.click();
       await cell.evaluate((el) =>
@@ -188,7 +188,7 @@ try {
       .setInputFiles("packages/plugin-sdk/src/examples/reading-callout.json");
     await scan("extension-install-review");
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-install.png",
+      path: "tmp/screenshots/editor/extension-install.png",
     });
     await page
       .getByRole("button", { name: "确认安装扩展", exact: true })
@@ -237,7 +237,7 @@ try {
       .click();
     await scan("declarative-node-editor");
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-node.png",
+      path: "tmp/screenshots/editor/extension-node.png",
     });
     await page.getByLabel("思考", { exact: true }).fill("新的理解");
     await page.getByRole("button", { name: "完成此块", exact: true }).click();
@@ -271,7 +271,7 @@ try {
         .waitFor();
       assert.ok((await saved()).body.includes("新的理解"));
       await page.screenshot({
-        path: "docs/screenshots/editor/extension-fallback.png",
+        path: "tmp/screenshots/editor/extension-fallback.png",
       });
     },
   );
@@ -360,7 +360,7 @@ try {
     await page
       .getByLabel("图片宽度（像素）", { exact: true })
       .scrollIntoViewIfNeeded();
-    await page.screenshot({ path: "docs/screenshots/editor/image-width.png" });
+    await page.screenshot({ path: "tmp/screenshots/editor/image-width.png" });
     await page.getByRole("button", { name: "完成此块", exact: true }).click();
     await page.getByRole("button", { name: "阅读", exact: true }).click();
     const img = page.getByRole("img", { name: "尺寸验收.png", exact: true });
@@ -428,7 +428,7 @@ try {
     assert.equal(await page.locator(".extension-commands button").count(), 0);
     await page.keyboard.press("Escape");
     await page.screenshot({
-      path: "docs/screenshots/editor/script-revoked.png",
+      path: "tmp/screenshots/editor/script-revoked.png",
     });
     assert.equal((await saved()).body, n.body);
   });
@@ -633,7 +633,7 @@ try {
         .waitFor();
       await scan("远程签名包下载来源审核");
       await page.screenshot({
-        path: "docs/screenshots/editor/remote-extension-review.png",
+        path: "tmp/screenshots/editor/remote-extension-review.png",
       });
       await page
         .getByRole("button", { name: "已核对指纹，信任发布者", exact: true })
@@ -799,7 +799,7 @@ try {
       await scan("目录下载后的独立签名审核");
       await review.scrollIntoViewIfNeeded();
       await page.screenshot({
-        path: "docs/screenshots/editor/directory-extension-review.png",
+        path: "tmp/screenshots/editor/directory-extension-review.png",
       });
       await review
         .getByRole("button", { name: "已核对指纹，信任发布者", exact: true })
@@ -895,7 +895,7 @@ try {
       .getByText("本 Notebook 第 2 次整理。", { exact: false })
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/stateful-script.png",
+      path: "tmp/screenshots/editor/stateful-script.png",
     });
     await appMenu(page, "extensions", app);
     await card()
@@ -999,7 +999,7 @@ try {
     await scan("当前 Notebook 扩展设置表单");
     await form().scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-settings.png",
+      path: "tmp/screenshots/editor/extension-settings.png",
     });
     await page.keyboard.press("Control+k");
     await page
@@ -1102,7 +1102,7 @@ try {
     await scan("扩展设置迁移预览");
     await controls().locator(".extension-data-review").scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-data-migration.png",
+      path: "tmp/screenshots/editor/extension-data-migration.png",
     });
     await controls()
       .getByRole("button", { name: "取消预览", exact: true })
@@ -1269,7 +1269,7 @@ try {
     await scan("迁移备份清理预览与输入确认");
     await review().scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-cleanup.png",
+      path: "tmp/screenshots/editor/extension-cleanup.png",
     });
     await review()
       .getByRole("button", { name: "确认永久清理", exact: true })
@@ -1354,7 +1354,7 @@ try {
       .getByRole("region", { name: "脚本搜索范围", exact: true })
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-search-context.png",
+      path: "tmp/screenshots/editor/extension-search-context.png",
     });
     await page
       .getByRole("button", { name: "确认安装扩展", exact: true })
@@ -1420,7 +1420,7 @@ try {
       .getByRole("region", { name: "脚本搜索范围", exact: true })
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "docs/screenshots/editor/extension-async-search.png",
+      path: "tmp/screenshots/editor/extension-async-search.png",
     });
     await page
       .getByRole("button", { name: "确认安装扩展", exact: true })
@@ -1524,7 +1524,7 @@ try {
       await scan("插件网络访问范围审核");
       await scope.scrollIntoViewIfNeeded();
       await page.screenshot({
-        path: "docs/screenshots/editor/extension-network.png",
+        path: "tmp/screenshots/editor/extension-network.png",
       });
       await page
         .getByRole("button", { name: "确认安装扩展", exact: true })
@@ -1683,7 +1683,7 @@ try {
       assert.equal(entry.granted, true);
       await scan("自动更新检查提示与设备开关");
       await page.screenshot({
-        path: "docs/screenshots/editor/automatic-update-check.png",
+        path: "tmp/screenshots/editor/automatic-update-check.png",
       });
       await section
         .getByRole("button", { name: "审核扩展更新", exact: true })
@@ -1813,7 +1813,7 @@ try {
       page.getByRole("spinbutton", { name: "PDF 页码", exact: true }),
     ).toHaveValue("3");
     await page.locator(".pdf-reader").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: "docs/screenshots/editor/pdf-reader.png" });
+    await page.screenshot({ path: "tmp/screenshots/editor/pdf-reader.png" });
   });
   await check("mode-switch-keeps-reading-anchor", async () => {
     const long = Array.from(
