@@ -6,7 +6,7 @@ import type { MenuItemConstructorOptions } from "electron";
 
 describe("native application menu", () => {
   for (const platform of ["darwin", "linux", "win32"]) {
-    it(`dispatches app actions and retains standard menus on ${platform}`, () => {
+    it(`dispatches app actions and provides Chinese native menus on ${platform}`, () => {
       const received: AppMenuCommand[] = [];
       const menu = applicationMenu(platform, (command) =>
         received.push(command),
@@ -47,7 +47,31 @@ describe("native application menu", () => {
         item.click?.({} as never, undefined, {} as never);
         expect(received.at(-1)).toBe(`insert.${id}`);
       }
-      expect(menu.some((item) => item.role === "windowMenu")).toBe(true);
+      expect(menu.map((item) => item.label)).toEqual([
+        platform === "darwin" ? "Anynote" : "应用",
+        "编辑",
+        "显示",
+        "帮助",
+      ]);
+      expect(
+        editing
+          .filter((item) => item.role)
+          .map(({ role, label }) => [role, label]),
+      ).toEqual([
+        ["undo", "撤销"],
+        ["redo", "重做"],
+        ["cut", "剪切"],
+        ["copy", "复制"],
+        ["paste", "粘贴"],
+        ["pasteAndMatchStyle", "粘贴并匹配样式"],
+        ["selectAll", "全选"],
+      ]);
+      expect(menu.find((item) => item.label === "帮助")?.submenu).toEqual([
+        { role: "about", label: "关于 Anynote" },
+      ]);
+      expect(menu.find((item) => item.label === "显示")?.submenu).toHaveLength(
+        1,
+      );
       expect(entries.some((item) => item.role === "quit")).toBe(true);
       expect(entries.some((item) => item.role === "services")).toBe(
         platform === "darwin",

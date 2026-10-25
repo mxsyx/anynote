@@ -11,7 +11,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./components/ui/dialog";
-import { NotebookPen } from "lucide-react";
+import { NotebookPen, Settings } from "lucide-react";
+import { ManagementPage } from "./components/ManagementPage";
 import { Button } from "./components/ui/button";
 import { NativeSelect } from "./components/ui/native-select";
 import { Input } from "./components/ui/input";
@@ -2331,125 +2332,121 @@ function App() {
                 )}
               </div>
             ) : view === "backup" ? (
-              <div className="page">
-                <span className="eyebrow">SAFE & LOCAL</span>
-                <h1>给藏书留一份副本</h1>
-                <p className="page-intro">
-                  备份笔记、附件与修改历史，随时找回写过的内容。
-                </p>
-                <div className="feature-card">
-                  <div className="feature-icon">
-                    <HardDrive size={24} />
-                  </div>
-                  <div>
-                    <h3>本地快照</h3>
-                    <p>保存完整的 Notebook、附件、历史与回收站。</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="primary"
-                    disabled={busy}
-                    onClick={() =>
-                      void task(async () => {
-                        await request("snapshot", { notebookId: book?.id });
-                        setSnapshots(
-                          await request("listSnapshots", {
-                            notebookId: book?.id,
-                          }),
-                        );
-                        setToast("本地快照已完成并校验");
-                      })
-                    }
-                  >
-                    <Plus size={15} />
-                    创建快照
-                  </Button>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-icon">
-                    <Download size={24} />
-                  </div>
-                  <div>
-                    <h3>完整导入与导出</h3>
-                    <p>以 .anynote 文件带走知识，在新空间重新打开。</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={chooseArchive}
-                  >
-                    导入
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => void exportBook()}
-                  >
-                    导出
-                  </Button>
-                </div>
-                <h2 className="subheading">
-                  本地快照记录 <span>{snapshots.length}</span>
-                </h2>
-                {snapshots.length ? (
-                  snapshots.map((s) => (
-                    <div className="snapshot-row" key={s.createdAt}>
-                      <History size={17} />
-                      <span>
-                        {new Date(s.createdAt).toLocaleString("zh-CN")}
-                      </span>
-                      <span className="verified">
-                        <Check size={14} />
-                        已完成
-                      </span>
+              <ManagementPage
+                title="备份与恢复"
+                description="为笔记留一份副本，让每一次记录都有迹可循。"
+                icon={<HardDrive size={25} />}
+                scope={book?.name || "当前 Notebook"}
+              >
+                <section className="management-section" aria-label="快照与归档">
+                  <h2>快照与归档</h2>
+                  <p>保存一个历史版本，或将整本笔记带到其他设备。</p>
+                  <div className="backup-quick-actions">
+                    <div className="feature-card">
+                      <div className="feature-icon">
+                        <HardDrive size={24} />
+                      </div>
+                      <div>
+                        <h3>本地快照</h3>
+                        <p>保存完整的 Notebook、附件、历史与回收站。</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="primary"
+                        disabled={busy}
+                        onClick={() =>
+                          void task(async () => {
+                            await request("snapshot", { notebookId: book?.id });
+                            setSnapshots(
+                              await request("listSnapshots", {
+                                notebookId: book?.id,
+                              }),
+                            );
+                            setToast("本地快照已完成并校验");
+                          })
+                        }
+                      >
+                        <Plus size={15} />
+                        创建快照
+                      </Button>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">
+                        <Download size={24} />
+                      </div>
+                      <div>
+                        <h3>完整导入与导出</h3>
+                        <p>以 .anynote 文件带走知识，在新空间重新打开。</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        className="secondary"
+                        onClick={chooseArchive}
+                      >
+                        导入
+                      </Button>
                       <Button
                         variant="ghost"
                         size="layout"
                         className="secondary"
                         disabled={busy}
-                        onClick={() =>
-                          void task(async () => {
-                            const r = await request<{ id: string }>(
-                              "restoreSnapshot",
-                              {
-                                notebookId: book?.id,
-                                name: s.createdAt + ".anynote",
-                              },
-                            );
-                            const list =
-                              await request<Notebook[]>("listNotebooks");
-                            setBooks(list);
-                            await switchBook(list.find((b) => b.id === r.id)!);
-                            setToast("快照已恢复为新的 Notebook");
-                          })
-                        }
+                        onClick={() => void exportBook()}
                       >
-                        <RotateCcw size={13} />
-                        恢复副本
+                        导出
                       </Button>
                     </div>
-                  ))
-                ) : (
-                  <p className="muted">
-                    还没有快照。创建第一份，让知识多一层保护。
-                  </p>
-                )}
-                <Suspense fallback={featureFallback}>
-                  <LocalCleanup
-                    notebookId={book!.id}
-                    onCleaned={() => {
-                      void request<Snapshot[]>("listSnapshots", {
-                        notebookId: book!.id,
-                      })
-                        .then(setSnapshots)
-                        .catch(report);
-                    }}
-                  />
-                </Suspense>
+                  </div>
+                  <h2 className="subheading">
+                    本地快照记录 <span>{snapshots.length}</span>
+                  </h2>
+                  {snapshots.length ? (
+                    snapshots.map((s) => (
+                      <div className="snapshot-row" key={s.createdAt}>
+                        <History size={17} />
+                        <span>
+                          {new Date(s.createdAt).toLocaleString("zh-CN")}
+                        </span>
+                        <span className="verified">
+                          <Check size={14} />
+                          已完成
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            void task(async () => {
+                              const r = await request<{ id: string }>(
+                                "restoreSnapshot",
+                                {
+                                  notebookId: book?.id,
+                                  name: s.createdAt + ".anynote",
+                                },
+                              );
+                              const list =
+                                await request<Notebook[]>("listNotebooks");
+                              setBooks(list);
+                              await switchBook(
+                                list.find((b) => b.id === r.id)!,
+                              );
+                              setToast("快照已恢复为新的 Notebook");
+                            })
+                          }
+                        >
+                          <RotateCcw size={13} />
+                          恢复副本
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted">
+                      还没有快照。创建第一份，让知识多一层保护。
+                    </p>
+                  )}
+                </section>
                 <Suspense fallback={featureFallback}>
                   <LocalBackup
                     notebookId={book!.id}
@@ -2474,10 +2471,22 @@ function App() {
                     }}
                   />
                 </Suspense>
+                <Suspense fallback={featureFallback}>
+                  <LocalCleanup
+                    notebookId={book!.id}
+                    onCleaned={() => {
+                      void request<Snapshot[]>("listSnapshots", {
+                        notebookId: book!.id,
+                      })
+                        .then(setSnapshots)
+                        .catch(report);
+                    }}
+                  />
+                </Suspense>
                 <p className="small-note">
                   本地快照保存在同一磁盘。建议定期导出至其他设备。远端备份状态独立于本地保存。
                 </p>
-              </div>
+              </ManagementPage>
             ) : view === "extensions" ? (
               <Suspense fallback={featureFallback}>
                 <ExtensionPage
@@ -2486,216 +2495,260 @@ function App() {
                 />
               </Suspense>
             ) : view === "settings" ? (
-              <div className="page">
-                <span className="eyebrow">MAKE YOURSELF AT HOME</span>
-                <h1>你的空间，你的习惯</h1>
-                <p className="page-intro">
-                  让每一次打开，都更接近你喜欢的样子。
-                </p>
+              <ManagementPage
+                title="设置"
+                description="管理工作区、外观与数据，按你的习惯安排这张书桌。"
+                icon={<Settings size={25} />}
+                scope="此设备"
+              >
+                <section className="management-section" aria-label="外观">
+                  <h2>外观</h2>
+                  <div className="setting-row">
+                    <div>
+                      <h3>界面主题</h3>
+                      <p>选择适合当前环境的明亮或深色外观。</p>
+                    </div>
+                    <div
+                      className="appearance-options"
+                      role="group"
+                      aria-label="界面主题"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        aria-pressed={!dark}
+                        onClick={() => setAppearance({ mode: "light" })}
+                      >
+                        <Sun size={16} />
+                        明亮
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="layout"
+                        aria-pressed={dark}
+                        onClick={() => setAppearance({ mode: "dark" })}
+                      >
+                        <Moon size={16} />
+                        深色
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+                <section
+                  className="management-section"
+                  aria-label="Notebook 管理"
+                >
+                  <h2>Notebook 管理</h2>
+                  <div className="setting-row">
+                    <div>
+                      <h3>Notebook</h3>
+                      <p>每个主题拥有独立的本地数据库与资源。</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      className="secondary"
+                      onClick={() => showModal("renameNotebook")}
+                    >
+                      重命名 Notebook
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      className="secondary"
+                      onClick={() => showModal("notebook")}
+                    >
+                      <Plus size={16} />
+                      创建 Notebook
+                    </Button>
+                  </div>
+                  <div className="setting-row">
+                    <div>
+                      <h3>外部 Notebook</h3>
+                      <p>打开已有目录，在原位置编辑；关闭应用后释放写锁。</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      className="secondary"
+                      disabled={!window.anynote}
+                      title={
+                        !window.anynote ? "请在桌面应用中打开目录" : undefined
+                      }
+                      onClick={() =>
+                        void task(async () => {
+                          const selected = await request<Notebook | null>(
+                            "openNotebookDirectory",
+                          );
+                          if (!selected) return;
+                          setBooks(await request<Notebook[]>("listNotebooks"));
+                          await switchBook(selected);
+                          setToast("已打开 Notebook 原目录");
+                        })
+                      }
+                    >
+                      <FolderOpen size={16} />
+                      打开 Notebook 目录
+                    </Button>
+                  </div>
+                  {books
+                    .filter((b) => b.external)
+                    .map((externalBook) => (
+                      <div className="setting-row" key={externalBook.id}>
+                        <div>
+                          <h3>{externalBook.name}</h3>
+                          <p>
+                            {externalBook.unavailable
+                              ? "目录不可用；可以重新连接磁盘，或移出工作区后重新选择。"
+                              : "已登记的外部目录；原文件始终保留。"}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          className="secondary"
+                          aria-label={"移出工作区：" + externalBook.name}
+                          onClick={() =>
+                            void task(async () => {
+                              const wasActive =
+                                bookRef.current?.id === externalBook.id;
+                              await request("detachNotebookDirectory", {
+                                notebookId: externalBook.id,
+                              });
+                              let remaining =
+                                await request<Notebook[]>("listNotebooks");
+                              if (!remaining.some((b) => !b.unavailable)) {
+                                await request("createNotebook", {
+                                  title: "我的知识库",
+                                });
+                                remaining = await request("listNotebooks");
+                              }
+                              setBooks(remaining);
+                              if (wasActive) {
+                                dirty.current = false;
+                                current.current = null;
+                                setActive(null);
+                                setNodes([]);
+                                await switchBook(
+                                  remaining.find((b) => !b.unavailable) ||
+                                    remaining[0],
+                                );
+                              }
+                              setToast("已移出工作区，原目录保留");
+                            })
+                          }
+                        >
+                          移出工作区
+                        </Button>
+                      </div>
+                    ))}
+                  {books
+                    .filter((b) => b.unavailable)
+                    .map((damaged) => (
+                      <div
+                        className="setting-row"
+                        key={"recovery-" + damaged.id}
+                      >
+                        <div>
+                          <h3>{damaged.name} · 需要恢复</h3>
+                          <p>
+                            {damaged.error ||
+                              "Notebook 无法打开；可进入只读诊断与恢复向导。"}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          className="secondary"
+                          onClick={() => setRecovery(damaged)}
+                        >
+                          诊断与恢复
+                        </Button>
+                      </div>
+                    ))}
+                </section>
+                <section className="management-section" aria-label="数据迁移">
+                  <div className="setting-row export-settings">
+                    <div>
+                      <h3>数据迁移</h3>
+                      <p>
+                        完整归档包含历史、回收站与扩展状态；仅当前内容不含这些数据。源
+                        Notebook 保持不变。
+                      </p>
+                      <details>
+                        <summary>各入口大小限制</summary>
+                        <p>{entryBudgetHint}</p>
+                      </details>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      className="secondary"
+                      onClick={() => void exportBook()}
+                    >
+                      导出完整 Notebook
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="layout"
+                      className="secondary"
+                      onClick={() =>
+                        void task(async () => {
+                          if (window.anynote) {
+                            const job = await request("exportMarkdownFile", {
+                              notebookId: book?.id,
+                              format: "zip",
+                            });
+                            if (job) setTasksOpen(true);
+                            return;
+                          }
+                          const r = await request<{
+                            data: string;
+                            name: string;
+                          }>("exportMarkdown", { notebookId: book?.id });
+                          download(r.data, r.name);
+                          setToast("开放格式导出已完成");
+                        })
+                      }
+                    >
+                      导出 Markdown ZIP
+                    </Button>
+                    {window.anynote && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          className="secondary"
+                          onClick={() => void exportBook(true)}
+                        >
+                          导出仅当前内容
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="layout"
+                          className="secondary"
+                          onClick={() =>
+                            void task(async () => {
+                              const job = await request("exportMarkdownFile", {
+                                notebookId: book?.id,
+                                format: "directory",
+                              });
+                              if (job) setTasksOpen(true);
+                            })
+                          }
+                        >
+                          导出 Markdown 文件夹
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </section>
                 <Suspense fallback={featureFallback}>
                   <CloudRecovery onStarted={() => setTasksOpen(true)} />
                 </Suspense>
                 <Suspense fallback={featureFallback}>
                   <Diagnostics />
                 </Suspense>
-                <div className="setting-row">
-                  <div>
-                    <h3>Notebook</h3>
-                    <p>每个主题拥有独立的本地数据库与资源。</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={() => showModal("renameNotebook")}
-                  >
-                    重命名 Notebook
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={() => showModal("notebook")}
-                  >
-                    <Plus size={16} />
-                    创建 Notebook
-                  </Button>
-                </div>
-                <div className="setting-row">
-                  <div>
-                    <h3>外部 Notebook</h3>
-                    <p>打开已有目录，在原位置编辑；关闭应用后释放写锁。</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    disabled={!window.anynote}
-                    title={
-                      !window.anynote ? "请在桌面应用中打开目录" : undefined
-                    }
-                    onClick={() =>
-                      void task(async () => {
-                        const selected = await request<Notebook | null>(
-                          "openNotebookDirectory",
-                        );
-                        if (!selected) return;
-                        setBooks(await request<Notebook[]>("listNotebooks"));
-                        await switchBook(selected);
-                        setToast("已打开 Notebook 原目录");
-                      })
-                    }
-                  >
-                    <FolderOpen size={16} />
-                    打开 Notebook 目录
-                  </Button>
-                </div>
-                {books
-                  .filter((b) => b.external)
-                  .map((externalBook) => (
-                    <div className="setting-row" key={externalBook.id}>
-                      <div>
-                        <h3>{externalBook.name}</h3>
-                        <p>
-                          {externalBook.unavailable
-                            ? "目录不可用；可以重新连接磁盘，或移出工作区后重新选择。"
-                            : "已登记的外部目录；原文件始终保留。"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="layout"
-                        className="secondary"
-                        aria-label={"移出工作区：" + externalBook.name}
-                        onClick={() =>
-                          void task(async () => {
-                            const wasActive =
-                              bookRef.current?.id === externalBook.id;
-                            await request("detachNotebookDirectory", {
-                              notebookId: externalBook.id,
-                            });
-                            let remaining =
-                              await request<Notebook[]>("listNotebooks");
-                            if (!remaining.some((b) => !b.unavailable)) {
-                              await request("createNotebook", {
-                                title: "我的知识库",
-                              });
-                              remaining = await request("listNotebooks");
-                            }
-                            setBooks(remaining);
-                            if (wasActive) {
-                              dirty.current = false;
-                              current.current = null;
-                              setActive(null);
-                              setNodes([]);
-                              await switchBook(
-                                remaining.find((b) => !b.unavailable) ||
-                                  remaining[0],
-                              );
-                            }
-                            setToast("已移出工作区，原目录保留");
-                          })
-                        }
-                      >
-                        移出工作区
-                      </Button>
-                    </div>
-                  ))}
-                {books
-                  .filter((b) => b.unavailable)
-                  .map((damaged) => (
-                    <div className="setting-row" key={"recovery-" + damaged.id}>
-                      <div>
-                        <h3>{damaged.name} · 需要恢复</h3>
-                        <p>
-                          {damaged.error ||
-                            "Notebook 无法打开；可进入只读诊断与恢复向导。"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="layout"
-                        className="secondary"
-                        onClick={() => setRecovery(damaged)}
-                      >
-                        诊断与恢复
-                      </Button>
-                    </div>
-                  ))}
-                <div className="setting-row export-settings">
-                  <div>
-                    <h3>数据迁移</h3>
-                    <p>
-                      完整归档包含历史、回收站与扩展状态；仅当前内容不含这些数据。源
-                      Notebook 保持不变。
-                    </p>
-                    <details>
-                      <summary>各入口大小限制</summary>
-                      <p>{entryBudgetHint}</p>
-                    </details>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={() => void exportBook()}
-                  >
-                    导出完整 Notebook
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="layout"
-                    className="secondary"
-                    onClick={() =>
-                      void task(async () => {
-                        if (window.anynote) {
-                          const job = await request("exportMarkdownFile", {
-                            notebookId: book?.id,
-                            format: "zip",
-                          });
-                          if (job) setTasksOpen(true);
-                          return;
-                        }
-                        const r = await request<{ data: string; name: string }>(
-                          "exportMarkdown",
-                          { notebookId: book?.id },
-                        );
-                        download(r.data, r.name);
-                        setToast("开放格式导出已完成");
-                      })
-                    }
-                  >
-                    导出 Markdown ZIP
-                  </Button>
-                  {window.anynote && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="layout"
-                        className="secondary"
-                        onClick={() => void exportBook(true)}
-                      >
-                        导出仅当前内容
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="layout"
-                        className="secondary"
-                        onClick={() =>
-                          void task(async () => {
-                            const job = await request("exportMarkdownFile", {
-                              notebookId: book?.id,
-                              format: "directory",
-                            });
-                            if (job) setTasksOpen(true);
-                          })
-                        }
-                      >
-                        导出 Markdown 文件夹
-                      </Button>
-                    </>
-                  )}
-                </div>
                 <div className="about">
                   <div className="brand-mark">
                     <NotebookPen size={23} />
@@ -2704,7 +2757,7 @@ function App() {
                   <p>0.1.0 · 本地知识库预览版</p>
                   <p>一本随身的笔记本，一座自己的藏书室。</p>
                 </div>
-              </div>
+              </ManagementPage>
             ) : active ? (
               <>
                 <article

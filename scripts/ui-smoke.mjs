@@ -239,9 +239,7 @@ try {
   });
   await page.getByText("Notebook 已验证并导入", { exact: true }).waitFor();
   await appMenu(page, "extensions", app);
-  await expect(
-    page.getByRole("heading", { name: "为你的书桌，添一些可能" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "插件与扩展" })).toBeVisible();
   await expect(
     page.getByText("尚未安装外部扩展", { exact: true }),
   ).toBeVisible();

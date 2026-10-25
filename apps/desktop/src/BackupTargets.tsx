@@ -142,7 +142,7 @@ export default function BackupTargets({
       window.dispatchEvent(new Event("anynote:backup-policy"));
     });
   return (
-    <>
+    <section className="remote-backup" aria-label="远端备份">
       <h2 className="subheading">
         远端备份{" "}
         <Button
@@ -156,20 +156,54 @@ export default function BackupTargets({
         </Button>
       </h2>
       {targets.map((t) => (
-        <div className="feature-card backup-target" key={t.id}>
-          <Cloud size={22} />
-          <div>
-            <h3>{t.name} · Cloudflare</h3>
-            <p>
-              {t.lastSuccess
-                ? "最近成功：" + new Date(t.lastSuccess).toLocaleString("zh-CN")
-                : "尚未完成首个备份"}{" "}
-              ·{" "}
-              {t.credentialsMode === "session-only"
-                ? "预览凭据仅内存"
-                : "凭据由系统加密"}
-            </p>
-            <small>{t.endpoint}</small>
+        <article className="remote-target" key={t.id} aria-label={t.name}>
+          <header className="remote-target-heading">
+            <div className="feature-icon">
+              <Cloud size={22} />
+            </div>
+            <div className="remote-target-title">
+              <h3>{t.name}</h3>
+              <span>Cloudflare · 远端备份</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="layout"
+              className="primary"
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  await request("startBackup", { notebookId, targetId: t.id });
+                  onStarted();
+                })
+              }
+            >
+              立即备份
+            </Button>
+          </header>
+          <div className="remote-target-info">
+            <div>
+              <span className="remote-target-label">备份状态</span>
+              <p>
+                {t.lastSuccess
+                  ? "最近成功：" +
+                    new Date(t.lastSuccess).toLocaleString("zh-CN")
+                  : "尚未完成首个备份"}
+              </p>
+            </div>
+            <div>
+              <span className="remote-target-label">凭据保护</span>
+              <p>
+                {t.credentialsMode === "session-only"
+                  ? "预览凭据仅内存"
+                  : "凭据由系统加密"}
+              </p>
+            </div>
+            <div className="remote-target-endpoint">
+              <span className="remote-target-label">服务地址</span>
+              <p>{t.endpoint}</p>
+            </div>
+          </div>
+          <div className="remote-target-notices">
             {t.lastError && (
               <p className="form-error">最近失败：{t.lastError}</p>
             )}
@@ -187,96 +221,91 @@ export default function BackupTargets({
                   自动重试
                 </p>
               )}
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={!!t.autoBackup}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  void action(async () => {
-                    await request("setBackupSchedule", {
-                      notebookId,
-                      targetId: t.id,
-                      enabled,
-                      // Cloudflare follows the design's 60s cadence.
-                      intervalMinutes: 1,
-                    });
-                    await reload();
-                  });
-                }}
-              />
-              自动备份 · 约每分钟检查变更
-            </label>
           </div>
-          <Button
-            variant="ghost"
-            size="layout"
-            className="secondary"
-            disabled={busy}
-            onClick={() =>
-              void action(async () => {
-                await request("testBackupConnection", {
-                  notebookId,
-                  targetId: t.id,
-                });
-                setError("连接测试通过");
-              })
-            }
-          >
-            测试连接
-          </Button>
-          <Button
-            variant="ghost"
-            size="layout"
-            className="secondary"
-            disabled={busy}
-            onClick={() =>
-              void action(async () => {
-                setVersions(
-                  await request("listRemoteBackups", {
+          <label className="backup-preference">
+            <span>
+              <strong>自动备份</strong>
+              <small>约每分钟检查变更，有更新时自动备份。</small>
+            </span>
+            <input
+              aria-label="自动备份 · 约每分钟检查变更"
+              disabled={busy}
+              type="checkbox"
+              checked={!!t.autoBackup}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                void action(async () => {
+                  await request("setBackupSchedule", {
                     notebookId,
                     targetId: t.id,
-                  }),
-                );
-                setSelected(t);
-              })
-            }
-          >
-            历史版本
-          </Button>
-          {
+                    enabled,
+                    // Cloudflare follows the design's 60s cadence.
+                    intervalMinutes: 1,
+                  });
+                  await reload();
+                });
+              }}
+            />
+          </label>
+          <footer className="remote-target-actions">
             <Button
               variant="ghost"
               size="layout"
               className="secondary"
               disabled={busy}
-              onClick={() => setMaintenance(t)}
+              onClick={() =>
+                void action(async () => {
+                  await request("testBackupConnection", {
+                    notebookId,
+                    targetId: t.id,
+                  });
+                  setError("连接测试通过");
+                })
+              }
             >
-              远端维护
+              测试连接
             </Button>
-          }
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => setCaptureTarget(t)}
-          >
-            采集设备
-          </Button>
-          <Button
-            variant="ghost"
-            size="layout"
-            className="primary"
-            disabled={busy}
-            onClick={() =>
-              void action(async () => {
-                await request("startBackup", { notebookId, targetId: t.id });
-                onStarted();
-              })
+            <Button
+              variant="ghost"
+              size="layout"
+              className="secondary"
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  setVersions(
+                    await request("listRemoteBackups", {
+                      notebookId,
+                      targetId: t.id,
+                    }),
+                  );
+                  setSelected(t);
+                })
+              }
+            >
+              历史版本
+            </Button>
+            {
+              <Button
+                variant="ghost"
+                size="layout"
+                className="secondary"
+                disabled={busy}
+                onClick={() => setMaintenance(t)}
+              >
+                远端维护
+              </Button>
             }
-          >
-            立即备份
-          </Button>
-        </div>
+            <Button
+              variant="ghost"
+              size="layout"
+              className="secondary"
+              disabled={busy}
+              onClick={() => setCaptureTarget(t)}
+            >
+              采集设备
+            </Button>
+          </footer>
+        </article>
       ))}
       {!targets.length && (
         <p className="muted">
@@ -284,28 +313,38 @@ export default function BackupTargets({
         </p>
       )}
       {policy && (
-        <details className="feature-card">
-          <summary>自动备份暂停策略（设备级）</summary>
+        <details className="backup-policy">
+          <summary>
+            自动备份暂停策略<span>此设备</span>
+          </summary>
           <p className="small-note">
             暂停只影响自动备份；手动“立即备份”始终可执行。失败后按指数退避重试，永久鉴权失败会停止自动备份直到修复配置。
           </p>
-          <label className="check-label">
+          <label className="backup-preference">
+            <span>
+              <strong>电池供电时暂停自动备份</strong>
+              <small>接通电源后恢复，减少电池消耗。</small>
+            </span>
             <input
+              aria-label="电池供电时暂停自动备份"
               type="checkbox"
               checked={policy.pause.onBattery}
               disabled={busy}
               onChange={(e) => setPause("onBattery", e.target.checked)}
             />
-            电池供电时暂停自动备份
           </label>
-          <label className="check-label">
+          <label className="backup-preference">
+            <span>
+              <strong>计量网络时暂停自动备份</strong>
+              <small>使用按流量计费的网络时，避免后台传输。</small>
+            </span>
             <input
+              aria-label="计量网络时暂停自动备份"
               type="checkbox"
               checked={policy.pause.onMeteredNetwork}
               disabled={busy}
               onChange={(e) => setPause("onMeteredNetwork", e.target.checked)}
             />
-            计量网络时暂停自动备份
           </label>
         </details>
       )}
@@ -473,6 +512,6 @@ export default function BackupTargets({
           </div>
         </div>
       )}
-    </>
+    </section>
   );
 }

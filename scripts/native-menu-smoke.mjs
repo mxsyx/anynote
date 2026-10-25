@@ -23,6 +23,37 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await expect(page.locator(".book-volume").first()).toBeVisible();
 
+  const menus = await desktop.evaluate(({ Menu }) =>
+    Menu.getApplicationMenu().items.map((item) => ({
+      label: item.label,
+      entries: item.submenu?.items
+        .filter((entry) => entry.type !== "separator")
+        .map((entry) => entry.label),
+    })),
+  );
+  expect(menus.map((item) => item.label)).toEqual([
+    process.platform === "darwin" ? "Anynote" : "应用",
+    "编辑",
+    "显示",
+    "帮助",
+  ]);
+  expect(menus.find((item) => item.label === "编辑").entries).toEqual([
+    "撤销",
+    "重做",
+    "剪切",
+    "复制",
+    "粘贴",
+    "粘贴并匹配样式",
+    "全选",
+    "插入内容",
+  ]);
+  expect(menus.find((item) => item.label === "显示").entries).toEqual([
+    "切换深色 / 浅色模式",
+  ]);
+  expect(menus.find((item) => item.label === "帮助").entries).toEqual([
+    "关于 Anynote",
+  ]);
+
   // Check rendered surfaces so later layout rules cannot mask the theme tokens.
   const checkAppearance = async (mode) => {
     const dark = mode === "dark";
@@ -72,9 +103,7 @@ try {
   };
 
   await appMenu(page, "settings", desktop);
-  await expect(
-    page.getByRole("heading", { name: "你的空间，你的习惯" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
   await page.getByRole("button", { name: "书橱", exact: true }).click();
   await openNotebook(page);
   await expect(page.locator(".content-layout > .sidebar")).toBeVisible();
@@ -124,9 +153,7 @@ try {
   await checkAppearance("dark");
   await page.screenshot({ path: "/tmp/anynote-appearance-dark.png" });
   await appMenu(page, "settings", desktop);
-  await expect(
-    page.getByRole("heading", { name: "你的空间，你的习惯" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
   await page.reload();
   await openNotebook(page);
   await checkAppearance("dark");
@@ -137,9 +164,7 @@ try {
   await checkAppearance("light");
   await page.screenshot({ path: "/tmp/anynote-appearance-light.png" });
   await appMenu(page, "extensions", desktop);
-  await expect(
-    page.getByRole("heading", { name: "为你的书桌，添一些可能" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "插件与扩展" })).toBeVisible();
   await appMenu(page, "backup", desktop);
   await expect(
     page.getByRole("button", { name: "创建快照", exact: true }),

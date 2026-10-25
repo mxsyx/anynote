@@ -1,3 +1,4 @@
+import { ManagementPage } from "./components/ManagementPage";
 import { ViewState } from "./components/ui/view-state";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -23,19 +24,19 @@ const extensions = [
   {
     id: "anynote.whiteboard",
     name: "白板 · Excalidraw",
-    description: "本地场景、不可变历史资源与静态预览",
+    description: "自由绘图、整理灵感，画布与历史版本保存在本地",
     icon: <Puzzle />,
   },
   {
     id: "anynote.video",
     name: "视频链接卡片",
-    description: "通用视频 URL 卡片、标题/缩略图本地缓存，点击播放后才联网",
+    description: "将视频链接保存为卡片，点击后播放",
     icon: <Play />,
   },
   {
     id: "anynote.html-import",
     name: "网页与 HTML 导入",
-    description: "正文提取、内容清洗、媒体本地化与导入报告",
+    description: "收藏网页正文与图片，整理成可编辑的笔记",
     icon: <Globe />,
   },
 ];
@@ -234,79 +235,95 @@ export default function ExtensionPage({
       .catch(() => setRemoteEmbeds({}));
   }, [notebookId]);
   return (
-    <div className="page">
-      <span className="eyebrow">A SPACE THAT GROWS WITH YOU</span>
-      <h1>为你的书桌，添一些可能</h1>
-      <p className="page-intro">
-        首方扩展 · 此 Notebook 的独立配置。停用会保留已有内容、预览与资源。
-      </p>
-      <HostedExtensionsPanel notebookId={notebookId} onCreated={onCreated} />
-      {extensions.map((e) => (
-        <div className="feature-card" key={e.id}>
-          <div className="feature-icon">{e.icon}</div>
-          <div>
-            <h3>{e.name}</h3>
-            <p>{e.description}</p>
-            <small>
-              权限：当前 Notebook 的笔记与资源读写
-              {e.id === "anynote.html-import" ? "、受控网页下载" : ""}
-              {e.id === "anynote.video" ? "、受控视频元信息与缩略图下载" : ""}
-            </small>
-          </div>
-          <div className="feature-actions">
-            <Button
-              variant="ghost"
-              size="layout"
-              aria-label={e.name + "启用"}
-              role="switch"
-              aria-checked={enabled[e.id] !== false}
-              className="secondary"
-              onClick={async () => {
-                try {
-                  const value = enabled[e.id] === false;
-                  await request("setExtensionSetting", {
-                    notebookId,
-                    extensionId: e.id,
-                    enabled: value,
-                  });
-                  setEnabled((p) => ({ ...p, [e.id]: value }));
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              {enabled[e.id] === false ? "已停用" : "已启用"}
-            </Button>
-            {e.id === "anynote.video" && (
+    <ManagementPage
+      title="插件与扩展"
+      description="为书桌添一些可能。管理内置工具，安装适合你的扩展。"
+      icon={<Puzzle size={25} />}
+      scope="当前 Notebook"
+    >
+      <section
+        className="management-section builtin-extensions"
+        aria-label="内置扩展"
+      >
+        <h2>内置扩展</h2>
+        <p>
+          随 Anynote 提供，单独为当前 Notebook 启用。停用后已有内容仍会保留。
+        </p>
+        {extensions.map((e) => (
+          <div className="feature-card" key={e.id}>
+            <div className="feature-icon">{e.icon}</div>
+            <div>
+              <h3>{e.name}</h3>
+              <p>{e.description}</p>
+              <details className="extension-permissions">
+                <summary>查看权限</summary>
+                <small>
+                  权限：当前 Notebook 的笔记与资源读写
+                  {e.id === "anynote.html-import" ? "、受控网页下载" : ""}
+                  {e.id === "anynote.video"
+                    ? "、受控视频元信息与缩略图下载"
+                    : ""}
+                </small>
+              </details>
+            </div>
+            <div className="feature-actions">
               <Button
                 variant="ghost"
                 size="layout"
-                aria-label="远程嵌入"
+                aria-label={e.name + "启用"}
                 role="switch"
-                aria-checked={remoteEmbeds[e.id] !== false}
-                className="secondary"
-                title="关闭后不再加载远程视频 iframe，也不获取标题或缩略图"
+                aria-checked={enabled[e.id] !== false}
+                className="extension-toggle"
                 onClick={async () => {
                   try {
-                    const value = remoteEmbeds[e.id] === false;
+                    const value = enabled[e.id] === false;
                     await request("setExtensionSetting", {
                       notebookId,
                       extensionId: e.id,
-                      key: "remoteEmbed",
                       enabled: value,
                     });
-                    setRemoteEmbeds((p) => ({ ...p, [e.id]: value }));
+                    setEnabled((p) => ({ ...p, [e.id]: value }));
                   } catch (e) {
                     setError((e as Error).message);
                   }
                 }}
               >
-                {remoteEmbeds[e.id] === false ? "禁止远程嵌入" : "允许远程嵌入"}
+                {enabled[e.id] === false ? "已停用" : "已启用"}
               </Button>
-            )}
+              {e.id === "anynote.video" && (
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  aria-label="远程嵌入"
+                  role="switch"
+                  aria-checked={remoteEmbeds[e.id] !== false}
+                  className="secondary"
+                  title="关闭后不再加载远程视频 iframe，也不获取标题或缩略图"
+                  onClick={async () => {
+                    try {
+                      const value = remoteEmbeds[e.id] === false;
+                      await request("setExtensionSetting", {
+                        notebookId,
+                        extensionId: e.id,
+                        key: "remoteEmbed",
+                        enabled: value,
+                      });
+                      setRemoteEmbeds((p) => ({ ...p, [e.id]: value }));
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                >
+                  {remoteEmbeds[e.id] === false
+                    ? "禁止远程嵌入"
+                    : "允许远程嵌入"}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </section>
+      <HostedExtensionsPanel notebookId={notebookId} onCreated={onCreated} />
       <ExtensionUpdateSettings
         disabled={busy}
         onReview={(id) => {
@@ -594,184 +611,215 @@ export default function ExtensionPage({
           </div>
         )}
       </section>
-      <h2>受信任的发布者</h2>
-      {publishers.map((p) => (
-        <div className="feature-card" key={p.fingerprint}>
-          <div>
-            <h3>{p.publisher}</h3>
-            <code style={{ overflowWrap: "anywhere" }}>{p.fingerprint}</code>
+      <section className="management-section" aria-label="受信任的发布者">
+        <h2>受信任的发布者</h2>
+        {publishers.map((p) => (
+          <div className="feature-card" key={p.fingerprint}>
+            <div>
+              <h3>{p.publisher}</h3>
+              <code style={{ overflowWrap: "anywhere" }}>{p.fingerprint}</code>
+            </div>
+            <Button
+              variant="ghost"
+              size="layout"
+              disabled={busy}
+              onClick={() =>
+                void action(() =>
+                  request("configurePublisher", {
+                    fingerprint: p.fingerprint,
+                    trusted: false,
+                  }),
+                )
+              }
+            >
+              撤销发布者信任
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="layout"
-            disabled={busy}
-            onClick={() =>
-              void action(() =>
-                request("configurePublisher", {
-                  fingerprint: p.fingerprint,
-                  trusted: false,
-                }),
-              )
-            }
+        ))}
+        {!loading && !loadError && !publishers.length && (
+          <p>尚未信任任何签名发布者。</p>
+        )}
+      </section>
+      <section className="management-section" aria-label="已安装的扩展">
+        <h2>已安装的扩展</h2>
+        {installed.map((e) => (
+          <article
+            className="feature-card installed-extension"
+            key={e.manifest.id}
           >
-            撤销发布者信任
-          </Button>
-        </div>
-      ))}
-      {!loading && !loadError && !publishers.length && (
-        <p>尚未信任任何签名发布者。</p>
-      )}
-      <h2>已安装的扩展</h2>
-      {installed.map((e) => (
-        <article
-          className="feature-card installed-extension"
-          key={e.manifest.id}
-        >
-          <div>
-            <h3>{e.manifest.name}</h3>
-            <p>{e.manifest.description}</p>
-            <small>
-              {e.manifest.id} · {e.manifest.version} · {e.manifest.runtime} ·
-              SHA-256 {e.checksum.slice(0, 12)}
-            </small>
-            <p>
-              {e.source?.signed
-                ? `签名发布者：${e.source.publisher} · ${e.source.trusted ? "已信任" : "信任已撤销"}`
-                : "未签名的本地开发扩展"}
-            </p>
-            <p>
-              权限：{e.manifest.permissions.join("、") || "无写入权限"} · 当前
-              Notebook {e.granted ? "已授权" : "未授权"}
-            </p>
-            {e.downloadURL && (
-              <p style={{ overflowWrap: "anywhere" }}>
-                更新来源：{e.downloadURL}
+            <div>
+              <h3>{e.manifest.name}</h3>
+              <p>{e.manifest.description}</p>
+              <small>
+                {e.manifest.id} · {e.manifest.version} · {e.manifest.runtime} ·
+                SHA-256 {e.checksum.slice(0, 12)}
+              </small>
+              <p>
+                {e.source?.signed
+                  ? `签名发布者：${e.source.publisher} · ${e.source.trusted ? "已信任" : "信任已撤销"}`
+                  : "未签名的本地开发扩展"}
               </p>
-            )}
-            <div className="extension-actions">
+              <p>
+                权限：{e.manifest.permissions.join("、") || "无写入权限"} · 当前
+                Notebook {e.granted ? "已授权" : "未授权"}
+              </p>
               {e.downloadURL && (
-                <Button
-                  variant="ghost"
-                  size="layout"
-                  disabled={busy || e.source?.trusted === false}
-                  onClick={() =>
-                    void download(
-                      {
-                        notebookId,
-                        extensionId: e.manifest.id,
-                        checksum: e.checksum,
-                      },
-                      true,
-                    )
-                  }
-                >
-                  检查扩展更新
-                </Button>
+                <p style={{ overflowWrap: "anywhere" }}>
+                  更新来源：{e.downloadURL}
+                </p>
               )}
-              <Button
-                variant="ghost"
-                size="layout"
-                disabled={busy}
-                onClick={() =>
-                  void configure(e, {
-                    scope: "global",
-                    enabled: !e.globallyEnabled,
-                  })
-                }
-              >
-                {e.globallyEnabled ? "全局停用" : "全局启用"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="layout"
-                disabled={busy}
-                onClick={() =>
-                  void configure(e, { scope: "notebook", enabled: !e.enabled })
-                }
-              >
-                {e.enabled ? "此库停用" : "此库启用"}
-              </Button>
-              {!e.granted && (
-                <Button
-                  variant="ghost"
-                  size="layout"
-                  disabled={busy || e.source?.trusted === false}
-                  onClick={() =>
-                    void configure(e, {
-                      scope: "notebook",
-                      permissions: e.manifest.permissions,
-                      enabled: true,
-                    })
-                  }
-                >
-                  授权当前 Notebook
-                </Button>
-              )}
-              {e.granted && (
+              <div className="extension-actions">
+                {e.downloadURL && (
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    disabled={busy || e.source?.trusted === false}
+                    onClick={() =>
+                      void download(
+                        {
+                          notebookId,
+                          extensionId: e.manifest.id,
+                          checksum: e.checksum,
+                        },
+                        true,
+                      )
+                    }
+                  >
+                    检查扩展更新
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="layout"
                   disabled={busy}
                   onClick={() =>
-                    void configure(e, { scope: "notebook", revoke: true })
+                    void configure(e, {
+                      scope: "global",
+                      enabled: !e.globallyEnabled,
+                    })
                   }
                 >
-                  撤销当前 Notebook 授权
+                  {e.globallyEnabled ? "全局停用" : "全局启用"}
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="layout"
-                disabled={busy}
-                onClick={() =>
-                  void action(() =>
-                    request("uninstallExtension", {
-                      extensionId: e.manifest.id,
-                    }),
-                  )
-                }
-              >
-                卸载并保留数据
-              </Button>
-            </div>
-            {e.granted &&
-              e.enabled &&
-              e.manifest.permissions.includes("settings:read") &&
-              e.manifest.permissions.includes("settings:write") && (
-                <ExtensionDataControls
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  disabled={busy}
+                  onClick={() =>
+                    void configure(e, {
+                      scope: "notebook",
+                      enabled: !e.enabled,
+                    })
+                  }
+                >
+                  {e.enabled ? "此库停用" : "此库启用"}
+                </Button>
+                {!e.granted && (
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    disabled={busy || e.source?.trusted === false}
+                    onClick={() =>
+                      void configure(e, {
+                        scope: "notebook",
+                        permissions: e.manifest.permissions,
+                        enabled: true,
+                      })
+                    }
+                  >
+                    授权当前 Notebook
+                  </Button>
+                )}
+                {e.granted && (
+                  <Button
+                    variant="ghost"
+                    size="layout"
+                    disabled={busy}
+                    onClick={() =>
+                      void configure(e, { scope: "notebook", revoke: true })
+                    }
+                  >
+                    撤销当前 Notebook 授权
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="layout"
+                  disabled={busy}
+                  onClick={() =>
+                    void action(() =>
+                      request("uninstallExtension", {
+                        extensionId: e.manifest.id,
+                      }),
+                    )
+                  }
+                >
+                  卸载并保留数据
+                </Button>
+              </div>
+              {e.granted &&
+                e.enabled &&
+                e.manifest.permissions.includes("settings:read") &&
+                e.manifest.permissions.includes("settings:write") && (
+                  <ExtensionDataControls
+                    key={
+                      "data-controls:" +
+                      notebookId +
+                      e.checksum +
+                      (cleanupEpoch[e.manifest.id] ?? 0)
+                    }
+                    entry={e}
+                    notebookId={notebookId}
+                    disabled={busy}
+                    onChanged={() =>
+                      setDataEpoch((current) => ({
+                        ...current,
+                        [e.manifest.id]: (current[e.manifest.id] ?? 0) + 1,
+                      }))
+                    }
+                  />
+                )}
+              {e.manifest.contributes.settings && e.granted && e.enabled && (
+                <ExtensionSettingsForm
                   key={
-                    "data-controls:" +
+                    "settings-form:" +
                     notebookId +
                     e.checksum +
-                    (cleanupEpoch[e.manifest.id] ?? 0)
+                    (dataEpoch[e.manifest.id] ?? 0)
                   }
                   entry={e}
                   notebookId={notebookId}
                   disabled={busy}
-                  onChanged={() =>
-                    setDataEpoch((current) => ({
-                      ...current,
-                      [e.manifest.id]: (current[e.manifest.id] ?? 0) + 1,
-                    }))
-                  }
                 />
               )}
-            {e.manifest.contributes.settings && e.granted && e.enabled && (
-              <ExtensionSettingsForm
-                key={
-                  "settings-form:" +
-                  notebookId +
-                  e.checksum +
-                  (dataEpoch[e.manifest.id] ?? 0)
-                }
-                entry={e}
-                notebookId={notebookId}
-                disabled={busy}
-              />
-            )}
-          </div>
-        </article>
-      ))}
+            </div>
+          </article>
+        ))}
+        {loading ? (
+          <ViewState kind="loading" title="正在读取扩展…" />
+        ) : loadError ? (
+          <ViewState
+            kind="error"
+            title="扩展列表未能读取"
+            action={
+              <Button
+                variant="outline"
+                onClick={() => setLoadAttempt((value) => value + 1)}
+              >
+                重新读取扩展
+              </Button>
+            }
+          >
+            {loadError}
+          </ViewState>
+        ) : (
+          !installed.length && (
+            <ViewState title="尚未安装外部扩展">
+              可以先使用上方的首方扩展，或查看扩展目录。
+            </ViewState>
+          )
+        )}
+      </section>
       <ExtensionCleanupPanel
         notebookId={notebookId}
         refreshKey={installed.map((e) => e.manifest.id + e.checksum).join(",")}
@@ -780,30 +828,6 @@ export default function ExtensionPage({
           setCleanupEpoch((old) => ({ ...old, [id]: (old[id] ?? 0) + 1 }))
         }
       />
-      {loading ? (
-        <ViewState kind="loading" title="正在读取扩展…" />
-      ) : loadError ? (
-        <ViewState
-          kind="error"
-          title="扩展列表未能读取"
-          action={
-            <Button
-              variant="outline"
-              onClick={() => setLoadAttempt((value) => value + 1)}
-            >
-              重新读取扩展
-            </Button>
-          }
-        >
-          {loadError}
-        </ViewState>
-      ) : (
-        !installed.length && (
-          <ViewState title="尚未安装外部扩展">
-            可以先使用上方的首方扩展，或查看扩展目录。
-          </ViewState>
-        )
-      )}
       <div className="feature-card">
         <div className="feature-icon">
           <Sparkles />
@@ -817,18 +841,21 @@ export default function ExtensionPage({
         </div>
         <span className="badge">未配置模型</span>
       </div>
-      <p className="small-note">
-        公共 SDK 0.1 已提供 Notebook
-        权限范围、版本校验、幂等写入、命令生命周期和独立状态。支持受信首方 SDK
-        与声明式安装，也支持隔离的同步正文转换脚本。脚本仅处理当前笔记及明确授权的自身状态；任意
-        React 节点、原生代码及通用 JS 宿主能力仍不开放。
-      </p>
+      <details className="management-footnote">
+        <summary>开发者与运行环境说明</summary>
+        <p className="small-note">
+          公共 SDK 0.1 已提供 Notebook
+          权限范围、版本校验、幂等写入、命令生命周期和独立状态。支持受信首方 SDK
+          与声明式安装，也支持隔离的同步正文转换脚本。脚本仅处理当前笔记及明确授权的自身状态；任意
+          React 节点、原生代码及通用 JS 宿主能力仍不开放。
+        </p>
+      </details>
       {notice && <p role="status">{notice}</p>}
       {error && (
         <p role="alert" className="form-error">
           {error}
         </p>
       )}
-    </div>
+    </ManagementPage>
   );
 }

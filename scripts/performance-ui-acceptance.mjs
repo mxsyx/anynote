@@ -720,7 +720,7 @@ if (
     await check("deferred-feature-pages", async () => {
       for (const [command, heading] of [
         ["backup", "本地磁盘备份"],
-        ["extensions", "为你的书桌，添一些可能"],
+        ["extensions", "插件与扩展"],
         ["settings", "诊断日志与指标"],
       ]) {
         await appMenu(page, command, app);

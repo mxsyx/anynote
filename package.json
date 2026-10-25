@@ -19,6 +19,7 @@
     "package": "pnpm run build && node scripts/package-desktop.mjs --dir",
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:bookshelf": "node scripts/bookshelf-smoke.mjs",
+    "test:management": "pnpm run build && node scripts/management-ui-smoke.mjs",
     "test:native-menu": "pnpm run build && node scripts/native-menu-smoke.mjs",
     "test:desktop": "pnpm run build && node scripts/desktop-smoke.mjs",
     "prebuild": "node scripts/copy-excalidraw.mjs",

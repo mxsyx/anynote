@@ -23,7 +23,10 @@ export function applicationMenu(
       label: platform === "darwin" ? "Anynote" : "应用",
       submenu: [
         ...(platform === "darwin"
-          ? [{ role: "about" as const }, { type: "separator" as const }]
+          ? [
+              { role: "about" as const, label: "关于 Anynote" },
+              { type: "separator" as const },
+            ]
           : []),
         command("设置…", "settings", "CmdOrCtrl+,"),
         command("插件与扩展…", "extensions"),
@@ -32,28 +35,28 @@ export function applicationMenu(
         { type: "separator" },
         ...(platform === "darwin"
           ? [
-              { role: "services" as const },
+              { role: "services" as const, label: "服务" },
               { type: "separator" as const },
-              { role: "hide" as const },
-              { role: "hideOthers" as const },
-              { role: "unhide" as const },
+              { role: "hide" as const, label: "隐藏 Anynote" },
+              { role: "hideOthers" as const, label: "隐藏其他应用" },
+              { role: "unhide" as const, label: "显示全部" },
               { type: "separator" as const },
             ]
           : []),
-        { role: "quit" },
+        { role: "quit", label: "退出 Anynote" },
       ],
     },
     {
       label: "编辑",
       submenu: [
-        { role: "undo" },
-        { role: "redo" },
+        { role: "undo", label: "撤销" },
+        { role: "redo", label: "重做" },
         { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "pasteAndMatchStyle" },
-        { role: "selectAll" },
+        { role: "cut", label: "剪切" },
+        { role: "copy", label: "复制" },
+        { role: "paste", label: "粘贴" },
+        { role: "pasteAndMatchStyle", label: "粘贴并匹配样式" },
+        { role: "selectAll", label: "全选" },
         { type: "separator" },
         {
           label: "插入内容",
@@ -65,16 +68,12 @@ export function applicationMenu(
     },
     {
       label: "显示",
-      submenu: [
-        command("切换深色 / 浅色模式", "theme"),
-        { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
-        { type: "separator" },
-        { role: "togglefullscreen" },
-      ],
+      submenu: [command("切换深色 / 浅色模式", "theme")],
     },
-    { role: "windowMenu" },
+    {
+      role: "help",
+      label: "帮助",
+      submenu: [{ role: "about", label: "关于 Anynote" }],
+    },
   ];
 }
