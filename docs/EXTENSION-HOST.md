@@ -37,3 +37,5 @@ ANYNOTE_EXECUTABLE="$PWD/release/linux-unpacked/anynote" node scripts/extension-
 ```
 
 专项测试覆盖真实子进程的 Notebook 隔离、越权、激活失败、崩溃、死循环、撤权、迟到清理与授权竞态，以及协议和进程配额。桌面脚本通过真实界面验证授权、惰性激活、创建与打开笔记、命令面板复用、停用和重启撤权，并扫描授权/停用页面的无障碍规则。报告写入 `test-results/extension-host-desktop.json` 或 `extension-host-packaged.json`。
+
+第三方 QuickJS 插件的受控网络代理由 `tests/script-network.test.mjs` 回归；真实公网证书、DNS、连接地址、超时、撤权及响应预算另见[插件公网端点验收](PLUGIN-NETWORK-ACCEPTANCE.md)。首方宿主测试和 Electron 内的受控 DNS/HTTPS fixture 均不能替代公网证据。

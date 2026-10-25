@@ -100,6 +100,8 @@ package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁�
 
 ## 当前边界
 
+发行身份的本地准备、手动 CI 预检及真实验收记录见 [发行凭据准备与验收](RELEASE-CREDENTIALS.md)。`pnpm run test:release:credentials` 只检查配置完整性，不代表签名或公证通过。
+
 SDK tarball 的类型与运行时独立消费通过 `pnpm run test:sdk:package` 验证。最终真实 CI/设备发行矩阵仍归 [V011](todo/01-platform-validation.md#v011)。
 
 - 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整

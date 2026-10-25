@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import {
   checkReleaseCompatibility,
   compatibilityWindows,
+  getReleaseFormat,
   legacyConsumers,
   releaseFormats,
   releaseUnits,
@@ -95,12 +96,15 @@ try {
   report.checks.push({ name: "release-manifest", status: "passed" });
 
   // Compatibility-window logic: accept within the window, explicitly reject outside it.
+  const schemaVersion = getReleaseFormat("notebook-schema").version;
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 2).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", schemaVersion)
+      .compatible,
     true,
   );
   assert.equal(
-    checkReleaseCompatibility("desktop", "notebook-schema", 3).compatible,
+    checkReleaseCompatibility("desktop", "notebook-schema", schemaVersion + 1)
+      .compatible,
     false,
   );
   assert.equal(

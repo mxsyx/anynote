@@ -1,0 +1,13 @@
+{
+  "format": "anynote.plugin-network-config.v1",
+  "serviceId": "replace-with-controlled-service-id",
+  "serviceVersion": "anynote-public-network-v1",
+  "endpoints": {
+    "public": "https://network.example.com/",
+    "untrustedCertificate": "https://untrusted.example.com/",
+    "hostnameMismatch": "https://mismatch.example.com/",
+    "privateDns": "https://private.example.com/",
+    "mixedDns": "https://mixed.example.com/",
+    "missingDns": "https://missing.example.com/"
+  }
+}
