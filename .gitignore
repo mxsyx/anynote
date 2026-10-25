@@ -2,8 +2,6 @@ node_modules/
 dist/
 release/
 .anynote-dev/
-test-results/
-playwright-report/
 .codebase-memory/
 .pnpm-store/
 
@@ -28,7 +26,6 @@ apps/cloudflare-backup/wrangler.ci.json
 **/dist/
 
 .vitest/
-coverage/
 
 .env.*
 !.env.*.example
@@ -37,5 +34,5 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
-# Local screenshots and archived reports.
+# Disposable local outputs.
 /tmp/

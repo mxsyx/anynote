@@ -1,4 +1,11 @@
 import { gzipSync } from "node:zlib";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const rendererReportPath = fileURLToPath(
+  new URL("../../tmp/reports/renderer-bundle.json", import.meta.url),
+);
 
 // Follow static imports only: dynamic imports are paid for on first feature use.
 export function rendererReport(bundle) {
@@ -46,12 +53,12 @@ export function rendererReport(bundle) {
 export function rendererReportPlugin() {
   return {
     name: "anynote-renderer-report",
-    generateBundle(_options, bundle) {
-      this.emitFile({
-        type: "asset",
-        fileName: "renderer-bundle.json",
-        source: JSON.stringify(rendererReport(bundle), null, 2) + "\n",
-      });
+    writeBundle(_options, bundle) {
+      mkdirSync(dirname(rendererReportPath), { recursive: true });
+      writeFileSync(
+        rendererReportPath,
+        JSON.stringify(rendererReport(bundle), null, 2) + "\n",
+      );
     },
   };
 }

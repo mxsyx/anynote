@@ -22,13 +22,13 @@ pnpm --filter @anynote/cloudflare-backup build
 pnpm run workspace:check
 ```
 
-共享包与官方扩展以 `pnpm -r list --depth -1` 和各包清单为准，不在此复制易漂移的包数量。首方进程生命周期和授权代理见 [EXTENSION-HOST.md](../extensions/EXTENSION-HOST.md)。
+共享包与官方扩展以 `pnpm -r list --depth -1` 和各包清单为准，不在此复制易漂移的包数量。首方进程生命周期和授权代理见 [EXTENSION-HOST.md](../features/extensions/EXTENSION-HOST.md)。
 
-G17 已拆解扩展与备份两组包循环，`workspace:check` 检查所有 workspace 的依赖和显式 TypeScript references。Electron、预览 API 和备份验收工具从 `@anynote/backend` 创建完整 Storage；基础 `@anynote/storage-sqlite` 不依赖备份包，可独立使用。服务装配与队列约束见 [ADR-012](../adr/012-backup-service-composition.md)。
+G17 已拆解扩展与备份两组包循环，`workspace:check` 检查所有 workspace 的依赖和显式 TypeScript references。Electron、预览 API 和备份验收工具从 `@anynote/backend` 创建完整 Storage；基础 `@anynote/storage-sqlite` 不依赖备份包，可独立使用。服务装配与队列约束见 [ADR-012](../design/adr/012-backup-service-composition.md)。
 
 整仓后端继续使用统一 TypeScript 编译，再把产物放到各包 `dist/`；`.build` 为测试与 Electron 入口保留镜像，共享包镜像指向同一产物，避免加载两份模块。按包构建编译 `apps/*`、`packages/*`、`extensions/*` 中的源依赖闭包。构建会写共享输出，使用根 `pnpm run build` 编排，不并行运行多个构建命令；没有另建 composite/project references 编译流水线。
 
-桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；独立消费通过 `pnpm run test:sdk:package` 验证；最终发行矩阵仍需 [V011](../../TODO.md#v011) 验收。
+桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；独立消费通过 `pnpm run test:sdk:package` 验证；最终发行矩阵仍需 [V011](TODO.md#v011) 验收。
 
 各发布单元的独立版本、兼容窗口、许可证与变更日志集中在 [公共包发布矩阵](RELEASE-MATRIX.md) 与 `packages/protocol/src/release.ts`；`pnpm run build:release` 生成 `artifacts/release/` 与发布清单，`pnpm run test:release:matrix` 校验兼容窗口与旧消费者。
 
@@ -65,7 +65,9 @@ ESLint 使用 Flat Config、JavaScript/TypeScript 推荐规则；Prettier 负责
 
 ## 文档与本地产物
 
-文档按用途分类，入口见 [文档导航](../README.md)，归属与维护规则见 [文档维护](../DOCUMENTATION.md)。`docs/` 只保存 Markdown；原截图已移至项目 `tmp/screenshots/`，截图脚本不再向文档目录输出图片。验收与基准报告写入 `test-results/`，旧 JSON 报告保留在 `tmp/reports/archive/`。这些本地产物不纳入版本库，文档只以行内代码引用；重跑对应 `test:*`、`benchmark:*` 命令可生成新报告。历史报告仅用于追溯，不能替代当前版本验收。
+长期文档只分设计、开发、功能说明三类，入口见 [文档导航](../README.md)。Agent 开始工作先读 [TODO](TODO.md) 和 [实施记录](IMPLEMENTATION.md)，完成后更新交付范围、剩余事项和实际验证边界。
+
+所有一次性验证结果、基准报告和截图写入项目 `tmp/`：通常为 `tmp/reports/` 与 `tmp/screenshots/`。`tmp/` 随时可能被删除，脚本会按需重建目录；不能依赖上次生成的文件继续开发。需要长期保留的结论应先写入开发记录，原始产物不用永久归档。具体规则见 [文档维护](DOCUMENTATION.md)。
 
 参考：[pnpm 配置](https://pnpm.io/settings)、[TypeScript ESLint 配置](https://typescript-eslint.io/users/configs/)、[Husky CI 设置](https://typicode.github.io/husky/how-to.html)。
 
@@ -77,7 +79,7 @@ ESLint 使用 Flat Config、JavaScript/TypeScript 推荐规则；Prettier 负责
 | `release.yml`             | `v*.*.*` 标签                           | 先执行 CI，标签必须匹配 package.json 版本；Linux AppImage、macOS DMG、Windows NSIS 安装包全部成功后发布 GitHub Release，附 SHA-256 清单 |
 | `release-credentials.yml` | 手动运行                                | 检查签名与公证凭据配置，上传预检报告；不签名、不发布                                                                                    |
 
-工作流配置位于 `.github/workflows/`。Cloudflare 没有启用部署工作流，手动部署使用 `pnpm run cloud:deploy`，步骤见 [真实云验收](../validation/CLOUD-ACCEPTANCE.md)。
+工作流配置位于 `.github/workflows/`。Cloudflare 没有启用部署工作流，手动部署使用 `pnpm run cloud:deploy`，步骤见 [真实云验收](validation/CLOUD-ACCEPTANCE.md)。
 
 桌面发布仅发布 GitHub Release，不发布 npm 包。当前没有代码签名与 macOS 公证配置，产物为未签名版本；后续正式分发可单独接入签名。版本标签可按以下方式创建，需先更新根 package.json 的版本并提交：
 
@@ -92,4 +94,4 @@ git push origin v0.1.0
 
 历史本地验证（2026-10-04）：冻结安装、ESLint、Prettier、严格 TypeScript 和生产构建通过；233 项既有回归测试通过。SDK 与扩展开发工具的 pnpm 离线消费脚本通过。当时三份工作流 YAML 已完成静态解析；未在 GitHub 执行工作流。
 
-文档、ADR 与专项 TODO 的单一状态来源及收尾规则见 [文档维护](../DOCUMENTATION.md)。
+文档、ADR 与专项 TODO 的单一状态来源及收尾规则见 [文档维护](DOCUMENTATION.md)。

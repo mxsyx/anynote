@@ -1,6 +1,6 @@
 # 发行凭据准备与验收
 
-本流程服务于 [A011](../../TODO.md#a011)。凭据配置检查、真实签名/公证、更新身份验证分别记录；预检成功不能作为发行验收通过。
+本流程服务于 [A011](TODO.md#a011)。凭据配置检查、真实签名/公证、更新身份验证分别记录；预检成功不能作为发行验收通过。
 
 ## 本地预检
 
@@ -12,7 +12,7 @@ pnpm run test:release:credentials --target mac
 node --env-file=.env.release scripts/release-credentials.mjs
 ```
 
-预检无需构建、安装依赖或联网，仅检查当前进程是否提供完整、非空的环境变量组。每次写入独立 `test-results/release-credentials/<UUID>.json`，包含源码 HEAD、应用版本、执行平台、变量名、缺项及检查边界；HEAD 不代表工作区无修改，真实 CI 证据应对应干净 checkout。
+预检无需构建、安装依赖或联网，仅检查当前进程是否提供完整、非空的环境变量组。每次写入独立 `tmp/reports/release-credentials/<UUID>.json`，包含源码 HEAD、应用版本、执行平台、变量名、缺项及检查边界；HEAD 不代表工作区无修改，真实 CI 证据应对应干净 checkout。
 
 | 状态         | 退出码 | 含义                                           |
 | ------------ | ------ | ---------------------------------------------- |
@@ -43,7 +43,7 @@ node --env-file=.env.release scripts/release-credentials.mjs
 
 该作业在 Linux 上检查两平台变量组，不安装依赖、不构建产物、不发布 Release。凭据仅注入预检 step；即使缺项失败，也上传脱敏 JSON，artifact 名包含 run ID 和 attempt，保存 14 天。需要长期证据时下载归档。没有实际运行记录时，提交 workflow 文件只表示入口已准备。
 
-现有 [发行 workflow](../../.github/workflows/release.yml) 仍未接入这些 secrets、签名或公证。这是独立的准备入口；不能用预检成功替代 [F006](../../TODO.md#f006) 的实现，也不改变当前发行流程。
+现有 [发行 workflow](../../.github/workflows/release.yml) 仍未接入这些 secrets、签名或公证。这是独立的准备入口；不能用预检成功替代 [F006](TODO.md#f006) 的实现，也不改变当前发行流程。
 
 ## 真实验收与证据
 
@@ -60,4 +60,4 @@ node --env-file=.env.release scripts/release-credentials.mjs
 | 更新身份   | F006 实际更新链路的身份匹配、篡改/错误身份拒绝证据                   |
 | 结论       | 每个场景的通过/失败/未执行、原因及剩余工作                           |
 
-签名、过期/错误身份、缺失凭据、不可用公证服务及被篡改更新产物的失败行为按 F006 实现补齐。安装、升级和回退的真实设备结果继续归 [V011](../../TODO.md#v011)。只有真实证据满足 A011 范围后才勾选任务。
+签名、过期/错误身份、缺失凭据、不可用公证服务及被篡改更新产物的失败行为按 F006 实现补齐。安装、升级和回退的真实设备结果继续归 [V011](TODO.md#v011)。只有真实证据满足 A011 范围后才勾选任务。

@@ -1,6 +1,6 @@
 # Plugin SDK 0.1
 
-公开 SDK 的便携契约层不依赖 Node、Electron、数据库或 UI 框架；源码 workspace 还包含 Node/QuickJS 执行器及输入/结果校验，不应直接作为公共包发布。存储权限门面和提案状态机归 `storage-sqlite`，SDK 不再反向依赖 Storage 或 CLI 工具包，见 [ADR-011](../../docs/adr/011-extension-module-boundaries.md)。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
+公开 SDK 的便携契约层不依赖 Node、Electron、数据库或 UI 框架；源码 workspace 还包含 Node/QuickJS 执行器及输入/结果校验，不应直接作为公共包发布。存储权限门面和提案状态机归 `storage-sqlite`，SDK 不再反向依赖 Storage 或 CLI 工具包，见 [ADR-011](../../docs/design/adr/011-extension-module-boundaries.md)。宿主提供 Transport，并将实例绑定到已经授权的 Notebook；插件不能通过公开 API 指定其他 Notebook、SQL、磁盘路径或 actor。笔记修改带版本条件和幂等 operationId；settings 位于独立命名空间并纳入归档。
 
 ## 扩展点与调用合约
 
@@ -32,7 +32,7 @@ pnpm --dir artifacts/plugin-sdk pack --pack-destination ..
 
 目标产物位于 `artifacts/plugin-sdk/`，打包后为 `artifacts/anynote-plugin-sdk-0.1.0.tgz`；此命令只构建本地产物，不发布 npm。源码 workspace 的导出指向 `src/` 类型与 `dist/` 运行文件。
 
-通过 `pnpm run test:sdk:package` 验证 tarball 的类型与运行时独立消费；最终真实发行矩阵见 [V011](../../TODO.md#v011)。
+通过 `pnpm run test:sdk:package` 验证 tarball 的类型与运行时独立消费；最终真实发行矩阵见 [V011](../../docs/development/TODO.md#v011)。
 
 ```ts
 import { createAPI, type DeclarativeManifest } from "@anynote/plugin-sdk";
@@ -66,11 +66,11 @@ await api.notes.get(noteId);
 
 第三方可安装扩展仍不开放通用 JS/React 模块、任意 NodeView、原生模块、动态 URL 网络访问、Provider 执行及中央插件市场；`providers.register` 仅在受信首方宿主登记描述符。设备侧可选择开启自动检查更新，安装仍需人工审核。
 
-签名包可使用项目的 `pnpm run extension:package ...` 制作和验证，公开类型为 `SignedExtensionPackage`、`ExtensionSource`。签名验证、发布者信任与 Notebook 授权由桌面后端独立检查；信任发布者不会自动授予笔记权限。协议与制作流程见项目 `docs/extensions/EXTENSION-SIGNING.md`。独立 SDK 包只包含可移植类型，不包含私钥或 Node 签名实现。
+签名包可使用项目的 `pnpm run extension:package ...` 制作和验证，公开类型为 `SignedExtensionPackage`、`ExtensionSource`。签名验证、发布者信任与 Notebook 授权由桌面后端独立检查；信任发布者不会自动授予笔记权限。协议与制作流程见项目 `docs/features/extensions/EXTENSION-SIGNING.md`。独立 SDK 包只包含可移植类型，不包含私钥或 Node 签名实现。
 
-桌面已安装扩展的 `InstalledExtension.downloadURL` 是可选的设备更新来源。公开 HTTPS 签名包支持用户触发的下载审核与手动更新，具体流程见项目 `docs/extensions/EXTENSION-DISTRIBUTION.md`。更新来源不会进入 QuickJS 笔记快照，也不赋予脚本网络能力。
+桌面已安装扩展的 `InstalledExtension.downloadURL` 是可选的设备更新来源。公开 HTTPS 签名包支持用户触发的下载审核与手动更新，具体流程见项目 `docs/features/extensions/EXTENSION-DISTRIBUTION.md`。更新来源不会进入 QuickJS 笔记快照，也不赋予脚本网络能力。
 
-公开目录类型为 `ExtensionDirectory`、`ExtensionDirectoryEntry`、`SavedExtensionDirectory`。项目的 `extension:package directory` 从实际签名包生成目录清单，桌面支持 HTTPS 目录配置、搜索和下载审核，见 `docs/extensions/EXTENSION-DIRECTORY.md`。目录声明不会自动建立发布者信任或 Notebook 授权。
+公开目录类型为 `ExtensionDirectory`、`ExtensionDirectoryEntry`、`SavedExtensionDirectory`。项目的 `extension:package directory` 从实际签名包生成目录清单，桌面支持 HTTPS 目录配置、搜索和下载审核，见 `docs/features/extensions/EXTENSION-DIRECTORY.md`。目录声明不会自动建立发布者信任或 Notebook 授权。
 
 ## 有状态的受限命令
 
@@ -78,7 +78,7 @@ await api.notes.get(noteId);
 
 状态为普通 JSON 对象，最多 64KiB、16 层、4096 个值，不含函数、访问器、符号、undefined、非有限数字或循环。宿主检查笔记与状态两个版本，在同一事务提交正文、状态及幂等回执；并发冲突、失败或撤销不写入结果。状态位于 Notebook 的 `extension_data`，随归档保留，停用或卸载不删除。未知状态 schema 被拒绝，不自动迁移。
 
-公开类型为 `ScriptStateValue`、`ScriptState`、`StatefulMarkdownTransformInput`、`StatefulMarkdownTransformResult`。详见项目 `docs/extensions/SCRIPT-STATE.md`。这不是通用宿主 API，也不赋予网络或文件能力。
+公开类型为 `ScriptStateValue`、`ScriptState`、`StatefulMarkdownTransformInput`、`StatefulMarkdownTransformResult`。详见项目 `docs/features/extensions/SCRIPT-STATE.md`。这不是通用宿主 API，也不赋予网络或文件能力。
 
 ## 声明式设置表单
 
@@ -86,33 +86,33 @@ await api.notes.get(noteId);
 
 公开类型为 `ExtensionSettingField`、`ExtensionSettingsContribution`、`ExtensionSettingsValues`、`ExtensionSettingsSnapshot`。表单由核心 UI 渲染，不接收 React/HTML/脚本渲染器。最多 12 个字段，每字段必须声明同类型默认值；后端检查文本长度、数字范围、整数约束、完整字段和设置 revision。
 
-设置与脚本状态分开保存在 Notebook，随归档保留。保存取消旧设置下的在途命令；改变表单定义或未知 schema 会拒绝写入并保留数据，不隐式迁移。详见项目 `docs/extensions/EXTENSION-SETTINGS.md`。
+设置与脚本状态分开保存在 Notebook，随归档保留。保存取消旧设置下的在途命令；改变表单定义或未知 schema 会拒绝写入并保留数据，不隐式迁移。详见项目 `docs/features/extensions/EXTENSION-SETTINGS.md`。
 
 ## 声明式数据迁移
 
 `contributes.dataMigrations` 提供顶层 `rename`、缺失值 `defaults` 和显式 `remove`，不执行迁移代码。状态命令可用 `contributes.stateVersion` 声明当前版本（默认 1），状态迁移必须升级至该版本；设置迁移绑定规范化旧表单的 SHA-256。两种迁移均需要状态读写权限，用户先预览再确认，核心同事务保存原始数据备份并应用修改。
 
-[reading-session-v2.json](./src/examples/reading-session-v2.json) 将 v1 的 `runs` 迁移为 `visits`；[reading-preferences-v2.json](./src/examples/reading-preferences-v2.json) 将 `target` 迁移为 `goal`。先使用 v1 示例产生数据，再安装 v2 并重新授权。恢复操作也先预览并备份当前数据；恢复旧数据后可再次迁移。每个扩展最多 8 条迁移和 32 份 Notebook 内数据副本，不隐式覆盖未知数据。核心扩展页提供[显式数据清理](../../docs/extensions/EXTENSION-CLEANUP.md)：选择删除迁移副本，或卸载后清理全部留存数据；第三方脚本无此管理能力。
+[reading-session-v2.json](./src/examples/reading-session-v2.json) 将 v1 的 `runs` 迁移为 `visits`；[reading-preferences-v2.json](./src/examples/reading-preferences-v2.json) 将 `target` 迁移为 `goal`。先使用 v1 示例产生数据，再安装 v2 并重新授权。恢复操作也先预览并备份当前数据；恢复旧数据后可再次迁移。每个扩展最多 8 条迁移和 32 份 Notebook 内数据副本，不隐式覆盖未知数据。核心扩展页提供[显式数据清理](../../docs/features/extensions/EXTENSION-CLEANUP.md)：选择删除迁移副本，或卸载后清理全部留存数据；第三方脚本无此管理能力。
 
-公开类型为 `ExtensionDataMigration`、`ExtensionDataOverview`、`ExtensionDataReview`、`ExtensionDataApplyResult`。副本随 Notebook 归档保留，不自动授予新 Notebook 权限。详见项目 `docs/extensions/EXTENSION-DATA-MIGRATIONS.md`；原生执行器和数据库操作不包含在 SDK tarball 中。
+公开类型为 `ExtensionDataMigration`、`ExtensionDataOverview`、`ExtensionDataReview`、`ExtensionDataApplyResult`。副本随 Notebook 归档保留，不自动授予新 Notebook 权限。详见项目 `docs/features/extensions/EXTENSION-DATA-MIGRATIONS.md`；原生执行器和数据库操作不包含在 SDK tarball 中。
 
 ## 扩展开发工具
 
 独立的 `@anynote/extension-tools` 提供 `anynote-extension init / validate / run`，支持声明式、普通转换、持久化状态及设置四种 TypeScript 模板。工程用本 SDK 的 `InstallableManifest` 检查类型，再生成桌面可安装 JSON。清单诊断与桌面共用校验器；命令试运行使用同一 QuickJS Worker 和正文保护规则，输入只来自 JSON 示例。
 
-在仓库运行 `pnpm run build:extension-tools` 生成本地工具包，`pnpm run extension:dev --help` 查看用法。SDK 与工具包均可通过本地 tarball 安装，尚未发布到 npm。工具不包含 SQLite/Storage/设备权限服务，试运行不会修改 Notebook 或 fixture。详见项目 `docs/extensions/EXTENSION-DEVELOPMENT.md`。
+在仓库运行 `pnpm run build:extension-tools` 生成本地工具包，`pnpm run extension:dev --help` 查看用法。SDK 与工具包均可通过本地 tarball 安装，尚未发布到 npm。工具不包含 SQLite/Storage/设备权限服务，试运行不会修改 Notebook 或 fixture。详见项目 `docs/features/extensions/EXTENSION-DEVELOPMENT.md`。
 
 ## 受限搜索上下文
 
-正文转换命令可声明 `action.searchContext: {query, limit}` 并申请 `search:read`，接收当前 Notebook 的标题和短片段快照。有状态命令同样支持；当前库发生知识写入时拒绝旧上下文提交。示例见 [reading-related.json](./src/examples/reading-related.json)，类型为 `ScriptSearchRequest` / `ScriptSearchContext`。授权、预算与开发工具 fixture 见 [搜索上下文说明](../../docs/extensions/SCRIPT-SEARCH-CONTEXT.md)。
+正文转换命令可声明 `action.searchContext: {query, limit}` 并申请 `search:read`，接收当前 Notebook 的标题和短片段快照。有状态命令同样支持；当前库发生知识写入时拒绝旧上下文提交。示例见 [reading-related.json](./src/examples/reading-related.json)，类型为 `ScriptSearchRequest` / `ScriptSearchContext`。授权、预算与开发工具 fixture 见 [搜索上下文说明](../../docs/features/extensions/SCRIPT-SEARCH-CONTEXT.md)。
 
 ## 受限异步宿主查询
 
-声明 `action.asyncSearch` 并申请 `search:read` 后，脚本可使用第二个参数 `host: ScriptHostAPI`，执行 `await host.search(queryId)`。查询固定于清单，仅访问当前 Notebook；最多 4 次串行请求，取消或过期结果拒绝提交。有状态命令同样支持。示例 [reading-async-related.json](./src/examples/reading-async-related.json)，权限、预算和 fixture 格式见 [异步宿主说明](../../docs/extensions/SCRIPT-ASYNC-HOST.md)。
+声明 `action.asyncSearch` 并申请 `search:read` 后，脚本可使用第二个参数 `host: ScriptHostAPI`，执行 `await host.search(queryId)`。查询固定于清单，仅访问当前 Notebook；最多 4 次串行请求，取消或过期结果拒绝提交。有状态命令同样支持。示例 [reading-async-related.json](./src/examples/reading-async-related.json)，权限、预算和 fixture 格式见 [异步宿主说明](../../docs/features/extensions/SCRIPT-ASYNC-HOST.md)。
 
 ## 固定 HTTPS 网络代理
 
-声明 `action.networkRequests` 并申请 `network` 后，可使用 `ScriptNetworkAPI.request(id)` 等待固定地址的文本/JSON。安装审核显示域名和 URL；没有动态 URL、请求体、凭据或直接 fetch。搜索与网络共享四次串行调用预算。示例 [reading-network.json](./src/examples/reading-network.json)，完整边界与离线 `fixture.network` 见 [网络代理说明](../../docs/extensions/SCRIPT-NETWORK-PROXY.md)。
+声明 `action.networkRequests` 并申请 `network` 后，可使用 `ScriptNetworkAPI.request(id)` 等待固定地址的文本/JSON。安装审核显示域名和 URL；没有动态 URL、请求体、凭据或直接 fetch。搜索与网络共享四次串行调用预算。示例 [reading-network.json](./src/examples/reading-network.json)，完整边界与离线 `fixture.network` 见 [网络代理说明](../../docs/features/extensions/SCRIPT-NETWORK-PROXY.md)。
 
 ## 宿主本地磁盘备份接口
 

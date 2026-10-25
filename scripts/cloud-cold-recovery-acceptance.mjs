@@ -34,7 +34,7 @@ if (
 }
 if (process.argv.slice(2).length)
   throw Error("用法：pnpm run test:cloud:cold-recovery");
-const file = resolve("test-results/cloud-cold-recovery-acceptance.json"),
+const file = resolve("tmp/reports/cloud-cold-recovery-acceptance.json"),
   report = {
     format: "anynote.cloud-cold-recovery-acceptance.v1",
     runId: randomUUID(),

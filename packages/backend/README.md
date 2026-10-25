@@ -12,4 +12,4 @@ const storage = new Storage(root, { maxWriteConnections: 8 });
 
 仅需笔记存储的消费者可直接使用 `@anynote/storage-sqlite`；该包没有备份服务的反向依赖。新服务通过 `StorageOptions.services` 的每实例接口接入，输入和结果必须在各自边界验证。该接口供可信宿主装配，不是第三方扩展的权限接口。
 
-构建：`pnpm --filter @anynote/backend build`。独立消费、快照和队列回归：`pnpm exec vitest run tests/backup-boundaries.test.mjs`。设计与限制见 [ADR-012](../../docs/adr/012-backup-service-composition.md)。
+构建：`pnpm --filter @anynote/backend build`。独立消费、快照和队列回归：`pnpm exec vitest run tests/backup-boundaries.test.mjs`。设计与限制见 [ADR-012](../../docs/design/adr/012-backup-service-composition.md)。

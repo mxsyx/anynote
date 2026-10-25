@@ -36,9 +36,9 @@ const env = {
 let server,
   logs = "";
 const report = { mode: "local-workerd", status: "running", steps: [] };
-const reportPath = "test-results/cloud-worker-local.json";
+const reportPath = "tmp/reports/cloud-worker-local.json";
 function save() {
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n");
 }
 function start(args) {

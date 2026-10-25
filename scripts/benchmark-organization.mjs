@@ -57,9 +57,9 @@ try {
     limitations:
       "Local warm synthetic folders, seven runs; excludes IPC, rendering and cold filesystem cache.",
   };
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    "test-results/organization-benchmark.json",
+    "tmp/reports/organization-benchmark.json",
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report, null, 2));

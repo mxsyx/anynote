@@ -42,7 +42,7 @@ mkdirSync(disk);
 const checks = [];
 let electron, page, filesystem;
 const reportPath = resolve(
-  option("--report-path") || "artifacts/local-backup-acceptance.json",
+  option("--report-path") || "tmp/reports/local-backup-acceptance.json",
 );
 async function check(name, fn) {
   await fn();

@@ -158,9 +158,9 @@ try {
     .getByRole("spinbutton", { name: "总量上限（MB）", exact: true })
     .fill("4");
   await page.getByRole("checkbox", { name: /保存原始 HTML/ }).check();
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   await page.screenshot({
-    path: "test-results/web-import-budget.png",
+    path: "tmp/reports/web-import-budget.png",
     fullPage: true,
   });
   await page.getByRole("button", { name: "预览转换结果", exact: true }).click();
@@ -174,7 +174,7 @@ try {
     false,
   );
   await page.screenshot({
-    path: "test-results/web-import-preview.png",
+    path: "tmp/reports/web-import-preview.png",
     fullPage: true,
   });
   await page.getByRole("button", { name: "确认导入", exact: true }).click();
@@ -262,7 +262,7 @@ try {
     false,
   );
   await page.screenshot({
-    path: "test-results/web-import-result.png",
+    path: "tmp/reports/web-import-result.png",
     fullPage: true,
   });
   assert.deepEqual(errors, []);
@@ -270,9 +270,9 @@ try {
     "PASS: Electron real storage, inline media/video/whiteboard, native grant boundary, budget UI, import preview/commit/discard, sanitized HTML, directory media retry and staging cleanup.",
   );
 } catch (error) {
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   await page?.screenshot({
-    path: "test-results/features-error.png",
+    path: "tmp/reports/features-error.png",
     fullPage: true,
   });
   throw error;

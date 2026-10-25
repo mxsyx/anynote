@@ -111,7 +111,7 @@ test("preflight persists distinct redacted reports without claiming real accepta
     assert.equal(second.report.status, "blocked");
     assert.notEqual(first.file, second.file);
     assert.equal(
-      readdirSync(join(root, "test-results/release-credentials")).length,
+      readdirSync(join(root, "tmp/reports/release-credentials")).length,
       2,
     );
     for (const result of [first, second]) {
@@ -220,5 +220,5 @@ test("manual CI keeps secrets scoped to preflight and retains blocked reports", 
     item.uses?.startsWith("actions/upload-artifact@"),
   );
   assert.equal(upload.if, "always()");
-  assert.equal(upload.with.path, "test-results/release-credentials/*.json");
+  assert.equal(upload.with.path, "tmp/reports/release-credentials/*.json");
 });

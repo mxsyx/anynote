@@ -1,7 +1,7 @@
 # Anynote 产品与技术设计文档
 
 > 存储与备份格式已改为SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
-> 当前决策核对：2026-10-21，见 [ADR-001–010](../adr/README.md)。下文未更新的建议不作为功能状态或发布验收依据；当前状态见 [实施记录](../history/IMPLEMENTATION.md)，任务唯一状态见 [TODO](../../TODO.md)。
+> 当前决策核对：2026-10-21，见 [ADR-001–010](adr/README.md)。下文未更新的建议不作为功能状态或发布验收依据；当前状态见 [实施记录](../development/IMPLEMENTATION.md)，任务唯一状态见 [TODO](../development/TODO.md)。
 > 版本：0.1 · 日期：2026-10-01 · 状态：建议设计基线，供产品、设计与研发评审。
 >
 > 产品定位：以 Notebook 为边界、本地优先、可扩展的个人知识库。支持 Markdown、PDF、图片，将日常记录、网页收藏、资料阅读和知识整理放在一个安静、美观、可靠的桌面空间里。
@@ -151,7 +151,7 @@ Electron 的 `utilityProcess` 可用于有 Node 能力的后台任务，但它�
 
 ### 5.1 Notebook 文件布局
 
-当前持久化布局（[ADR-001](../adr/001-notebook-storage.md)）：
+当前持久化布局（[ADR-001](adr/001-notebook-storage.md)）：
 
 ```text
 <notebook-root>/
@@ -265,7 +265,7 @@ CREATE INDEX idx_changes_entity ON changes(entity_type, entity_id, seq);
 
 ### 6.3 树结构与排序
 
-采用邻接表 `parent_id`。当前 `listNodes` 返回完整元信息快照（不含正文），客户端生成目录、筛选与移动候选；子树查询使用递归 CTE。树 UI 用显式栈与扁平虚拟列表，避免极深目录栈溢出。分页子项查询暂不实现，决策与大目录测量见 [G14 目录契约](../history/G14-navigation-decision.md)。
+采用邻接表 `parent_id`。当前 `listNodes` 返回完整元信息快照（不含正文），客户端生成目录、筛选与移动候选；子树查询使用递归 CTE。树 UI 用显式栈与扁平虚拟列表，避免极深目录栈溢出。分页子项查询暂不实现，决策与大目录测量见 [G14 目录契约](NAVIGATION.md)。
 
 移动目录时遍历目标祖先，确认目标不在源子树内。首版暂不增加闭包表；大量子树统计确有瓶颈时再加可重建路径缓存。
 
@@ -291,7 +291,7 @@ Markdown 笔记在 SQLite 保存 UTF-8 扩展 Markdown 文本，称为 **Anynote
 
 ProseMirror/Tiptap JSON 只作为编辑器派生模型，可以缓存，缓存失效时从正文重建。若未来增加无法可靠映射到协议的在线文档能力，必须先扩展文档协议，不能悄悄把 JSON 升格为另一份真源。
 
-当前采用统一文档编辑会话，正文保存为 Markdown；无模式切换。具体实现与语法边界见 [编辑器与扩展生态](../guides/EDITOR-ECOSYSTEM.md)。实际决定见 [ADR-002](../adr/002-markdown-source.md)。
+当前采用统一文档编辑会话，正文保存为 Markdown；无模式切换。具体实现与语法边界见 [编辑器与扩展生态](../features/EDITOR-ECOSYSTEM.md)。实际决定见 [ADR-002](adr/002-markdown-source.md)。
 
 ### 7.2 连续编辑与无损边界
 
@@ -299,7 +299,7 @@ Tiptap/ProseMirror 提供连续文档、选区菜单、斜杠插入、Markdown �
 
 适配层记录可编辑块原文与语义签名：未修改块复用原文，修改块由编辑器序列化，块间统一空行。不支持的语法与未知扩展以 `preservedBlock` 保存原文，不直接编辑内部文本，也不作为任意 HTML 执行。不能承诺任意 Markdown 全文逐字节往返。
 
-文档模型回归及连续编辑浏览器入口见 [编辑器说明](../guides/EDITOR-ECOSYSTEM.md)；真实输入法与原生交互验收归 G06。设计扩展语法和当前不支持的功能不能仅凭菜单或类型存在标为已实现。
+文档模型回归及连续编辑浏览器入口见 [编辑器说明](../features/EDITOR-ECOSYSTEM.md)；真实输入法与原生交互验收归 G06。设计扩展语法和当前不支持的功能不能仅凭菜单或类型存在标为已实现。
 
 ### 7.3 扩展 Markdown 语法
 
@@ -491,7 +491,7 @@ SQLite Online Backup API 用于活跃数据库一致性备份；可评估 `VACUU
 
 ## 12. Cloudflare 主备份端
 
-本节按当前物理备份实现更新，替代早期实体 delta/周期 checkpoint 草案；决定见 [ADR-005](../adr/005-generation-publication.md) 与 [ADR-006](../adr/006-complete-checkpoints.md)。
+本节按当前物理备份实现更新，替代早期实体 delta/周期 checkpoint 草案；决定见 [ADR-005](adr/005-generation-publication.md) 与 [ADR-006](adr/006-complete-checkpoints.md)。
 
 ### 12.1 职责分配
 
@@ -515,7 +515,7 @@ D1 不保存用于恢复重建的领域实体 delta，也不是本地 SQLite 文
 
 每一代都是完整恢复清单，独立于更早版本。checkpoint 表示完整引用集合，不表示每次重传整库；未变化对象复用。不再实施“每 100 代或每天生成逻辑 checkpoint”，不维护实体 delta 链或可选 SQLite 加速点。
 
-当前清单为 `anynote.sqlite` v1、schemaVersion 4，要求 `sqlite-assets-v1`；旧逻辑协议及 BLOB 格式不兼容。清单和空间预算见 [存储契约](SQLITE-STORAGE.md) 与 [流式备份](../guides/STREAMING-CLOUD-BACKUP.md)。
+当前清单为 `anynote.sqlite` v1、schemaVersion 4，要求 `sqlite-assets-v1`；旧逻辑协议及 BLOB 格式不兼容。清单和空间预算见 [存储契约](SQLITE-STORAGE.md) 与 [流式备份](../features/STREAMING-CLOUD-BACKUP.md)。
 
 ### 12.4 原子发布与并发控制
 
@@ -852,7 +852,7 @@ Anynote 应表现为“安静、有质感的个人书桌”：主体是内容，
 
 - 明确“创建 Notebook”和“打开/导入 Notebook”两条主路径，备份配置可以稍后进行。
 - 最近 Notebook 以封面色/图标、小标题、最后打开时间和本机路径展示；显示明确标注的本地快照状态，云端/磁盘备份状态见备份页。
-- 创建表单包含名称、图标/封面色、位置；空位置使用默认目录，指定已有绝对路径时新建独立子目录，不要求先登录。开发期元信息格式与兼容边界见 [G14 决策](../history/G14-navigation-decision.md)。
+- 创建表单包含名称、图标/封面色、位置；空位置使用默认目录，指定已有绝对路径时新建独立子目录，不要求先登录。开发期元信息格式与兼容边界见 [G14 决策](NAVIGATION.md)。
 
 **主编辑页**
 
@@ -1094,18 +1094,18 @@ anynote/
 
 ## 25. 架构决策记录（ADR）
 
-已按 2026-10-21 当前源码追认以下实际选择；背景、取舍、源码和验证入口见 [ADR 索引](../adr/README.md)。旧设计建议与已采纳决定有差异时，以 ADR 及当前专项契约为准。采纳不等于完成发布验收。
+已按 2026-10-21 当前源码追认以下实际选择；背景、取舍、源码和验证入口见 [ADR 索引](adr/README.md)。旧设计建议与已采纳决定有差异时，以 ADR 及当前专项契约为准。采纳不等于完成发布验收。
 
-1. [ADR-001：Notebook 独立 SQLite 与目录排序](../adr/001-notebook-storage.md)。
-2. [ADR-002：Markdown 真源与连续编辑边界](../adr/002-markdown-source.md)。
-3. [ADR-003：不可变 Asset、Resource 身份与历史闭包](../adr/003-immutable-assets.md)。
-4. [ADR-004：备份与同步分离及远端写入身份](../adr/004-backup-not-sync.md)。
-5. [ADR-005：Cloudflare staging 与原子发布](../adr/005-generation-publication.md)。
-6. [ADR-006：每代完整 checkpoint 与物理分块增量](../adr/006-complete-checkpoints.md)。
-7. [ADR-007：扩展信任等级与公共 SDK](../adr/007-extension-runtimes.md)。
-8. [ADR-008：完整归档、安全导入与版本拒绝](../adr/008-archive-compatibility.md)。
-9. [ADR-009：AI 提案、显式应用与条件撤销](../adr/009-ai-proposals.md)。
-10. [ADR-010：原生阅读布局、设计 token 与辅助面板](../adr/010-native-reading-layout.md)。
+1. [ADR-001：Notebook 独立 SQLite 与目录排序](adr/001-notebook-storage.md)。
+2. [ADR-002：Markdown 真源与连续编辑边界](adr/002-markdown-source.md)。
+3. [ADR-003：不可变 Asset、Resource 身份与历史闭包](adr/003-immutable-assets.md)。
+4. [ADR-004：备份与同步分离及远端写入身份](adr/004-backup-not-sync.md)。
+5. [ADR-005：Cloudflare staging 与原子发布](adr/005-generation-publication.md)。
+6. [ADR-006：每代完整 checkpoint 与物理分块增量](adr/006-complete-checkpoints.md)。
+7. [ADR-007：扩展信任等级与公共 SDK](adr/007-extension-runtimes.md)。
+8. [ADR-008：完整归档、安全导入与版本拒绝](adr/008-archive-compatibility.md)。
+9. [ADR-009：AI 提案、显式应用与条件撤销](adr/009-ai-proposals.md)。
+10. [ADR-010：原生阅读布局、设计 token 与辅助面板](adr/010-native-reading-layout.md)。
 
 ## 26. 官方资料与依据
 

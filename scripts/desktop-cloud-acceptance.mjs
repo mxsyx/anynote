@@ -78,9 +78,9 @@ async function acceptance() {
   const reportPath = resolve(
     maintenance
       ? process.env.ANYNOTE_EXECUTABLE
-        ? "test-results/desktop-cloud-maintenance-packaged-acceptance.json"
-        : "test-results/desktop-cloud-maintenance-acceptance.json"
-      : "test-results/desktop-cloud-acceptance.json",
+        ? "tmp/reports/desktop-cloud-maintenance-packaged-acceptance.json"
+        : "tmp/reports/desktop-cloud-maintenance-acceptance.json"
+      : "tmp/reports/desktop-cloud-acceptance.json",
   );
   const report = {
     format: "anynote.desktop-cloud-acceptance.v1",
@@ -106,7 +106,7 @@ async function acceptance() {
     ],
   };
   function save() {
-    mkdirSync(join(process.cwd(), "test-results"), { recursive: true });
+    mkdirSync(join(process.cwd(), "tmp/reports"), { recursive: true });
     writeFileSync(
       reportPath,
       JSON.stringify(redact(report, reportEnv), null, 2) + "\n",

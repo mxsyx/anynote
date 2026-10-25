@@ -165,9 +165,9 @@ try {
     limitations:
       "Backend-only local synthetic Markdown corpus; excludes browser rendering, startup, attachment/PDF workload, cloud, and cold OS filesystem cache. Not a v1 performance acceptance.",
   };
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    "test-results/search-benchmark.json",
+    "tmp/reports/search-benchmark.json",
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(JSON.stringify(report, null, 2));

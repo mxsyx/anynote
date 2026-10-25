@@ -13,6 +13,7 @@ export default defineConfig({
     testTimeout: 15000,
     hookTimeout: 15000,
     setupFiles: ["tests/setup.mjs"],
+    coverage: { reportsDirectory: "tmp/coverage" },
     // Exercise the shipped Node modules without Vite rewriting import.meta
     // or creating a second module instance beside workspace package exports.
     server: {

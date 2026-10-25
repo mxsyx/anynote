@@ -14,8 +14,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
-const output =
-  process.env.ANYNOTE_SCREENSHOTS || "/tmp/anynote-book-ui-screenshots";
+const output = process.env.ANYNOTE_SCREENSHOTS || "tmp/screenshots/book-ui";
 mkdirSync(output, { recursive: true });
 
 try {

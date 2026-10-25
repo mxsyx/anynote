@@ -1879,10 +1879,10 @@ try {
 } finally {
   await app?.close();
   rmSync(root, { recursive: true, force: true });
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   const file = process.env.ANYNOTE_EXECUTABLE
-    ? "test-results/editor-ecosystem-packaged.json"
-    : "test-results/editor-ecosystem.json";
+    ? "tmp/reports/editor-ecosystem-packaged.json"
+    : "tmp/reports/editor-ecosystem.json";
   report.finishedAt = new Date().toISOString();
   writeFileSync(file, JSON.stringify(report, null, 2) + "\n");
   console.log(report.status + ": " + file);

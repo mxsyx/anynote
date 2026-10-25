@@ -34,7 +34,7 @@ if (
 }
 if (process.argv.slice(2).length)
   throw Error("用法：pnpm run test:cloud:stream");
-const file = resolve("test-results/cloud-stream-acceptance.json"),
+const file = resolve("tmp/reports/cloud-stream-acceptance.json"),
   report = {
     format: "anynote.cloud-stream-acceptance.v1",
     runId: randomUUID(),

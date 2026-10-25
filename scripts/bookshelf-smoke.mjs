@@ -54,8 +54,7 @@ await page.route("**/api/rpc", async (route) => {
   if (op === "getBacklinks") result = [];
   await route.fulfill({ json: { result } });
 });
-const output =
-  process.env.ANYNOTE_SCREENSHOTS || "/tmp/anynote-bookshelf-screenshots";
+const output = process.env.ANYNOTE_SCREENSHOTS || "tmp/screenshots/bookshelf";
 mkdirSync(output, { recursive: true });
 
 try {

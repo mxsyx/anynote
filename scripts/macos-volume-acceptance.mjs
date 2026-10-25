@@ -38,7 +38,7 @@ function option(name) {
 }
 assert.equal(process.platform, "darwin", "macOS 卷验收只能在 macOS 真机上运行");
 const reportPath = resolve(
-  option("--report-path") || "test-results/macos-volume-acceptance.json",
+  option("--report-path") || "tmp/reports/macos-volume-acceptance.json",
 );
 const baseParent = resolve(option("--base-dir") || tmpdir());
 mkdirSync(baseParent, { recursive: true });

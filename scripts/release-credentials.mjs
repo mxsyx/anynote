@@ -101,7 +101,7 @@ export function runPreflight(args, env = process.env, root = resolve(".")) {
       "Real release acceptance requires F006 and native CI artifact evidence; see docs/development/RELEASE-CREDENTIALS.md.",
     ],
   };
-  const dir = join(root, "test-results/release-credentials");
+  const dir = join(root, "tmp/reports/release-credentials");
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `${report.id}.json`);
   writeFileSync(file, JSON.stringify(report, null, 2) + "\n", {

@@ -316,9 +316,9 @@ try {
   throw error;
 } finally {
   report.finishedAt = new Date().toISOString();
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    "test-results/extension-tools-package.json",
+    "tmp/reports/extension-tools-package.json",
     JSON.stringify(report, null, 2) + "\n",
   );
   rmSync(tmp, { recursive: true, force: true });

@@ -209,8 +209,8 @@ try {
     report.status = "failed";
   }
   report.finishedAt = new Date().toISOString();
-  mkdirSync("test-results/plugin-network", { recursive: true });
-  const path = `test-results/plugin-network/${runId}.json`;
+  mkdirSync("tmp/reports/plugin-network", { recursive: true });
+  const path = `tmp/reports/plugin-network/${runId}.json`;
   writeFileSync(path, JSON.stringify(report, null, 2) + "\n");
   console.log(`${report.status}: ${path}`);
   if (report.error) console.error(report.error);

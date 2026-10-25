@@ -3,9 +3,7 @@
 **/dist/
 release/
 artifacts/
-test-results/
 tmp/
-playwright-report/
 public/excalidraw/
 .anynote-dev/
 .cloudflare-acceptance/

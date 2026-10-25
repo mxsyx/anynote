@@ -292,9 +292,9 @@ try {
   s.close();
   rmSync(root, { recursive: true, force: true });
   if (report) {
-    mkdirSync("test-results", { recursive: true });
+    mkdirSync("tmp/reports", { recursive: true });
     writeFileSync(
-      "test-results/portable-recovery-acceptance.json",
+      "tmp/reports/portable-recovery-acceptance.json",
       JSON.stringify(report, null, 2) + "\n",
     );
   }

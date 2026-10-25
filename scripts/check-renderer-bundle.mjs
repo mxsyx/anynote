@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { rendererReportPath } from "./build/renderer-report.mjs";
 
 const root = resolve(process.argv[2] || "dist");
-const report = JSON.parse(
-  readFileSync(join(root, "renderer-bundle.json"), "utf8"),
-);
+const report = JSON.parse(readFileSync(rendererReportPath, "utf8"));
 assert.ok(
   report.initialBytes < 400 * 1024,
   "initial JavaScript exceeds 400KiB",

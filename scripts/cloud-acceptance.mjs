@@ -52,7 +52,7 @@ if (
   )
 )
   throw Error("用法：pnpm run test:cloud [--preflight] [--report 路径]");
-const file = resolve(option("--report", "test-results/cloud-acceptance.json"));
+const file = resolve(option("--report", "tmp/reports/cloud-acceptance.json"));
 const report = {
   format: "anynote.cloud-acceptance.v1",
   runId: randomUUID(),

@@ -32,17 +32,3 @@ SDK 和协议声明由源码生成。`packages/plugin-sdk` 已是私有 workspac
 这次迁移不等同于消除所有动态类型。动态 SQL 投影集中保留 `SqlRow = Record<string, any>`；动态操作分派、JSON 和部分异常仍有显式类型边界。现有 Zod、权限、版本条件和文件校验继续承担运行时验证，TypeScript 不替代这些检查。后续可以逐项把常用 SQL 查询和操作结果收紧为专用接口。
 
 `tests/types/contracts.ts` 仅参与编译，不执行。它验证 SDK 必填条件、资源 MIME、Notebook 范围、SQLite 空结果、任务数值字段及 IPC 消息区分；负例的 `@ts-expect-error` 如果失去作用，会使检查失败。
-
-## 历史验证（2026-10-04）
-
-以下是迁移时的报告，不覆盖当前 schema/连续编辑器或本轮 G18。包循环已消除，证据见 [历史实施记录](../history/todo-2026-10-24.md#g17)；剩余动态类型收紧见 [F005](../../TODO.md#f005)。
-
-- 前端、核心和类型合约严格检查通过；76 项业务回归通过。
-- Vite 生产构建与 Linux 应用目录打包通过。
-- 官方 Wrangler/workerd 本地 D1/R2 的 12 项备份/恢复/维护检查通过；Wrangler TypeScript 源码 dry-run 通过。
-- 真实 Electron 生产页面通过沙箱、Preload、SQLite Utility Process、富文本、本地保存/快照、HTML Worker、附件、离线白板、目录打开和跨库搜索检查。
-- Linux 打包应用通过真实 112MiB 流式导出/导入、文件选择授权桥接、任务中心、历史/回收站及归档校验线程检查。
-
-- 最新 Linux 打包应用的真实 Cloudflare 桌面验收 12 项通过，涵盖系统凭据加密、重启后自动备份、恢复及远端维护；见打包版云报告。
-
-汇总结果见 `tmp/reports/archive/typescript-acceptance.json`。本次 Worker 本地验收与 dry-run 不代表重新部署后的真实云验收。各项真实云、跨平台安装和大数据发布门槛仍以对应验收记录为准。

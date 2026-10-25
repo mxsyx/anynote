@@ -538,7 +538,7 @@ if (args.includes("--worker")) {
   const reportPath = resolve(
     option(
       "--report-path",
-      resumeReport || "artifacts/local-backup-benchmark.json",
+      resumeReport || "tmp/reports/local-backup-benchmark.json",
     ),
   );
   mkdirSync(join(reportPath, ".."), { recursive: true });

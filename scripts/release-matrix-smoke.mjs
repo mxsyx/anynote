@@ -204,9 +204,9 @@ try {
   throw error;
 } finally {
   report.finishedAt = new Date().toISOString();
-  mkdirSync(join(root, "test-results"), { recursive: true });
+  mkdirSync(join(root, "tmp/reports"), { recursive: true });
   writeFileSync(
-    join(root, "test-results/release-matrix.json"),
+    join(root, "tmp/reports/release-matrix.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
   rmSync(tmp, { recursive: true, force: true });

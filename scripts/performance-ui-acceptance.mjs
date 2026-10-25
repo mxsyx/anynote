@@ -89,8 +89,8 @@ if (
   const errors = [];
   const output = resolve(
     process.env.ANYNOTE_EXECUTABLE
-      ? "test-results/performance-ui-packaged-acceptance.json"
-      : "test-results/performance-ui-acceptance.json",
+      ? "tmp/reports/performance-ui-packaged-acceptance.json"
+      : "tmp/reports/performance-ui-acceptance.json",
   );
   const save = () => {
     mkdirSync(join(output, ".."), { recursive: true });
@@ -282,7 +282,7 @@ if (
         "cold navigation must record resource requests",
       );
       const initialFiles = JSON.parse(
-        readFileSync("dist/renderer-bundle.json", "utf8"),
+        readFileSync("tmp/reports/renderer-bundle.json", "utf8"),
       )
         .files.filter((file) => file.initial)
         .map((file) => file.file);
@@ -733,8 +733,8 @@ if (
         .getByRole("textbox", { name: "文档内容", exact: true })
         .waitFor();
       const screenshot = process.env.ANYNOTE_EXECUTABLE
-        ? "test-results/performance-packaged-editor.png"
-        : "test-results/performance-editor.png";
+        ? "tmp/reports/performance-packaged-editor.png"
+        : "tmp/reports/performance-editor.png";
       await page.screenshot({ path: screenshot });
       report.screenshots.push(screenshot);
     });

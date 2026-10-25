@@ -162,9 +162,9 @@ try {
   report.error = error.message;
   throw error;
 } finally {
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    `test-results/extension-host-${report.packaged ? "packaged" : "desktop"}.json`,
+    `tmp/reports/extension-host-${report.packaged ? "packaged" : "desktop"}.json`,
     JSON.stringify(report, null, 2) + "\n",
   );
   await app?.close();

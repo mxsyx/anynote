@@ -14,7 +14,7 @@ page.setDefaultTimeout(15000);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const output =
-  process.env.ANYNOTE_SCREENSHOTS || "/tmp/anynote-g14-screenshots";
+  process.env.ANYNOTE_SCREENSHOTS || "tmp/screenshots/organization";
 mkdirSync(output, { recursive: true });
 try {
   await page.goto("http://127.0.0.1:5173");

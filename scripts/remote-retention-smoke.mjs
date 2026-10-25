@@ -135,9 +135,9 @@ try {
 } finally {
   await browser?.close();
   await server.close();
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    "test-results/remote-retention-ui.json",
+    "tmp/reports/remote-retention-ui.json",
     JSON.stringify(report, null, 2) + "\n",
   );
 }

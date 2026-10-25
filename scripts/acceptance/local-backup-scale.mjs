@@ -25,7 +25,7 @@ export async function localBackupScale(args) {
   assert.ok(counts.every((n) => Number.isInteger(n) && n > 0 && n <= 100000));
   assert.ok(Number.isSafeInteger(timeoutMs) && timeoutMs > 0);
   const reportPath = resolve(
-    option("--report-path", "artifacts/local-backup-scale.json"),
+    option("--report-path", "tmp/reports/local-backup-scale.json"),
   );
   const report = {
     passed: false,

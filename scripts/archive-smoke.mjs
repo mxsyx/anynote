@@ -158,11 +158,11 @@ try {
     .waitFor();
   await page.getByText("各入口大小限制", { exact: true }).click();
   await page.getByText(/普通单文件导入 50 MiB/).waitFor();
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   await page.locator(".export-settings").scrollIntoViewIfNeeded();
   await page
     .locator(".export-settings")
-    .screenshot({ path: "test-results/g16-export-settings.png" });
+    .screenshot({ path: "tmp/reports/g16-export-settings.png" });
   const currentFile = join(root, "current.anynote");
   await app.evaluate(({ dialog }, file) => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
@@ -204,7 +204,7 @@ try {
     )
     .waitFor();
   await page.screenshot({
-    path: "test-results/g16-export-task.png",
+    path: "tmp/reports/g16-export-task.png",
     fullPage: true,
   });
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
@@ -266,9 +266,9 @@ try {
     .getByText("桌面流式归档（导入）", { exact: true })
     .waitFor();
   assert.deepEqual(errors, []);
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   writeFileSync(
-    "test-results/desktop-archive-acceptance.json",
+    "tmp/reports/desktop-archive-acceptance.json",
     JSON.stringify(
       {
         format: "anynote.desktop-archive-acceptance.v1",

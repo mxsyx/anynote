@@ -189,9 +189,9 @@ try {
   await expect.poll(async () => (await read()).body).toContain("原生四级标题");
 
   await page.getByText("已保存至本地", { exact: true }).waitFor();
-  mkdirSync("test-results", { recursive: true });
+  mkdirSync("tmp/reports", { recursive: true });
   await page.screenshot({
-    path: "test-results/document-editor.png",
+    path: "tmp/reports/document-editor.png",
     fullPage: true,
   });
   assert.deepEqual(errors, []);
