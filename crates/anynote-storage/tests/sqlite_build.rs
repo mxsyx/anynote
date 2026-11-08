@@ -15,6 +15,11 @@ fn bundled_sqlite_has_required_features_and_online_backup() -> rusqlite::Result<
         |row| row.get(0),
     )?;
     assert_eq!(count, 1);
+    let json: (String, i64) = source.query_row(
+        r#"SELECT json_extract('{"name":"中文😀"}', '$.name'), (SELECT count(*) FROM json_each('[1,2,3]'))"#,
+        [], |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    assert_eq!(json, ("中文😀".into(), 3));
     let mut target = Connection::open_in_memory()?;
     rusqlite::backup::Backup::new(&source, &mut target)?.run_to_completion(
         8,

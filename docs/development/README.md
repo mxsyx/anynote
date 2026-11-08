@@ -3,9 +3,15 @@
 供 Agent 接续实施使用。先核对当前源码和任务范围，实施后更新已交付范围、剩余事项与已知失败；不把历史测试结果当作当前通过结论。
 
 - [TODO：唯一未完成任务清单](TODO.md)，含 [Rust 桌面迁移 RM01–RM38 执行组](TODO.md#rust-migration)、依赖、并行范围与验收条件。
-- [实施记录与接续入口](IMPLEMENTATION.md)
+- [实施记录与接续入口](IMPLEMENTATION.md)，含 [RM10 云传输、恢复与统一调度契约](IMPLEMENTATION.md#rm10)、[RM11 writer、保留与维护恢复契约](IMPLEMENTATION.md#rm11)。
 - [Rust 迁移基线与语料使用](RUST-MIGRATION-BASELINE.md)：固定旧提交、操作/功能归属、黄金文件、生成和自校验方法及实测边界。
 - [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：五个工程、固定依赖/native 许可证、平台探针，以及 RM03 后端通信、任务/资源/调度与诊断接入契约。
+- [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。
+- [Rust schema v5 写存储](RUST-WRITE-STORAGE.md)：RM05 的写队列/租约/LRU/pin、核心事务、历史资源与提案，以及 RM06 跨库闭包、幂等回执和 TS 双向互通复现。
+- [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：RM07 的 HTML 差分、预览租约、目录授权、下载边界、采集回执和 TS/Rust 互通复现。
+- [Rust 快照、归档、开放导出与清理](RUST-SNAPSHOT-ARCHIVE.md)：RM08 的冻结切面、ZIP/ZIP64 双向互通、开放导出、完整性保全、清理恢复及复现。
+- [Rust 本地备份 v3](RUST-LOCAL-BACKUP.md)：RM09 的卷预检、增量发布、任务回执、全量验证、新库恢复及 TS 互通复现。
+- [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)：RM12 的配对/claim/事务回执、同切面投影、RM10 接续顺序和保留扩展本地闭环。
 - [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：RM13 的 LevelDB 副本、平台凭据原型、插件状态保全、逆映射与复现方法。
 - [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene/事务边界、0.18 动作库存、已测操作族及未覆盖的完整兼容门槛。
 - [开发工作流](DEVELOPMENT-WORKFLOW.md)

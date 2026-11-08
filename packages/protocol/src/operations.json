@@ -90,6 +90,7 @@
   "takeoverRemoteWriter",
   "previewRemoteRetention",
   "applyRemoteRetention",
+  "saveRemoteRetention",
   "remoteRetentionState",
   "configureCloudRecovery",
   "listCloudRecoveryConnections",

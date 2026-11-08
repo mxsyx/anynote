@@ -44,8 +44,7 @@ impl Segment {
     }
 }
 
-/// Match the TS fence-aware directive contract, including malformed JSON and attributes.
-pub fn parse_blocks(source: &str) -> Vec<Segment> {
+pub fn fenced_code_ranges(source: &str) -> Vec<Range<usize>> {
     let mut fences = Vec::new();
     let mut fence: Option<(u8, usize, usize)> = None;
     let mut offset = 0;
@@ -71,6 +70,12 @@ pub fn parse_blocks(source: &str) -> Vec<Segment> {
     if let Some((_, _, begin)) = fence {
         fences.push(begin..source.len());
     }
+    fences
+}
+
+/// Match the TS fence-aware directive contract, including malformed JSON and attributes.
+pub fn parse_blocks(source: &str) -> Vec<Segment> {
+    let fences = fenced_code_ranges(source);
     // JS multiline anchors include CR and Unicode line separators, unlike Rust regex anchors.
     let line_starts: Vec<_> = std::iter::once(0)
         .chain(source.char_indices().filter_map(|(ix, ch)| {

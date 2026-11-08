@@ -1,0 +1,138 @@
+[
+  {
+    "name": "basic",
+    "html": "<title>标题</title><h1>Heading</h1><p>中文 😀 &amp; <strong>bold</strong> and <em>italic</em>.</p>",
+    "mode": "page",
+    "title": "标题",
+    "body": "# Heading\n\n中文 😀 & **bold** and _italic_.",
+    "fallback": false
+  },
+  {
+    "name": "unsafe",
+    "html": "<p>Keep <script>alert(1)</script><a href=\"javascript:alert(1)\">unsafe</a> <a href=\"/safe\">safe</a></p><style>body{}</style><form>private<input value=\"secret\"></form>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "Keep [unsafe](https://anynote.invalid/) [safe](https://anynote.invalid/safe)\n\nprivate",
+    "fallback": false
+  },
+  {
+    "name": "table",
+    "html": "<table><tr><th>A | B</th><th><strong>C</strong></th></tr><tr><td>x<br>y</td><td><a href=\"https://example.com/a\">Link</a></td></tr><tr><td>short</td></tr></table>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "| A \\| B | **C** |\n| --- | --- |\n| x y | [Link](https://example.com/a) |\n| short |  |",
+    "fallback": false
+  },
+  {
+    "name": "nested-table",
+    "html": "<table><tr><td>outer</td><td><table><tr><td>inner</td></tr></table></td></tr></table>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "| outer | \\| inner \\| \\| --- \\| |\n| --- | --- |",
+    "fallback": false
+  },
+  {
+    "name": "lists",
+    "html": "<ul><li>one</li><li>two<ul><li>nested</li></ul></li></ul><ol start=\"3\"><li>three</li><li>four</li></ol>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "-   one\n-   two\n    -   nested\n\n3.  three\n4.  four",
+    "fallback": false
+  },
+  {
+    "name": "code",
+    "html": "<pre><code>if (a &lt; b) {\n  console.log(\"x\");\n}\n</code></pre><p><code>a`b</code></p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "```\nif (a < b) {\n  console.log(\"x\");\n}\n```\n\n``a`b``",
+    "fallback": false
+  },
+  {
+    "name": "quote",
+    "html": "<blockquote><p>one</p><p>two<br>three</p></blockquote><hr><p>end</p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "> one\n> \n> two  \n> three\n\n* * *\n\nend",
+    "fallback": false
+  },
+  {
+    "name": "links",
+    "html": "<p><a href=\"/foo?q=1\">relative</a> <a href=\"mailto:hi@example.com\">mail</a> <a href=\"file:///secret\">file</a></p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "[relative](https://anynote.invalid/foo?q=1) [mail](mailto:hi@example.com) [file](https://anynote.invalid/)",
+    "fallback": false
+  },
+  {
+    "name": "unknown",
+    "html": "<future-card data-x=\"1\"><p>future text</p></future-card><p>trailing</p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "future text\n\ntrailing",
+    "fallback": false
+  },
+  {
+    "name": "malformed",
+    "html": "<p>one<b>two</p>three<table><td>a<td>b",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "one**two**\n\n**three\n\n| a | b |\n| --- | --- |\n\n**",
+    "fallback": false
+  },
+  {
+    "name": "whitespace",
+    "html": "<p>  a\n b <b> bold </b> end&nbsp;中文</p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "a b **bold** end 中文",
+    "fallback": false
+  },
+  {
+    "name": "article",
+    "html": "<html><head><title>Article</title></head><body><nav>Home Menu</nav><article><h1>Article</h1><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p><p>这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.</p></article><footer>Foot navigation</footer></body></html>",
+    "mode": "article",
+    "title": "Article",
+    "body": "这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.\n\n这是一段足够长的正文，包含有意义的内容和标点，用来验证正文提取。Keep the article content, with several sentences.",
+    "fallback": false
+  },
+  {
+    "name": "short-article",
+    "html": "<title>短文</title><p>short content</p>",
+    "mode": "article",
+    "title": "短文",
+    "body": "short content",
+    "fallback": false
+  },
+  {
+    "name": "inline-escape",
+    "html": "<p>*star* _under_ [link] \\ slash # hash</p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "\\*star\\* \\_under\\_ \\[link\\] \\\\ slash # hash",
+    "fallback": false
+  },
+  {
+    "name": "code-language",
+    "html": "<pre><code class=\"language-rust\">fn main() {}</code></pre>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "```rust\nfn main() {}\n```",
+    "fallback": false
+  },
+  {
+    "name": "markdown-literals",
+    "html": "<p># literal</p><p>1. literal</p><p>+ literal</p><p>- literal</p><p>&gt; literal</p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "\\# literal\n\n1\\. literal\n\n\\+ literal\n\n\\- literal\n\n\\> literal",
+    "fallback": false
+  },
+  {
+    "name": "code-runs",
+    "html": "<p><code>a`b`c</code> and <code> x </code></p>",
+    "mode": "page",
+    "title": "网页收藏",
+    "body": "``a`b`c`` and `x`",
+    "fallback": false
+  }
+]

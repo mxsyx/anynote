@@ -302,3 +302,26 @@ test("after a legacy release the coordinator resumes the same plan from its curs
     8,
   );
 });
+
+test("coordinator rejection returns the same protocol error envelope as direct maintenance", async (t) => {
+  const f = fixture(t, { owner: null });
+  const actor = new MaintenanceCoordinator(f.ctx, f.env);
+  f.env.MAINTENANCE = {
+    idFromName: (book) => {
+      assert.equal(book, f.book);
+      return book;
+    },
+    get: () => actor,
+  };
+  const response = await call(f, "/retention/apply", {
+    method: "POST",
+    body: { planId: f.id, confirmed: false },
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "清理需要显式确认" });
+  assert.equal(
+    f.env.DB.db.prepare("SELECT maintenance_id FROM notebook_state").get()
+      .maintenance_id,
+    f.id,
+  );
+});

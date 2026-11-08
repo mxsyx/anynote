@@ -4,6 +4,177 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm12"></a>
+
+## 2026-11-08 · RM12 配对、采集消费与同切面浏览
+
+完成 RM12.1–RM12.3 服务层与本地闭环，保留工作区已有及并行 RM04–11/15 改动，未创建 Git 提交。实现与接续顺序见 [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)。复用 RM07 ImportService/事务回执、RM08 FrozenSnapshot、RM10 CloudClient/TransferSession；没有新增外部接口、依赖、表或改变扩展/Worker 的 capture 协议。
+
+- 配对、设备列表/撤销先检查能力；限时 claim 绑定 writer/epoch、claimId/targetVersion。已有 receipt 优先去重；无回执时校验父目录/祖先并下载 hash 校验资源，复用完整 `.anyclip` 导入，在 SQL 提交后才 ack applied。失效目录进入 needs-target，离线/损坏不误改远端状态。
+- 上传从同一 FrozenSnapshot 生成树/正文/修订固定附件和 captureAcks，确认对象仅包含远端待确认 ID 在本切面中的回执。已有 pending 清单继续按原字节重试；Worker 在备份提交事务内判定 backedUp。browse 超本地预算或失败时可以省略，captureAcks 仍发布；取消继续返回取消。
+- `prepare_upload_with_captures` 和云采集类型在既有 RM10 cloud 模块内接入；普通 `prepare_upload` 生成 browse/空回执。RM29 宿主仍须依次恢复 pending、消费、查询 pending-acks、冻结和上传；本组不宣称 Rust GUI/timer 已接通。
+
+验证（Linux、本地合成资料）：
+
+- Rust `cloud_capture` **4/4**：冻结后编辑不污染正文/回执，旧切面不带新回执，资源属于上传闭包，101 条树分页/删除祖先过滤，取消与错误输入不发布 pending，以及 30,001 节点触发 browse 降级但保留回执。相关 core/storage/services 三包回归通过；既有 2 个崩溃子进程入口由父测试调用，保持 ignored。
+- `rust-cloud-reference.mjs --capture --workerd` **9 组**：一次性/过期配对，损坏下载不提交/ack，ack 丢响应后跨进程去重，提交前 applied/提交后 backedUp，附件 exact hash，needs-target、过期 claim/旧 ack/targetVersion，删除目录后回执重放，writer epoch/设备撤销；真实 Chromium MV3 扩展页面完成配对、上传选区、采集箱及正文回读。截图已检查。报告位于 `tmp/rm12/cloud-sqC8tj/`。
+- 原 RM10 HTTP 故障代理回归 **14 组**通过，覆盖上传/恢复/续传；TS cloud-capture/capture/cloud-resume/cloud-recovery/cloud-multipart **29/29**；services/storage 全 targets Clippy `-D warnings`、五工程边界 guard、脚本 ESLint、格式与 diff 检查通过。
+
+首次沙箱 loopback bind 被 EPERM 阻止，改在允许本地 socket/子进程的环境通过。local-workerd 代理遇到 Node fetch 自动解压的响应头失配，已删除过时编码/长度头后复测；默认 Playwright 浏览器不存在，改用已安装 Chromium，扩展 session 初始化移到扩展页面后通过。失败尝试未计作验收。真实 Cloudflare、三平台/用户库、容量/费用/老化、商店发布及 Rust GUI 未验；RM34/A007–A009 与其余 V/A/F 保持原状态。
+
+<a id="rm11"></a>
+
+## 2026-11-08 · RM11 writer、保留策略与维护恢复
+
+完成 RM11.1–RM11.3 服务层及本地故障验收。保留已有 RM04–10 和并行 RM12 改动，未创建 Git 提交；没有部署或操作真实用户库。核心实现为 [`cloud/maintenance.rs`](../../crates/anynote-services/src/cloud/maintenance.rs)，沿用 RM10 `CloudClient`、上传槽独占租约/原子文件和 RM03 `RuntimeState`，不新增 crate、依赖或 schema。
+
+- **Writer**：`remote_writer` 返回 head/device/epoch/lineage，`owns` 供宿主呈现当前写入权；`takeover_writer` 要求显式确认和 requestId/expectedHead/expectedWriterEpoch，CAS 输入在请求前持久化。`pending_takeover`/`resume_takeover` 跨进程复用原请求，未知网络结果不生成新身份。接管中的旧槽被 `WRITER_REBIND_REQUIRED` 阻止准备/上传，成功后创建新 epoch 槽，初始游标只有远端 head，ack 为 0、pending 为空；重复回执不覆盖新槽已推进的游标。返回 `autoBackup=false`，不会自动夺取 writer。
+- **保留配置与预览**：`save_remote_retention`/`remote_retention_policy` 以目标 UUID 存入 `cloud.retention.<targetId>`；不读取凭据、不请求网络、不自动清理。数量和日/周/月窗口有明确上限。`preview_retention` 将策略交给保留的 TS Worker，返回保护版本、候选、UTC 采样理由、staging 和空间估算；日周月/未来时间/分支/head/pin/staging 规则只维护服务端一份。修正 `packages/protocol/src/operations.json` 遗漏 `saveRemoteRetention`，使旧 renderer 白名单能到达既有本地保存实现，冻结 RM01 库存不改。
+- **确认与恢复**：本地 `maintenance.retention` 状态为 planned→confirmed→completed。`apply_retention` 只接受当前已预览的 planId 与显式确认，每次最多驱动一个服务端批次；请求前持久化 confirmed。`resume_retention` 仅恢复已确认计划，网络失败、取消或进程退出不撤销服务端删除，也不放开本地未解决状态；不得替换成新预览。`recover_retention` 可在本机回执丢失后显式接续同分支、已处于 deleting 的服务端计划。过期/保护变化/撤销 writer 等明确入场拒绝允许重新预览。服务端继续负责 revision CAS、保护闭包变化、墓碑永久归档、删除游标及协调器续跑。
+- **诊断**：`remote_retention_state`/`maintenance_diagnostics` 查询活动计划、对象/版本游标和执行锁，不解锁。旧版无 owner 的执行锁必须用精确 planId/executionId 和“旧请求已停止”的明确确认调用 `release_legacy_maintenance_lock`；释放执行锁后 Notebook gate 仍保留，按原计划续跑。没有按时间抢锁。错误只接受已知协议码/既有固定中文错误的映射，未知响应文本继续脱敏。
+
+local-workerd 暴露既有 Worker 协调器分派缺少 `await`：actor 的保护变化异常绕过外层协议 catch，变为 HTTP 500。`apps/cloudflare-backup/src/index.ts` 仅补上等待，使其回到既有错误 envelope；增加实际 coordinator 拒绝回归，没有更改路由或破坏外部协议。
+
+### 接续契约
+
+宿主须用同一上传 `TransferSession` 串行协调上传与维护，不另建绕过其独占租约的相同身份任务。接管后依据返回的新 identity 重新绑定目标，持久保存 `autoBackup=false` 并更新 scheduler binding；旧槽原冻结 manifest/对象保留，不修改成新 epoch 重传。业务 IPC、冲突文案/界面、任务中心、设置及该配置接线属于 RM29。同步本地状态读写放到服务工作线程；取消后等待任务结束，服务端已确认清理仍可能由协调器自动完成。每次 `resume_retention` 只推进一批，宿主按任务预算继续调用，不把网络取消显示为远端删除已撤销。
+
+### 本地验证与限制
+
+Linux x64 / Rust 1.99.1 / Node 24.11.1，隔离资料全部在 `tmp/rm11/`。`cargo test -p anynote-core -p anynote-storage -p anynote-services --locked --offline` **123/123** 通过（另 2 个 ignored 是既有父测试调用的崩溃子进程；包含当时工作区 RM12 的测试，不计为 RM11 交付）。RM11 新增 **2 项 Rust 测试**覆盖偏好隔离/持久化/边界和无确认、无预览、非法 epoch 在网络前拒绝。services 全 targets Clippy `-D warnings`、RM11 新增 Rust 文件及相关 TS/脚本格式、五工程 guard（839 锁定包）、相关脚本/TS ESLint、TS backend 构建及 diff 检查通过。
+
+[`rust-maintenance-reference.mjs`](../../scripts/rust-maintenance-reference.mjs) 每次调用 [`maintenance_probe`](../../crates/anynote-services/examples/maintenance_probe.rs) 都启动独立 Rust 进程，经实际 HTTP 与保留 Worker 互通：**适配器故障 12 组**、**local-workerd/D1/R2/维护协调器 9 组**。覆盖保存配置零网络、预览零删除、head/其他分支/pin/活动 staging、日周月采样、保护变化拒绝、无确认拒绝、过期/归档预览拒绝、staging 活动变化、删除故障保留 gate、apply 丢响应/跨进程续跑/异地回执恢复、墓碑重放、接管丢响应/epoch冲突/自动备份关闭返回值、取消后确认原计划结果、脱敏和旧锁精确释放。过期、存储故障和旧锁注入只在 D1/R2 适配器层执行；不能将其声称为真实云老化或物理故障。最终报告随运行保存为 `tmp/rm11/maintenance-*/report.json`。
+
+旧 `remote-maintenance`/`retention-policy`/`maintenance-recovery`/`cloud-resume`/`cloud-recovery`/`cloud-multipart`/`backup-policy` **55/55** 通过；包含 UTC 年界/闰日/时区/并列采样、保护资源/归档故障、协调器实例恢复和保存配置白名单回归。初次 HTTP 验证被沙箱 `listen EPERM` 阻断，后在允许本机 socket 的环境重跑；workerd 首轮代理解压头错误及随后暴露的协调器异常分派均修复后重跑，没有将失败计为通过。
+
+复现：构建 TS backend 后执行 `cargo build -p anynote-services --example maintenance_probe --locked --offline`，再运行 `node scripts/rust-maintenance-reference.mjs` 和 `node scripts/rust-maintenance-reference.mjs --workerd`。没有访问真实 Cloudflare/用户资料、执行生产清理或验证三平台、老化、费用与规模容量；RM34/A008 和其余 V/A/F 未关闭。
+
+<a id="rm10"></a>
+
+## 2026-11-08 · RM10 Cloudflare 传输、恢复与统一调度
+
+完成 RM10.1–RM10.3 的服务接口与本地协议验收。源码基线 `eadc715` 加未提交工作区，保留 RM04–09 的现有及并行改动，未创建 Git 提交。没有改变 Worker、云对象格式或 schema v5，没有连接真实云或打开真实用户库。
+
+- [x] **RM10.1** [`cloud/client.rs`](../../crates/anynote-services/src/cloud/client.rs) 实现能力协商、HTTPS 默认/显式 HTTP 测试连接、禁止自动重定向、有限响应、超时与取消、Retry-After、错误代码脱敏；独立恢复连接通过 RM03 RuntimeState 持久化元数据，Token 只交 RM13 `SecretStore`，也支持仅会话内提供凭据。`Manifest::parse` 保留 Worker `JSON.stringify` 字节、未知字段与属性顺序，按 JS array-index key 规则和 `ryu-js` 处理数值；协议整数、大小与序列必须为 JS safe integer。`prepare_manifest` 可接收冻结 TS manifest 和 hash 命名对象，不重新推导旧 generation。
+- [x] **RM10.2** [`cloud/session.rs`](../../crates/anynote-services/src/cloud/session.rs)、[`upload.rs`](../../crates/anynote-services/src/cloud/upload.rs)、[`restore.rs`](../../crates/anynote-services/src/cloud/restore.rs) 将连接/endpoint/notebook/lineage/方向及上传 device/epoch 绑定到独占 OS 文件租约；冻结对象、原始 manifest hash、pendingGeneration 与游标先 fsync/原子落盘再请求 plan。丢 plan/commit 响应不产生新身份；先查 generation，再核对已提交 manifest 字节后推进游标，旧 head/较小序列拒绝。下载逐次复核缓存 chunk/range，核对 Content-Range、整 DB/附件 hash、schema/源 Notebook/资源闭包后恢复新 UUID、lineage、自链接和索引；发布回执使同一恢复重试返回原新库，目标已变化时拒绝冒充原结果。无本地 Notebook 也可分页发现跨库/lineage 版本。pin 在开始/30 秒续租/结束维护，初始 pin 丢响应、取消或续租失败也尝试释放。
+- [x] **RM10.3** [`scheduler.rs`](../../crates/anynote-services/src/scheduler.rs) 在同一持久准入/失败状态机下派发 Local/Remote executor，保留原 RM03 `background_decision`。支持离线、所启用的电池/计费网络策略、未知观察、大任务、磁盘/Notebook 缺失、interval/on-mount、Retry-After 优先的指数退避/jitter、取消及 auth/permanent/exhausted 显式修复。运行前持久 claim，重启将 running 标为 interrupted，executor 依据原传输身份接续；挂载事件不能绕过退避。本轮直接调用工作区 RM09 `LocalBackupService::backup` 和 Rust 云上传服务验证调度，没有重写本地备份引擎。
+
+### 接续契约与限制
+
+`prepare_upload` 只消费 RM08 `FrozenSnapshot::Full`，使用 1 MiB **有序** DB chunk 和整附件，拒绝覆盖未解决的 pending。宿主先调用 `resume_upload`，需要放弃旧 staging 时显式调用 `abandon_upload`；后者仍先查询是否已提交。新切面/新 writer 身份使用新 generation/传输槽，不复用旧切面数据。已提交对象清理仅涉及该 cut 的本地 owned object 文件；未完成传输、manifest/part 元数据和下载缓存保留供接续，不自动扫描删除其他文件，也没有提供磁盘缓存配额管理 UI。
+
+Worker v1 无 list-parts API，不能只凭本地 ETag 宣称远端仍有片段：重试对片段执行幂等 PUT 并检查 partNumber/hash，最终由 Worker 校验整对象后发布。已上传整对象由 plan 去重；multipart 会话过期重新建立会话。该保守行为可能重传已确认片段，不能宣称零重传。
+
+网络每次响应有界；普通请求 60 秒，multipart 请求最长 30 分钟。同步快照/文件状态操作必须在服务工作线程执行；恢复大文件复制、最终完整性/重映射在 blocking worker，缓存回放主动让出执行以维持续租。取消须传 token 并等待任务结束，不能仅丢弃 future；SQLite 同步检查可能延后观察取消。pin DELETE 失败时保留原操作结果，由 Worker TTL 最终释放，不能保证网络断开时立即远端释放。
+
+Scheduler 的 executor 和可用性由宿主提供，须校验 `ScheduledTarget.binding` 对应的当前连接/卷身份，实际失败不应返回成功；取消后等待底层作业结束再更新状态。自动启动 timer、业务 IPC、任务中心/设置 UI 接线归 RM29；RM14 才迁移/接管真实配置路径，`prepare_manifest` 不等于自动读取旧 TS `_local/cloud.transfers`。RM11 负责 writer 接管/retention/维护；RM12 负责在同一冻结切面生成 browse/captureAcks，RM10 当时仅能读取这些字段，后续已由 [RM12](#rm12) 接入生成。
+
+### 本地验证
+
+Linux x64 / Rust 1.99.1 / Node 24.11.1；全部材料在 `tmp/rm10/` 隔离目录。`cargo test -p anynote-core -p anynote-storage -p anynote-services --locked --offline` **116/116** 通过（2 个 ignored 是既有父测试调用的崩溃子进程）；其中 RM10 **6 项**覆盖 JS 数值/顺序/清单边界、凭据分离、持久租约/身份、两类调度状态与真实 RM09 服务派发。services 全 targets Clippy `-D warnings`、修改文件 rustfmt、五工程 guard（839 个锁定包）、脚本 ESLint/Prettier 和 `git diff --check` 通过。原 TS cloud-resume/cloud-recovery/cloud-multipart/backup-policy **21/21** 通过。
+
+[`rust-cloud-reference.mjs`](../../scripts/rust-cloud-reference.mjs) 经实际 HTTP 代理访问未改 TS Worker，分别使用合成 D1/R2（14 组）与 **local-workerd/D1/R2（16 组）**：丢 plan/commit 回包及跨进程续传、提交不重复、cursor 修复、旧 head/epoch 拒绝、范围响应拒绝、受损 chunk 重取、恢复新库逐表对比与自链接、同恢复回执、取消/初始 pin 丢回包、真实 30 秒续租与续租失败、33 MiB multipart 丢 part 回包和会话过期重建、TS manifest 字节完全相同、超过一页的跨库/lineage 发现。最终 local-workerd 报告为 `tmp/rm10/cloud-GlOxwe/report.json`；报告保存在每次 `tmp/rm10/cloud-*/report.json`，不将其作为长期唯一证据。
+
+复现：先构建既有 TS 基线（`pnpm run build:backend`，已有 `.build` 可复用），再执行 `cargo build -p anynote-services --example cloud_probe --locked --offline`、`node scripts/rust-cloud-reference.mjs` 和 `node scripts/rust-cloud-reference.mjs --workerd`；后一入口需要本机端口及 workerd。首次受沙箱 `listen EPERM` 限制，已在允许本机 socket 的环境重跑通过；并行模块变动造成的过时构建元数据在刷新 lib 后重编译解决，未把失败计为通过。
+
+没有进行真实 Cloudflare、三平台/物理设备、真实用户数据、20 GiB 压力、GUI、老化或费用容量验收；A007–A009 与其余 V/A/F 不变。下一步 RM11/12 使用本组云协议和冻结身份接口，RM29 接服务宿主和用户可见任务状态。
+
+<a id="rm07"></a>
+
+## 2026-11-08 · RM07 导入预览、下载边界与采集回执
+
+完成 RM07.1–RM07.3；保留并行 RM06/RM08 改动，复用现有五工程、schema v5、RM05 写队列/资源发布/事务和 RM08 ZIP 中央目录预检。源码基线 `eadc715` 加未提交工作区，未创建 Git 提交。接口和复现见 [Rust 导入接续契约](RUST-IMPORT.md)，不修改旧 TS 产品实现或真实资料。
+
+- RM07.1：dom_query/html5ever + dom_smoothie + 项目转换规则，17 份旧 Readability/DOMPurify/Turndown 逐字语料覆盖提取/清洗/代码/表格/列表/链接等；懒加载及响应式图片、媒体/附件和白名单视频卡另测。下载验证全部 DNS、固定连接地址和实际 peer、正常 TLS 根/主机名校验、逐跳重验、关闭代理、统一 deadline、流式预算和取消。目录 capability 核对 root/file 身份并防路径竞态，拒绝 FIFO/越界链接。
+- RM07.2：URL、HTML、Markdown 和文件句柄预览、媒体选择/本地化、原 HTML pin、缺失报告；目标绑定、4 个预览/8 个目录授权、30 分钟 TTL 与临时目录生命周期。确认只使用已预览资源/正文，源文件变化不改变确认内容，原 HTML/图片字节可由旧 reader 验证。
+- RM07.3：采集包目录预检、ZIP CRC/hash/预算/声明一致性、JS canonical 数值及 UTF-16 排序、Markdown 目的地重映射和代码/ChatGPT 卡片原文保留。正文/资源/报告/capture receipt 同事务，双端重复提交返回原 note；失败不留下半写 SQL。媒体重试核对当前报告、marker、整行上下文和 revision，保留后续正文编辑，支持表格同一行及分次重试，跳过被代码围栏包裹或修改的引用。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，材料均在 `tmp/rm07/` 隔离目录。core/storage/services 回归 **95/95**（另 2 个 ignored 为父测试执行的既有崩溃 fixture），包含本组 **22 项**：15 个导入集成、5 个网络、2 个 staging/预览生命周期测试。新增 HTML 17 份、canonical 3 份是集成测试中的共享语料。提取既有 fenced-code range helper 后，editor Markdown/source **13/13** 回归通过。三包全 targets Clippy `-D warnings`、五工程依赖检查（839 个锁定包）、格式与脚本 lint/差异检查通过。
+
+旧 web-import/capture/capture-components/extensions **48/48**。`rust-import-interop.mjs` **5 组**通过：canonical digest 与 TS 相同、旧 reader 读取 Rust 正文及 exact 图片 hash、旧 TS 消费 Rust 回执、Rust 重开消费同回执、旧 reader 读取缺失报告和被 pin 的原 HTML。网络测试以真实 loopback socket 验证流式字节/声明限制、固定地址和禁止自动跳转、慢响应/背压取消、写入故障、不受信 TLS 证书拒绝；没有把受控 fixture 当成真实公网验收。首次 socket bind 与 Node spawnSync 被沙箱 EPERM 阻断，已在允许本地 socket/子进程的环境重跑通过；并行模块短暂编译错误未计为成功。
+
+边界：不是三平台/真实目录与用户资料、生产公网、GUI、负载或发行验收。17 份转换语料不证明任意网页的 Readability 等价；HTML/ZIP 同步阶段的取消会在阶段完成后观察，宿主必须在后台工作线程执行。进入写事务后的取消不撤销成功结果，取消重试在提交前释放 staging。沿用 RM05 的 CAS 发布语义，SQL 失败可能留下未引用 CAS，不能删除历史字节；没有可靠原占位上下文的旧失败报告安全跳过。报告仍需宿主做有界 IPC 投影，任务/IPC/UI 接线归 RM28/29、采集消费归 RM12、真实公网归 RM35，V/A/F 状态不变。
+
+<a id="rm09"></a>
+
+## 2026-11-08 · RM09 本地备份 v3、卷适配与新库恢复
+
+完成 RM09.1–.3 本地与模拟卷范围，接续入口见 [Rust 本地备份](RUST-LOCAL-BACKUP.md)。新增 `anynote-services::local_backup`，复用 RM08 未裁剪冻结切面、完整性/资源闭包与新库身份重映射，保留 v3 根标记/manifest、1 MiB 有序分块及整附件，不改源库或 TS 格式。
+
+目标目录/卷身份与根标记逐阶段复核，网络挂载/FAT32/空间预检、等待磁盘状态、Linux mountinfo 和 UUID、Windows 卷 API、macOS statfs/getattrlist 原型已接入。Rust 与旧 TS 共用 SQLite 目标租约，另有 Rust 文件锁保护同进程任务；不使用 PID/过期时间删除锁。通过能力目录及开放句柄检查路径替换，未知文件不纳入扫描清理。
+
+发布使用 pending→写入/hash/fsync/读回→复核→manifest→cleanup。零捕获要求同实例、同写租约、完整 manifest 指纹相同以及文件 token/hash 匹配；重启、重开或外部 manifest 变化重新捕获/hash。验证报告不信任 token，恢复在私有 staging 装配并校验后发布新 UUID 库，源 DB 损坏仍可恢复。手动/分组备份、验证和分组恢复复用 RM03 TaskHistory/RuntimeState；回执 key 为 `backup.local.receipt.<operationId>`，中断不自动重放。
+
+本机 Linux 验证：RM09 Rust **17/17**，既有 archive **14/14**；**8 组 TS↔Rust v3 互通**覆盖冻结历史资源/未知 JSON、双向验证与恢复、重启重新捕获、pending/文件写完/manifest 发布后的真实子进程退出与恢复、TS 目标锁排斥 Rust、损坏报告。额外 Rust 用例覆盖未引用 asset 保留、有序重复 chunk 声明、源 DB 损坏后恢复、manifest 篡改、发布前文件变化、目录替换/链接拒绝、取消、模拟磁盘满、发布前失败/提交后清理待重试、任务历史与回执、Linux/Windows 卷和 macOS UUID 响应 fixtures。
+
+旧 `backup-local` / `backup-boundaries` **46 通过、1 既有跳过**。RM09 test/example targets Clippy `-D warnings`、修改文件 rustfmt、脚本 ESLint、五工程依赖 guard（839 个锁定包）和 diff 检查通过。初期原工作区被并行 cloud 模块未完成文件阻断，先在 `tmp/rm09/check` 副本隔离验证；最终原工作区构建、测试和 scoped Clippy 通过。Node 子进程在沙箱内出现 EPERM，互通和旧测试在允许本机子进程的环境重跑通过。临时报告在 `tmp/rm09/`，不作为长期证据依赖。
+
+未验证 Windows/macOS 原生编译/API、真实 NTFS/exFAT/APFS、物理磁盘满/拔盘/断电、真实用户资料或 20 GiB/大规模性能；17 项 Rust 测试不能替代 RM32/33。完整白板/PDF 闭包随 RM24/26；GUI/IPC 和管理页面随 RM29，自动调度由 RM10 所有。同步 SQLite 完整性检查的取消仍可能延后。V/A/F 状态保持未完成。
+
+<a id="rm08"></a>
+
+## 2026-11-08 · RM08 一致快照、归档、开放导出与核心清理
+
+完成 RM08.1–RM08.4 的基础接口与本地契约验收，接续工作区 RM04/RM05 并保留同时进行的 RM06/RM07 改动。源码基线 `eadc715` 加未提交工作区；未创建 Git 提交。接口、格式与复现见 [Rust 快照与归档](RUST-SNAPSHOT-ARCHIVE.md)，没有修改 schema v5、旧 TS 业务实现或真实用户数据。
+
+- RM08.1：Online Backup/WAL 切面、写租约 pin、附件 hard link/copy、临时目录生命周期；冻结后在后台处理。Full 保持源 epoch，Current 重建 FTS/VACUUM，Preservation 保留未裁剪 DB 与附件。持久快照创建/列举/校验/恢复新库，源 DB 损坏时仍能列举恢复；重开租约不能复用快路。
+- RM08.2：有界 ZIP/ZIP64 导出，私有 staging 导入及全部大小/hash/CRC/精确 schema/身份/树/资源闭包校验；预检中央目录以防 ZIP reader 隐藏重复条目，拒绝穿越、链接、加密、重叠、超预算及错误内容声明。requiredExtensions 只检查内容，不加载插件。导入重置库 ID/lineage、自链接与索引，不覆盖源库；最终输出无覆盖发布。
+- RM08.3：Markdown 目录/ZIP、NFC/UUID 文件名与长路径映射、损失报告、修订绑定资源、白板原 scene/嵌图场景/图片/预览、批注 sidecar。完整性证据包含未裁剪切面、hash 和错误，拒绝将已裁剪或裁剪失败的副本标为完整保全；Notebook 证据不代替配置与整个工作区迁移备份。
+- RM08.4：仅清理超保留策略的持久快照，5 分钟/20 个计划，显式确认、租约/epoch/序列/文件身份与 hash 复核；活动 pin、旧计划或引用变化拒绝。journal 先落盘再隔离，移动失败尽力回滚，重启可恢复且不覆盖新文件。确认提交后 purge 释放隔离文件，部分失败返回剩余项并保留回执；隔离量与已释放量分别返回。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，全部为 `tmp/rm08/` 隔离合成材料。最终 `cargo test -p anynote-storage -p anynote-services --locked --offline` **88/88** 通过（含本组 **16 项**；另 2 个 ignored 为既有父测试启动的崩溃 fixture）。两个包全 targets Clippy `-D warnings`、修改文件 rustfmt、探针构建、五工程依赖 guard（839 个锁定包）及 `git diff --check` 通过。旧 archive-stream/cleanup/integrity-inspection **25/25** 回归通过。
+
+`rust-archive-reference.mjs` **10 组** TS↔Rust 差分通过：RM01 冻结 full/current/ZIP64 导入逐表对比、3 类冻结恶意样本拒绝、Rust full/current ZIP64 条目反向旧客户端导入、Markdown 映射/正文/scene/图片/批注比对，以及 32 MiB 随机附件流式写包时 SIGKILL 后不发布半包、源库/附件可重开。Rust 测试另覆盖复制后续编辑隔离、旧页敏感文本清除、文件篡改/重叠/重复目录/解压预算、过期及引用变化拒绝、移动后注入 I/O 错误回滚、隔离恢复冲突、显式 purge、流式取消与模拟写满错误。初次 Node 子进程和后续并发新增网络测试在沙箱出现 EPERM，分别在允许本机子进程/socket 的环境重跑通过，没有将受限执行计为成功。日志保存在 `tmp/rm08/`，该目录可删除。
+
+边界：只完成 RM08 本地契约，不宣称三平台、真实资料/外部卷、物理磁盘满/断电/拔盘、20 GiB 或性能通过。取消可能等待同步完整性检查完成；清理 hash 复核占用写队列，大规模延迟未测。最终媒体闭包交 RM24/26，任务/IPC/管理 UI 接线交 RM29，整体接管和配置保全交 RM14；不关闭 V/A/F，也不执行真实清理。
+
+<a id="rm06"></a>
+
+## 2026-11-08 · RM06 跨库闭包、幂等回执与中断恢复
+
+完成 RM06.1–RM06.3，沿用 RM05 写队列、独占租约、事务、索引和 CAS 发布器，未新增 schema 或修改旧 TS 产品代码。服务入口 `anynote_services::transfer::transfer_node`，存储阶段及回执在 `notebook/transfer.rs`；接口与失败语义见 [Rust 写存储](RUST-WRITE-STORAGE.md#跨库复制与移动)。保留同一工作区并行 RM07/RM08 的改动，不把其交付计入本组。
+
+- RM06.1：复制节点子树（含已删除子项）、全部修订、当前及历史资源、PDF 批注/提取文本、导入报告和修订元数据。重映射内部链接、资源 ID 和白板场景嵌图，外部链接及未知正文保留；不复制库级未知状态。节点 10,000、记录/附件各 100 MiB，递归查询和逐行读取限制预算。复用 CAS 发布，转移不会被普通保存的 50 MiB 单资源入口误限。
+- RM06.2：服务在同一写队列任务内固定两端租约；容量 1 时临时容纳两端，结束恢复预算。目标记录/索引/回执原子提交，移动再核对目标记录/附件和源指纹，最后软删除源并提交完成回执；不改变旧删除批次。已有回执绑定完整请求，返回原 ID 映射，恢复源后重复完成请求也不再次删除。指纹保留 TS 字段/行顺序，使用 `ryu-js` 处理 ECMAScript 数值序列化，包括 `1e-7` 排序键，支持两种语言交替续跑。
+- RM06.3：4 项 storage 故障/预算测试 + 4 项服务专项测试，覆盖两端事务中回执前后进程退出、目标资源/SQL 失败、资源损坏、版本/父节点/同库拒绝、operation ID 冲突、容量回收、重开与两端后续编辑保护。新增 ignored child 是由父测试启动的 4 个崩溃切点，不是跳过故障验收。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，全部为 `tmp/rm06/` 隔离合成数据。`cargo test -p anynote-storage --locked --offline` **36/36**（另 2 个 ignored 子进程 fixture 均由父测试执行），`cargo test -p anynote-services --test transfer --locked --offline` **4/4**，旧 `vitest run tests/transfer.test.mjs` **8/8**。`rust-transfer-reference.mjs` **8 组 TS/Rust 互通通过**：Rust 完整复制与 TS 回读、TS 目标提交→Rust 完成、Rust 目标提交→TS 完成、源/目标编辑、两端附件损坏、目标 WAL 提交后 SIGKILL 重启；覆盖历史白板图片与 PDF 检索，并验证先前删除子项的恢复批次。storage 全 targets Clippy、实际 transfer 服务源文件的隔离 harness Clippy、脚本 ESLint 及五工程依赖 guard 通过。
+
+并行 RM07/RM08 编辑期间首次整包构建存在缺失模块/未缓存依赖，先在 `tmp/rm06/harness` 直接引用正式 transfer 服务源文件和 storage crate 验证，随后原工作区服务专项与探针构建通过。仅修正两处阻断公共编译/Clippy 的明显字段/借用问题（导入读取 `note.node.note_type`、`create_inside` 的多余 `&id`），未改变导入业务范围。Node 互通脚本首次沙箱 `spawnSync EPERM`，在允许本机子进程的环境重跑；未吞掉错误或将失败输出算作通过。最终互通报告为 `tmp/rm06/reference-G2npH7/report.json`。全 services Clippy 此次仍被并行 RM08 的 `archive.rs`（`unnecessary_sort_by`）及 `open_export.rs`（`regex_creation_in_loops`）挡住；未修改这些相邻模块，不声称全 services lint/全工作区回归通过。
+
+边界：本组不是三平台/真实用户库/外部卷、断电、性能、生产接管或 UI 验收；RM24 的完整白板编辑互通、RM31/32/33 与全部 V/A/F 保持原状态。中断或 SQL 失败留下无引用 CAS 时不擅自清除，由 RM08 的受控清理接续。关闭后的损坏库可能在取得租约时拒绝而非返回 changed 状态；两种路径均保留源数据。
+
+<a id="rm05"></a>
+
+## 2026-11-08 · RM05 写租约、核心事务与资源修订
+
+完成 RM05.1–RM05.4，在既有 RM04 未提交实现上接续，保留其他工作区改动。源码基线 `eadc715` 加本地 RM04/RM05 工作区；不创建 Git 提交。接口、失败边界和复现见 [Rust 写存储](RUST-WRITE-STORAGE.md)。没有修改冻结 schema、旧 TS 产品逻辑或真实用户资料。
+
+- RM05.1：一个后台写线程、容量 64 的 FIFO、可配置 1–64 连接 LRU、跨调用 pin、退出排空。SQLite EXCLUSIVE/WAL/FULL 租约与旧版竞争同一 OS 锁，事务错误及 unwind 回滚，沿用可选完整 backup revision SQL。租约 lineage 每次重开变化，持久 lineage 保留。
+- RM05.2：托管/外部建库、库名称/封面、节点/目录、条件保存、移动/排序、标签/收藏、删除批次恢复、修订元数据恢复、FTS/反链及 hash 绑定批注。使用旧毫秒、安全整数和 UTF-16 限额；条件冲突不覆盖正文。
+- RM05.3：流式 SHA-256、flush、无覆盖 CAS 发布、资源 ID 重绑定与修订计数、递归白板嵌图闭包。旧修订资源优先复用，恢复后保存不漂移。内置设置白名单及单笔记 propose/apply/undo，应用和撤销的正文/状态同事务；原始未知 JSON、历史资源及未涉及的密文保持不变。
+- RM05.4：旧 TS 写→Rust 读→Rust 写→旧读的同库交替，以及独立副本的逐项写差分；涵盖标题/标签/收藏、排序、删除恢复、历史、批注、提案双向消费、建库续写、资源失败与三进程互斥。SQLite 事务内退出与持锁进程 SIGKILL 分别验证回滚及租约释放。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，全部为隔离合成数据。`cargo test -p anynote-storage --locked --offline` **32/32**；另 1 个 ignored 是由父测试以 `--ignored` 显式执行的崩溃 fixture。storage 全 targets Clippy `-D warnings`、两个探针构建、Rust 五工程依赖 guard（800 个锁定包）通过。`rust-write-reference.mjs` **17 组通过**，最终报告 `tmp/rm05/reference-FU57r2/report.json`；RM04 只读差分 **28 组通过**且原库文件 hash 不变。旧 storage/organization/workspace/rust-migration 共 **33/33**：首次沙箱内 32 通过、1 个旧 OS 锁子进程测试超时；沙箱外重跑 workspace **6/6** 通过。未运行全工作区 UI/editor/云端回归。
+
+验证实际暴露并修复 Unix 文件身份检查的锁缺陷：额外打开/关闭 DB 描述符会释放该进程的 POSIX 锁，同进程 SQLite 检查却仍显示 Busy。改用 stat device/inode 后，旧 TS 与两个 Rust 进程互斥通过；该回归不能简化成仅同进程测试。最初互通脚本在沙箱内 spawnSync 返回 EPERM，转到允许本地子进程的环境完成，未忽略错误。脚本仅规范化独立运行的时间/生成修订 UUID，对未知 JSON、正文、资源 hash、整数及既有 ID 保持严格核对。
+
+边界：本轮不是 M3 整体、三平台、实际用户库/卷、断电、性能或最终发行验收；日常业务 IPC/UI 与生产接管仍按原后续组实施。CAS 发布使用 hard link，暂不支持该能力缺失的卷；Windows 目录持久化及三平台真实卷行为仍须 RM32/33。失败留下的无引用 CAS/临时文件保全，RM08 再以清理计划处理；不擅自删除未知状态或旧密文。全部 V/A/F 与 RM06–12/28/29/32/33 等状态不变。
+
+<a id="rm04"></a>
+
+## 2026-11-08 · RM04 schema v5、资源与搜索只读数据面
+
+交付 `anynote-storage::notebook` 的 schema/catalog/read/search 与 CAS 资源句柄，不新增 schema 或写入业务，不接 GPUI 页面。接续接口、恢复拒绝边界和复现见 [Rust 只读存储](RUST-READONLY-STORAGE.md)。复用 RM01 冻结 SQL/库、已有 Rust directive parser、TS search/navigation 语义；既有迁移成果保留，未改旧 TS 产品实现。
+
+- RM04.1：精确 SQL 对照、可选完整 backup tracker 与 64 位整数 counter、integrity/foreign keys、树/当前修订归属检查；外部目录与离线登记、身份/路径诊断、只读 LRU。缓存核对原文件和 WAL 身份，替换/更新后重新打开；不自动修复、重建 FTS 或创建业务表。WAL 缺少共享内存时明确拒绝恢复，避免只读入口创建源文件。
+- RM04.2：读取节点/正文/全部或最近 100 条历史/回收站/批注/未知 JSON；历史资源按 revision 固定 hash，包含白板嵌图闭包，未知原文不规范化。流式校验 CAS hash/大小，持有已校验文件句柄作有界范围读取，复核路径和文件身份；原库与拒绝样本的文件清单/hash 不变。
+- RM04.3：FTS5 trigram、Unicode 字符数分支的短查询、跨库组合过滤/稳定排序/软预算/取消/截断、反链、正文/PDF 页面/当前 hash 批注/metadata 定位。保留旧格式小数排序键；搜索任务宿主接线继续复用 RM03，不另造任务状态。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，全部为合成离线数据。`cargo test -p anynote-storage --locked --offline` **14/14**（13 项新增只读测试 + 1 项增强 SQLite 构建能力测试）；storage 全 targets Clippy `-D warnings` 通过。`rust-readonly-reference.mjs` **28 组 TS/Rust 差分通过**，搜索结果与读取投影逐项一致，警告按 Notebook 身份比较，原文件 hash 不变。旧 TS search/navigation/workspace/rust-migration 共 **30/30** 回归通过：首次沙箱内 workspace 子进程锁崩溃恢复 1 项超时，沙箱外重跑 workspace **6/6** 通过。Rust 五工程依赖边界通过（800 个已锁定包）。
+
+只读本机验证不代表三平台/真实用户资料/外部卷/性能/断电验收，也未接日常业务 IPC、UI 或写流程；RM05 和 RM28/29 按原范围接续，M2 与 V/A/F 状态不变。临时差分输入/报告位于可删除的 `tmp/rm04/`，长期信息保留在上述接续文档。
+
 <a id="rm13"></a>
 
 ## 2026-11-08 · RM13 偏好、凭据与插件状态读取/转换

@@ -198,7 +198,7 @@ export default {
         request.method === "POST" &&
         env.MAINTENANCE
       )
-        return env.MAINTENANCE.get(
+        return await env.MAINTENANCE.get(
           env.MAINTENANCE.idFromName(notebookId),
         ).fetch(
           request as unknown as import("@cloudflare/workers-types").Request,

@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 uuid.workspace = true
+rusqlite.workspace = true
 anynote-core.workspace = true
 anynote-storage.workspace = true
 serde.workspace = true
@@ -24,6 +25,24 @@ aes-gcm = "=0.10.3"
 base64 = "=0.22.1"
 zeroize = "=1.9.1"
 tempfile = "=3.27.0"
+dom_smoothie = "=0.17.0"
+dom_query = "=0.27.0"
+reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls", "stream"] }
+tokio = { workspace = true, features = ["net", "io-util", "macros", "sync", "fs"] }
+tokio-util = { version = "=0.7.20", features = ["rt"] }
+url = "=2.5.8"
+regex = "=1.13.1"
+encoding_rs = "=0.8.44"
+markdown = "=1.0.0"
+cap-std = "=3.4.5"
+same-file = "=1.0.6"
+percent-encoding = "=2.3.2"
+ryu-js = "=1.0.2"
+image.workspace = true
+libc = "=0.2.191"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+zip = { version = "=2.4.2", default-features = false, features = ["deflate-miniz"] }
+unicode-normalization = "=0.1.24"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "=3.6.3", features = ["async-secret-service", "tokio", "crypto-rust"] }
@@ -35,7 +54,10 @@ security-framework = "=3.7.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "=3.6.3", features = ["windows-native"] }
-windows = { version = "=0.61.3", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
+windows = { version = "=0.61.3", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 
 [lints]
 workspace = true

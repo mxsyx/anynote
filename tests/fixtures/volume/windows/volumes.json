@@ -1,0 +1,42 @@
+[
+  {
+    "filesystem": "NTFS",
+    "guid": "volume-guid-ntfs",
+    "serial": 7,
+    "driveType": 3,
+    "mount": "E:\\",
+    "availableBytes": 8589934592,
+    "remote": false,
+    "maximumFileBytes": null
+  },
+  {
+    "filesystem": "exFAT",
+    "guid": "volume-guid-exfat",
+    "serial": 8,
+    "driveType": 2,
+    "mount": "F:\\",
+    "availableBytes": 8589934592,
+    "remote": false,
+    "maximumFileBytes": null
+  },
+  {
+    "filesystem": "FAT32",
+    "guid": "volume-guid-fat32",
+    "serial": 9,
+    "driveType": 2,
+    "mount": "G:\\",
+    "availableBytes": 8589934592,
+    "remote": false,
+    "maximumFileBytes": 4294967295
+  },
+  {
+    "filesystem": "NTFS",
+    "guid": "",
+    "serial": 0,
+    "driveType": 4,
+    "mount": "Z:\\",
+    "availableBytes": 8589934592,
+    "remote": true,
+    "maximumFileBytes": null
+  }
+]

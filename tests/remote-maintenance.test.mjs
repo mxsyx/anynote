@@ -1,7 +1,7 @@
 import { test, vi } from "vitest";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import worker from "../.build/apps/cloudflare-backup/src/index.js";
@@ -858,6 +858,16 @@ test("target retention settings persist across restart, remain isolated, and do 
   const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
     throw Error("configuration must remain local");
   });
+  const allowed = JSON.parse(
+    readFileSync(
+      new URL("../packages/protocol/src/operations.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.ok(
+    allowed.includes("saveRemoteRetention"),
+    "renderer RPC must admit the local preference operation",
+  );
   await f.s.run("saveRemoteRetention", { ...p, ...policy });
   await assert.rejects(f.s.run("saveRemoteRetention", { ...p, keep: 0 }));
   await assert.rejects(

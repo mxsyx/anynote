@@ -1,14 +1,14 @@
 # Anynote 待办
 
-更新：2026-11-08。所有任务状态统一维护于本文件。RM01、RM02、RM03、RM13 已完成；其余组以各节状态为准，保留真实剩余范围。
+更新：2026-11-08。所有任务状态统一维护于本文件。RM01、RM02、RM03、RM04、RM05、RM06、RM07、RM08、RM09、RM10、RM11、RM12、RM13、RM15 已完成；其余组以各节状态为准，保留真实剩余范围。
 
-**结论**：Rust 桌面迁移共 **38 个执行组 RM01–RM38，已完成 4 组，剩余 34 组**。每组包含可单独验收的子任务；组未完成时可以跨会话接续，不将整个 M 阶段塞进一次实施。
+**结论**：Rust 桌面迁移共 **38 个执行组 RM01–RM38，已完成 14 组，剩余 24 组**。每组包含可单独验收的子任务；组未完成时可以跨会话接续，不将整个 M 阶段塞进一次实施。
 
 <a id="backlog"></a>
 
 | 类型                                         | 数量        | 范围                                                        |
 | -------------------------------------------- | ----------- | ----------------------------------------------------------- |
-| [Rust 桌面迁移执行组](#rust-migration)       | 34 组未完成 | 基础、数据、编辑器、媒体、内置业务、接管、实测及发行退役    |
+| [Rust 桌面迁移执行组](#rust-migration)       | 25 组未完成 | 基础、数据、编辑器、媒体、内置业务、接管、实测及发行退役    |
 | [需要跨操作系统验证的](#platform-validation) | 14          | 平台适配、数据与凭据、恢复、物理设备、原生交互和性能        |
 | [与正式发布相关的](#release)                 | 11          | 首发决策、类型质量、签名更新、发行包与 CI、真实云和公网验收 |
 | [远期扩展功能](#future)                      | 15          | 可选备份优化、AI、编辑器、检索、加密、同步、采集与工具扩展  |
@@ -41,15 +41,15 @@ RM02 已固定[五个 Rust 工程与平台测试入口](RUST-DESKTOP-DEVELOPMENT
 | [RM01](#rm01) | 固定基线、兼容语料与覆盖清单（已完成）   | 设计方案                                                  | 已交付；后续复用冻结材料               |
 | [RM02](#rm02) | Rust workspace、Kit 与平台壳（已完成）   | RM01                                                      | 完成工具链后解锁独立模块               |
 | [RM03](#rm03) | 后端进程、类型化通信与任务基础（已完成） | RM02                                                      | 与 RM13/15/22 原型并行                 |
-| [RM04](#rm04) | schema v5 只读、资源与搜索               | RM03                                                      | 与 RM15 并行                           |
-| [RM05](#rm05) | 写事务、资源修订与核心状态               | RM04                                                      | 独占基础 SQL/写入热点                  |
-| [RM06](#rm06) | 跨库复制/移动与回执                      | RM05                                                      | 与 RM07/08 并行                        |
-| [RM07](#rm07) | HTML/文件/采集包导入与重试               | RM05；07.1 可在 RM02 后原型                               | 与 RM06/08 并行                        |
-| [RM08](#rm08) | 一致快照、归档、导出与核心清理           | RM05                                                      | 与 RM06/07 并行；媒体终验交 RM24/26    |
-| [RM09](#rm09) | 本地备份与卷适配                         | RM08.1/.2 基础契约；完整媒体语料随 RM24/26 补齐           | 与 RM10 并行，调度由 RM10 所有         |
-| [RM10](#rm10) | 云传输/恢复/续传及调度                   | RM08.1/.2 基础契约；本地调度联调等 RM09                   | 与 RM09 并行                           |
-| [RM11](#rm11) | writer、保留与维护恢复                   | RM10                                                      | 与 RM12 并行，上传契约改动串行合入     |
-| [RM12](#rm12) | 配对、采集消费、同切面浏览               | RM07、RM10                                                | 与 RM11 并行                           |
+| [RM04](#rm04) | schema v5 只读、资源与搜索（已完成）     | RM03                                                      | 与 RM15 并行                           |
+| [RM05](#rm05) | 写事务、资源修订与核心状态（已完成）     | RM04                                                      | 独占基础 SQL/写入热点                  |
+| [RM06](#rm06) | 跨库复制/移动与回执（已完成）            | RM05                                                      | 与 RM07/08 并行                        |
+| [RM07](#rm07) | HTML/文件/采集包导入与重试（已完成）     | RM05；07.1 可在 RM02 后原型                               | 与 RM06/08 并行                        |
+| [RM08](#rm08) | 一致快照、归档、导出与核心清理（已完成） | RM05                                                      | 与 RM06/07 并行；媒体终验交 RM24/26    |
+| [RM09](#rm09) | 本地备份与卷适配（已完成）               | RM08.1/.2 基础契约；完整媒体语料随 RM24/26 补齐           | 与 RM10 并行，调度由 RM10 所有         |
+| [RM10](#rm10) | 云传输/恢复/续传及调度（已完成）         | RM08.1/.2 基础契约；本地调度联调等 RM09                   | 与 RM09 并行                           |
+| [RM11](#rm11) | writer、保留与维护恢复（已完成）         | RM10                                                      | 与 RM12 并行，上传契约改动串行合入     |
+| [RM12](#rm12) | 配对、采集消费、同切面浏览（已完成）     | RM07、RM10                                                | 与 RM11 并行                           |
 | [RM13](#rm13) | 偏好与凭据读取/转换（已完成）            | RM02                                                      | 与数据/编辑核心并行，真机另验          |
 | [RM14](#rm14) | 原路径接管及无损回退                     | RM13；完整演练等 RM06–12、19–29                           | journal 原型可先做，不激活真实数据     |
 | [RM15](#rm15) | Markdown 模型与原文保留（已完成）        | RM02、RM01 语料                                           | 与存储/媒体 codec 并行                 |
@@ -107,113 +107,117 @@ RM02 已固定[五个 Rust 工程与平台测试入口](RUST-DESKTOP-DEVELOPMENT
 
 <a id="rm04"></a>
 
-#### RM04 · schema v5 与只读数据面
+#### RM04 · schema v5 与只读数据面（已完成）
 
-范围：`anynote-storage` schema/catalog/read/search；对应 M2、D2只读部分。
+2026-11-08 完成 RM04.1–RM04.3，完成项移入[实施记录](IMPLEMENTATION.md#rm04)。`anynote-storage::notebook` 已交付精确 schema/可选 tracker 校验、外部目录与只读 LRU、正文/历史/批注/未知 JSON、历史 CAS 范围读取、FTS/短查询/跨库搜索与反链定位。[接续契约](RUST-READONLY-STORAGE.md)固定线程所有权、取消/预算、资源版本和 WAL 恢复拒绝边界。
 
-- [ ] **RM04.1** 原样校验SQL/schema/可选backup tracker、外部目录身份和路径；建立只读LRU、损坏/离线/未知版本诊断，不自动修复或重建业务表。
-- [ ] **RM04.2** 读取树、正文、历史、回收站、批注、未知JSON和CAS范围资源；核对ID、字节、hash与引用闭包，原库只读零变化。
-- [ ] **RM04.3** 移植FTS5 trigram、短查询、跨库过滤/排序/取消/截断、反链和定位结果；以既有search/navigation语料差分验证。
+验证：storage 14/14（含实际 SQLite trigram/JSON/Backup API）、28 组 TS/Rust 差分、旧 TS search/navigation/workspace/冻结语料 30/30；原库文件清单/hash 不变。首次沙箱内旧锁崩溃测试超时，沙箱外重跑通过。Clippy 与 Rust 五工程依赖边界通过。
 
-验收：正常与拒绝边界均与当前格式契约一致；SQLite编译特性实测，不只检查Cargo编译。
+后续边界：仅本机合成只读数据面，写事务由 RM05、业务 IPC/UI 由 RM28/29 接入；未完成三平台、实际用户库/卷、断电或性能验收。M2 放行仍依赖 RM15/M1 等既有门槛，不改变任何 V/A/F 状态。
 
 <a id="rm05"></a>
 
-#### RM05 · 写事务、资源修订与核心JSON状态
+#### RM05 · 写事务、资源修订与核心 JSON 状态（已完成）
 
-范围：`anynote-storage` 写队列/事务/资源及现有核心操作；对应 M3、D2写入部分。此组独占基础写入契约。
+2026-11-08 完成 RM05.1–RM05.4，完成项移入[实施记录](IMPLEMENTATION.md#rm05)。交付与旧 TS 互斥的 SQLite 写租约、全局有界队列、LRU/pin、事务及既有 backup revision 触发器；建库/笔记、排序/标签/收藏/回收站、保存 CAS、历史恢复、链接/批注、资源闭包和内置 JSON/提案状态均在现有 schema v5 上实现。[接续契约](RUST-WRITE-STORAGE.md)固定所有权、错误/重试、历史资源和后续服务边界。
 
-- [ ] **RM05.1** 实现与旧版互斥的SQLite写租约、全局写队列、LRU/pin、事务和backup revision触发器；三方并发/失败不产生双writer或半提交。
-- [ ] **RM05.2** 实现建库/笔记、目录/排序/标签/收藏/回收站、保存CAS、历史恢复、链接与批注；保留冲突和时间/数值语义。
-- [ ] **RM05.3** 实现CAS文件/资源ID/revision闭包、白板嵌图递归引用；保留核心 `extension_data`、修订元数据及已有单笔记提案 propose/apply/undo。
-- [ ] **RM05.4** 对照旧写→Rust读→Rust写→旧读，并覆盖资源失败、过期提案、回收/恢复和历史资产不漂移；不新增schema。
+验证：storage **32/32**（另 1 个 ignored 为父测试显式执行的崩溃子进程 fixture）、**17 组 TS/Rust 写入互通**、RM04 **28 组只读差分**及旧 TS storage/organization/workspace/冻结语料 **33/33**。修复 Unix 额外 DB 句柄 close 意外释放 POSIX 锁的问题，实际旧 TS + 两个 Rust 进程互斥及 SIGKILL 后重开通过；未提交事务退出回滚、资源 I/O/JSON 失败、提案状态回滚和历史白板嵌图不漂移均有本机证据。旧 workspace 锁测试首次沙箱超时，沙箱外重跑 6/6 通过。Clippy 与五工程依赖边界通过。
 
-验收：事务/条件更新/历史完整；旧密文及未知插件状态不被当垃圾清理。
+后续边界：本机 Linux 合成数据验证，不代表生产接管、三平台、真实用户库/卷、断电、性能或 V/A/F 验收；业务 IPC/UI 仍由 RM28/29 接线。资源发布失败可留下未引用 CAS，清理归 RM08；不支持 hard link 的卷当前明确失败，卷适配与实机验证保留给 RM32/33。不清理旧密文、未知插件状态或历史资源，不改 RM06 及以后范围。
 
 <a id="rm06"></a>
 
-#### RM06 · 跨库复制/移动与幂等回执
+#### RM06 · 跨库复制/移动与幂等回执（已完成）
 
 范围：`anynote-services` transfer及对应存储回执，独立transfer故障套件；对应 M3。
 
-- [ ] **RM06.1** 构建节点、历史、批注、资源完整闭包，重映射内部链接和白板资源；保留现有节点/文件预算。
-- [ ] **RM06.2** 按目标提交/持久回执→核对源目标指纹→软删除源的顺序实现复制与移动，不用普通save重试替代跨库协议。
-- [ ] **RM06.3** 覆盖operation ID重放、两端任一中断、源/目标后续编辑、资源失败；重试不重复复制，失败不丢源数据。
+- [x] **RM06.1** 构建节点、历史、批注、资源完整闭包，重映射内部链接和白板资源；保留现有节点/文件预算。
+- [x] **RM06.2** 按目标提交/持久回执→核对源目标指纹→软删除源的顺序实现复制与移动，不用普通save重试替代跨库协议。
+- [x] **RM06.3** 覆盖operation ID重放、两端任一中断、源/目标后续编辑、资源失败；重试不重复复制，失败不丢源数据。
 
-验收：现有transfer业务断言闭环；最终白板具体场景互通随 RM24 验证。
+2026-11-08 完成。本机 storage **36/36**、服务 transfer 专项 **4/4**、旧 transfer **8/8**，另 **8 组 TS/Rust 互通**通过；包括两端事务回执前后进程退出、目标提交后 SIGKILL、重放/恢复、两端编辑/资源损坏与完整历史闭包。storage Clippy、transfer 源文件隔离 Clippy、脚本 ESLint 与五工程依赖检查通过。并行模块初期曾阻断整包构建，随后原工作区服务专项和探针构建通过；全 services Clippy 仍被并行 RM08 的 archive/open_export 两处 lint 阻断，未声称全包通过。详见[实施记录](IMPLEMENTATION.md#rm06)及[跨库接续契约](RUST-WRITE-STORAGE.md#跨库复制与移动)。
+
+验收：既有 transfer 业务断言本地闭环；最终白板具体编辑场景互通仍随 RM24 验证，三平台/真实卷/断电/性能和 V/A/F 未关闭。
 
 <a id="rm07"></a>
 
-#### RM07 · 导入、下载、预览与媒体重试
+#### RM07 · 导入、下载、预览与媒体重试（已完成）
 
-范围：`anynote-services` importer/network及对应导入测试；对应 M1原型/M3/M5、D3导入。
+2026-11-08 完成 RM07.1–RM07.3，完成项移入[实施记录](IMPLEMENTATION.md#rm07)。交付 Rust HTML/Readability/Markdown 转换、公网下载边界、相邻目录授权、URL/HTML/Markdown/文件预览和同快照确认、媒体选择/本地化、原 HTML 与失败报告、`.anyclip` 严格校验及原子回执、保留用户编辑的媒体重试。[服务接续契约](RUST-IMPORT.md)固定所有权、预算、取消、临时文件与重试规则。
 
-- [ ] **RM07.1** 先以HTML/Readability/Turndown语料验证Rust解析/提取/清洗/转换；实现公网DNS/实际地址、TLS、重定向、预算/取消及相邻目录授权，不以通用转换库输出直接验收。
-- [ ] **RM07.2** 实现URL/HTML/Markdown/文件预览、媒体选择/本地化、原始HTML/缺失报告及确认提交；确认使用同一预览结果，不再次抓取。
-- [ ] **RM07.3** 实现 `.anyclip` 路径/hash/canonical digest、资源重映射及原子receipt；媒体重试核对当前占位标记/revision，取消清理临时资源。
+验证：17 份旧 Readability/DOMPurify/Turndown HTML 黄金样本逐字一致；3 份 JS canonical 数值/UTF-16 key 语料、冻结采集与 ChatGPT 卡片、恶意 ZIP/路径/限额、真实本机 HTTP/TLS fixture、事务回滚、预览冻结/清理和重试编辑保护通过。5 组 TS/Rust 互通、旧相关回归 48/48；具体 Rust 回归与环境限制见实施记录。
 
-验收：web-import/capture类黄金样本及恶意输入/限额用例通过；真实公网另归 RM35。
+后续边界：仅本机 Linux 合成数据和服务接口；UI/IPC/任务状态接线仍归 RM28/29、采集消费归 RM12，真实公网归 RM35。未验证三平台、真实用户库/目录、GUI、性能或 V/A/F；同步 HTML/文件工作须放后台线程，SQL 开始提交后的取消不撤销提交。未引用 CAS 的保全沿用 RM05，不擅自删除。
 
 <a id="rm08"></a>
 
-#### RM08 · 一致快照、归档、导出与核心清理
+#### RM08 · 一致快照、归档、导出与核心清理（已完成）
 
-范围：storage snapshot/完整性/清理与 services archive/export，复用资源闭包及快照保护；对应 M3、D3。基础接口与局部测试先交付，媒体联调不阻塞 RM09/10 开始实现。
+2026-11-08 完成 RM08.1–RM08.4 的基础接口与本地契约验收，完成项移入[实施记录](IMPLEMENTATION.md#rm08)。[快照与归档接续](RUST-SNAPSHOT-ARCHIVE.md)固定 Online Backup/WAL 切面、附件 pin、完整/当前 ZIP/ZIP64、导入新库、持久快照恢复、Markdown 目录/ZIP、保全证据和清理隔离/复核/恢复接口。RM09/10 可据此开始实现。
 
-- [ ] **RM08.1** 实现 Online Backup/WAL 一致切面、附件 pin/hard link/copy 和临时租约；接 `snapshot/listSnapshots/restoreSnapshot` 的持久快照创建、目录列举、校验与恢复，失败保护源库。冻结后在写队列外处理，重启租约不能沿用免捕获快路。
-- [ ] **RM08.2** 实现流式ZIP/ZIP64 `.anynote` 完整/仅当前导出、私有staging校验后导入新库；校验requiredExtensions兼容内容，绝不执行插件。
-- [ ] **RM08.3** 实现Markdown目录/ZIP、映射/损失报告、白板/批注sidecar、完整性检查与恢复证据保全；最终媒体闭包在 RM24/26 回归。
-- [ ] **RM08.4** 实现核心 `previewCleanup/applyCleanup` 的计划、显式确认、执行前复核、隔离与失败恢复；保护历史/未知业务数据及活动资源租约，旧计划或引用变化时拒绝执行。
+本机合成语料中，TS↔Rust 完整/当前/ZIP64 互通、旧页隐私、恶意归档拒绝、源库损坏后恢复、处理中断不发布半包、过期/重开/引用变化清理拒绝和移动失败回滚已通过。清理只覆盖超出策略的持久快照；apply 返回隔离字节，确认提交后 purge 才释放空间，失败保留回执和剩余文件。
 
-验收：双向互读、current 无历史页泄漏、快照列举/恢复完整、异常归档拒绝、中断不发布半包；旧清理计划拒绝且失败保全，普通裁剪快照不冒充完整迁移保全。
+后续边界：完整白板/PDF 工作流闭包仍由 RM24/26 终验，任务/管理 UI 接线归 RM29；RM14 迁移保全必须包含配置及外部资料，不能用普通裁剪快照代替。本轮不覆盖真实用户库、三平台/物理卷/断电/拔盘、20 GiB 压力或大规模清理延迟；同步完整性检查期间的取消可能延后至该阶段结束。V/A/F 状态不变。
 
 <a id="rm09"></a>
 
-#### RM09 · 本地备份v3与卷适配
+#### RM09 · 本地备份 v3 与卷适配（已完成）
 
-范围：services本地备份、平台volume/filesystem与相应fixtures；对应 M7、F001/F002实现。
+- [x] **RM09.1** 备份根/卷 ID、设备映射、交叠/网络挂载/空间/FAT32 限制和等待磁盘状态；Linux/Windows 卷 fixtures、macOS UUID 响应解析均已验证，设备 ID 不作为独立物理盘证明。
+- [x] **RM09.2** 复用未裁剪冻结切面，实现 1 MiB 有序 DB 分块、整附件、保守 token/manifest 指纹校验和 pending→manifest→cleanup；更换租约/重启先重捕获，只清理 journal 管理且仍匹配的文件。
+- [x] **RM09.3** 手动/分组备份、全量验证、损坏报告、恢复新库和 RM03 任务回执；磁盘满/路径替换/取消/发布失败注入、真实进程退出后旧成功副本可恢复。自动调度由 RM10 接入。
 
-- [ ] **RM09.1** 实现备份根/卷ID、设备映射、交叠/网络挂载/空间/FAT32限制及等待磁盘提示；补Windows/Linux接口和fixture，不将stat.dev视作独立物理设备证明。
-- [ ] **RM09.2** 实现1MiB有序DB分块、整附件、保守token复用与pending→manifest→cleanup发布；更换租约/重启先重捕获，只清理受journal管理文件。
-- [ ] **RM09.3** 实现手动/分组任务、全量验证、损坏报告和恢复新库；注入磁盘满/路径替换/取消/发布失败，旧成功副本仍可恢复，自动调度接 RM10。
+2026-11-08 完成本地与模拟卷范围。[本地备份接续契约](RUST-LOCAL-BACKUP.md)记录服务/任务/卷接口、发布与恢复规则。验证：Rust RM09 **17/17**、既有归档 **14/14**、**8 组 TS↔Rust v3 互通**；旧本地备份/边界 **46 通过、1 既有跳过**；RM09 targets Clippy、格式、脚本 ESLint 和五工程依赖 guard 通过，详见[实施记录](IMPLEMENTATION.md#rm09)。
 
-验收：本地与模拟卷测试通过；拔盘、断电、真实NTFS/exFAT由 RM33 另验。
+后续边界：本机 Linux 合成副本与模拟卷，不代表 Windows/macOS 原生分支编译或真实卷验证；拔盘、断电、真实 NTFS/exFAT/APFS 与独立物理盘交 RM32/33，完整媒体闭包随 RM24/26。GUI/IPC/管理页仍属 RM29，20 GiB/大规模延迟未测；不关闭任何 V/A/F 实测条目。
 
 <a id="rm10"></a>
 
-#### RM10 · Cloudflare传输、续传、恢复及调度
+#### RM10 · Cloudflare传输、续传、恢复及调度（已完成）
 
 范围：services云客户端/transfer/scheduler；对应 M7、D4主链。
 
-- [ ] **RM10.1** 保持 capabilities、plan→对象/multipart→commit、generation/lineage/device/head/epoch 与丢响应确认；校验 TS manifest 字节和 JSON 数值边界，实现独立恢复连接的配置、测试与持久化。
-- [ ] **RM10.2** 实现冻结身份绑定的上传/下载续传、持久 pendingGeneration/游标、恢复 pin/续租与校验后恢复新库；支持无本地 Notebook 时跨库/lineage 分页发现，切面变化不复用旧任务身份。
-- [ ] **RM10.3** 统一接入本地/远端调度：离线/电量/计费网络/大任务暂停，Retry-After/退避、取消、重启和永久错误修复；local-workerd与故障矩阵通过。
+- [x] **RM10.1** 保持 capabilities、plan→对象/multipart→commit、generation/lineage/device/head/epoch 与丢响应确认；校验 TS manifest 字节和 JSON 数值边界，实现独立恢复连接的配置、测试与持久化。
+- [x] **RM10.2** 实现冻结身份绑定的上传/下载续传、持久 pendingGeneration/游标、恢复 pin/续租与校验后恢复新库；支持无本地 Notebook 时跨库/lineage 分页发现，切面变化不复用旧任务身份。
+- [x] **RM10.3** 统一接入本地/远端调度：离线/电量/计费网络/大任务暂停，Retry-After/退避、取消、重启和永久错误修复；local-workerd与故障矩阵通过。
 
 验收：外部协议不变、不重复提交/回退游标；真实云另验，首次本地通过不关闭 A007–A009。
 
+2026-11-08 完成本组服务接口与本地验收，见[实施记录与接续契约](IMPLEMENTATION.md#rm10)。Rust 相关三包 116/116、旧 TS 相关 21/21、services 全 targets Clippy、五工程 guard 通过；实际 HTTP 故障代理和 local-workerd/D1/R2 覆盖 plan/commit 丢响应、跨进程续传、manifest 字节、损坏缓存、恢复新库、30 秒 pin 续租/失败、33 MiB multipart 会话过期及跨库分页。调度已直接派发工作区 RM09 本地备份服务和云上传服务。
+
+后续边界：服务宿主 timer、业务 IPC 和任务/设置 UI 归 RM29；真实路径接管归 RM14，writer/retention/维护归 RM11，同切面 browse/captureAcks 生成归 RM12。已保存 multipart 片段以幂等 PUT 重新核实，不能宣称零重传。未覆盖真实 Cloudflare/三平台/用户库、20 GiB 压力或费用老化，A007–A009 及其余 V/A/F 保持原状态。
+
 <a id="rm11"></a>
 
-#### RM11 · writer、保留与维护恢复
+#### RM11 · writer、保留与维护恢复（已完成）
 
 范围：services远端maintenance/retention，独立维护状态机测试；对应 M7。
 
-- [ ] **RM11.1** 实现writer查询、显式接管、epoch失效与冲突呈现，不自动夺取writer。
-- [ ] **RM11.2** 实现retention配置/预览/确认、日周月规则及head/branch/pin/staging保护；修正既有保存配置入口失配，不照搬坏白名单。
-- [ ] **RM11.3** 实现维护状态/异常恢复、tombstone及过期计划拒绝；保护集合变化后旧计划失效，预览无删除副作用。
+- [x] **RM11.1** 实现writer查询、显式接管、epoch失效与冲突呈现，不自动夺取writer。
+- [x] **RM11.2** 实现retention配置/预览/确认、日周月规则及head/branch/pin/staging保护；修正既有保存配置入口失配，不照搬坏白名单。
+- [x] **RM11.3** 实现维护状态/异常恢复、tombstone及过期计划拒绝；保护集合变化后旧计划失效，预览无删除副作用。
 
 验收：本地维护/retention故障测试完整；真实老化证据只在 RM34/A008 获取。
 
+2026-11-08 完成服务接口与本地验收，见[实施记录与接续契约](IMPLEMENTATION.md#rm11)。复用 Worker 的 UTC 日周月采样、保护集合/CAS、tombstone 与协调器；Rust 持久化已确认接管/维护计划，丢响应与重启沿原身份恢复，旧 epoch 上传被阻止，保留配置不授予自动清理权限。修复旧 TS 保存配置白名单遗漏及协调器异常绕过协议错误处理的问题。Rust 三包 123/123、TS 相关 55/55、HTTP 适配器故障 12 组与 local-workerd/D1/R2 9 组通过。
+
+后续边界：业务 IPC、冲突文案、设置/任务 UI 与新 writer 调度配置持久化归 RM29；原路径接管归 RM14。未连接真实 Cloudflare、真实用户库或执行真实老化/费用验收，RM34/A008 及其余 V/A/F 保持原状态。
+
 <a id="rm12"></a>
 
-#### RM12 · 配对、采集消费与同切面浏览
+#### RM12 · 配对、采集消费与同切面浏览（已完成）
 
 范围：services capture消费/browse投影；对应 M7、F025已实现桌面能力。
 
-- [ ] **RM12.1** 实现配对/设备管理、限时claim、claimId/targetVersion/needs-target和receipt去重；资源与正文提交后才ack applied。
-- [ ] **RM12.2** 从上传的同一DB切面生成browse树/正文/附件和captureAcks；只有已提交备份含相应回执才成为backedUp。
-- [ ] **RM12.3** 与保留TS扩展/Worker完成本地闭环，覆盖重复claim/ack丢包、目录失效、撤销和版本变化；新增接口只经 RM10 所有者合入。
+- [x] **RM12.1** 实现配对/设备管理、限时claim、claimId/targetVersion/needs-target和receipt去重；资源与正文提交后才ack applied。
+- [x] **RM12.2** 从上传的同一DB切面生成browse树/正文/附件和captureAcks；只有已提交备份含相应回执才成为backedUp。
+- [x] **RM12.3** 与保留TS扩展/Worker完成本地闭环，覆盖重复claim/ack丢包、目录失效、撤销和版本变化；新增接口只经 RM10 所有者合入。
 
 验收：不重复笔记、不虚报备份完成、不将采集改成浏览器直接写正式Notebook。
+
+2026-11-08 完成本组服务接口与本地闭环，见[实施记录](IMPLEMENTATION.md#rm12)和[接入与复现](RUST-CLOUD-CAPTURE.md)。4 项 Rust 专项、相关三包回归、29 项 TS 回归、9 组 local-workerd/D1/R2 与实际 Chromium MV3 扩展闭环通过。验证 ack 丢响应后复用事务回执、目录/claim/版本失效、撤销、资源损坏拒绝、同切面正文/附件及提交后 backedUp；browse 超预算仍发布回执。
+
+后续边界：后台宿主、业务 IPC、任务/设备设置 UI 接线归 RM29；真实 Cloudflare、三平台、真实用户库、容量与老化未验，RM34/A007–A009 及其余 V/A/F 保持原状态。
 
 <a id="rm13"></a>
 
