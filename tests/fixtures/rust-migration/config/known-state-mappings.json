@@ -1,0 +1,217 @@
+[
+  {
+    "manifest": {
+      "id": "garden.preferences",
+      "name": "可配置阅读摘要",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "使用当前 Notebook 的设置，在笔记末尾追加阅读目标。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "settings": {
+          "version": 1,
+          "fields": [
+            {
+              "key": "heading",
+              "label": "摘要标题",
+              "kind": "text",
+              "default": "阅读目标",
+              "maxLength": 80
+            },
+            {
+              "key": "target",
+              "label": "目标篇数",
+              "kind": "number",
+              "default": 3,
+              "min": 1,
+              "max": 100,
+              "integer": true
+            },
+            {
+              "key": "enabled",
+              "label": "追加整理摘要",
+              "kind": "boolean",
+              "default": true
+            }
+          ]
+        },
+        "commands": [
+          {
+            "id": "garden.preferences.append",
+            "title": "按设置追加阅读目标",
+            "action": {
+              "kind": "transformMarkdown",
+              "script": "(note)=>note.settings.enabled ? note.body+'\\n\\n## '+note.settings.heading+'\\n\\n目标：'+note.settings.target+' 篇。\\n' : note.body"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "a77d132a85e74ee0fa248009bae8223711e683a9a8735e15d8715931822df387",
+    "settingsChecksum": "be3ae45e65a409b3d118007edec32f4629d338e714fa7ccbd851838ff1b04bbd"
+  },
+  {
+    "manifest": {
+      "id": "garden.preferences",
+      "name": "可配置阅读摘要",
+      "version": "0.1.1",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "使用当前 Notebook 的设置，在笔记末尾追加阅读目标。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "settings": {
+          "version": 1,
+          "fields": [
+            {
+              "key": "heading",
+              "label": "摘要标题",
+              "kind": "text",
+              "default": "阅读目标",
+              "maxLength": 80
+            },
+            {
+              "key": "goal",
+              "label": "每周目标篇数",
+              "kind": "number",
+              "default": 3,
+              "min": 1,
+              "max": 100,
+              "integer": true
+            },
+            {
+              "key": "enabled",
+              "label": "追加整理摘要",
+              "kind": "boolean",
+              "default": true
+            }
+          ]
+        },
+        "dataMigrations": [
+          {
+            "id": "garden.preferences.v2",
+            "title": "阅读目标字段升级",
+            "target": "settings",
+            "fromVersion": 1,
+            "toVersion": 1,
+            "fromSettingsChecksum": "be3ae45e65a409b3d118007edec32f4629d338e714fa7ccbd851838ff1b04bbd",
+            "rename": {
+              "target": "goal"
+            }
+          }
+        ],
+        "commands": [
+          {
+            "id": "garden.preferences.append",
+            "title": "按设置追加阅读目标",
+            "action": {
+              "kind": "transformMarkdown",
+              "script": "(note)=>note.settings.enabled ? note.body+'\\n\\n## '+note.settings.heading+'\\n\\n目标：'+note.settings.goal+' 篇。\\n' : note.body"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "f3824102788da09f05016b69aac2cfc05e1a1f137c43f505857ca718b3258536",
+    "settingsChecksum": "20d01117c1bae90ed1f6d513402a1e328330a507e8f31bb24f5a30e0f0fca0a1"
+  },
+  {
+    "manifest": {
+      "id": "garden.session",
+      "name": "阅读整理记录",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "按 Notebook 记录整理次数，同时追加当前笔记的整理摘要。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.session.record",
+            "title": "记录一次阅读整理",
+            "action": {
+              "kind": "transformMarkdownWithState",
+              "script": "(note) => { const runs = (Number.isSafeInteger(note.state.runs) ? note.state.runs : 0) + 1; return {body: note.body + '\\n\\n## 整理记录\\n\\n本 Notebook 第 ' + runs + ' 次整理。\\n', state: {runs, lastTitle: note.title}}; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "2ece527fd94d4a917eb2df59eb51e1c0a9bf0c7934ccafd4e3b4480205983816",
+    "settingsChecksum": null
+  },
+  {
+    "manifest": {
+      "id": "garden.session",
+      "name": "阅读整理记录",
+      "version": "0.1.1",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "按 Notebook 记录整理次数，同时追加当前笔记的整理摘要。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "stateVersion": 2,
+        "dataMigrations": [
+          {
+            "id": "garden.session.v2",
+            "title": "整理次数升级",
+            "target": "scriptState",
+            "fromVersion": 1,
+            "toVersion": 2,
+            "rename": {
+              "runs": "visits"
+            },
+            "defaults": {
+              "lastTitle": ""
+            }
+          }
+        ],
+        "commands": [
+          {
+            "id": "garden.session.record",
+            "title": "记录一次阅读整理",
+            "action": {
+              "kind": "transformMarkdownWithState",
+              "script": "(note) => { const visits = (Number.isSafeInteger(note.state.visits) ? note.state.visits : 0) + 1; return {body: note.body + '\\n\\n## 整理记录\\n\\n本 Notebook 第 ' + visits + ' 次整理。\\n', state: {...note.state, visits, lastTitle: note.title}}; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "a8877c1b1fdc90a0367f8b9f7c56d2d78bba6e789ba213227bfd0b9843af207a",
+    "settingsChecksum": null
+  }
+]

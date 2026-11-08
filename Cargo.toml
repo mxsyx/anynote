@@ -1,0 +1,41 @@
+[workspace]
+members = ["apps/desktop-rust", "crates/anynote-core", "crates/anynote-storage", "crates/anynote-services", "crates/anynote-editor"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+anynote-core = { path = "crates/anynote-core" }
+anynote-storage = { path = "crates/anynote-storage" }
+anynote-services = { path = "crates/anynote-services" }
+anynote-editor = { path = "crates/anynote-editor" }
+gpui-kit = { version = "=0.9.0", default-features = false, features = ["component", "assets"] }
+rusqlite = { version = "=0.37.0", default-features = false, features = ["bundled", "backup"] }
+image = { version = "=0.25.8", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff"] }
+resvg = { version = "=0.45.1", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+pdfium-render = { version = "=0.8.35", default-features = false, features = ["pdfium_7350", "thread_safe"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+interprocess = "=2.2.3"
+async-channel = "=2.5.0"
+directories = "=6.0.0"
+tokio = { version = "=1.54.1", features = ["rt", "time"] }
+uuid = { version = "=1.29.1", features = ["v4", "serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0

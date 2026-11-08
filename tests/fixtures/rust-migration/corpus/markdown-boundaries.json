@@ -1,0 +1,30 @@
+[
+  {
+    "codeUnits": 10240,
+    "seed": "中😀abc\n",
+    "recipe": "repeat seed then slice UTF-16 code units",
+    "utf8Bytes": 16092,
+    "sha256": "600cc186688977e7735c11aee6954b2f78559aa2d677ee70b7516ede1a7ff793"
+  },
+  {
+    "codeUnits": 102400,
+    "seed": "中😀abc\n",
+    "recipe": "repeat seed then slice UTF-16 code units",
+    "utf8Bytes": 160916,
+    "sha256": "975f8c801a2f1f0f29a24e393ef34bcc00e8494bf1293fee79e86bfe2fc6a8fa"
+  },
+  {
+    "codeUnits": 500000,
+    "seed": "中😀abc\n",
+    "recipe": "repeat seed then slice UTF-16 code units",
+    "utf8Bytes": 785716,
+    "sha256": "7f8c3a8ea4a17cf37fcfa17e476fd3b78ffe17be064222fcf28ec56c5361001b"
+  },
+  {
+    "codeUnits": 500001,
+    "seed": "中😀abc\n",
+    "recipe": "repeat seed then slice UTF-16 code units",
+    "utf8Bytes": 785717,
+    "sha256": "37e9c29560fde1aa535a7ed068ad51db6a75a51f2c5e454b05d9a8b95bdee7db"
+  }
+]

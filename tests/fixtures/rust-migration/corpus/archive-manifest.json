@@ -1,0 +1,74 @@
+{
+  "format": "anynote.notebook",
+  "formatVersion": 1,
+  "schemaVersion": 5,
+  "appVersion": "0.1.0",
+  "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+  "generationId": "4490d91d-217f-48e8-927e-f8aaa7617891",
+  "createdAt": "2026-11-08T09:11:29.170Z",
+  "snapshotSeq": 12,
+  "database": {
+    "path": "notebook.sqlite",
+    "size": 221184,
+    "sha256": "78b5224a03cfa0702370219bed9d3459ff72283749a0f1a750ae699259e6755b"
+  },
+  "assets": [
+    {
+      "path": "assets/sha256/03/0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f.bin",
+      "sha256": "0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f",
+      "size": 5577,
+      "mimeType": "application/vnd.anynote.whiteboard+json"
+    },
+    {
+      "path": "assets/sha256/28/28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266.bin",
+      "sha256": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266",
+      "size": 68,
+      "mimeType": "image/png"
+    },
+    {
+      "path": "assets/sha256/b8/b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19.bin",
+      "sha256": "b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19",
+      "size": 117,
+      "mimeType": "application/vnd.anynote.whiteboard+json"
+    },
+    {
+      "path": "assets/sha256/e4/e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4.bin",
+      "sha256": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4",
+      "size": 1124,
+      "mimeType": "application/pdf"
+    }
+  ],
+  "includesHistory": true,
+  "includesTrash": true,
+  "includesExtensionState": true,
+  "requiredExtensions": {
+    "blocks": [
+      {
+        "type": "future.custom",
+        "version": "9"
+      },
+      {
+        "type": "broken.json",
+        "version": "1"
+      },
+      {
+        "type": "unclosed",
+        "version": "unknown"
+      },
+      {
+        "type": "core.whiteboard",
+        "version": "1"
+      }
+    ],
+    "data": [
+      {
+        "extensionId": "anynote.core.revision-meta",
+        "schemaVersion": 1
+      },
+      {
+        "extensionId": "unknown.fixture",
+        "schemaVersion": 9
+      }
+    ]
+  }
+}

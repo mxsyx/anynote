@@ -1,0 +1,42 @@
+name: Rust baseline
+on:
+  push:
+    paths:
+      [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "apps/desktop-rust/**",
+        "crates/**",
+        "tests/fixtures/rust-migration/config/**",
+        "scripts/rust-config-*.mjs",
+        "scripts/check-rust-workspace.py",
+        ".github/workflows/rust.yml",
+      ]
+  pull_request:
+    paths:
+      [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "apps/desktop-rust/**",
+        "crates/**",
+        "tests/fixtures/rust-migration/config/**",
+        "scripts/rust-config-*.mjs",
+        "scripts/check-rust-workspace.py",
+        ".github/workflows/rust.yml",
+      ]
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libvulkan-dev
+      - name: Install pinned toolchain
+        run: rustup show
+      - run: cargo fetch --locked
+      - run: python3 scripts/check-rust-workspace.py
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --workspace --all-features --locked

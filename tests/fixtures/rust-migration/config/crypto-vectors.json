@@ -1,0 +1,20 @@
+[
+  {
+    "platform": "linux",
+    "password": "rm13-public-synthetic-password",
+    "ciphertext": "76313180f9c66f7c78cf5145e4c423f85457e430f112b27d944c37e20efabda5722a424deeeee5cbb11b2b32757ba2f5bc1d28",
+    "sha256": "dcc963a11951752b8c8846490b494f5e6bce6efbd38b47cb4dcdbe8386dcdcd5"
+  },
+  {
+    "platform": "macos",
+    "password": "rm13-public-synthetic-password",
+    "ciphertext": "763130c9f2b23152ca4b08aecd5a4349873f3ebd23461aa64af867495402548cbb58a3671b521d1cf02e7706e8f93544ebd728",
+    "sha256": "dcc963a11951752b8c8846490b494f5e6bce6efbd38b47cb4dcdbe8386dcdcd5"
+  },
+  {
+    "platform": "windows",
+    "key": "4242424242424242424242424242424242424242424242424242424242424242",
+    "ciphertext": "7631302424242424242424242424246eb3b02e82a3a81c1cca50c78c01bed619995f19d5862314ded0a43f22ac843e746e32f112368861678cedc81930a817da27f8c9b5655dae",
+    "sha256": "dcc963a11951752b8c8846490b494f5e6bce6efbd38b47cb4dcdbe8386dcdcd5"
+  }
+]

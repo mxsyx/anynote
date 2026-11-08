@@ -17,3 +17,5 @@ public/excalidraw/
 pnpm-lock.yaml
 # 用户提供的原始设计文档，不做重排
 docs/design/*-Design.md
+# Frozen byte/hash comparison corpus; rebuild with its generator.
+tests/fixtures/rust-migration/corpus/

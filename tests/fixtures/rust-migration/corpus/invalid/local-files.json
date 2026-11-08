@@ -1,0 +1,53 @@
+{
+  "format": "anynote.local-backup",
+  "formatVersion": 3,
+  "targetId": "e8850f2e-6027-4457-af7d-ac1ec3a1f385",
+  "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+  "taskId": "3741a64a-9b25-4ad4-a865-683c50888191",
+  "completedAt": "2026-11-08T09:11:29.485Z",
+  "revision": {
+    "contentSeq": "12",
+    "schemaVersion": 5,
+    "lineageId": "27a44c94-05a2-4b1f-a3d7-eb4f1ac1cff6",
+    "storageEpoch": "97"
+  },
+  "name": "RM01 合成兼容库",
+  "database": {
+    "path": "notebook.sqlite",
+    "size": 221184,
+    "sha256": "78b5224a03cfa0702370219bed9d3459ff72283749a0f1a750ae699259e6755b",
+    "chunkSize": 1048576,
+    "chunks": [
+      {
+        "sha256": "78b5224a03cfa0702370219bed9d3459ff72283749a0f1a750ae699259e6755b",
+        "size": 221184
+      }
+    ]
+  },
+  "verificationStatus": "verified-new-files",
+  "assets": [
+    {
+      "path": "assets/sha256/03/0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f.bin",
+      "size": 5577,
+      "sha256": "0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f"
+    },
+    {
+      "path": "assets/sha256/28/28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266.bin",
+      "size": 68,
+      "sha256": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    },
+    {
+      "path": "assets/sha256/b8/b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19.bin",
+      "size": 117,
+      "sha256": "b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19"
+    },
+    {
+      "path": "assets/sha256/e4/e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4.bin",
+      "size": 1124,
+      "sha256": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4"
+    }
+  ],
+  "files": [],
+  "cleanup": [],
+  "lastFullVerifiedAt": "2026-11-08T09:11:29.518Z"
+}

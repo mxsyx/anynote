@@ -146,13 +146,16 @@ export function richBlocks(source: string): RichBlock[] {
       result.push({ ...segment, editable: false, reason: "extension" });
       continue;
     }
-    const ast = parser.parse(segment.source);
+    // remark removes a leading BOM before assigning offsets; keep offsets in the original source.
+    const bom = segment.source.startsWith("\uFEFF") ? 1 : 0;
+    const base = segment.start + bom;
+    const ast = parser.parse(segment.source.slice(bom));
     for (const node of ast.children) {
-      const start = segment.start + node.position!.start.offset!,
-        end = segment.start + node.position!.end.offset!,
+      const start = base + node.position!.start.offset!,
+        end = base + node.position!.end.offset!,
         text = source.slice(start, end),
         reason =
-          inspect(node, source, segment.start) ??
+          inspect(node, source, base) ??
           (/\[\^[^\]]+\]/.test(text) ? "footnote" : null);
       result.push({
         start,

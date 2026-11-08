@@ -31,8 +31,12 @@ apps/cloudflare-backup/wrangler.ci.json
 !.env.*.example
 .env
 *.log
+!tests/fixtures/rust-migration/config/**/leveldb/*.log
 *.tsbuildinfo
 .DS_Store
 
 # Disposable local outputs.
 **/tmp/
+
+# Rust build artifacts.
+/target/

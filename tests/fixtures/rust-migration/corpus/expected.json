@@ -1,0 +1,873 @@
+{
+  "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+  "folderId": "701740b2-74b2-43cb-acaf-854b8f03a866",
+  "markdownId": "31f75300-9b2d-4e2d-a632-8d417829e550",
+  "trashId": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+  "imageId": "ad300a79-bd25-4109-807d-467444a5d4b5",
+  "pdfId": "b3549157-0ce6-48cb-9de4-464401244ac8",
+  "boardId": "56118ef7-816d-486d-91e3-e55a504e1803",
+  "boardResourceId": "bea715d5-0df7-4417-aca6-65f4a7a8015e",
+  "boardRevisionId": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+  "notes": [
+    {
+      "note": {
+        "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+        "parent_id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+        "kind": "note",
+        "title": "Markdown",
+        "sort_key": 1794129089109,
+        "revision": 2,
+        "created_at": 1794129089109,
+        "updated_at": 1794129089112,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 1,
+        "tags": [
+          "合成",
+          "边界"
+        ],
+        "note_type": "markdown",
+        "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+        "primary_resource_id": null,
+        "head_revision_id": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+        "source_uri": null
+      },
+      "history": [
+        {
+          "id": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+          "note_id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+          "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+          "created_at": 1794129089112,
+          "actor": "user",
+          "metadata": {
+            "noteId": "31f75300-9b2d-4e2d-a632-8d417829e550",
+            "title": "Markdown",
+            "tags": [
+              "合成",
+              "边界"
+            ],
+            "favorite": 1
+          }
+        },
+        {
+          "id": "15eeea57-3a26-4ee0-8c44-9b68dabb59e6",
+          "note_id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+          "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n",
+          "created_at": 1794129089109,
+          "actor": "user",
+          "metadata": {
+            "noteId": "31f75300-9b2d-4e2d-a632-8d417829e550",
+            "title": "Markdown",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    },
+    {
+      "note": {
+        "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+        "parent_id": null,
+        "kind": "note",
+        "title": "回收站",
+        "sort_key": 1794129089115,
+        "revision": 2,
+        "created_at": 1794129089115,
+        "updated_at": 1794129089115,
+        "deleted_at": 1794129089117,
+        "deleted_by": "86277148-97b7-4f9b-af92-50247402e4fd",
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown",
+        "body": "保留删除内容",
+        "primary_resource_id": null,
+        "head_revision_id": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+        "source_uri": null
+      },
+      "history": [
+        {
+          "id": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+          "note_id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+          "body": "保留删除内容",
+          "created_at": 1794129089115,
+          "actor": "user",
+          "metadata": {
+            "noteId": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+            "title": "回收站",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    },
+    {
+      "note": {
+        "id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+        "parent_id": null,
+        "kind": "note",
+        "title": "pixel.png",
+        "sort_key": 1794129089119,
+        "revision": 1,
+        "created_at": 1794129089119,
+        "updated_at": 1794129089119,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "image",
+        "body": "",
+        "primary_resource_id": "b4cf1b4f-58fd-419b-b912-b80a5c8e1d0b",
+        "head_revision_id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+        "source_uri": null
+      },
+      "history": [
+        {
+          "id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+          "note_id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+          "body": "",
+          "created_at": 1794129089119,
+          "actor": "user",
+          "metadata": {
+            "noteId": "ad300a79-bd25-4109-807d-467444a5d4b5",
+            "title": "pixel.png",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    },
+    {
+      "note": {
+        "id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+        "parent_id": null,
+        "kind": "note",
+        "title": "three-pages.pdf",
+        "sort_key": 1794129089122,
+        "revision": 1,
+        "created_at": 1794129089122,
+        "updated_at": 1794129089122,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "pdf",
+        "body": "",
+        "primary_resource_id": "3445f0ea-6704-4c7d-8a75-c5333f01ee68",
+        "head_revision_id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+        "source_uri": null
+      },
+      "history": [
+        {
+          "id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+          "note_id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+          "body": "",
+          "created_at": 1794129089122,
+          "actor": "user",
+          "metadata": {
+            "noteId": "b3549157-0ce6-48cb-9de4-464401244ac8",
+            "title": "three-pages.pdf",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    },
+    {
+      "note": {
+        "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+        "parent_id": null,
+        "kind": "note",
+        "title": "白板历史",
+        "sort_key": 1794129089127,
+        "revision": 3,
+        "created_at": 1794129089127,
+        "updated_at": 1794129089135,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown",
+        "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+        "primary_resource_id": null,
+        "head_revision_id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+        "source_uri": null
+      },
+      "history": [
+        {
+          "id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+          "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+          "created_at": 1794129089135,
+          "actor": "user",
+          "metadata": {
+            "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+            "title": "白板历史",
+            "tags": [],
+            "favorite": 0
+          }
+        },
+        {
+          "id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+          "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+          "created_at": 1794129089131,
+          "actor": "user",
+          "metadata": {
+            "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+            "title": "白板历史",
+            "tags": [],
+            "favorite": 0
+          }
+        },
+        {
+          "id": "f8b565af-9481-4af0-80a2-134be86c38c7",
+          "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "body": "# 白板\n",
+          "created_at": 1794129089127,
+          "actor": "user",
+          "metadata": {
+            "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+            "title": "白板历史",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    },
+    {
+      "note": {
+        "id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+        "parent_id": null,
+        "kind": "note",
+        "title": "合成采集",
+        "sort_key": 1794129089158,
+        "revision": 1,
+        "created_at": 1794129089158,
+        "updated_at": 1794129089158,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown",
+        "body": "# 浏览器采集\n\n合成文字与表格\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![采集图片](<anynote-resource:5efa2c6f-8e0e-4dea-8001-4f09b53bb55d>)\n",
+        "primary_resource_id": null,
+        "head_revision_id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+        "source_uri": "https://example.invalid/article"
+      },
+      "history": [
+        {
+          "id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+          "note_id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+          "body": "# 浏览器采集\n\n合成文字与表格\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![采集图片](<anynote-resource:5efa2c6f-8e0e-4dea-8001-4f09b53bb55d>)\n",
+          "created_at": 1794129089158,
+          "actor": "user",
+          "metadata": {
+            "noteId": "24380078-b692-4cae-befb-c93b3a0d1d23",
+            "title": "合成采集",
+            "tags": [],
+            "favorite": 0
+          }
+        }
+      ]
+    }
+  ],
+  "extensionData": [
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "15eeea57-3a26-4ee0-8c44-9b68dabb59e6",
+      "value_json": "{\"noteId\":\"31f75300-9b2d-4e2d-a632-8d417829e550\",\"title\":\"Markdown\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+      "value_json": "{\"noteId\":\"bd66e4c1-d1eb-4d41-8b45-3dd60a059310\",\"title\":\"回收站\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "46a8f898-0a11-49a1-911f-3ca953c60509",
+      "value_json": "{\"noteId\":\"b3549157-0ce6-48cb-9de4-464401244ac8\",\"title\":\"three-pages.pdf\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+      "value_json": "{\"noteId\":\"56118ef7-816d-486d-91e3-e55a504e1803\",\"title\":\"白板历史\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+      "value_json": "{\"noteId\":\"31f75300-9b2d-4e2d-a632-8d417829e550\",\"title\":\"Markdown\",\"tags\":[\"合成\",\"边界\"],\"favorite\":1}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+      "value_json": "{\"noteId\":\"ad300a79-bd25-4109-807d-467444a5d4b5\",\"title\":\"pixel.png\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "ea7b9461-5d39-4790-8546-5856eb244f06",
+      "value_json": "{\"noteId\":\"24380078-b692-4cae-befb-c93b3a0d1d23\",\"title\":\"合成采集\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+      "value_json": "{\"noteId\":\"56118ef7-816d-486d-91e3-e55a504e1803\",\"title\":\"白板历史\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "anynote.core.revision-meta",
+      "key": "f8b565af-9481-4af0-80a2-134be86c38c7",
+      "value_json": "{\"noteId\":\"56118ef7-816d-486d-91e3-e55a504e1803\",\"title\":\"白板历史\",\"tags\":[],\"favorite\":0}",
+      "schema_version": 1,
+      "revision": 1
+    },
+    {
+      "extension_id": "unknown.fixture",
+      "key": "opaque.state",
+      "value_json": "{\"unknown\":[1,\"保留\"],\"version\":9}",
+      "schema_version": 9,
+      "revision": 1
+    }
+  ],
+  "revisionResources": [
+    {
+      "revision_id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+      "resource_id": "3445f0ea-6704-4c7d-8a75-c5333f01ee68",
+      "asset_hash": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4"
+    },
+    {
+      "revision_id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+      "resource_id": "1e3f1de6-f61b-4f89-857d-80f5a83fa5fb",
+      "asset_hash": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    },
+    {
+      "revision_id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+      "resource_id": "bea715d5-0df7-4417-aca6-65f4a7a8015e",
+      "asset_hash": "b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19"
+    },
+    {
+      "revision_id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+      "resource_id": "b4cf1b4f-58fd-419b-b912-b80a5c8e1d0b",
+      "asset_hash": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    },
+    {
+      "revision_id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+      "resource_id": "5efa2c6f-8e0e-4dea-8001-4f09b53bb55d",
+      "asset_hash": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    },
+    {
+      "revision_id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+      "resource_id": "1e3f1de6-f61b-4f89-857d-80f5a83fa5fb",
+      "asset_hash": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    },
+    {
+      "revision_id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+      "resource_id": "bea715d5-0df7-4417-aca6-65f4a7a8015e",
+      "asset_hash": "0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f"
+    },
+    {
+      "revision_id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+      "resource_id": "c4d1c8e5-e81d-4aea-a3cc-48d8575e82be",
+      "asset_hash": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "b2ceac28-24ff-4317-9294-f7afe29409e3",
+      "note_id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+      "target_asset_hash": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4",
+      "page": 2,
+      "selector_json": "[{\"x\":0.1,\"y\":0.2,\"width\":0.3,\"height\":0.1}]",
+      "quote": "Anynote page 2",
+      "body": "合成批注",
+      "color": "yellow",
+      "revision": 1,
+      "created_at": 1794129089126,
+      "deleted_at": null
+    }
+  ],
+  "sqliteMaster": [
+    {
+      "type": "index",
+      "name": "nodes_parent",
+      "tbl_name": "nodes",
+      "sql": "CREATE INDEX nodes_parent ON nodes(parent_id,sort_key,id)"
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_annotations_1",
+      "tbl_name": "annotations",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_assets_1",
+      "tbl_name": "assets",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_capture_receipts_1",
+      "tbl_name": "capture_receipts",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_extension_data_1",
+      "tbl_name": "extension_data",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_import_reports_1",
+      "tbl_name": "import_reports",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_nodes_1",
+      "tbl_name": "nodes",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_note_links_1",
+      "tbl_name": "note_links",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_note_revisions_1",
+      "tbl_name": "note_revisions",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_note_text_1",
+      "tbl_name": "note_text",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_notebook_meta_1",
+      "tbl_name": "notebook_meta",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_notes_1",
+      "tbl_name": "notes",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_resources_1",
+      "tbl_name": "resources",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_revision_resources_1",
+      "tbl_name": "revision_resources",
+      "sql": null
+    },
+    {
+      "type": "table",
+      "name": "_backup_revision",
+      "tbl_name": "_backup_revision",
+      "sql": "CREATE TABLE _backup_revision(id INTEGER PRIMARY KEY CHECK(id=1),format INTEGER NOT NULL CHECK(format=1),lineage_id TEXT NOT NULL,storage_epoch INTEGER NOT NULL CHECK(typeof(storage_epoch)='integer' AND storage_epoch>=0))"
+    },
+    {
+      "type": "table",
+      "name": "annotations",
+      "tbl_name": "annotations",
+      "sql": "CREATE TABLE annotations(id TEXT PRIMARY KEY,note_id TEXT NOT NULL REFERENCES notes(node_id),target_asset_hash TEXT NOT NULL REFERENCES assets(hash),page INTEGER NOT NULL,selector_json TEXT NOT NULL,quote TEXT NOT NULL,body TEXT NOT NULL,color TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,deleted_at INTEGER)"
+    },
+    {
+      "type": "table",
+      "name": "assets",
+      "tbl_name": "assets",
+      "sql": "CREATE TABLE assets(hash TEXT PRIMARY KEY,size INTEGER NOT NULL,mime TEXT NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "capture_receipts",
+      "tbl_name": "capture_receipts",
+      "sql": "CREATE TABLE capture_receipts(capture_id TEXT PRIMARY KEY,digest TEXT NOT NULL,note_id TEXT NOT NULL,applied_seq INTEGER NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "changes",
+      "tbl_name": "changes",
+      "sql": "CREATE TABLE changes(seq INTEGER PRIMARY KEY AUTOINCREMENT,entity_id TEXT NOT NULL,operation TEXT NOT NULL,payload_json TEXT NOT NULL,created_at INTEGER NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "extension_data",
+      "tbl_name": "extension_data",
+      "sql": "CREATE TABLE extension_data(extension_id TEXT NOT NULL,key TEXT NOT NULL,value_json TEXT NOT NULL,schema_version INTEGER NOT NULL DEFAULT 1,revision INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(extension_id,key))"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes",
+      "tbl_name": "fts_notes",
+      "sql": "CREATE VIRTUAL TABLE fts_notes USING fts5(note_id UNINDEXED,title,body,tokenize='trigram')"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes_config",
+      "tbl_name": "fts_notes_config",
+      "sql": "CREATE TABLE 'fts_notes_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes_content",
+      "tbl_name": "fts_notes_content",
+      "sql": "CREATE TABLE 'fts_notes_content'(id INTEGER PRIMARY KEY, c0, c1, c2)"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes_data",
+      "tbl_name": "fts_notes_data",
+      "sql": "CREATE TABLE 'fts_notes_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes_docsize",
+      "tbl_name": "fts_notes_docsize",
+      "sql": "CREATE TABLE 'fts_notes_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+      "type": "table",
+      "name": "fts_notes_idx",
+      "tbl_name": "fts_notes_idx",
+      "sql": "CREATE TABLE 'fts_notes_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+      "type": "table",
+      "name": "import_reports",
+      "tbl_name": "import_reports",
+      "sql": "CREATE TABLE import_reports(note_id TEXT PRIMARY KEY REFERENCES notes(node_id),report_json TEXT NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "nodes",
+      "tbl_name": "nodes",
+      "sql": "CREATE TABLE nodes(id TEXT PRIMARY KEY,parent_id TEXT REFERENCES nodes(id),kind TEXT NOT NULL CHECK(kind IN ('folder','note')),title TEXT NOT NULL,sort_key INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,deleted_by TEXT,favorite INTEGER NOT NULL DEFAULT 0,tags TEXT NOT NULL DEFAULT '[]')"
+    },
+    {
+      "type": "table",
+      "name": "note_links",
+      "tbl_name": "note_links",
+      "sql": "CREATE TABLE note_links(source_note_id TEXT NOT NULL REFERENCES notes(node_id),target_notebook_id TEXT NOT NULL,target_note_id TEXT NOT NULL,anchor TEXT,PRIMARY KEY(source_note_id,target_notebook_id,target_note_id))"
+    },
+    {
+      "type": "table",
+      "name": "note_revisions",
+      "tbl_name": "note_revisions",
+      "sql": "CREATE TABLE note_revisions(id TEXT PRIMARY KEY,note_id TEXT NOT NULL REFERENCES notes(node_id),body TEXT NOT NULL,created_at INTEGER NOT NULL,actor TEXT NOT NULL DEFAULT 'user')"
+    },
+    {
+      "type": "table",
+      "name": "note_text",
+      "tbl_name": "note_text",
+      "sql": "CREATE TABLE note_text(note_id TEXT PRIMARY KEY REFERENCES notes(node_id),asset_hash TEXT NOT NULL REFERENCES assets(hash),body TEXT NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "notebook_meta",
+      "tbl_name": "notebook_meta",
+      "sql": "CREATE TABLE notebook_meta(id TEXT PRIMARY KEY,name TEXT NOT NULL,icon TEXT NOT NULL DEFAULT '❦',cover_color TEXT NOT NULL DEFAULT '#583a29',schema_version INTEGER NOT NULL DEFAULT 5,content_seq INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "notes",
+      "tbl_name": "notes",
+      "sql": "CREATE TABLE notes(node_id TEXT PRIMARY KEY REFERENCES nodes(id),note_type TEXT NOT NULL CHECK(note_type IN ('markdown','pdf','image')),head_revision_id TEXT REFERENCES note_revisions(id),primary_resource_id TEXT REFERENCES resources(id),source_uri TEXT)"
+    },
+    {
+      "type": "table",
+      "name": "resources",
+      "tbl_name": "resources",
+      "sql": "CREATE TABLE resources(id TEXT PRIMARY KEY,asset_hash TEXT NOT NULL REFERENCES assets(hash),original_name TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1)"
+    },
+    {
+      "type": "table",
+      "name": "revision_resources",
+      "tbl_name": "revision_resources",
+      "sql": "CREATE TABLE revision_resources(revision_id TEXT NOT NULL REFERENCES note_revisions(id),resource_id TEXT NOT NULL REFERENCES resources(id),asset_hash TEXT NOT NULL REFERENCES assets(hash),PRIMARY KEY(revision_id,resource_id))"
+    },
+    {
+      "type": "table",
+      "name": "sqlite_sequence",
+      "tbl_name": "sqlite_sequence",
+      "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_annotations_delete",
+      "tbl_name": "annotations",
+      "sql": "CREATE TRIGGER _backup_annotations_delete AFTER DELETE ON annotations BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_annotations_insert",
+      "tbl_name": "annotations",
+      "sql": "CREATE TRIGGER _backup_annotations_insert AFTER INSERT ON annotations BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_annotations_update",
+      "tbl_name": "annotations",
+      "sql": "CREATE TRIGGER _backup_annotations_update AFTER UPDATE ON annotations BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_assets_delete",
+      "tbl_name": "assets",
+      "sql": "CREATE TRIGGER _backup_assets_delete AFTER DELETE ON assets BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_assets_insert",
+      "tbl_name": "assets",
+      "sql": "CREATE TRIGGER _backup_assets_insert AFTER INSERT ON assets BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_assets_update",
+      "tbl_name": "assets",
+      "sql": "CREATE TRIGGER _backup_assets_update AFTER UPDATE ON assets BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_capture_receipts_delete",
+      "tbl_name": "capture_receipts",
+      "sql": "CREATE TRIGGER _backup_capture_receipts_delete AFTER DELETE ON capture_receipts BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_capture_receipts_insert",
+      "tbl_name": "capture_receipts",
+      "sql": "CREATE TRIGGER _backup_capture_receipts_insert AFTER INSERT ON capture_receipts BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_capture_receipts_update",
+      "tbl_name": "capture_receipts",
+      "sql": "CREATE TRIGGER _backup_capture_receipts_update AFTER UPDATE ON capture_receipts BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_changes_delete",
+      "tbl_name": "changes",
+      "sql": "CREATE TRIGGER _backup_changes_delete AFTER DELETE ON changes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_changes_insert",
+      "tbl_name": "changes",
+      "sql": "CREATE TRIGGER _backup_changes_insert AFTER INSERT ON changes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_changes_update",
+      "tbl_name": "changes",
+      "sql": "CREATE TRIGGER _backup_changes_update AFTER UPDATE ON changes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_extension_data_delete",
+      "tbl_name": "extension_data",
+      "sql": "CREATE TRIGGER _backup_extension_data_delete AFTER DELETE ON extension_data BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_extension_data_insert",
+      "tbl_name": "extension_data",
+      "sql": "CREATE TRIGGER _backup_extension_data_insert AFTER INSERT ON extension_data BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_extension_data_update",
+      "tbl_name": "extension_data",
+      "sql": "CREATE TRIGGER _backup_extension_data_update AFTER UPDATE ON extension_data BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_import_reports_delete",
+      "tbl_name": "import_reports",
+      "sql": "CREATE TRIGGER _backup_import_reports_delete AFTER DELETE ON import_reports BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_import_reports_insert",
+      "tbl_name": "import_reports",
+      "sql": "CREATE TRIGGER _backup_import_reports_insert AFTER INSERT ON import_reports BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_import_reports_update",
+      "tbl_name": "import_reports",
+      "sql": "CREATE TRIGGER _backup_import_reports_update AFTER UPDATE ON import_reports BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_nodes_delete",
+      "tbl_name": "nodes",
+      "sql": "CREATE TRIGGER _backup_nodes_delete AFTER DELETE ON nodes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_nodes_insert",
+      "tbl_name": "nodes",
+      "sql": "CREATE TRIGGER _backup_nodes_insert AFTER INSERT ON nodes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_nodes_update",
+      "tbl_name": "nodes",
+      "sql": "CREATE TRIGGER _backup_nodes_update AFTER UPDATE ON nodes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_links_delete",
+      "tbl_name": "note_links",
+      "sql": "CREATE TRIGGER _backup_note_links_delete AFTER DELETE ON note_links BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_links_insert",
+      "tbl_name": "note_links",
+      "sql": "CREATE TRIGGER _backup_note_links_insert AFTER INSERT ON note_links BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_links_update",
+      "tbl_name": "note_links",
+      "sql": "CREATE TRIGGER _backup_note_links_update AFTER UPDATE ON note_links BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_revisions_delete",
+      "tbl_name": "note_revisions",
+      "sql": "CREATE TRIGGER _backup_note_revisions_delete AFTER DELETE ON note_revisions BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_revisions_insert",
+      "tbl_name": "note_revisions",
+      "sql": "CREATE TRIGGER _backup_note_revisions_insert AFTER INSERT ON note_revisions BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_revisions_update",
+      "tbl_name": "note_revisions",
+      "sql": "CREATE TRIGGER _backup_note_revisions_update AFTER UPDATE ON note_revisions BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_text_delete",
+      "tbl_name": "note_text",
+      "sql": "CREATE TRIGGER _backup_note_text_delete AFTER DELETE ON note_text BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_text_insert",
+      "tbl_name": "note_text",
+      "sql": "CREATE TRIGGER _backup_note_text_insert AFTER INSERT ON note_text BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_note_text_update",
+      "tbl_name": "note_text",
+      "sql": "CREATE TRIGGER _backup_note_text_update AFTER UPDATE ON note_text BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notebook_meta_delete",
+      "tbl_name": "notebook_meta",
+      "sql": "CREATE TRIGGER _backup_notebook_meta_delete AFTER DELETE ON notebook_meta BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notebook_meta_insert",
+      "tbl_name": "notebook_meta",
+      "sql": "CREATE TRIGGER _backup_notebook_meta_insert AFTER INSERT ON notebook_meta BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notebook_meta_update",
+      "tbl_name": "notebook_meta",
+      "sql": "CREATE TRIGGER _backup_notebook_meta_update AFTER UPDATE ON notebook_meta BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notes_delete",
+      "tbl_name": "notes",
+      "sql": "CREATE TRIGGER _backup_notes_delete AFTER DELETE ON notes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notes_insert",
+      "tbl_name": "notes",
+      "sql": "CREATE TRIGGER _backup_notes_insert AFTER INSERT ON notes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_notes_update",
+      "tbl_name": "notes",
+      "sql": "CREATE TRIGGER _backup_notes_update AFTER UPDATE ON notes BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_resources_delete",
+      "tbl_name": "resources",
+      "sql": "CREATE TRIGGER _backup_resources_delete AFTER DELETE ON resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_resources_insert",
+      "tbl_name": "resources",
+      "sql": "CREATE TRIGGER _backup_resources_insert AFTER INSERT ON resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_resources_update",
+      "tbl_name": "resources",
+      "sql": "CREATE TRIGGER _backup_resources_update AFTER UPDATE ON resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_revision_resources_delete",
+      "tbl_name": "revision_resources",
+      "sql": "CREATE TRIGGER _backup_revision_resources_delete AFTER DELETE ON revision_resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_revision_resources_insert",
+      "tbl_name": "revision_resources",
+      "sql": "CREATE TRIGGER _backup_revision_resources_insert AFTER INSERT ON revision_resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    },
+    {
+      "type": "trigger",
+      "name": "_backup_revision_resources_update",
+      "tbl_name": "revision_resources",
+      "sql": "CREATE TRIGGER _backup_revision_resources_update AFTER UPDATE ON revision_resources BEGIN\n     SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM _backup_revision WHERE id=1) THEN RAISE(ABORT,'backup revision missing') END;\n     SELECT CASE WHEN (SELECT storage_epoch FROM _backup_revision WHERE id=1)>=9223372036854775807 THEN RAISE(ABORT,'backup revision exhausted') END;\n     UPDATE _backup_revision SET storage_epoch=storage_epoch+1 WHERE id=1;\n   END"
+    }
+  ]
+}

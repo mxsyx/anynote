@@ -2,6 +2,8 @@
 
 状态：设计方案，2026-11-08。本文与[迁移总方案](RUST-DESKTOP-MIGRATION.md)、[功能盘点](RUST-MIGRATION-INVENTORY.md)、[编辑器设计](RUST-EDITOR-DESIGN.md)配套。本文描述待实施方案；本次未运行迁移、修改业务代码、读取用户凭据或执行远端验收。
 
+RM13 离线配置读取与凭据原型已交付，具体已验证范围、格式及未验证平台见[实现入口](../development/RUST-CONFIG-MIGRATION.md)；本文其他迁移步骤仍是设计约束，不据此推断已经接管或通过真实验收。
+
 ## 1. 决策与边界
 
 首个 Rust 版本保留现行 Notebook schema v5、Markdown 正文、资源身份、归档格式、本地备份格式和 Cloudflare v1 协议。更换执行语言不同时更换持久化模型。当前用户明确要求现有数据兼容，该要求优先于项目一般性的“不保证历史兼容”约定。

@@ -1,0 +1,1717 @@
+[
+  {
+    "op": "createNotebook",
+    "input": {
+      "title": "RM01 合成兼容库"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "name": "RM01 合成兼容库",
+      "icon": "❦",
+      "cover_color": "#583a29",
+      "path": "/home/mxsyx/workspace/anynote/tmp/rm01-generate-R92obf/source/8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "content_seq": 0,
+      "schema_version": 5,
+      "created_at": 1794129089094,
+      "external": false
+    }
+  },
+  {
+    "op": "createNode",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "kind": "folder",
+      "title": "目录"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+      "parent_id": null,
+      "kind": "folder",
+      "title": "目录",
+      "sort_key": 1794129089108,
+      "revision": 1,
+      "created_at": 1794129089108,
+      "updated_at": 1794129089108,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "body": "",
+      "primary_resource_id": null,
+      "head_revision_id": null
+    }
+  },
+  {
+    "op": "createNode",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "parentId": "701740b2-74b2-43cb-acaf-854b8f03a866",
+      "title": "Markdown",
+      "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+      "parent_id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+      "kind": "note",
+      "title": "Markdown",
+      "sort_key": 1794129089109,
+      "revision": 1,
+      "created_at": 1794129089109,
+      "updated_at": 1794129089109,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n",
+      "primary_resource_id": null,
+      "head_revision_id": "15eeea57-3a26-4ee0-8c44-9b68dabb59e6",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "saveNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+      "expectedRevision": 1,
+      "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+      "tags": [
+        "合成",
+        "边界"
+      ],
+      "favorite": true
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+      "parent_id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+      "kind": "note",
+      "title": "Markdown",
+      "sort_key": 1794129089109,
+      "revision": 2,
+      "created_at": 1794129089109,
+      "updated_at": 1794129089112,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 1,
+      "tags": [
+        "合成",
+        "边界"
+      ],
+      "note_type": "markdown",
+      "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+      "primary_resource_id": null,
+      "head_revision_id": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "saveNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+      "expectedRevision": 1,
+      "body": "不能覆盖"
+    },
+    "outcome": "rejected",
+    "error": {
+      "name": "Error",
+      "message": "版本冲突：内容已被修改。请保留草稿并重新打开笔记。"
+    }
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "invalid-uuid"
+    },
+    "outcome": "rejected",
+    "error": {
+      "name": "ZodError",
+      "message": "[\n  {\n    \"validation\": \"uuid\",\n    \"code\": \"invalid_string\",\n    \"message\": \"Invalid uuid\",\n    \"path\": [\n      \"id\"\n    ]\n  }\n]"
+    }
+  },
+  {
+    "op": "createNode",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "title": "回收站",
+      "body": "保留删除内容"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+      "parent_id": null,
+      "kind": "note",
+      "title": "回收站",
+      "sort_key": 1794129089115,
+      "revision": 1,
+      "created_at": 1794129089115,
+      "updated_at": 1794129089115,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "保留删除内容",
+      "primary_resource_id": null,
+      "head_revision_id": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "trashNode",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310"
+    },
+    "outcome": "resolved",
+    "result": true
+  },
+  {
+    "op": "importFile",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "name": "pixel.png",
+      "mime": "image/png",
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII="
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+      "parent_id": null,
+      "kind": "note",
+      "title": "pixel.png",
+      "sort_key": 1794129089119,
+      "revision": 1,
+      "created_at": 1794129089119,
+      "updated_at": 1794129089119,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "image",
+      "body": "",
+      "primary_resource_id": "b4cf1b4f-58fd-419b-b912-b80a5c8e1d0b",
+      "head_revision_id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "importFile",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "name": "three-pages.pdf",
+      "mime": "application/pdf",
+      "data": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFs0IDAgUiA2IDAgUiA4IDAgUl0gL0NvdW50IDMgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago0IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgMzIwIDMyMF0gL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgMyAwIFIgPj4gPj4gL0NvbnRlbnRzIDUgMCBSID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggNDUgPj4Kc3RyZWFtCkJUIC9GMSAxOCBUZiA0MCAyMjAgVGQgKEFueW5vdGUgcGFnZSAxKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjYgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCAzMjAgMzIwXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSAzIDAgUiA+PiA+PiAvQ29udGVudHMgNyAwIFIgPj4KZW5kb2JqCjcgMCBvYmoKPDwgL0xlbmd0aCA0NSA+PgpzdHJlYW0KQlQgL0YxIDE4IFRmIDQwIDIyMCBUZCAoQW55bm90ZSBwYWdlIDIpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKOCAwIG9iago8PCAvVHlwZSAvUGFnZSAvUGFyZW50IDIgMCBSIC9NZWRpYUJveCBbMCAwIDMyMCAzMjBdIC9SZXNvdXJjZXMgPDwgL0ZvbnQgPDwgL0YxIDMgMCBSID4+ID4+IC9Db250ZW50cyA5IDAgUiA+PgplbmRvYmoKOSAwIG9iago8PCAvTGVuZ3RoIDQ1ID4+CnN0cmVhbQpCVCAvRjEgMTggVGYgNDAgMjIwIFRkIChBbnlub3RlIHBhZ2UgMykgVGogRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgMTAKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDEyNyAwMDAwMCBuIAowMDAwMDAwMTk3IDAwMDAwIG4gCjAwMDAwMDAzMjMgMDAwMDAgbiAKMDAwMDAwMDQxOCAwMDAwMCBuIAowMDAwMDAwNTQ0IDAwMDAwIG4gCjAwMDAwMDA2MzkgMDAwMDAgbiAKMDAwMDAwMDc2NSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDEwIC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo4NjAKJSVFT0Y="
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+      "parent_id": null,
+      "kind": "note",
+      "title": "three-pages.pdf",
+      "sort_key": 1794129089122,
+      "revision": 1,
+      "created_at": 1794129089122,
+      "updated_at": 1794129089122,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "pdf",
+      "body": "",
+      "primary_resource_id": "3445f0ea-6704-4c7d-8a75-c5333f01ee68",
+      "head_revision_id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "getAssetInfo",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "3445f0ea-6704-4c7d-8a75-c5333f01ee68",
+      "noteId": "b3549157-0ce6-48cb-9de4-464401244ac8"
+    },
+    "outcome": "resolved",
+    "result": {
+      "mime": "application/pdf",
+      "hash": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4",
+      "size": 1124
+    }
+  },
+  {
+    "op": "addAnnotation",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+      "assetHash": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4",
+      "page": 2,
+      "selector": [
+        {
+          "x": 0.1,
+          "y": 0.2,
+          "width": 0.3,
+          "height": 0.1
+        }
+      ],
+      "quote": "Anynote page 2",
+      "body": "合成批注"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "b2ceac28-24ff-4317-9294-f7afe29409e3"
+    }
+  },
+  {
+    "op": "createNode",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "title": "白板历史",
+      "body": "# 白板\n"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "parent_id": null,
+      "kind": "note",
+      "title": "白板历史",
+      "sort_key": 1794129089127,
+      "revision": 1,
+      "created_at": 1794129089127,
+      "updated_at": 1794129089127,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 白板\n",
+      "primary_resource_id": null,
+      "head_revision_id": "f8b565af-9481-4af0-80a2-134be86c38c7",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "saveWhiteboard",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "expectedRevision": 1,
+      "blockId": "fdb68997-fa46-4c2a-9823-a90da7cbe0ee",
+      "scene": {
+        "elements": [
+          {
+            "id": "element-0",
+            "type": "rectangle",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 1,
+            "version": 1,
+            "versionNonce": 1,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          },
+          {
+            "id": "element-1",
+            "type": "diamond",
+            "x": 30,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 2,
+            "version": 1,
+            "versionNonce": 2,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          },
+          {
+            "id": "element-2",
+            "type": "ellipse",
+            "x": 60,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 3,
+            "version": 1,
+            "versionNonce": 3,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          },
+          {
+            "id": "element-3",
+            "type": "text",
+            "x": 90,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 4,
+            "version": 1,
+            "versionNonce": 4,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            },
+            "text": "文字😀",
+            "originalText": "文字😀",
+            "fontSize": 20,
+            "fontFamily": 1,
+            "textAlign": "left",
+            "verticalAlign": "top",
+            "containerId": null,
+            "autoResize": true,
+            "lineHeight": 1.25
+          },
+          {
+            "id": "element-4",
+            "type": "line",
+            "x": 120,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 5,
+            "version": 1,
+            "versionNonce": 5,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            },
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                20,
+                20
+              ]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [
+              0.5,
+              0.8
+            ],
+            "simulatePressure": false
+          },
+          {
+            "id": "element-5",
+            "type": "arrow",
+            "x": 150,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 6,
+            "version": 1,
+            "versionNonce": 6,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            },
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                20,
+                20
+              ]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": "arrow",
+            "pressures": [
+              0.5,
+              0.8
+            ],
+            "simulatePressure": false
+          },
+          {
+            "id": "element-6",
+            "type": "freedraw",
+            "x": 180,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 7,
+            "version": 1,
+            "versionNonce": 7,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            },
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                20,
+                20
+              ]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [
+              0.5,
+              0.8
+            ],
+            "simulatePressure": false
+          },
+          {
+            "id": "element-7",
+            "type": "image",
+            "x": 210,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 8,
+            "version": 1,
+            "versionNonce": 8,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            },
+            "fileId": "sample",
+            "status": "saved",
+            "scale": [
+              1,
+              1
+            ],
+            "crop": null
+          },
+          {
+            "id": "element-8",
+            "type": "frame",
+            "x": 240,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 9,
+            "version": 1,
+            "versionNonce": 9,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          },
+          {
+            "id": "element-9",
+            "type": "iframe",
+            "x": 270,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 10,
+            "version": 1,
+            "versionNonce": 10,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          },
+          {
+            "id": "element-10",
+            "type": "embeddable",
+            "x": 300,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 11,
+            "version": 1,
+            "versionNonce": 11,
+            "isDeleted": false,
+            "boundElements": null,
+            "updated": 1,
+            "link": null,
+            "locked": false,
+            "customData": {
+              "unknown": "preserve"
+            }
+          }
+        ],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": {
+            "value": 1.25
+          }
+        },
+        "files": {
+          "sample": {
+            "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+            "mimeType": "image/png",
+            "created": 1
+          }
+        }
+      },
+      "preview": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII="
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "parent_id": null,
+      "kind": "note",
+      "title": "白板历史",
+      "sort_key": 1794129089127,
+      "revision": 2,
+      "created_at": 1794129089127,
+      "updated_at": 1794129089131,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+      "primary_resource_id": null,
+      "head_revision_id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "saveWhiteboard",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "expectedRevision": 2,
+      "blockId": "fdb68997-fa46-4c2a-9823-a90da7cbe0ee",
+      "resourceId": "bea715d5-0df7-4417-aca6-65f4a7a8015e",
+      "previewResourceId": "1e3f1de6-f61b-4f89-857d-80f5a83fa5fb",
+      "scene": {
+        "elements": [],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": {
+            "value": 1.25
+          }
+        },
+        "files": {}
+      },
+      "preview": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII="
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "parent_id": null,
+      "kind": "note",
+      "title": "白板历史",
+      "sort_key": 1794129089127,
+      "revision": 3,
+      "created_at": 1794129089127,
+      "updated_at": 1794129089135,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+      "primary_resource_id": null,
+      "head_revision_id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "getWhiteboard",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "bea715d5-0df7-4417-aca6-65f4a7a8015e",
+      "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "revisionId": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2"
+    },
+    "outcome": "resolved",
+    "result": {
+      "elements": [
+        {
+          "id": "element-0",
+          "type": "rectangle",
+          "x": 0,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 1,
+          "version": 1,
+          "versionNonce": 1,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        },
+        {
+          "id": "element-1",
+          "type": "diamond",
+          "x": 30,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 2,
+          "version": 1,
+          "versionNonce": 2,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        },
+        {
+          "id": "element-2",
+          "type": "ellipse",
+          "x": 60,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 3,
+          "version": 1,
+          "versionNonce": 3,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        },
+        {
+          "id": "element-3",
+          "type": "text",
+          "x": 90,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 4,
+          "version": 1,
+          "versionNonce": 4,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          },
+          "text": "文字😀",
+          "originalText": "文字😀",
+          "fontSize": 20,
+          "fontFamily": 1,
+          "textAlign": "left",
+          "verticalAlign": "top",
+          "containerId": null,
+          "autoResize": true,
+          "lineHeight": 1.25
+        },
+        {
+          "id": "element-4",
+          "type": "line",
+          "x": 120,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 5,
+          "version": 1,
+          "versionNonce": 5,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          },
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              20
+            ]
+          ],
+          "startBinding": null,
+          "endBinding": null,
+          "startArrowhead": null,
+          "endArrowhead": null,
+          "pressures": [
+            0.5,
+            0.8
+          ],
+          "simulatePressure": false
+        },
+        {
+          "id": "element-5",
+          "type": "arrow",
+          "x": 150,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 6,
+          "version": 1,
+          "versionNonce": 6,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          },
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              20
+            ]
+          ],
+          "startBinding": null,
+          "endBinding": null,
+          "startArrowhead": null,
+          "endArrowhead": "arrow",
+          "pressures": [
+            0.5,
+            0.8
+          ],
+          "simulatePressure": false
+        },
+        {
+          "id": "element-6",
+          "type": "freedraw",
+          "x": 180,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 7,
+          "version": 1,
+          "versionNonce": 7,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          },
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              20
+            ]
+          ],
+          "startBinding": null,
+          "endBinding": null,
+          "startArrowhead": null,
+          "endArrowhead": null,
+          "pressures": [
+            0.5,
+            0.8
+          ],
+          "simulatePressure": false
+        },
+        {
+          "id": "element-7",
+          "type": "image",
+          "x": 210,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 8,
+          "version": 1,
+          "versionNonce": 8,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          },
+          "fileId": "sample",
+          "status": "saved",
+          "scale": [
+            1,
+            1
+          ],
+          "crop": null
+        },
+        {
+          "id": "element-8",
+          "type": "frame",
+          "x": 240,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 9,
+          "version": 1,
+          "versionNonce": 9,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        },
+        {
+          "id": "element-9",
+          "type": "iframe",
+          "x": 270,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 10,
+          "version": 1,
+          "versionNonce": 10,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        },
+        {
+          "id": "element-10",
+          "type": "embeddable",
+          "x": 300,
+          "y": 10,
+          "width": 20,
+          "height": 20,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 11,
+          "version": 1,
+          "versionNonce": 11,
+          "isDeleted": false,
+          "boundElements": null,
+          "updated": 1,
+          "link": null,
+          "locked": false,
+          "customData": {
+            "unknown": "preserve"
+          }
+        }
+      ],
+      "appState": {
+        "viewBackgroundColor": "#ffffff",
+        "scrollX": 4,
+        "scrollY": 6,
+        "zoom": {
+          "value": 1.25
+        }
+      },
+      "files": {
+        "sample": {
+          "id": "sample",
+          "resourceId": "c4d1c8e5-e81d-4aea-a3cc-48d8575e82be",
+          "mimeType": "image/png",
+          "created": 1,
+          "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII="
+        }
+      }
+    }
+  },
+  {
+    "op": "commitImportPreview",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "previewId": "ad3e64f1-6fb3-4651-8c8d-4a02da8a45cf"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+      "parent_id": null,
+      "kind": "note",
+      "title": "合成采集",
+      "sort_key": 1794129089158,
+      "revision": 1,
+      "created_at": 1794129089158,
+      "updated_at": 1794129089158,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 浏览器采集\n\n合成文字与表格\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![采集图片](<anynote-resource:5efa2c6f-8e0e-4dea-8001-4f09b53bb55d>)\n",
+      "primary_resource_id": null,
+      "head_revision_id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+      "source_uri": "https://example.invalid/article"
+    }
+  },
+  {
+    "op": "listNodes",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+        "parent_id": null,
+        "kind": "folder",
+        "title": "目录",
+        "sort_key": 1794129089108,
+        "revision": 1,
+        "created_at": 1794129089108,
+        "updated_at": 1794129089108,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": null
+      },
+      {
+        "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+        "parent_id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+        "kind": "note",
+        "title": "Markdown",
+        "sort_key": 1794129089109,
+        "revision": 2,
+        "created_at": 1794129089109,
+        "updated_at": 1794129089112,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 1,
+        "tags": [
+          "合成",
+          "边界"
+        ],
+        "note_type": "markdown"
+      },
+      {
+        "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+        "parent_id": null,
+        "kind": "note",
+        "title": "回收站",
+        "sort_key": 1794129089115,
+        "revision": 2,
+        "created_at": 1794129089115,
+        "updated_at": 1794129089115,
+        "deleted_at": 1794129089117,
+        "deleted_by": "86277148-97b7-4f9b-af92-50247402e4fd",
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown"
+      },
+      {
+        "id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+        "parent_id": null,
+        "kind": "note",
+        "title": "pixel.png",
+        "sort_key": 1794129089119,
+        "revision": 1,
+        "created_at": 1794129089119,
+        "updated_at": 1794129089119,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "image"
+      },
+      {
+        "id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+        "parent_id": null,
+        "kind": "note",
+        "title": "three-pages.pdf",
+        "sort_key": 1794129089122,
+        "revision": 1,
+        "created_at": 1794129089122,
+        "updated_at": 1794129089122,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "pdf"
+      },
+      {
+        "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+        "parent_id": null,
+        "kind": "note",
+        "title": "白板历史",
+        "sort_key": 1794129089127,
+        "revision": 3,
+        "created_at": 1794129089127,
+        "updated_at": 1794129089135,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown"
+      },
+      {
+        "id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+        "parent_id": null,
+        "kind": "note",
+        "title": "合成采集",
+        "sort_key": 1794129089158,
+        "revision": 1,
+        "created_at": 1794129089158,
+        "updated_at": 1794129089158,
+        "deleted_at": null,
+        "deleted_by": null,
+        "favorite": 0,
+        "tags": [],
+        "note_type": "markdown"
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+      "parent_id": "701740b2-74b2-43cb-acaf-854b8f03a866",
+      "kind": "note",
+      "title": "Markdown",
+      "sort_key": 1794129089109,
+      "revision": 2,
+      "created_at": 1794129089109,
+      "updated_at": 1794129089112,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 1,
+      "tags": [
+        "合成",
+        "边界"
+      ],
+      "note_type": "markdown",
+      "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+      "primary_resource_id": null,
+      "head_revision_id": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "31f75300-9b2d-4e2d-a632-8d417829e550"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "aaeafc1e-ee9f-4a6c-a4e9-3ec8779df02f",
+        "note_id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+        "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n\n[自身](anynote://notebook/8bf0bd1a-957b-431c-985b-c2b3325da959/note/31f75300-9b2d-4e2d-a632-8d417829e550)",
+        "created_at": 1794129089112,
+        "actor": "user",
+        "metadata": {
+          "noteId": "31f75300-9b2d-4e2d-a632-8d417829e550",
+          "title": "Markdown",
+          "tags": [
+            "合成",
+            "边界"
+          ],
+          "favorite": 1
+        }
+      },
+      {
+        "id": "15eeea57-3a26-4ee0-8c44-9b68dabb59e6",
+        "note_id": "31f75300-9b2d-4e2d-a632-8d417829e550",
+        "body": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n\n前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n\n```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n\n:::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n\n<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n\n:::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n",
+        "created_at": 1794129089109,
+        "actor": "user",
+        "metadata": {
+          "noteId": "31f75300-9b2d-4e2d-a632-8d417829e550",
+          "title": "Markdown",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+      "parent_id": null,
+      "kind": "note",
+      "title": "回收站",
+      "sort_key": 1794129089115,
+      "revision": 2,
+      "created_at": 1794129089115,
+      "updated_at": 1794129089115,
+      "deleted_at": 1794129089117,
+      "deleted_by": "86277148-97b7-4f9b-af92-50247402e4fd",
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "保留删除内容",
+      "primary_resource_id": null,
+      "head_revision_id": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "4521dabd-88f7-4e7d-8382-afeb0e45635a",
+        "note_id": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+        "body": "保留删除内容",
+        "created_at": 1794129089115,
+        "actor": "user",
+        "metadata": {
+          "noteId": "bd66e4c1-d1eb-4d41-8b45-3dd60a059310",
+          "title": "回收站",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "ad300a79-bd25-4109-807d-467444a5d4b5"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+      "parent_id": null,
+      "kind": "note",
+      "title": "pixel.png",
+      "sort_key": 1794129089119,
+      "revision": 1,
+      "created_at": 1794129089119,
+      "updated_at": 1794129089119,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "image",
+      "body": "",
+      "primary_resource_id": "b4cf1b4f-58fd-419b-b912-b80a5c8e1d0b",
+      "head_revision_id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "ad300a79-bd25-4109-807d-467444a5d4b5"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "c5717f5f-cd49-4986-8b6f-93c915765dcb",
+        "note_id": "ad300a79-bd25-4109-807d-467444a5d4b5",
+        "body": "",
+        "created_at": 1794129089119,
+        "actor": "user",
+        "metadata": {
+          "noteId": "ad300a79-bd25-4109-807d-467444a5d4b5",
+          "title": "pixel.png",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "b3549157-0ce6-48cb-9de4-464401244ac8"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+      "parent_id": null,
+      "kind": "note",
+      "title": "three-pages.pdf",
+      "sort_key": 1794129089122,
+      "revision": 1,
+      "created_at": 1794129089122,
+      "updated_at": 1794129089122,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "pdf",
+      "body": "",
+      "primary_resource_id": "3445f0ea-6704-4c7d-8a75-c5333f01ee68",
+      "head_revision_id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "b3549157-0ce6-48cb-9de4-464401244ac8"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "46a8f898-0a11-49a1-911f-3ca953c60509",
+        "note_id": "b3549157-0ce6-48cb-9de4-464401244ac8",
+        "body": "",
+        "created_at": 1794129089122,
+        "actor": "user",
+        "metadata": {
+          "noteId": "b3549157-0ce6-48cb-9de4-464401244ac8",
+          "title": "three-pages.pdf",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803",
+      "parent_id": null,
+      "kind": "note",
+      "title": "白板历史",
+      "sort_key": 1794129089127,
+      "revision": 3,
+      "created_at": 1794129089127,
+      "updated_at": 1794129089135,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+      "primary_resource_id": null,
+      "head_revision_id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+      "source_uri": null
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "56118ef7-816d-486d-91e3-e55a504e1803"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "a4d943e5-2874-45a9-88cb-f44e76a1a48f",
+        "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+        "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+        "created_at": 1794129089135,
+        "actor": "user",
+        "metadata": {
+          "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "title": "白板历史",
+          "tags": [],
+          "favorite": 0
+        }
+      },
+      {
+        "id": "f518e32a-323c-4aea-9c7c-ef34a2fa1db2",
+        "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+        "body": "# 白板\n\n\n:::anynote{type=\"core.whiteboard\" version=\"1\" id=\"fdb68997-fa46-4c2a-9823-a90da7cbe0ee\"}\n{\"resourceId\":\"bea715d5-0df7-4417-aca6-65f4a7a8015e\",\"previewResourceId\":\"1e3f1de6-f61b-4f89-857d-80f5a83fa5fb\"}\n:::\n",
+        "created_at": 1794129089131,
+        "actor": "user",
+        "metadata": {
+          "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "title": "白板历史",
+          "tags": [],
+          "favorite": 0
+        }
+      },
+      {
+        "id": "f8b565af-9481-4af0-80a2-134be86c38c7",
+        "note_id": "56118ef7-816d-486d-91e3-e55a504e1803",
+        "body": "# 白板\n",
+        "created_at": 1794129089127,
+        "actor": "user",
+        "metadata": {
+          "noteId": "56118ef7-816d-486d-91e3-e55a504e1803",
+          "title": "白板历史",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  },
+  {
+    "op": "getNote",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "24380078-b692-4cae-befb-c93b3a0d1d23"
+    },
+    "outcome": "resolved",
+    "result": {
+      "id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+      "parent_id": null,
+      "kind": "note",
+      "title": "合成采集",
+      "sort_key": 1794129089158,
+      "revision": 1,
+      "created_at": 1794129089158,
+      "updated_at": 1794129089158,
+      "deleted_at": null,
+      "deleted_by": null,
+      "favorite": 0,
+      "tags": [],
+      "note_type": "markdown",
+      "body": "# 浏览器采集\n\n合成文字与表格\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![采集图片](<anynote-resource:5efa2c6f-8e0e-4dea-8001-4f09b53bb55d>)\n",
+      "primary_resource_id": null,
+      "head_revision_id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+      "source_uri": "https://example.invalid/article"
+    }
+  },
+  {
+    "op": "history",
+    "input": {
+      "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+      "id": "24380078-b692-4cae-befb-c93b3a0d1d23"
+    },
+    "outcome": "resolved",
+    "result": [
+      {
+        "id": "ea7b9461-5d39-4790-8546-5856eb244f06",
+        "note_id": "24380078-b692-4cae-befb-c93b3a0d1d23",
+        "body": "# 浏览器采集\n\n合成文字与表格\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![采集图片](<anynote-resource:5efa2c6f-8e0e-4dea-8001-4f09b53bb55d>)\n",
+        "created_at": 1794129089158,
+        "actor": "user",
+        "metadata": {
+          "noteId": "24380078-b692-4cae-befb-c93b3a0d1d23",
+          "title": "合成采集",
+          "tags": [],
+          "favorite": 0
+        }
+      }
+    ]
+  }
+]

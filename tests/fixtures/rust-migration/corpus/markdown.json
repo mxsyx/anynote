@@ -1,0 +1,120 @@
+[
+  {
+    "id": "md-1",
+    "source": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n",
+    "blocks": [
+      {
+        "kind": "markdown",
+        "source": "# 中文 😀 é\n\n原有 __强调__ 和 *斜体*、~~删除~~、`代码`。\n\n> 引用\n\n- 列表\n  - 子项\n\n1. 有序\n\n- [x] 完成\n- [ ] 待办\n\n| 左 | 右 |\n| :-- | --: |\n| a | b |\n",
+        "start": 0,
+        "end": 122
+      }
+    ]
+  },
+  {
+    "id": "md-2",
+    "source": "前段\r\n\r\n:::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n后段\r\n",
+    "blocks": [
+      {
+        "kind": "markdown",
+        "source": "前段\r\n\r\n",
+        "start": 0,
+        "end": 6
+      },
+      {
+        "kind": "extension",
+        "attrs": {
+          "type": "future.custom",
+          "version": "9",
+          "id": "opaque",
+          "extra": "keep"
+        },
+        "data": {
+          "unknown": {
+            "keep": [
+              1,
+              "😀"
+            ]
+          }
+        },
+        "source": ":::anynote{type=\"future.custom\" version=\"9\" id=\"opaque\" extra=\"keep\"}\r\n{\"unknown\":{\"keep\":[1,\"😀\"]}}\r\n:::\r\n",
+        "start": 6,
+        "end": 113
+      },
+      {
+        "kind": "markdown",
+        "source": "后段\r\n",
+        "start": 113,
+        "end": 117
+      }
+    ]
+  },
+  {
+    "id": "md-3",
+    "source": "```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n",
+    "blocks": [
+      {
+        "kind": "markdown",
+        "source": "```md\n:::anynote{type=\"not.a.block\" version=\"1\"}\n{}\n:::\n```\n\n~~~\n:::anynote{type=\"also.code\"}\n{}\n:::\n~~~\n",
+        "start": 0,
+        "end": 105
+      }
+    ]
+  },
+  {
+    "id": "md-4",
+    "source": ":::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n\n:::anynote{type=\"unclosed\"}\n{}\n",
+    "blocks": [
+      {
+        "kind": "extension",
+        "attrs": {
+          "type": "broken.json",
+          "version": "1"
+        },
+        "source": ":::anynote{type=\"broken.json\" version=\"1\"}\n{broken\n:::\n",
+        "start": 0,
+        "end": 55
+      },
+      {
+        "kind": "markdown",
+        "source": "\n:::anynote{type=\"unclosed\"}\n{}\n",
+        "start": 55,
+        "end": 87
+      }
+    ]
+  },
+  {
+    "id": "md-5",
+    "source": "<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n",
+    "blocks": [
+      {
+        "kind": "markdown",
+        "source": "<section data-unknown=\"keep\">HTML 原文</section>\n\n[引用][ref]\n\n[ref]: https://example.invalid/ \"保留\"\n",
+        "start": 0,
+        "end": 96
+      }
+    ]
+  },
+  {
+    "id": "md-6",
+    "source": ":::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n",
+    "blocks": [
+      {
+        "kind": "extension",
+        "attrs": {
+          "type": "garden.reading.card",
+          "version": "1",
+          "id": "reading"
+        },
+        "data": {
+          "excerpt": "摘录",
+          "thoughts": "思考",
+          "unknown": true
+        },
+        "source": ":::anynote{type=\"garden.reading.card\" version=\"1\" id=\"reading\"}\n{\"excerpt\":\"摘录\",\"thoughts\":\"思考\",\"unknown\":true}\n:::\n",
+        "start": 0,
+        "end": 116
+      }
+    ]
+  }
+]

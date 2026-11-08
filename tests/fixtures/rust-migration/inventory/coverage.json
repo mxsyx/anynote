@@ -1,0 +1,204 @@
+[
+  {
+    "id": "INV-01",
+    "owners": ["RM05", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-01  | [Bookshelf](../../apps/desktop/src/Bookshelf.tsx):44-210；`main.tsx:542-577, 2497-2770`：Notebook 书橱、最近访问、封面图标/颜色、创建/重命名/切换、外部目录登记、不可用库提示、移出工作区                                                                                                                                                   | 工作区与原生书橱；创建后重启可见，切库先提交草稿，外部库原位置编辑且移出不删文件，失联库可诊断恢复                                                                                                                                        |",
+    "referenceTests": ["tests/organization.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-02",
+    "owners": ["RM05", "RM06", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-02  | `main.tsx:1306-1396, 1943-2175`：层级目录、展开/折叠、排序、拖放前后/子级、长树虚拟化、方向/Home/End 键焦点；[NotebookTransferDialog](../../apps/desktop/src/NotebookTransferDialog.tsx):23-195                                                                                                                                             | 工作区组织；保留排序/父子关系、禁止循环，万节点可导航；跨库复制/移动使用稳定 operation ID，重试不复制两次、失败不丢源数据                                                                                                                 |",
+    "referenceTests": [
+      "tests/organization.test.mjs",
+      "tests/transfer.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-03",
+    "owners": ["RM16", "RM19", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-03  | `main.tsx:318-430, 604-756, 1385-1396`：650ms 保存防抖、串行队列、IME 期间延迟保存、失焦保存、退出未保存提示、前进/后退、可隐藏标签页、最近/收藏/标签/回收站                                                                                                                                                                                | 会话与命令处理；快速切笔记、切库、关闭窗口、并发编辑冲突均不得覆盖新输入；保存失败继续保留内存草稿；不把尚未实现的崩溃草稿日志算已有功能                                                                                                  |",
+    "referenceTests": [
+      "tests/navigation.test.ts",
+      "tests/document-model.test.ts"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-04",
+    "owners": ["RM15", "RM16", "RM17", "RM18", "RM19"],
+    "sourceAndExpectedBehavior": "| INV-04  | [DocumentEditor](../../apps/desktop/src/DocumentEditor.tsx):64-535、[RichEditor](../../apps/desktop/src/RichEditor.tsx):49-742、[SourceEditor](../../apps/desktop/src/SourceEditor.tsx):32-108、[document-model](../../apps/desktop/src/document-model.ts)                                                                                  | 原生编辑器；连续 WYSIWYG、源码模式、选区格式、斜杠命令、列表/任务/表格/链接、块移动、图片块宽度、撤销/重做、组合输入；详见编辑器方案的逐项门槛                                                                                            |",
+    "referenceTests": [
+      "tests/document-model.test.ts",
+      "tests/editor-ecosystem.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-05",
+    "owners": ["RM04", "RM05", "RM19", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-05  | [DocumentView](../../apps/desktop/src/DocumentView.tsx):36-348、[Backlinks](../../apps/desktop/src/Backlinks.tsx):7-65、`main.tsx:3028-3160`：阅读视图、目录、字数/元数据、内部链接及锚点、反链、历史版本浏览和恢复                                                                                                                         | 文档阅读与历史；重命名后内部链接有效，恢复生成新版本并保留原历史；普通 Markdown、扩展块与资源的引用身份不改                                                                                                                               |",
+    "referenceTests": ["tests/storage.test.mjs", "tests/recovery.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-06",
+    "owners": ["RM04", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-06  | `main.tsx:684-726` 与搜索弹窗；[SearchPreview](../../apps/desktop/src/SearchPreview.tsx):5-62；`Storage.run:292-298`                                                                                                                                                                                                                        | 搜索服务与原生搜索面板；库内/跨库范围、标签/时间/类型筛选、取消和过期结果抑制、预览、PDF/批注命中导航；分页稳定、10,000 篇语料保留原测试预算                                                                                              |",
+    "referenceTests": ["tests/search.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-07",
+    "owners": ["RM21"],
+    "sourceAndExpectedBehavior": "| INV-07  | [ImageReader](../../apps/desktop/src/ImageReader.tsx):68-629、[imagePreview](../../apps/desktop/src/imagePreview.ts)、[ResourceImage](../../apps/desktop/src/ResourceImage.tsx)、[ImageBlockEditor](../../apps/desktop/src/ImageBlockEditor.tsx)：有界预览、缩放/适应/实际尺寸/平移、视图旋转、EXIF、说明、区域批注、旋转另存版本、原图下载 | Rust 图片解码/处理与原生画布；旋转视图不改原字节，另存产生新资源，批注按 hash/矩形定位；SVG 清洗/栅格化不执行脚本，切图释放解码/纹理资源                                                                                                  |",
+    "referenceTests": [
+      "tests/image-reader.test.mjs",
+      "tests/image-safety.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-08",
+    "owners": ["RM25", "RM26"],
+    "sourceAndExpectedBehavior": "| INV-08  | [PdfReader](../../apps/desktop/src/PdfReader.tsx):140-928：Range 读取、页缩略图、跳页、缩放/适应、文内搜索、文字选择/高亮批注、索引任务、创建关联笔记、重定位旧批注、删除批注                                                                                                                                                               | 原生 PDF 阅读优先；同文件跨实现比较页码/文本/坐标/链接/批注；取消索引、跨笔记切换、迟到渲染不串页；不把“带批注 PDF 导出”当已有功能                                                                                                        |",
+    "referenceTests": ["tests/pdf-reader.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-09",
+    "owners": ["RM22", "RM23", "RM24"],
+    "sourceAndExpectedBehavior": "| INV-09  | [WhiteboardEditor](../../apps/desktop/src/WhiteboardEditor.tsx):20-153；`operations.ts:1724-1853`：Excalidraw 0.18 场景、嵌入图片、视口状态、PNG 预览、明确保存、历史资源绑定                                                                                                                                                               | Rust 白板模型/操作及 GPUI 渲染；M0 冻结该版本实际交互与场景语料，覆盖几何、文本、绑定、分组、样式、选择、快捷键、历史、粘贴等现场可用操作；完整编辑回归后才可替换。WebView Canvas 只可承载受限 Rust/WASM 绘制层；只读图片不能满足完成条件 |",
+    "referenceTests": [
+      "tests/extensions.test.mjs",
+      "tests/archive-stream.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-10",
+    "owners": ["RM20", "RM27"],
+    "sourceAndExpectedBehavior": "| INV-10  | `DocumentView.tsx`、`main.tsx:2860-2915`；`operations.ts:1855-1933`：视频链接卡片、用户启用远端嵌入、点击播放、标题/缩略图抓取并本地保存                                                                                                                                                                                                    | 内置媒体服务/卡片；本地元数据无需网络即可显示，默认不自动播放/抓取；显式播放可用受限系统 WebView，打开外部链接保留协议检查，关闭释放媒体会话                                                                                              |",
+    "referenceTests": ["tests/video.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-11",
+    "owners": ["RM07"],
+    "sourceAndExpectedBehavior": "| INV-11  | [ImportDialog](../../apps/desktop/src/ImportDialog.tsx):51-640、[ImportReport](../../apps/desktop/src/ImportReport.tsx):48-299；`operations.ts:864-1282`：URL/粘贴 HTML/本地 HTML、相邻资源目录授权、媒体发现/选择/预算、预览再提交、保留原始 HTML、媒体失败报告/重试                                                                       | Rust 导入服务；确认提交必须复用已经预览的结果，不二次抓取；资源越界/路径穿越/私网 URL 拒绝；媒体重试保留用户已编辑正文并跳过已修改标记；可取消且无孤儿写入                                                                                |",
+    "referenceTests": ["tests/web-import.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-12",
+    "owners": ["RM07", "RM08"],
+    "sourceAndExpectedBehavior": "| INV-12  | `main.tsx:1151-1235`、Electron `main.cts:279-368`：图片粘贴/拖入、文件导入、完整 `.anynote`、仅当前内容、Markdown ZIP/目录导出、导出空间预算                                                                                                                                                                                                | 导入导出与原生文件对话框；比较字节/hash/历史/回收站/资源清单，取消无输出或清理临时文件，流式路径保留预算；桌面原生文件操作无需 base64 全量复制                                                                                            |",
+    "referenceTests": [
+      "tests/archive-stream.test.mjs",
+      "tests/capture.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-13",
+    "owners": ["RM10", "RM11", "RM29"],
+    "sourceAndExpectedBehavior": "| INV-13  | [BackupTargets](../../apps/desktop/src/BackupTargets.tsx):78-517、[RemoteMaintenance](../../apps/desktop/src/RemoteMaintenance.tsx):69-501：远端目标、连接测试、手动/自动备份、暂停策略、历史浏览/恢复、pending generation、writer 接管、保留规划与明确清理                                                                                 | Rust 备份客户端；保留当前 provider 与既有云协议；断网/超时/重复响应/取消/重启不得错误发布或删除；接管/清理依然有可读预览及确认；不增加“实时同步”承诺                                                                                      |",
+    "referenceTests": [
+      "tests/backup-policy.test.mjs",
+      "tests/retention-policy.test.mjs",
+      "tests/maintenance-recovery.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-14",
+    "owners": ["RM09", "RM29"],
+    "sourceAndExpectedBehavior": "| INV-14  | [LocalBackup](../../apps/desktop/src/LocalBackup.tsx):19-411、[LocalBackupScope](../../apps/desktop/src/LocalBackupScope.tsx)、[LocalBackupReview](../../apps/desktop/src/LocalBackupReview.tsx)、[LocalVerificationDetails](../../apps/desktop/src/LocalVerificationDetails.tsx)                                                           | Rust 本地备份；目标目录、单份当前副本、范围/分组、调度、预览/空间预算、校验/报告、恢复、移除目标与明确删除副本；正确识别卷替换/断开/空间不足且保护旧副本                                                                                  |",
+    "referenceTests": ["tests/backup-local.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-15",
+    "owners": ["RM08", "RM10", "RM29"],
+    "sourceAndExpectedBehavior": "| INV-15  | [CloudRecovery](../../apps/desktop/src/CloudRecovery.tsx):38-269、[RecoveryWizard](../../apps/desktop/src/RecoveryWizard.tsx):29-313、[LocalCleanup](../../apps/desktop/src/LocalCleanup.tsx):15-220                                                                                                                                        | 恢复与维护；独立云连接发现/分页恢复、损坏库只读诊断、证据保全、快照/归档恢复、清理预览/过期拒绝、完整性巡检；恢复写入独立目标，不覆盖损坏原件                                                                                             |",
+    "referenceTests": [
+      "tests/recovery.test.mjs",
+      "tests/recovery-diagnosis.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-16",
+    "owners": ["RM03", "RM29"],
+    "sourceAndExpectedBehavior": "| INV-16  | [TaskCenter](../../apps/desktop/src/TaskCenter.tsx):87-396、[Diagnostics](../../apps/desktop/src/Diagnostics.tsx):46-213；`Storage.track/settle`                                                                                                                                                                                            | 统一后台任务与诊断；进度/状态/失败详情、取消/重试、重启后历史、pending generation 查询、诊断级别/导出/清空；有界队列/日志，敏感内容脱敏；后台任务不占用 UI 线程                                                                           |",
+    "referenceTests": [
+      "tests/diagnostics.test.mjs",
+      "tests/task-history.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-17",
+    "owners": ["RM07", "RM12", "RM30"],
+    "sourceAndExpectedBehavior": "| INV-17  | [CaptureDevices](../../apps/desktop/src/CaptureDevices.tsx):11-139、`ImportDialog.tsx:191-236`、Electron `main.cts:333-352`                                                                                                                                                                                                                 | Rust 桌面与保留 TS 浏览器扩展联通；设备配对/列举/撤销、`.anyclip` 本地导入、含媒体/卡片采集；与当前 Cloudflare capture/browse 协议做双向契约测试，扩展应用本身保留 TypeScript                                                             |",
+    "referenceTests": [
+      "tests/capture.test.mjs",
+      "tests/cloud-capture.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-18",
+    "owners": ["RM05"],
+    "sourceAndExpectedBehavior": "| INV-18  | [proposals](../../packages/storage-sqlite/src/proposals.ts)，`operations.ts:1941-1949`；扩展页 AI 能力说明                                                                                                                                                                                                                                  | 内置提案服务；保留 `proposePatch/applyProposal/undoProposal` 的版本校验、幂等、撤销；现有实现不包含模型服务、流式 AI 面板或批量代理，迁移不凭空补出这些“已有功能”                                                                         |",
+    "referenceTests": ["tests/extensions.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-19",
+    "owners": ["RM02", "RM18", "RM28"],
+    "sourceAndExpectedBehavior": "| INV-19  | [menu](../../apps/desktop/electron/menu.ts):6-79、`main.tsx:961-983, 1277-1288`：中文原生菜单、平台编辑角色、插入菜单、设置/备份/回收站/主题、Cmd/Ctrl+K/P/S/N、Esc                                                                                                                                                                         | GPUI Actions/KeyBindings + 系统菜单；统一命令可用状态，焦点在编辑器/输入框/PDF/WebView时路由正确；macOS Services/Hide/About/应用退出保留，插件菜单退役后由内置功能入口承接                                                                |",
+    "referenceTests": ["tests/application-menu.test.ts"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-20",
+    "owners": ["RM02", "RM13", "RM32"],
+    "sourceAndExpectedBehavior": "| INV-20  | Electron `main.cts:25-116, 373-422`：单实例、再次启动聚焦、macOS 关闭所有窗口仍保留进程/再次激活窗口、最小窗口、外链系统打开、导航/权限限制、电源/网络状态                                                                                                                                                                                  | Rust 平台壳；实际 Windows/macOS/Linux 验证单实例/唤醒/休眠恢复/关闭退出、原生选择器取消、200% DPI、键盘焦点与辅助技术；在线状态仅为调度提示，实际请求错误仍需处理                                                                         |",
+    "referenceTests": ["tests/application-menu.test.ts"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-21",
+    "owners": ["RM03", "RM13", "RM14"],
+    "sourceAndExpectedBehavior": "| INV-21  | Electron `main.cts:41-78` 与 `storage.ts:26-45`：系统加密凭据，Linux basic_text 拒绝、密文原子落盘、IPC 超时/进程退出拒绝                                                                                                                                                                                                                   | Rust 平台凭据与后台边界；不降级明文，旧 Electron safeStorage 密文兼容按数据方案处理，UI/WebView不接触凭据；取消/异常退出释放等待者                                                                                                        |",
+    "referenceTests": ["tests/task-history.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-22",
+    "owners": ["RM02", "RM13", "RM28", "RM29"],
+    "sourceAndExpectedBehavior": "| INV-22  | `main.tsx`、[appearance](../../apps/desktop/src/appearance.ts)、[navigation](../../apps/desktop/src/navigation.ts)、[ManagementPage](../../apps/desktop/src/components/ManagementPage.tsx)、`components/ui/*`、CSS/图标                                                                                                                     | 原生拟物 UI；明暗模式、纸张/书橱风格、中文标签、可调窗口、工具提示、空/错误/加载状态、动态创建对话框、焦点陷阱/返回焦点、低动态偏好；本地阅读位置等迁移见数据方案                                                                         |",
+    "referenceTests": ["tests/navigation.test.ts"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-23",
+    "owners": ["RM20", "RM37"],
+    "sourceAndExpectedBehavior": "| INV-23  | 第 4 节已知首方/样例插件能力；[PluginBlock](../../apps/desktop/src/PluginBlock.tsx):8-94                                                                                                                                                                                                                                                    | 内置阅读工具与块渲染；所有已知功能不依赖安装/启用插件即可执行，数据兼容且只修改当前授权笔记；未知持久内容无损保留，任何脚本均不执行                                                                                                       |",
+    "referenceTests": ["tests/extensions.test.mjs"],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  },
+  {
+    "id": "INV-24",
+    "owners": ["RM30", "RM36", "RM37", "RM38"],
+    "sourceAndExpectedBehavior": "| INV-24  | 第 5 节清理范围、[发行矩阵](../../packages/protocol/src/release.ts)、CI/发行 workflow                                                                                                                                                                                                                                                       | 构建与发行；最终桌面无 Electron/Node/QuickJS/React 运行时和插件动态加载链；TS 浏览器扩展与 Worker 的构建、部署、协议测试仍可独立运行                                                                                                      |",
+    "referenceTests": [
+      "tests/release-matrix.test.mjs",
+      "tests/module-boundaries.test.mjs"
+    ],
+    "evidence": "source inventory; see baseline document for actual runs and unmeasured scenarios"
+  }
+]

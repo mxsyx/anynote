@@ -1,0 +1,67 @@
+[
+  {
+    "path": "packages/extension-host/src/bundled.ts",
+    "sha256": "ee097b5f0d7e22cf1d80f9622979814f2b4ad8d32c147da6aca8ae62bf72c27a",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/extension-host/src/examples/reading-template.ts",
+    "sha256": "4b8415b1423559f65299efb1771a91598a90d8c94f47ac180673e618864e0f1d",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/first-party-adapters/src/index.ts",
+    "sha256": "820187da85bc7085d3b7d1c71032e71a05cfdcfc0df22a3132cad790eadc3b7b",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-async-related.json",
+    "sha256": "d10a3bef9e356e422d3cbea5b7e66151c4b208fc45597023c0d47da5fa78510f",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-callout.json",
+    "sha256": "1ff16886cdf418a88f48959d7b8916ae116cb99900ce4f5f9138ff3ff79e796d",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-network.json",
+    "sha256": "d504db257f3af5bc418d8e2b870cbc4780c6355113b1db9edd07456bf3080ebd",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-preferences-v2.json",
+    "sha256": "9d06f7f3cb2ca55f2b917b9da8ef9575f4f5864a9f72014bc75a0dfa005e4d3b",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-preferences.json",
+    "sha256": "e388ce3028fc2740ea6a02a7cfdef030a5794f79ca25dd95064e1d6956ed3fd1",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-related.json",
+    "sha256": "0b27eb051c212cbdc0b0b9e1a32c70a47575a9679117b390c93933c795dcee43",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-session-v2.json",
+    "sha256": "1a38b9c0f111e2902af345f614feff23398b843da56242c371e609f871631763",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-session.json",
+    "sha256": "96ac6edca6caa14f6620efb2fe56dfadaaa9cd7962953e2668aad6bd3fa14498",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-template.ts",
+    "sha256": "269043983e9bf5c19575abced68660a4acf959bb21806c8ccb36e95801ebcc76",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  },
+  {
+    "path": "packages/plugin-sdk/src/examples/reading-transform.json",
+    "sha256": "ab63c1cbb0ae8f7afa1c02da2f4dd3e2587d329fc0b0914a1f6c29f9844a6113",
+    "disposition": "RM20 business replacement / RM37 runtime retirement; examples are not installed-user inventory"
+  }
+]

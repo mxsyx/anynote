@@ -1,6 +1,6 @@
 # Rust + GPUI + GPUI-Kit 桌面迁移方案
 
-日期：2026-11-08。状态：**设计完成，迁移尚未实施，技术原型与验收尚未执行**。
+日期：2026-11-08。状态：**设计完成；RM01/02 已实施，后续迁移与验收状态见 [TODO](../development/TODO.md#rust-migration)**。
 
 代码基线：AnyNote `1b0a52bd431a3f3f13707214cdbf59bf957185ad`。本方案只增加设计文档和索引，不修改业务实现、数据、部署或现有 TODO 状态。后续实现前应固定新的基线并检查差异。
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ### 3.1 模块布局与依赖
 
-以下目录为**拟新增**，本次不创建 Rust workspace：
+以下五个 Rust 工程目录已由 RM02 创建，模块业务仍按 [TODO](../development/TODO.md#rust-migration) 分组实施：
 
 ```text
 apps/desktop-rust/             anynote-desktop：GPUI 窗口、页面、系统适配、资源视图
@@ -208,7 +208,7 @@ WebView 不是通用前端宿主。每个视图绑定 `viewId + epoch + notebook
 
 ## 7. 执行阶段与验收门槛
 
-阶段定义依赖与放行条件，具体实施已拆为唯一 [TODO 中的 RM01–RM38](../development/TODO.md#rust-migration)，包含 M/D/E 映射、子任务、公共文件归属与真实验收批次；一个阶段可跨多个执行组。每次实施更新该 TODO，必要结论写入现有[实施记录](../development/IMPLEMENTATION.md)，记录实际 commit、平台、fixture、命令和未完成项，不另建进度账本。下列全部为**待执行**，设计分组不是实施完成证据；阶段编号在三份附文中引用时以本文为准。
+阶段定义依赖与放行条件，具体实施已拆为唯一 [TODO 中的 RM01–RM38](../development/TODO.md#rust-migration)，包含 M/D/E 映射、子任务、公共文件归属与真实验收批次；一个阶段可跨多个执行组。每次实施更新该 TODO，必要结论写入现有[实施记录](../development/IMPLEMENTATION.md)，记录实际 commit、平台、fixture、命令和未完成项，不另建进度账本。下列为阶段放行条件，设计分组不是实施完成证据；阶段编号在三份附文中引用时以本文为准。
 
 ```mermaid
 flowchart LR

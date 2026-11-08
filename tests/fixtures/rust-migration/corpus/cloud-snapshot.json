@@ -1,0 +1,91 @@
+{
+  "format": "anynote.sqlite",
+  "protocolVersion": 1,
+  "schemaVersion": 5,
+  "notebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+  "sourceNotebookId": "8bf0bd1a-957b-431c-985b-c2b3325da959",
+  "snapshotSeq": 12,
+  "createdAt": "2026-11-08T09:11:29.465Z",
+  "database": {
+    "path": "notebook.sqlite",
+    "size": 221184,
+    "sha256": "78b5224a03cfa0702370219bed9d3459ff72283749a0f1a750ae699259e6755b",
+    "chunks": [
+      {
+        "sha256": "78b5224a03cfa0702370219bed9d3459ff72283749a0f1a750ae699259e6755b",
+        "size": 221184
+      }
+    ],
+    "chunkSize": 1048576
+  },
+  "assets": [
+    {
+      "path": "assets/sha256/03/0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f.bin",
+      "size": 5577,
+      "sha256": "0357b92ee93145f0fd5538b4982dbadabda48e624f8503053f8161165590ff7f",
+      "mimeType": "application/vnd.anynote.whiteboard+json"
+    },
+    {
+      "path": "assets/sha256/28/28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266.bin",
+      "size": 68,
+      "sha256": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266",
+      "mimeType": "image/png"
+    },
+    {
+      "path": "assets/sha256/b8/b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19.bin",
+      "size": 117,
+      "sha256": "b86c55d82fd8b501da7159ac8e7ac52d4500213858f48d4ca43d852cb1fa9b19",
+      "mimeType": "application/vnd.anynote.whiteboard+json"
+    },
+    {
+      "path": "assets/sha256/e4/e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4.bin",
+      "size": 1124,
+      "sha256": "e46614c36fea42e878ad51bec6c670e445b2cbc38510911b6511743da99721c4",
+      "mimeType": "application/pdf"
+    }
+  ],
+  "browse": {
+    "version": 1,
+    "objects": [
+      {
+        "path": "tree/root/0",
+        "hash": "df48c80fed17f8edb0f1809e769d03008b44888f6875cd40d852ccf1ffb1a9d6",
+        "size": 610
+      },
+      {
+        "path": "tree/701740b2-74b2-43cb-acaf-854b8f03a866/0",
+        "hash": "da3d3e5636d0c1320225628ed1a16f113b93527c8e958e05c876a563954a8178",
+        "size": 174
+      },
+      {
+        "path": "note/ad300a79-bd25-4109-807d-467444a5d4b5",
+        "hash": "2f10edd526bfb2cab516ff9b535b00e5f3a638cb8ba916973af583b0673c0bf0",
+        "size": 387
+      },
+      {
+        "path": "note/b3549157-0ce6-48cb-9de4-464401244ac8",
+        "hash": "ec6ec6d0b3a5f48da28345691d2cbbe9543f58800995f1a27689e4a8ac932865",
+        "size": 405
+      },
+      {
+        "path": "note/56118ef7-816d-486d-91e3-e55a504e1803",
+        "hash": "b0b9d0484ce711c221dea987d2d52aa223831f61d94eed5b295b90593c9ae1ac",
+        "size": 801
+      },
+      {
+        "path": "note/24380078-b692-4cae-befb-c93b3a0d1d23",
+        "hash": "71e6df7cd798bdf90a6542311efd4bbab79cbf4c5de8d8a8e9af0573f4c78b31",
+        "size": 514
+      },
+      {
+        "path": "note/31f75300-9b2d-4e2d-a632-8d417829e550",
+        "hash": "53ae09ce173aa566ba1a974d9fdd180e0bf76f778077a6f668e6e85f3c623737",
+        "size": 1143
+      }
+    ]
+  },
+  "captureAcks": {
+    "hash": "5492b0692b58f78d0ba958ae6d83a241cd5e6df99b8b063e115905505fc5609e",
+    "size": 194
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "format": "anynote.capture",
+  "version": 1,
+  "captureId": "cd671bd4-2bbc-4bb0-82fc-53d30a71c6b0",
+  "title": "合成采集",
+  "source": {
+    "kind": "selection",
+    "url": "https://example.invalid/article",
+    "capturedAt": "2026-11-08T00:00:00.000Z"
+  },
+  "body": {
+    "path": "content.md",
+    "size": 166,
+    "sha256": "223ae15f3a079ad75138942b5065126f293ffc4b978b6f52dddfdca0ce97c5cf"
+  },
+  "assets": [
+    {
+      "path": "assets/28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266.png",
+      "sha256": "28442fa58b1194812de406d049e3de39359fa145a69e3dd127fe0c263d39c266",
+      "size": 68,
+      "mime": "image/png",
+      "name": "pixel.png"
+    }
+  ],
+  "missing": [],
+  "complete": true
+}

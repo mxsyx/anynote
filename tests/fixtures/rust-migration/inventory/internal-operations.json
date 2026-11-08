@@ -1,0 +1,742 @@
+[
+  {
+    "operation": "registerNotebookDirectory",
+    "owner": "RM28",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:256-267",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:996-997",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/desktop-smoke.mjs:220-220",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/backup-local.test.mjs:183-183",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/sqlite-assets.test.mjs:111-111",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:65-65",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:71-71",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:179-179",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:181-181",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:194-194",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:205-205",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:207-207",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:215-215",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:220-220",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:238-238",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:246-246",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:256-256",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:266-266",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/workspace.test.mjs:274-274",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "registerImportDirectory",
+    "owner": "RM07",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:200-218",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:712-712",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:864-873",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/features-smoke.mjs:125-125",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/web-import.test.mjs:303-303",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/web-import.test.mjs:380-380",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "prepareCaptureFile",
+    "owner": "RM07",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:334-354",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/capture.ts:52-125",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:711-711",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:931-965",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/capture.test.mjs:188-188",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/capture.test.mjs:208-208",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "startExportArchiveFile",
+    "owner": "RM08",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:268-333",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/archive-jobs.ts:65-65",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/archive-jobs.ts:93-98",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1009-1028",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/archive-smoke.mjs:108-108",
+        "kind": "reference-test"
+      },
+      {
+        "source": "scripts/disaster-recovery.mjs:122-284",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:112-112",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:154-154",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:181-181",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:225-225",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:248-248",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:263-263",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:414-414",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:468-468",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:520-520",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:791-791",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "startExportMarkdownFile",
+    "owner": "RM08",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:296-310",
+        "kind": "implementation"
+      },
+      {
+        "source": "apps/desktop/electron/main.cts:268-333",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/archive-jobs.ts:65-65",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/archive-jobs.ts:93-98",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1009-1028",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/archive-smoke.mjs:150-150",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:581-581",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:629-629",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:636-636",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:679-679",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:703-703",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:771-771",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:815-815",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "startImportArchiveFile",
+    "owner": "RM08",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/electron/main.cts:355-367",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1009-1028",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/disaster-recovery.mjs:122-284",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:85-85",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:168-168",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:299-299",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:317-317",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:337-337",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:372-372",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:401-401",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:416-416",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:492-492",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/archive-stream.test.mjs:795-795",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "commitImport",
+    "owner": "RM07",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:722-722",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:903-922",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:1030-1057",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:1155-1215",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/type-boundaries.test.mjs:72-72",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "commitImportMediaRetry",
+    "owner": "RM07",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:434-434",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:718-718",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:1217-1282",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/type-boundaries.test.mjs:75-75",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "createLocalBackupCapture",
+    "owner": "RM09",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/backend/src/backup.ts:39-39",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/local.ts:192-192",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/local.ts:670-777",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/backup-boundaries.test.mjs:80-80",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/backup-boundaries.test.mjs:105-105",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/backup-boundaries.test.mjs:125-125",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "createBackupSnapshot",
+    "owner": "RM10",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/backend/src/backup.ts:54-54",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:507-507",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/backup-boundaries.test.mjs:80-80",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/backup-boundaries.test.mjs:112-112",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "extensionGetState",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:412-417",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:435-446",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:735-735",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:742-783",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:757-781",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/editor-ecosystem-smoke.mjs:852-852",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/extension-settings.test.mjs:314-314",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/script-state.test.mjs:66-66",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/script-state.test.mjs:213-213",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/script-state.test.mjs:225-225",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/script-state.test.mjs:239-239",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "extensionDeleteState",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:463-473",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:737-737",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:742-783",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:765-781",
+        "kind": "implementation"
+      }
+    ]
+  },
+  {
+    "operation": "extensionPatch",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:331-348",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:734-734",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:785-836",
+        "kind": "implementation"
+      }
+    ]
+  },
+  {
+    "operation": "saveRemoteRetention",
+    "owner": "RM11",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "apps/desktop/src/RemoteMaintenance.tsx:304-304",
+        "kind": "renderer"
+      },
+      {
+        "source": "packages/backup/src/manage.ts:79-82",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/operation-names.ts:34-34",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/types/src/index.ts:197-197",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/remote-retention-smoke.mjs:76-82",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/remote-maintenance.test.mjs:861-861",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/remote-maintenance.test.mjs:862-862",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/remote-maintenance.test.mjs:864-864",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "publishArchiveDirectory",
+    "owner": "RM08",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/archive-jobs.ts:377-377",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1030-1039",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operation-contracts.ts:208-211",
+        "kind": "implementation"
+      }
+    ]
+  },
+  {
+    "operation": "readLocalBackupRevision",
+    "owner": "RM09",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/backup/src/local.ts:743-744",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:983-994",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operation-contracts.ts:204-207",
+        "kind": "implementation"
+      },
+      {
+        "source": "scripts/benchmark-local-backup.mjs:265-266",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/backup-local.test.mjs:878-879",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "commitBackupCursor",
+    "owner": "RM10",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/backup/src/manage.ts:137-197",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/operation-names.ts:53-53",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/scheduler.ts:66-66",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/scheduler.ts:148-148",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:321-328",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:453-470",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:434-476",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:488-498",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:541-541",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:548-548",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/backup/src/service.ts:576-576",
+        "kind": "implementation"
+      }
+    ]
+  },
+  {
+    "operation": "extensionSetState",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:418-434",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/extension-host.ts:447-462",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:736-736",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/operations.ts:742-783",
+        "kind": "implementation"
+      },
+      {
+        "source": "tests/extension-data.test.mjs:71-83",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/extension-settings.test.mjs:190-190",
+        "kind": "reference-test"
+      },
+      {
+        "source": "tests/script-state.test.mjs:186-186",
+        "kind": "reference-test"
+      }
+    ]
+  },
+  {
+    "operation": "beginExtensionUpdateCheck",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-updates.ts:191-213",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/extension-updates.ts:257-257",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1041-1051",
+        "kind": "implementation"
+      }
+    ]
+  },
+  {
+    "operation": "commitExtensionUpdateCheck",
+    "owner": "RM37",
+    "allowedInRenderer": false,
+    "references": [
+      {
+        "source": "packages/storage-sqlite/src/extension-updates.ts:215-230",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/extension-updates.ts:294-294",
+        "kind": "implementation"
+      },
+      {
+        "source": "packages/storage-sqlite/src/index.ts:1041-1051",
+        "kind": "implementation"
+      }
+    ]
+  }
+]

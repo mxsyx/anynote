@@ -4,6 +4,87 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm13"></a>
+
+## 2026-11-08 · RM13 偏好、凭据与插件状态读取/转换
+
+交付 `anynote-services::config_migration`，仅接关闭后的保全副本，不激活日常资料。偏好读取复用 Rust LevelDB MemEnv，新增有界物理完整性检查以阻止库迭代吞错；固定 file/dev origin 和七类旧键，Latin-1/UTF-16 解码、值验证、点分层布局、temp/flush 发布与逆映射。四份 Electron 41.9.1 / Chromium 146.0.7680.216 合成格式样本覆盖正常退出、已刷入 WAL 后 SIGKILL，源字节与冻结 SHA-256 不变；旧进程未落盘值不在恢复承诺内。
+
+凭据实现 Linux Secret Service v11、macOS Keychain v10、Windows Local State/DPAPI/AES-GCM 的原生只读原型及 OS keyring 新条目。只在内存解密，原 secret ID/连接 ID 与密文保全；拒绝覆盖已有不同秘密，写后回读，成功仍等待 capability 检查，失败明确需重新认证，结果均暂停任务。Linux 使用独立 D-Bus/XDG/私有 GNOME Keyring 验证 Electron → Rust → 新 OS 条目闭环并扫描输出目录无 token 明文。最初 Xvfb 未提供 GNOME 桌面标记时 Electron 选择 basic_text，测试按预期拒绝；显式选择 GNOME 后通过，没有启用明文降级。
+
+已知 garden.preferences/session 两个业务的 0.1.0/0.1.1 状态按冻结 manifest checksum、设置 checksum 和行版本映射；保留未知字段及 source revision，提供受限逆映射。未知包完整复制且逐文件摘要，未知/非法 JSON 状态按原 value_json、版本和 revision 内容寻址保全。未执行旧脚本，也未将未知插件功能视为已替代。
+
+本机 Linux x64、Rust 1.99.1、Node 24.11.1。`cargo test -p anynote-services --lib --locked --offline` 10/10 通过，services 整包回归另含 5 项 runtime 测试通过；services 全 targets Clippy（`-D warnings`）、Rust 五 crate 边界、冻结 TS manifest/Node crypto 向量检查通过；平台凭据 smoke 使用隔离合成账号，不访问日常 keyring。原始测试/Clippy/smoke 报告在可删除的 `tmp/rm13/`，复现入口和布局见[配置迁移文档](RUST-CONFIG-MIGRATION.md)。Windows/macOS 原生分支尚未编译/真机验收，三平台用户资料、锁定、跨设备及目录 ACL/断电仍归 RM32/33；RM14 负责完整复制、journal、调度及回退发布，不关闭任何 V/A/F 验收。
+
+<a id="rm03"></a>
+
+## 2026-11-08 · RM03 后端进程、通信、任务与诊断
+
+完成 RM03.1–RM03.4，复用 RM02 五个工程与现有诊断/任务历史语义，不改 Notebook schema v5、不接旧 Node 后端。协议与业务接入边界见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md#rm03-后端与公共接入契约)。工作区中 RM13/15/22 的并行修改保留，本记录不将其成果计入 RM03。
+
+- RM03.1：同一二进制 `--backend` 在 GPUI 初始化之前分流；版本/epoch/递增请求 ID、静态命令与对应结果类型、结构化错误；控制帧 1 MiB、二进制块 256 KiB、头部 512 B，分配前校验。随机资源 token 提供 Range、释放与 60 秒过期；没有默认 TCP/HTTP 或插件 RPC。
+- RM03.2：容量 16 的双向队列、14 个普通请求加 2 个取消/退出名额，避免背压堵住取消；客户端 deadline 与过期结果丢弃、任务 ID/sequence/时间戳、终态不可复活。独立运行状态库先持久化再发结果，重启/父管道断线标记 interrupted；后台进程监护负责 kill/wait 和重连。区分持久回执查询/同 ID 重试与普通保存的 revision/摘要核对，未确定结果保留草稿，绝不自动重放写入。
+- RM03.3：实际子进程覆盖并发、满额取消、超时、截断/中断流、强制终止/重连、资源 token 失效、旧请求与过期响应、父管道 EOF、退出排空。修复退出竞态：先读完 stdout 已写出的结果，再将未答请求标记断线。`TaskHistory/Resources/background_decision` 与 core 恢复证据契约供后续业务复用；菜单及最后窗口关闭等待异步后端关闭。
+- RM03.4：off/minimal/full、300 条有界事件、统计/丢弃计数、持久查询/导出/清空；仅收枚举与数值，正文/路径/URL/凭据无可写字段。保留首份损坏 native 配置，旧 Electron 诊断文件不动。覆盖重启、损坏、设置/清空/任务终态写失败、1000 条日志预算；写失败不发布虚假成功，也不把附属日志失败改报为业务提交失败。
+
+本机 Linux 新增 **16 项 RM03 测试通过**：7 项进程测试、5 项 services 测试、3 项 transport/client 单测、1 项恢复证据单测。`cargo test -p anynote-core -p anynote-storage -p anynote-services -p anynote-desktop --all-features --locked --offline` 共 **30 项通过**，含现有平台/UI/SQLite 与当时并行 services 测试；另 1 个 ignored 是被父测试显式执行的子进程 fixture。`cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`、RM03 文件 rustfmt、依赖 guard、文档链接与 diff whitespace 检查通过。完整 workspace 测试在并行 editor 的 `upstream_action_sequence_matches_and_undo_redo_replays_every_state` 因 `changeStrokeColor` 对象键顺序断言失败，未越界修复；全仓 fmt 检查也曾遇到并行白板文件尚未格式化，因此不宣称完整工作区回归全绿。单实例 socket 在沙箱先报 EPERM，允许本地 IPC 后平台/UI 回归通过。
+
+独立 Xvfb/X11 原生窗口探针通过输入/剪贴板/Dialog/主题缩放/第二实例唤醒与关闭退出，验证正常壳已启动真实 Rust 后端。串行进程测试重建的 50 次暖态 debug Ping p95 为 **1.752 ms**，相当于 150 ms 保存总预算的约 **1.17%**；这只测管道往返与运行诊断开销，不包含正文验证/SQLite 业务提交，不可据此宣称保存性能达标。临时证据为 `tmp/rm03/ipc-latency.json` 与 `tmp/rm02/native-x11-report.json`。
+
+边界：当前只有连通性健康任务和有界内存资源（以诊断导出验证），实际 Notebook 存储/保存/回执/文件租约/归档/业务长任务分别随 RM04–12/19 接入，管理页随 RM29 接入。真实 OS 凭据、三平台生命周期、IME、实际设备/云/发行不在本组验收，M1 与 V/A/F 状态不变。代码留在现有工作区，未创建提交。
+
+<a id="rm22"></a>
+
+## 2026-11-08 · RM22 白板 scene 与操作内核（部分完成）
+
+新增 `crates/anynote-editor/src/board/`：`scene` 保留原 JSON 与未知字段，`geometry` 处理矩形/路径坐标，`command` 持有唯一草稿、选择和有界 undo/redo，`operation` 执行可回滚的纯 scene 事务。复用 RM01 原始/旧 reader scene，继续使用 Excalidraw JSON；files/resourceId 不解析为 URL 或新资源，不新增 crate、持久格式、UI、数据库或 JS 运行时依赖。editor 复用已锁定的 serde/serde_json。工作区其他组并发修改的正文模型、后端和配置代码均保留。
+
+已实现完整元素插入与文件冲突检查、独立几何/外部测量文字提交、无绑定路径/压力更新、封闭绑定集合平移、样式、普通组合、层级、独立形状对齐/非重叠分布/翻转、锁定/墓碑删除、显式 ID 映射复制、frameId 与双向 text/arrow 引用、持久视口字段。事务失败不改任何 scene/history；无效或未支持的绑定几何组合明确拒绝。未改场景与撤销至初始状态返回原始字节；结构编辑重建合法 fractional index，但不宣称与上游最小 index 更新或协作合并等价。
+
+`tests/fixtures/rust-board/actions.json` 冻结 Excalidraw 0.18.0 的 bundle/type/wrapper 摘要、91 个注册 action 及 26 步真实 `action.perform` 期望。`scripts/rust-board-reference.mjs` 在隔离 Chromium 使用真实上游 Scene、阻断网络，不修改产品构建；Rust 逐步比较业务 JSON，完整 undo/redo 回到每个有效编辑切点。仅排除独立验证的 version/nonce/time/index，不排除 seed、几何或绑定。差分修复了图片错误改变描边颜色、粗糙度不更新 seed；参考重跑先因内存对象的 undefined 与保存 JSON 不一致失败，统一按旧版实际 JSON 序列化口径后通过。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，合成离线语料：`cargo test --locked --offline -p anynote-editor --test board` 19/19 通过；editor 全 targets Clippy（`-D warnings`）、新增 Rust 文件 rustfmt、脚本 ESLint/Prettier、夹具/文档格式和链接检查通过。`node scripts/rust-board-reference.mjs` 重跑 26 步及 91 个注册名/依赖摘要核对通过。 Rust 依赖边界 guard 通过（5 工程、800 个锁定包），`git diff --check` 通过。日志位于 `tmp/rm22/`，为避免其他组占用 Cargo target 锁，本轮 Rust 检查使用 `CARGO_TARGET_DIR=tmp/rm22/target`。沙箱首次阻止 Chromium socket；获准本地浏览器测试后复跑成功。
+
+RM22.1–.3 均保留未完成：注册 action 不是实际可达矩阵，类型存在也不代表创建/编辑完成。尚缺默认菜单/快捷键完整实测、原生字体及复杂连接几何、开放 binding/elbow 路由、组编辑和复杂组/框层级、路径变换/图片裁剪、完整剪贴板/库等操作及对应旧版历史/序列差分。当前 26 步没有测旧版 pointer/history engine，也未验像素、性能、实际资源闭包保存或三平台。详细契约、按类型证据和复现见[白板兼容方法](RUST-BOARD-COMPATIBILITY.md)；不得据此关闭 E8/M6、推进旧白板退役或宣称 RM22 完成。
+
+<a id="rm15"></a>
+
+## 2026-11-08 · RM15 Markdown 模型与原文保留
+
+交付 `crates/anynote-core/src/protocol/{markdown,rich}.rs` 和 `crates/anynote-editor/src/{model,source}.rs`。复用 workspace 已锁定的 markdown 1.0.0（CommonMark/GFM）、regex 1.13.1、serde_json 1.0.145；没有引入第六个 crate、UI/数据库依赖或另一种持久化格式。`Document` 持有唯一 Markdown 源文、覆盖全文的块/分隔 segments、session-local BlockId、字节范围和派生语义树；serializer 仅复制原文或 splice 指定范围。局部替换检查 generation、expected source、UTF-8 边界，重新解析引用/fence 影响，保留未受影响及仍对应同一范围的块身份。结构命令、选区、撤销和 IME 留给 RM16–19。
+
+安全边界与现有 TS 一致：正文超过 500000 UTF-16 单元整体 opaque，单块超过 5000 节点降级，脚注/转义/HTML/reference/aligned-table/code-meta/图片混排等保留源码。directive 保留全部属性及原始载荷，字段更新只替换 JSON payload 并保留尾部换行；arbitrary_precision 保留未知整数/小数精度。serde 无法投影的深层 JSON 或孤立 UTF-16 surrogate 保留原始字节并拒绝字段更新，不替换为空对象；这类 directive 在两端都不是普通富编辑块。静态媒体/声明块业务接线仍由 RM20/21 等承担。
+
+共用语料 `tests/fixtures/markdown/rm15.json` 固定 54 份输入和预期 byte spans、directive 属性/JSON、富编辑原因；Rust 和直接导入源码的 TS 测试读取同一文件，不更新 RM01 冻结快照。初次差分发现 TS remark 去除 BOM 后没有补偿原文 offset，已在 `packages/protocol/src/rich.ts` 修复；Rust 段落前导空格从 block span 分离到 separator。CR/LF/Unicode 行分隔的 directive 锚点按 JS 规则识别。修复后全部共用预期一致。
+
+本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，合成离线语料。验证：`cargo test -p anynote-editor --test markdown_source --offline --locked` 13/13，通过全文字节相等、局部范围外相等、RM01 原文、Unicode 源定位、非法/过期范围无修改、块身份、未知字段/大数/资源引用、引用定义重解析及固定 seed 200 次编辑。`vitest run tests/rust-markdown.test.ts tests/document-model.test.ts tests/editor-ecosystem.test.mjs tests/organization.test.mjs` 4 文件 71/71 通过，其中共用语料 54 项；协议 `tsc` 编译、core/editor 全 targets Clippy（`-D warnings`）、新增/修改源码的 rustfmt、ESLint/Prettier、依赖边界 guard（5 工程、800 个当时锁定包）和 `git diff --check` 通过。由于 serde_json feature 由 workspace 统一，另执行当时的 `cargo test -p anynote-core -p anynote-editor --offline --locked`，两个包合计 31/31 通过（含并行组已有测试）。原始日志在可删除的 `tmp/rm15/`。不声称整个 workspace 回归、原生 UI/IME、性能目标或 M1/M2 已放行。
+
+执行期间其他组正在修改 Rust manifest；仅去掉重复依赖声明、保留双方依赖。一次在线 cargo 检查因 DNS 不可用失败，后续离线检查成功。`build-workspace.mjs packages/protocol` 因当前没有 `extensions/` 目录失败；改用 `tsc -p packages/protocol/tsconfig.json` 与已有 `build-backend.mjs` 编译发布协议测试模块，不修改无关构建脚本。
+
+<a id="rm02"></a>
+
+## 2026-11-08 · RM02 Rust workspace、Kit 与平台壳
+
+完成 RM02.1–RM02.3，接续已有 RM01 工作区材料，不修改旧 Electron 业务或用户库。固定 `apps/desktop-rust` 与 `crates/anynote-{core,storage,services,editor}` 五个工程及 Rust 1.99.1；Kit/Base/Component/assets 0.9.0 与 GPUI 0.3.11 同组锁定，SQLite/图片/SVG/PDF bindings/features 和 Pdfium 7350 资产摘要见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。依赖 guard 检查实际激活闭包（all-target/all-features 764 包），禁止 JS 宿主与错配 Kit。新增 Linux 开发 CI，未声称 hosted CI/发行通过。
+
+平台壳提供主题/系统外观、字号缩放、动态草稿 Dialog、Actions/系统或 Kit 菜单、焦点/输入、GPUI 文件选择/剪贴板、本地单实例唤醒和显式退出语义。修复 AppMenuBar 的全高占位导致正文被推到视口外的问题；按钮与 Actions 共用 owner 方法，Dialog 使用 Kit 的关闭/应用组件并验证焦点回到原控件。core 环境观察保留未知值与恢复失效规则，真实 OS 电量/网络/恢复订阅尚未接入。services/editor 当前仅为工程边界，未冒充后端或编辑器完成。
+
+本轮 Fedora 44 x86_64 验证：`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`、`cargo test --workspace --all-features --locked`、`cargo build -p anynote-desktop --locked`、依赖 guard 均通过。6 个顶层测试通过；另 1 个 ignored 测试是由进程测试显式启动的 child fixture，并非跳过验收。覆盖未知环境恢复、单实例跨进程唤醒/kill 后重启、无 DISPLAY 的原生子进程、Unicode/剪贴板/Dialog/主题缩放、模拟文件选择/取消、SQLite STRICT/FTS5 trigram/Online Backup。沙箱最初拒绝本地 socket（EPERM），在允许本地 IPC 的环境复跑通过。Pdfium 绑定的宽 libloading 约束曾误选不兼容的 0.9.0，最终 lock 固定 0.8.9 并通过全 features 编译。
+
+实际 Wayland 会话启动了 GPUI 窗口，记录 scale factor 1.6666666；独立 Xvfb/X11 原生窗口探针通过键盘输入、剪贴板往返、Dialog Escape/焦点恢复、浅深主题、16→18→16 缩放、第二实例唤醒及 Ctrl+W 退出，截图已检查。探针脚本可重建 `tmp/rm02/` 报告。Xvfb 使用软件渲染，不能推断 GPU/性能；Unicode 模拟输入不证明真实 IME；系统文件选择器只做适配与模拟响应测试。macOS/Windows、真实输入法/读屏/多屏 DPI、原生文件选择器、Pdfium 字节与 ABI 装载、WebView 和发行均未验收，仍由 RM25/27/32/36 承接。
+
+<a id="rm01"></a>
+
+## 2026-11-08 · RM01 旧版基线与兼容语料
+
+固定旧提交 `60a8c4b614b8831d2a16366a79d595942e7b87a1`，不改产品行为。RM01.1 冻结 146 个 renderer 操作（111 迁移、35 退役）、20 个内部/漏接线入口和 INV-01–24，保存源码 hash、校验/结果/错误分支及逐项 RM 归属。RM01.2 增加 `tests/fixtures/rust-migration/` 合成黄金语料、生成器和旧 reader 自校验，覆盖 schema/tracker、Markdown/directive、scene/嵌图历史、资源/批注/未知 JSON、完整/当前/ZIP64 归档、带图采集、本地备份、云快照/浏览/ack 和七类异常样本。RM01.3 取得当前 Linux 性能/交互样本，记录安装/数据路径、13 个已知插件来源及无法访问的用户插件清单。使用方式与完整边界见[基线与语料](RUST-MIGRATION-BASELINE.md)。
+
+实际验证：`pnpm run build` 通过；6 个相关测试文件 56 项通过，补入采集图片/云浏览后单独重跑最终 RM01 15 项通过；新增脚本和测试的 ESLint/Prettier、文档链接与 `git diff --check` 通过。旧 `document-editor-smoke.mjs` 通过，含合成 composition，不等于真实 OS IME。`performance-ui-acceptance.mjs` 11 个检查通过；万篇搜索 benchmark 通过。原始结果位于 `tmp/reports/rm01/`、`tmp/reports/search-benchmark.json`、`tmp/reports/performance-ui-acceptance.json`；截图在 `tmp/screenshots/`。
+
+设备为 Linux x64、AMD Ryzen 7 H 255（16 逻辑核）、约 29.2 GiB RAM；harness Node 24.11.1、Electron 41.9.1（内置 Node 24.17.0），开发构建、暖 OS cache、合成数据。旧版启动 p95 1220.54ms；50KB 文档打开 p95 41.50ms、保存提交 p95 18.31ms（不含 650ms 防抖）；万篇后端唯一短语/短中文搜索 p95 分别 8.47/33.33ms。UI 基准覆盖 100MiB 合成 PDF Range、大图及有限媒体循环；不是低配机、冷盘、真实复杂媒体或长期老化证据。性能脚本运行期间曾并行执行短时旧 smoke，以上数值只作开发环境参考；严格比较需按基线文档串行重测。
+
+已知旧缺陷保留：`editor-ecosystem-smoke.mjs` 在 `富文本 Beta` 超时；`desktop-smoke` 旧选择器仅源码核对。实际 renderer `saveRemoteRetention` 返回“未授权请求”。本地拦截 iframe 的 CSP 探针确认 YouTube 放行、Vimeo/Bilibili 阻止，不声称三家真实视频播放通过。三平台凭据/偏好、真实用户插件、完整白板动作和外部设备/云/发行仍未验收，范围已归属后续 RM/V/A/F；不因 RM01 完成改变这些状态。
+
 历史概述（2026-10-04）：依据 Anynote-Design.md 0.1，保留 Markdown 为唯一正文真源。已完成 P2/P3 和部分 P4 功能，已补充块级富文本、排序、跨库反链、元数据历史与本地清理；已补充外部 Notebook 目录打开与写锁；已补充全局搜索、筛选、连接 LRU 和万篇后端基准；已完成桌面真实云验收及跨 Notebook 复制/移动；已完成桌面流式 ZIP/ZIP64 归档及 Cloudflare 远端清理/设备接管；已补齐 UTC 日/周/月采样及核心 TypeScript 迁移；已完成大文件云备份/恢复分块及真实 Cloudflare 验收；已补充客户端硬中断重启与源目录不可用恢复演练；已实现独立云连接、分页发现及全新设备恢复向导；已补齐 Linux 性能与界面验收、范围读取 PDF、超大 Markdown 策略和键盘/缩放修复；仍为预览版，未将完整设计标记为已验收。
 
 2026-10-24 范围调整：移除 Google Drive、Dropbox、OneDrive 云盘备份、OAuth 服务及专用 SDK 契约；当前保留本地磁盘与 Cloudflare 备份。相关未完成任务已取消，历史证据仅用于溯源。
