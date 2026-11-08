@@ -2,7 +2,7 @@
 
 供 Agent 接续实施使用。先核对当前源码和任务范围，实施后更新已交付范围、剩余事项与已知失败；不把历史测试结果当作当前通过结论。
 
-- [TODO：唯一未完成任务清单](TODO.md)
+- [TODO：唯一未完成任务清单](TODO.md)，含 [Rust 桌面迁移 RM01–RM38 执行组](TODO.md#rust-migration)、依赖、并行范围与验收条件。
 - [实施记录与接续入口](IMPLEMENTATION.md)
 - [开发工作流](DEVELOPMENT-WORKFLOW.md)
 - [文档维护与临时文件规则](DOCUMENTATION.md)
