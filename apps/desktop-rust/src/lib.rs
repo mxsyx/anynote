@@ -5,3 +5,5 @@ pub mod instance;
 pub mod probe;
 pub mod shell;
 pub mod wire;
+
+pub mod migration;

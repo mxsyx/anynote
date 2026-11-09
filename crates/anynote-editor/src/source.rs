@@ -29,15 +29,19 @@ impl<'a> SourceEdit<'a> {
     pub fn replacement(&self) -> &str {
         self.replacement
     }
-    pub fn serialize(&self, source: &str) -> Result<String, SourceError> {
+    pub(crate) fn validate(&self, source: &str) -> Result<(), SourceError> {
         let current = source
             .get(self.range.clone())
             .ok_or(SourceError::InvalidRange)?;
         if current != self.expected {
             return Err(SourceError::Stale);
         }
+        Ok(())
+    }
+    pub fn serialize(&self, source: &str) -> Result<String, SourceError> {
+        self.validate(source)?;
         let mut result =
-            String::with_capacity(source.len() - current.len() + self.replacement.len());
+            String::with_capacity(source.len() - self.range.len() + self.replacement.len());
         result.push_str(&source[..self.range.start]);
         result.push_str(self.replacement);
         result.push_str(&source[self.range.end..]);

@@ -1,6 +1,6 @@
 # Rust 配置与凭据读取器
 
-RM13 的离线读取与转换入口位于 `crates/anynote-services/src/config_migration/`。它只处理关闭后的保全副本，不自动发现或接管日常 userData，不改 Notebook schema v5。完整复制、互斥、journal、发布、调度恢复及旧程序回退由 [RM14](TODO.md#rm14) 接线；真实安装和三平台兼容结论归 [RM32](TODO.md#rm32)。当前实现范围与验证摘要见 [RM13 实施记录](IMPLEMENTATION.md#rm13)。
+RM13 的离线读取与转换入口位于 `crates/anynote-services/src/config_migration/`。它只处理关闭后的保全副本，不自动发现或接管日常 userData，不改 Notebook schema v5。[RM14 副本演练](RUST-MIGRATION-TAKEOVER.md)已接入完整复制、Notebook 租约、journal、配置发布和最新数据回退；正式互斥、调度恢复及 Chromium 偏好回填仍待接线；真实安装和三平台兼容结论归 [RM32](TODO.md#rm32)。当前实现范围与验证摘要见 [RM13 实施记录](IMPLEMENTATION.md#rm13)。
 
 ## Local Storage
 

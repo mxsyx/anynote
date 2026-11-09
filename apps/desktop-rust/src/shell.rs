@@ -126,6 +126,7 @@ pub fn open_or_activate(cx: &mut App, probe: Probe) -> gpui_kit::Result<()> {
 
 pub struct Shell {
     input: Entity<InputState>,
+    migration: Entity<crate::migration::MigrationView>,
     focus: FocusHandle,
     menu: Entity<AppMenuBar>,
     selected: SharedString,
@@ -156,6 +157,7 @@ impl Shell {
         });
         Self {
             input,
+            migration: cx.new(|_| crate::migration::MigrationView::new()),
             focus: cx.focus_handle(),
             menu: AppMenuBar::new(cx),
             selected: "尚未选择文件".into(),
@@ -346,6 +348,7 @@ impl Render for Shell {
                             .text_sm()
                             .child(self.selected.clone()),
                     )
+                    .child(self.migration.clone())
                     .overflow_y_scrollbar(),
             )
     }

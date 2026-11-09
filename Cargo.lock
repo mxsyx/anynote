@@ -262,6 +262,7 @@ dependencies = [
  "anynote-core",
  "serde",
  "serde_json",
+ "unicode-segmentation",
 ]
 
 [[package]]

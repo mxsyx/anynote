@@ -2,7 +2,7 @@
 
 状态：设计方案，2026-11-08。本文与[迁移总方案](RUST-DESKTOP-MIGRATION.md)、[功能盘点](RUST-MIGRATION-INVENTORY.md)、[编辑器设计](RUST-EDITOR-DESIGN.md)配套。本文描述待实施方案；本次未运行迁移、修改业务代码、读取用户凭据或执行远端验收。
 
-RM13 离线配置读取与凭据原型已交付，具体已验证范围、格式及未验证平台见[实现入口](../development/RUST-CONFIG-MIGRATION.md)；本文其他迁移步骤仍是设计约束，不据此推断已经接管或通过真实验收。
+RM13 离线配置读取与凭据原型已交付，具体已验证范围、格式及未验证平台见[实现入口](../development/RUST-CONFIG-MIGRATION.md)；RM14 已实现[隔离副本接管/回退演练](../development/RUST-MIGRATION-TAKEOVER.md)，正式路径激活、偏好回填和平台验收仍未完成；本文其他迁移步骤仍是设计约束，不据此推断已经接管或通过真实验收。
 
 ## 1. 决策与边界
 

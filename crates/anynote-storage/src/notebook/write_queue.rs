@@ -33,6 +33,7 @@ pub struct WriteCatalog {
     catalog: ReadonlyCatalog,
     capacity: usize,
     connections: VecDeque<Cached>,
+    preservation: bool,
 }
 impl WriteCatalog {
     fn open(root: &Path, capacity: usize) -> ReadResult<Self> {
@@ -44,6 +45,7 @@ impl WriteCatalog {
             catalog,
             capacity,
             connections: VecDeque::new(),
+            preservation: false,
         })
     }
     pub fn notebook(&mut self, id: &str) -> ReadResult<&mut WritableNotebook> {
@@ -73,7 +75,11 @@ impl WriteCatalog {
             }
             self.connections.push_back(Cached {
                 id: id.into(),
-                book: WritableNotebook::open(&path, id)?,
+                book: if self.preservation {
+                    WritableNotebook::open_for_preservation(&path, id)?
+                } else {
+                    WritableNotebook::open(&path, id)?
+                },
                 pins: Arc::new(AtomicUsize::new(0)),
             });
         }
@@ -142,6 +148,27 @@ impl WriteCatalog {
     }
     pub fn connection_count(&self) -> usize {
         self.connections.len()
+    }
+    /// Drain through the FIFO before copying a closed-format database. The caller
+    /// must keep the notebook pinned and stop admission until preservation ends.
+    pub fn checkpoint_for_preservation(&mut self, id: &str) -> ReadResult<()> {
+        let book = self.notebook(id)?;
+        book.view.check_path()?;
+        book.view
+            .db
+            .execute_batch("PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE; COMMIT;")?;
+        Ok(())
+    }
+    /// Enable ordinary writer initialization only after the preservation journal
+    /// has committed activation. No tracker DDL runs during migration preflight.
+    pub fn begin_writing(&mut self) -> ReadResult<()> {
+        if self.preservation {
+            for cached in &mut self.connections {
+                cached.book.begin_writing()?;
+            }
+            self.preservation = false;
+        }
+        Ok(())
     }
     pub fn close_notebook(&mut self, id: &str) -> ReadResult<()> {
         uuid(id)?;
@@ -294,7 +321,15 @@ impl<T> WriteTicket<T> {
 }
 impl WriteQueue {
     pub fn open(root: &Path, capacity: usize) -> ReadResult<Self> {
-        let catalog = WriteCatalog::open(root, capacity)?;
+        Self::open_mode(root, capacity, false)
+    }
+    /// Migration owns admission and pins every notebook before preservation.
+    pub fn open_for_preservation(root: &Path, capacity: usize) -> ReadResult<Self> {
+        Self::open_mode(root, capacity, true)
+    }
+    fn open_mode(root: &Path, capacity: usize, preservation: bool) -> ReadResult<Self> {
+        let mut catalog = WriteCatalog::open(root, capacity)?;
+        catalog.preservation = preservation;
         let (sender, receiver) = mpsc::sync_channel::<Job>(64);
         let worker = thread::Builder::new()
             .name("anynote.storage.writer".into())

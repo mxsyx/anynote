@@ -265,8 +265,37 @@ pub fn export_archive(
         snapshot.prepare(mode, cancel)?;
     }
     ensure(snapshot.mode() == Some(mode), "快照模式不匹配")?;
-    let book = ReadonlyNotebook::open(snapshot.path(), Some(snapshot.notebook_id()))?;
-    let database = describe(snapshot.path(), "notebook.sqlite", cancel)?;
+    export_directory(
+        snapshot.path(),
+        snapshot.notebook_id(),
+        mode != SnapshotMode::Current,
+        output,
+        force_zip64,
+        cancel,
+    )
+}
+
+/// The migration owner holds the original leases and supplies a verified,
+/// independent full copy. No hard links or source database descriptors are opened.
+pub(crate) fn export_preserved_directory(
+    source: &Path,
+    notebook_id: &str,
+    output: &Path,
+    cancel: &Cancellation,
+) -> ArchiveResult<ArchiveManifest> {
+    export_directory(source, notebook_id, true, output, false, cancel)
+}
+
+fn export_directory(
+    source: &Path,
+    notebook_id: &str,
+    full: bool,
+    output: &Path,
+    force_zip64: bool,
+    cancel: &Cancellation,
+) -> ArchiveResult<ArchiveManifest> {
+    let book = ReadonlyNotebook::open(source, Some(notebook_id))?;
+    let database = describe(source, "notebook.sqlite", cancel)?;
     let assets = book
         .assets()?
         .into_iter()
@@ -279,12 +308,11 @@ pub fn export_archive(
             })
         })
         .collect::<ArchiveResult<Vec<_>>>()?;
-    let full = mode != SnapshotMode::Current;
     let manifest = ArchiveManifest {
         format: "anynote.notebook".into(),
         format_version: 1,
         schema_version: 5,
-        notebook_id: snapshot.notebook_id().into(),
+        notebook_id: notebook_id.into(),
         includes_history: Some(full),
         includes_trash: Some(full),
         includes_extension_state: Some(full),
@@ -298,7 +326,7 @@ pub fn export_archive(
         .chain(manifest.assets.clone())
         .collect::<Vec<_>>();
     write_zip(
-        snapshot.path(),
+        source,
         output,
         &entries,
         Some(&manifest),

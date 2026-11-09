@@ -111,6 +111,11 @@ impl Drop for WritableNotebook {
 }
 impl WritableNotebook {
     pub(crate) fn open(root: &Path, id: &str) -> ReadResult<Self> {
+        let mut book = Self::open_for_preservation(root, id)?;
+        book.begin_writing()?;
+        Ok(book)
+    }
+    pub(crate) fn open_for_preservation(root: &Path, id: &str) -> ReadResult<Self> {
         uuid(id)?;
         input(
             !path::local_path(root, ".backup")?.exists(),
@@ -131,19 +136,26 @@ impl WritableNotebook {
         )?;
         require(identity.same_file(&file)?, "打开期间数据库被替换")?;
         // Validate before adding the existing optional tracker or switching journal modes.
-        let mut book = Self {
+        let book = Self {
             view: ReadonlyNotebook::from_writer(db, root, id)?,
             lease_id: new_id(),
         };
-        book.view.db.execute_batch("PRAGMA journal_mode=DELETE; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; BEGIN EXCLUSIVE; COMMIT;")?;
-        if book.view.tracker.is_none() {
-            let tx = book.view.db.transaction()?;
+        book.view
+            .db
+            .execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
+        Ok(book)
+    }
+    pub(crate) fn begin_writing(&mut self) -> ReadResult<()> {
+        self.view.db.execute_batch(
+            "PRAGMA journal_mode=DELETE; PRAGMA journal_mode=WAL; BEGIN EXCLUSIVE; COMMIT;",
+        )?;
+        if self.view.tracker.is_none() {
+            let tx = self.view.db.transaction()?;
             tx.execute_batch(BACKUP_REVISION_SQL)?;
             tx.execute("INSERT INTO _backup_revision VALUES(1,1,?,0)", [new_id()])?;
             tx.commit()?;
         }
-        book.refresh_metadata()?;
-        Ok(book)
+        self.refresh_metadata()
     }
     pub fn read(&self) -> &ReadonlyNotebook {
         &self.view

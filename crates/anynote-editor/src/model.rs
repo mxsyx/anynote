@@ -98,7 +98,7 @@ impl Document {
         let offset = span.start.checked_add(local)?;
         (offset <= span.end && self.source.is_char_boundary(offset)).then_some(offset)
     }
-    /// Returns all owning blocks at a boundary; selection affinity is chosen by RM16.
+    /// Returns all owning blocks at a boundary; selection affinity chooses the owning side.
     pub fn block_positions(&self, offset: usize) -> Vec<(BlockId, usize)> {
         if !self.source.is_char_boundary(offset) {
             return Vec::new();
@@ -120,13 +120,39 @@ impl Document {
         generation: u64,
         edit: SourceEdit<'_>,
     ) -> Result<ChangeMap, SourceError> {
+        let changes = self.replace_sources(generation, &[edit])?;
+        Ok(changes
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| ChangeMap::new(0..0, 0)))
+    }
+
+    /// Edits use the same base source, sorted by range, without overlap or shared boundaries.
+    /// Validation and parsing finish before publishing any state. Maps are in application order.
+    pub fn replace_sources(
+        &mut self,
+        generation: u64,
+        edits: &[SourceEdit<'_>],
+    ) -> Result<Vec<ChangeMap>, SourceError> {
         if generation != self.generation {
             return Err(SourceError::Stale);
         }
-        let source = edit.serialize(&self.source)?;
-        let change = ChangeMap::new(edit.range(), edit.replacement().len());
-        if source == self.source {
-            return Ok(ChangeMap::new(0..0, 0));
+        for (ix, edit) in edits.iter().enumerate() {
+            edit.validate(&self.source)?;
+            if ix > 0 && edits[ix - 1].range().end >= edit.range().start {
+                return Err(SourceError::InvalidRange);
+            }
+        }
+        let mut source = self.source.clone();
+        let mut changes = Vec::new();
+        for edit in edits.iter().rev() {
+            if self.source[edit.range()] != *edit.replacement() {
+                source.replace_range(edit.range(), edit.replacement());
+                changes.push(ChangeMap::new(edit.range(), edit.replacement().len()));
+            }
+        }
+        if changes.is_empty() {
+            return Ok(changes);
         }
         let generation = self
             .generation
@@ -134,22 +160,29 @@ impl Document {
             .ok_or(SourceError::IdExhausted)?;
         let mut identities = BTreeMap::new();
         for block in &self.blocks {
-            if let Some(span) = change.unchanged_range(block.span()) {
+            let mut candidates = vec![block.span()];
+            for change in &changes {
+                let mut mapped = Vec::new();
+                for span in candidates {
+                    if let Some(unchanged) = change.unchanged_range(span.clone()) {
+                        mapped.push(unchanged);
+                    }
+                    if span.start <= change.old_range().start && span.end >= change.old_range().end
+                    {
+                        let contained = span.start
+                            ..change.new_range().end + (span.end - change.old_range().end);
+                        if !mapped.contains(&contained) {
+                            mapped.push(contained);
+                        }
+                    }
+                }
+                candidates = mapped;
+            }
+            for span in candidates {
                 identities.insert((span.start, span.end), block.id);
             }
-            if block.span().start <= change.old_range().start
-                && block.span().end >= change.old_range().end
-            {
-                let span = block.span();
-                identities.insert(
-                    (
-                        span.start,
-                        change.new_range().end + (span.end - change.old_range().end),
-                    ),
-                    block.id,
-                );
-            }
         }
+
         let mut next_id = self.next_id;
         let mut blocks = Vec::new();
         let mut used_ids = BTreeSet::new();
@@ -173,7 +206,7 @@ impl Document {
         self.segments = segments;
         self.generation = generation;
         self.next_id = next_id;
-        Ok(change)
+        Ok(changes)
     }
 
     /// Update one JSON object field while retaining unknown attributes, values, and source outside the payload.

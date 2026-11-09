@@ -28,6 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 anynote_desktop::backend::run(&state_directory()?)?;
                 return Ok(());
             }
+            Some("--migration-rehearsal") => {
+                let path = PathBuf::from(args.next().ok_or("missing rehearsal directory")?);
+                if args.next().is_some() {
+                    return Err("unexpected rehearsal argument".into());
+                }
+                println!("{}", anynote_desktop::migration::prepare_clone(&path)?);
+                return Ok(());
+            }
             Some("--probe-child") => {
                 println!("anynote.native.child.v1");
                 return Ok(());

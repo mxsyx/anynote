@@ -6,6 +6,8 @@
 - [实施记录与接续入口](IMPLEMENTATION.md)，含 [RM10 云传输、恢复与统一调度契约](IMPLEMENTATION.md#rm10)、[RM11 writer、保留与维护恢复契约](IMPLEMENTATION.md#rm11)。
 - [Rust 迁移基线与语料使用](RUST-MIGRATION-BASELINE.md)：固定旧提交、操作/功能归属、黄金文件、生成和自校验方法及实测边界。
 - [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：五个工程、固定依赖/native 许可证、平台探针，以及 RM03 后端通信、任务/资源/调度与诊断接入契约。
+- [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：RM16 的坐标/选区、原子 patch、marks/link、增量历史、composition 和后续视图/保存接入契约。
+- [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：RM17 的列表/表格/块命令、复杂粘贴、atom 与跨块选区、序列化边界及 RM18 接续契约。
 - [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。
 - [Rust schema v5 写存储](RUST-WRITE-STORAGE.md)：RM05 的写队列/租约/LRU/pin、核心事务、历史资源与提案，以及 RM06 跨库闭包、幂等回执和 TS 双向互通复现。
 - [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：RM07 的 HTML 差分、预览租约、目录授权、下载边界、采集回执和 TS/Rust 互通复现。
@@ -13,6 +15,7 @@
 - [Rust 本地备份 v3](RUST-LOCAL-BACKUP.md)：RM09 的卷预检、增量发布、任务回执、全量验证、新库恢复及 TS 互通复现。
 - [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)：RM12 的配对/claim/事务回执、同切面投影、RM10 接续顺序和保留扩展本地闭环。
 - [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：RM13 的 LevelDB 副本、平台凭据原型、插件状态保全、逆映射与复现方法。
+- [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)：RM14 的完整保全、可重入 journal、原路径租约、最新数据回退、故障演练及正式激活缺口。
 - [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene/事务边界、0.18 动作库存、已测操作族及未覆盖的完整兼容门槛。
 - [开发工作流](DEVELOPMENT-WORKFLOW.md)
 - [文档维护与临时文件规则](DOCUMENTATION.md)

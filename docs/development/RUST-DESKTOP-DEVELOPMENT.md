@@ -37,7 +37,7 @@ Ubuntu 24.04 的开发包和检查入口写在 `.github/workflows/rust.yml`。�
 
 ## Markdown 内核（RM15）
 
-`anynote-core::protocol::markdown` 提供 fence-aware directive 源范围和 JSON 投影；`protocol::rich` 保留现有 CommonMark/GFM 富编辑安全边界。`anynote-editor::model::Document` 持有唯一源文、BlockId、全文 source segments 与派生树；`source::SourceEdit` 在 generation/原文前置条件通过后只替换指定 UTF-8 范围，`ChangeMap` 映射其余源位置。块内位置也是 UTF-8 字节，UTF-16/grapheme 选区策略归 RM16；MarkdownNode 的内部位置相对于 `Content::Markdown::source_base`。BlockId 不写入正文，完整重载产生新会话身份。
+`anynote-core::protocol::markdown` 提供 fence-aware directive 源范围和 JSON 投影；`protocol::rich` 保留现有 CommonMark/GFM 富编辑安全边界。`anynote-editor::model::Document` 持有唯一源文、BlockId、全文 source segments 与派生树；`source::SourceEdit` 在 generation/原文前置条件通过后只替换指定 UTF-8 范围，`ChangeMap` 映射其余源位置。块内位置也是 UTF-8 字节，UTF-16/grapheme 选区与事务见 [RM16 输入内核](RUST-EDITOR-TRANSACTIONS.md)；MarkdownNode 的内部位置相对于 `Content::Markdown::source_base`。BlockId 不写入正文，完整重载产生新会话身份。
 
 `serialize()` 返回权威原文；不运行全文格式化。`set_directive_field` 只更新对象载荷中的指定字段，保留未知字段和数字精度；非法/超解析深度或含孤立 surrogate 的 JSON 保留源码并拒绝字段更新。普通源码替换可修复它们。所有 directive 的媒体/声明块业务编辑仍待 RM20/21；当前 parser 不动态注册插件。每次源编辑先全量重建派生视图以保持跨块 reference/fence 语义，增量优化和性能门槛另验。
 
@@ -48,6 +48,8 @@ node_modules/.bin/vitest run tests/rust-markdown.test.ts
 ```
 
 Rust/TS 共读 `tests/fixtures/markdown/rm15.json` 的 54 份语料；Rust 另验证 RM01 冻结 Markdown、未知 JSON/资源、局部字节保留和固定 seed 源编辑不变量。完整结果见[RM15 实施记录](IMPLEMENTATION.md#rm15)。
+
+RM16 已增加 `transaction::Editor` 作为正文/选区/undo/composition 的唯一会话内核，`InlineContent` 提供逻辑文本范围的 marks/link 命令。后续编辑接线遵循[文本事务契约](RUST-EDITOR-TRANSACTIONS.md)，不直接修改已交给 Editor 的 Document 或另建历史。
 
 ## 平台壳契约
 

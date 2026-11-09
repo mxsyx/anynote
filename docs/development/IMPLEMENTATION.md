@@ -4,6 +4,20 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm14"></a>
+
+## 2026-11-08 · RM14 原路径接管与回退（副本原型，部分完成）
+
+交付 `anynote-services::migration::Rehearsal` 和桌面副本校验入口，具体契约与剩余范围见 [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)。复用现有 schema/catalog、FIFO 写队列、SQLite 独占租约、RM13 偏好读取/逆映射、RM08 归档及 RM09 卷预检，没有新增依赖或 Notebook 迁移表。保留并行 RM16 编辑器及文档修改。
+
+- 完整复制文件和空目录，包含孤立附件、未知状态、用户文件和配置；托管及外部根独立保全。逐文件摘要、Unix device/inode、同卷/空间预检、原路径租约和固定 journal 共同约束重复运行。预检不安装备份 tracker；数据库归一化 checkpoint 后再取指纹。
+- 独立配置发布有持久化意图，staging 不登记为正式库。保持 SQLite 租约至回退验证结束；针对 POSIX close 释放锁的问题复用预打开 DB 文件句柄。回退先停止本会话新写、FIFO 排空并冻结，再保存最新完整副本和 `.anynote`，由旧 TS 只读验证后释放原路径；共享云游标不回滚。
+- UI 偏好逆映射仅输出待回填报告，尚未写回 Chromium；新凭据明确重新认证、任务暂停。GUI 仅选择并校验隔离副本，正式接管禁用；不存在自动定位/激活真实日常资料入口。
+
+验证：11 项 RM14 Rust 专项通过；12 组 TS 原库 → Rust 原生进程退出/重启 → 新写入 → 最新保全/回退 → 旧 TS `validateDirectory` 与正文回读通过，含 7 个前向边界、4 个回退边界及无故障路径。完整 storage/services 回归 133 项通过、2 项既有子进程入口 ignored；桌面构建、三包 Clippy `-D warnings`、五工程边界和脚本 lint 通过；Linux Xvfb 原生窗口 smoke 通过并检查新增入口截图，原生目录选择器和完整向导未自动验证。临时结果位于 `tmp/rm14/`，窗口截图沿用 `tmp/rm02/`。
+
+完整回归首次因沙箱禁止 loopback bind 导致既有网络测试 EPERM；在允许本地回环的环境重跑通过。真实旧安装单实例互斥、Windows 目录身份、所有后台任务排空、Chromium 偏好回填和三平台/真实克隆演练尚缺，RM14.1–.3 不勾选，M8 与 V/A/F 不变。
+
 <a id="rm12"></a>
 
 ## 2026-11-08 · RM12 配对、采集消费与同切面浏览
@@ -217,6 +231,34 @@ Linux x64 / Rust 1.99.1 / Node 24.11.1；全部材料在 `tmp/rm10/` 隔离目�
 本机 Linux x64 / Rust 1.99.1 / Node 24.11.1，合成离线语料：`cargo test --locked --offline -p anynote-editor --test board` 19/19 通过；editor 全 targets Clippy（`-D warnings`）、新增 Rust 文件 rustfmt、脚本 ESLint/Prettier、夹具/文档格式和链接检查通过。`node scripts/rust-board-reference.mjs` 重跑 26 步及 91 个注册名/依赖摘要核对通过。 Rust 依赖边界 guard 通过（5 工程、800 个锁定包），`git diff --check` 通过。日志位于 `tmp/rm22/`，为避免其他组占用 Cargo target 锁，本轮 Rust 检查使用 `CARGO_TARGET_DIR=tmp/rm22/target`。沙箱首次阻止 Chromium socket；获准本地浏览器测试后复跑成功。
 
 RM22.1–.3 均保留未完成：注册 action 不是实际可达矩阵，类型存在也不代表创建/编辑完成。尚缺默认菜单/快捷键完整实测、原生字体及复杂连接几何、开放 binding/elbow 路由、组编辑和复杂组/框层级、路径变换/图片裁剪、完整剪贴板/库等操作及对应旧版历史/序列差分。当前 26 步没有测旧版 pointer/history engine，也未验像素、性能、实际资源闭包保存或三平台。详细契约、按类型证据和复现见[白板兼容方法](RUST-BOARD-COMPATIBILITY.md)；不得据此关闭 E8/M6、推进旧白板退役或宣称 RM22 完成。
+
+<a id="rm17"></a>
+
+## 2026-11-08 · RM17 列表、表格与结构编辑
+
+完成 RM17.1–RM17.3 的纯 E3 结构范围。新增 `anynote-editor::structure::{Structure, StructureNode}`，准备同一 RM16 `Transaction`；新增内部 runs 复用入口，没有改动 model/transaction/history/composition 所有权、依赖或持久格式。段落/标题/list split/join、列表创建/缩进/逐层提升/空项退出、引用/任务勾选、plain/多段 Markdown/atom 粘贴、表格插入/替换/空单元格编辑/Tab/行列/矩阵粘贴、跨节点/块选区、atom 落点及整块移动/删除均经过统一原子提交和历史。详见[结构编辑接续契约](RUST-EDITOR-STRUCTURE.md)。
+
+局部结构 serializer 复用 RM16 marks/link/entity/code 编码，在提交前重解析比较语义并验证全文相邻块。修复共同语料暴露的 Unicode directive 分隔、行首缩进与 CR code 逻辑换行边界；列表尾部空白 span 可按解析器归属变化，但源 splice 保留未改字节。相邻列表用等价 marker 防止空项退出后合并。表格补齐短行，额外单元格扩列保留；不新增复杂合并单元格。opaque/directive 保留原文、未知属性/JSON 和资源 URI，不执行载荷；无法安全隔离的 unclosed fence/嵌套 atom 操作原子拒绝。
+
+本机 Linux、锁定 Rust 工具链、离线合成语料：`cargo test -p anynote-core -p anynote-editor --offline --locked` **77/77** 通过（core 2、board 19、RM15 13、RM16 17、RM17 26）。RM17 包括 fixed seed `0x17ab1e`、`0xc0ffee`、`0xdeadbeef` 各 200 轮表格编辑与独立矩阵比较、`0x171157` 180 轮列表操作，逐步验证源选区并完整 undo/redo；RM15 54 份共同语料中 38 个可富编辑块完成结构转换/字节恢复，恰达 UTF-16 预算的增加操作明确拒绝。覆盖嵌套 list/quote/table/code、marks/Unicode、空项和空单元格、表头提升、跨块反向选区、真实 directive 原文、资源链接、过期及 composition 活跃的原子失败。
+
+core/editor 全 targets Clippy（`-D warnings`）、变更 Rust 文件 rustfmt、五工程依赖 guard（839 个锁定包）、文档链接及 `git diff --check` 通过。没有增加新依赖。临时证据在可删除的 `tmp/rm17/`；保留工作区已有 RM14/RM16 等改动。
+
+限制：本组验证纯命令内核，没有执行连续 GPUI UI、OS 剪贴板/HTML 导入宿主、真实 IME/a11y、输入延迟或保存验收。空段落用源落点表示；虚拟空单元格暂以行尾源位置配合 `CellAddress` 定位；结构改动后重新取得 generation/BlockId/path，不能缓存旧路径。局部及全文重解析/临时源缓冲仍存在；RM18/19/32 及 M1/M4/V/A/F 保持原状态。
+
+<a id="rm16"></a>
+
+## 2026-11-08 · RM16 文本事务、选区、撤销与组合输入
+
+完成 RM16.1–RM16.3 的纯编辑内核。`transaction::Editor` 独占文档、选区、历史与 composition；复用 RM15 `SourceEdit`/`ChangeMap`/mdast，增加同一 generation 的原子批量 patch，验证全部 expected/range/结果选区后一次发布。修复批量映射中块边界插入的身份候选处理，RM15 原文/BlockId 回归保持通过。`selection` 支持 UTF-8/UTF-16/grapheme 精确转换、整 cluster 删除、反向选择与 affinity；`InlineContent` 支持局部 marks/link、字面文本、代码 fence、表格管道及 CRLF 硬换行，并通过重解析验证生成语义。详细调用约束见[输入内核契约](RUST-EDITOR-TRANSACTIONS.md)。
+
+历史只保存改动字节及前后选区，普通相邻源码输入/删除按同块和时间窗口合并，格式/粘贴/跨光标/IME 等打断；步数与累计字节预算仅丢弃旧历史，不裁正文。预编辑保持独立 overlay，cancel 不改变正文与 redo，commit 一次进入相同事务/历史；富文本最终文字通过冻结 inline 投影准备，提交失败保留组合。没有增加 UI、保存副作用或第二个历史 owner。
+
+本机 Linux x64、锁定 Rust 工具链、离线合成语料。`cargo test -p anynote-core -p anynote-editor --offline --locked` **51/51** 通过：core 2、既有 board 19、RM15 13、RM16 17。专项覆盖原子失败/redo 保全、Unicode/选区映射、输入合并、预算、组合状态转移与重复/过期提交、富文本 marks/link/code/CRLF/表格及源恢复。固定 seed `0x16a11`、`0xc0ffee`、`0xdeadbeef` 各 300 轮文本/组合输入，独立字符串预期、模型不变量及完整 undo/redo 重放通过；`0x16f04a7` 的 240 轮重叠 marks/link 通过。历史预算用 200,000 字节正文和超过预算的 Unicode 插入验证没有裁正文，不作为性能验收。
+
+core/editor 全 targets Clippy（`-D warnings`）、变更 Rust 文件 rustfmt、五工程依赖边界 guard（本次 839 个锁定包）、文档相对链接及 `git diff --check` 通过。只新增 editor 对已锁定 `unicode-segmentation = 1.13.3` 的直接依赖；没有升级依赖版本。临时日志写入可删除的 `tmp/rm16/`。保留同期 migration/storage 模块的其他工作区改动。
+
+范围限制：全量派生重解析与临时源缓冲仍存在；未测输入延迟、原生视图、OS IME、候选窗、焦点/a11y 或保存接线。RM17/18/19/32、M1/M4 和 V/A/F 状态不因这些核心测试自动通过。
 
 <a id="rm15"></a>
 
