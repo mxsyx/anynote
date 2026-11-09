@@ -28,11 +28,13 @@ actions!(
         FollowSystemTheme,
         ZoomIn,
         ZoomOut,
-        ResetZoom
+        ResetZoom,
+        OpenDocumentEditor
     ]
 );
 
 pub fn install_actions(cx: &mut App) {
+    crate::document_editor::install_actions(cx);
     fn key(mac: &'static str, other: &'static str) -> &'static str {
         if cfg!(target_os = "macos") {
             mac
@@ -60,6 +62,7 @@ pub fn install_actions(cx: &mut App) {
     ]);
     let menus = vec![
         Menu::new("Anynote").items([
+            MenuItem::action("新建草稿…", OpenDocumentEditor),
             MenuItem::action("选择文件…", ChooseFile),
             MenuItem::action("编辑测试文本…", EditText),
             MenuItem::separator(),
@@ -75,6 +78,7 @@ pub fn install_actions(cx: &mut App) {
             MenuItem::action("粘贴", input::Paste),
             MenuItem::action("全选", input::SelectAll),
         ]),
+        crate::document_editor::insert_menu(),
         Menu::new("显示").items([
             MenuItem::action("切换深色 / 浅色", ToggleTheme),
             MenuItem::action("跟随系统主题", FollowSystemTheme),
@@ -273,6 +277,26 @@ impl Render for Shell {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::choose_file))
             .on_action(cx.listener(Self::edit_text))
+            .on_action(|_: &OpenDocumentEditor, _, cx| {
+                let result = gpui_kit::open_window(
+                    WindowOptions {
+                        titlebar: Some(TitlebarOptions {
+                            title: Some("Anynote · 草稿（未保存）".into()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                    cx,
+                    |window, cx| {
+                        cx.new(|cx| {
+                            crate::document_editor::DocumentEditor::new(String::new(), window, cx)
+                        })
+                    },
+                );
+                if let Err(error) = result {
+                    eprintln!("open document draft: {error}");
+                }
+            })
             .on_action(cx.listener(Self::toggle_theme))
             .on_action(|_: &CloseWindow, window, _| window.remove_window())
             .on_action(cx.listener(|this, _: &FollowSystemTheme, window, cx| {
@@ -320,6 +344,13 @@ impl Render for Shell {
                             .flex()
                             .flex_wrap()
                             .gap_2()
+                            .child(
+                                Button::new("open-document-editor")
+                                    .label("新建草稿…")
+                                    .on_click(|_, window, cx| {
+                                        window.dispatch_action(Box::new(OpenDocumentEditor), cx)
+                                    }),
+                            )
                             .child(
                                 Button::new("choose-file")
                                     .label("选择文件…")

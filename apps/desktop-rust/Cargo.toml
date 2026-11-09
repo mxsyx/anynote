@@ -24,6 +24,8 @@ serde_json.workspace = true
 interprocess.workspace = true
 async-channel.workspace = true
 directories.workspace = true
+markdown = "=1.0.0"
+unicode-segmentation = "=1.13.3"
 image = { workspace = true, optional = true }
 resvg = { workspace = true, optional = true }
 pdfium-render = { workspace = true, optional = true }

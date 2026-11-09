@@ -232,6 +232,18 @@ Linux x64 / Rust 1.99.1 / Node 24.11.1；全部材料在 `tmp/rm10/` 隔离目�
 
 RM22.1–.3 均保留未完成：注册 action 不是实际可达矩阵，类型存在也不代表创建/编辑完成。尚缺默认菜单/快捷键完整实测、原生字体及复杂连接几何、开放 binding/elbow 路由、组编辑和复杂组/框层级、路径变换/图片裁剪、完整剪贴板/库等操作及对应旧版历史/序列差分。当前 26 步没有测旧版 pointer/history engine，也未验像素、性能、实际资源闭包保存或三平台。详细契约、按类型证据和复现见[白板兼容方法](RUST-BOARD-COMPATIBILITY.md)；不得据此关闭 E8/M6、推进旧白板退役或宣称 RM22 完成。
 
+<a id="rm18"></a>
+
+## 2026-11-09 · RM18 连续 GPUI 编辑视图与原生输入（部分完成）
+
+新增 `apps/desktop-rust/src/document_editor/` 与平台壳“新建草稿…”入口。Kit `editor_host` 渲染连续正文，按段落/列表行/表格行虚拟布局；RM16 持有唯一 source/history/composition，RM17 处理结构命令。接入原生文字输入、slash/浮条/工具条/原生菜单统一命令、任务/表格、搜索与内部块移动、原文入口、剪贴板字符串/本应用 Markdown/TSV、候选窗位置及模型文本/表格 a11y。源码 `InputEditsEvent` 使用逐步快照，程序化同步无回声，undo/redo 回到同一内核。草稿明确未保存，不新增 DocumentSession、资源写入或第二套 autosave。
+
+原型修复解码文本与源范围映射、空任务物化、空引用输入、代理对取整、组合局部更新/取消与源码预编辑保护、插入 marks 的历史分组、屏幕外未测量行搜索及缩放定位。内核只做所需事务/片段复制/结构扩展，保留 opaque 原文与严格原子验证；新增 desktop 对已锁定 markdown/unicode-segmentation 的直接依赖，未升级 Kit/GPUI。
+
+本机 macOS、锁定 Rust 1.99.1、合成语料：16 项编辑器测试（含 6 项 GPUI）通过；core/editor/desktop 联合回归 107 项通过，另有原设计 ignored 的子进程夹具 1 项。联合测试启用 serde_json 保序特性后暴露既有白板对象键顺序比较错误，改为键集合比较，其他语义/历史断言不变。macOS 默认临时路径超过 Unix socket 限制，改用仓库 tmp；沙箱 socket 拒绝后获准复跑通过。Clippy `-D warnings`、rustfmt、依赖边界（5 工程/839 包）通过；日志位于可删除的 `tmp/rm18/`。
+
+RM18.1–.3 尚未完成：BiDi/跨行范围几何、HTML MIME 原生适配、跨复杂结构选择、表格/代码独立滚动、完整 a11y 和实际拖放仍有缺口。真实程序已启动，但桌面工具随后报 `noWindowsAvailable`，不能认定原生编辑窗口/系统输入法/读屏通过。保存和媒体行为依赖后续任务，旧 test:document 未完整重放。详见[连续编辑视图契约](RUST-EDITOR-VIEW.md)；M1/M4、E1/E4、V/A/F 及旧桌面退役门槛保持未通过。
+
 <a id="rm17"></a>
 
 ## 2026-11-08 · RM17 列表、表格与结构编辑

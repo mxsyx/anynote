@@ -8,6 +8,7 @@
 - [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：五个工程、固定依赖/native 许可证、平台探针，以及 RM03 后端通信、任务/资源/调度与诊断接入契约。
 - [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：RM16 的坐标/选区、原子 patch、marks/link、增量历史、composition 和后续视图/保存接入契约。
 - [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：RM17 的列表/表格/块命令、复杂粘贴、atom 与跨块选区、序列化边界及 RM18 接续契约。
+- [Rust 连续编辑视图](RUST-EDITOR-VIEW.md)：RM18 的原生草稿、Kit 几何/输入、共享历史、可访问性原型、测试证据及未完成验收项。
 - [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。
 - [Rust schema v5 写存储](RUST-WRITE-STORAGE.md)：RM05 的写队列/租约/LRU/pin、核心事务、历史资源与提案，以及 RM06 跨库闭包、幂等回执和 TS 双向互通复现。
 - [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：RM07 的 HTML 差分、预览租约、目录授权、下载边界、采集回执和 TS/Rust 互通复现。

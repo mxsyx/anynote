@@ -68,6 +68,12 @@ impl Entry {
         }
         let (a, b) = (&previous[0], &current[0]);
         match self.kind {
+            EditKind::RichTyping => {
+                !a.inserted().contains(['\n', '\r'])
+                    && !b.inserted().contains(['\n', '\r'])
+                    && !a.removed().contains(['\n', '\r'])
+                    && !b.removed().contains(['\n', '\r'])
+            }
             EditKind::Typing => {
                 a.removed().is_empty()
                     && b.removed().is_empty()

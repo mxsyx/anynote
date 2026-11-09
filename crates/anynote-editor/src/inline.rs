@@ -148,6 +148,21 @@ impl InlineContent {
     pub fn text(&self) -> String {
         self.runs.iter().map(|run| run.text.as_str()).collect()
     }
+    /// Serialize only the selected logical runs, keeping balanced marks and links
+    /// for rich clipboard content without changing the document.
+    pub fn copy_markdown(&self, range: Range<usize>, unit: TextUnit) -> Result<String, EditError> {
+        let range = byte_range(&self.text(), range, unit)?;
+        let mut offset = 0;
+        let runs = split_runs(&split_runs(&self.runs, range.start), range.end)
+            .into_iter()
+            .filter(|run| {
+                let start = offset;
+                offset += run.text.len();
+                start >= range.start && offset <= range.end
+            })
+            .collect::<Vec<_>>();
+        encode_fragment(&runs, false, self.newline, None).map(|(text, _)| text)
+    }
     pub fn format(
         &self,
         range: Range<usize>,

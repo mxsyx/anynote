@@ -142,7 +142,9 @@ impl StructureNode {
                 result.children.push(Self::from_ast(child, base)?);
             }
         }
-        if matches!(result.kind, NodeKind::Item { .. }) && result.children.is_empty() {
+        if matches!(result.kind, NodeKind::Item { .. } | NodeKind::Quote)
+            && result.children.is_empty()
+        {
             let mut empty = Self::paragraph(vec![]);
             empty.span = result.span.as_ref().map(|s| s.end..s.end);
             result.children.push(empty);

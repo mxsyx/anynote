@@ -26,6 +26,8 @@ impl From<SourceError> for EditError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditKind {
     Typing,
+    /// Literal rich input may rewrite adjacent Markdown delimiters/entities.
+    RichTyping,
     BackwardDelete,
     ForwardDelete,
     Paste,
@@ -97,6 +99,10 @@ impl Transaction {
     /// Explicit selection uses resulting source coordinates and the transaction's base generation.
     pub fn with_selection(mut self, selection: Selection) -> Self {
         self.after = Some(selection);
+        self
+    }
+    pub fn with_kind(mut self, kind: EditKind) -> Self {
+        self.kind = kind;
         self
     }
 }
@@ -244,13 +250,24 @@ impl Editor {
         self.selection = selected.at_generation(self.document.generation());
         if !changes.is_empty() {
             // A split or join must not merge ordinary input across a new block boundary.
-            let block = block.filter(|id| {
-                self.document.block(*id).is_some_and(|b| {
-                    let span = b.span();
-                    span.start <= self.selection.head().offset()
-                        && self.selection.head().offset() <= span.end
+            let block = block
+                .or_else(|| {
+                    (kind == EditKind::RichTyping && affected.is_empty())
+                        .then(|| {
+                            self.selection
+                                .head()
+                                .block_position(&self.document)
+                                .map(|(id, _)| id)
+                        })
+                        .flatten()
                 })
-            });
+                .filter(|id| {
+                    self.document.block(*id).is_some_and(|b| {
+                        let span = b.span();
+                        span.start <= self.selection.head().offset()
+                            && self.selection.head().offset() <= span.end
+                    })
+                });
             self.history.push(Entry {
                 batches: vec![patches],
                 before,

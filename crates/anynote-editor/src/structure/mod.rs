@@ -122,6 +122,229 @@ impl<'a> Structure<'a> {
     pub fn root(&self) -> &StructureNode {
         &self.root
     }
+    pub fn insert_task_text(
+        &self,
+        path: &[usize],
+        text: &str,
+        marks: Marks,
+        checked: bool,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        let mut root = self.root.clone();
+        let node = root.node_mut(path)?;
+        if node.kind != NodeKind::Paragraph || !node.runs.is_empty() {
+            return Err(StructureError::Unsupported);
+        }
+        let paragraph = StructureNode::paragraph(vec![Run::literal(text.into(), marks)]);
+        *node = StructureNode::new(
+            NodeKind::List {
+                ordered: false,
+                start: 1,
+            },
+            vec![StructureNode::new(
+                NodeKind::Item {
+                    checked: Some(checked),
+                },
+                vec![paragraph],
+            )],
+        );
+        self.finish(
+            root,
+            Some(Caret {
+                path: [path, &[0, 0]].concat(),
+                offset: text.len(),
+            }),
+            millis,
+        )
+    }
+    /// An empty task has no lossless GFM spelling. The host keeps that pending
+    /// item in its projection and materializes it with its first real text.
+    pub fn insert_task_after(
+        &self,
+        item: &[usize],
+        text: &str,
+        marks: Marks,
+        checked: bool,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        let (ix, parent) = item.split_last().ok_or(StructureError::InvalidPath)?;
+        let mut root = self.root.clone();
+        let list = root.node_mut(parent)?;
+        if !matches!(list.kind, NodeKind::List { .. }) || *ix >= list.children.len() {
+            return Err(StructureError::InvalidPath);
+        }
+        list.children.insert(
+            ix + 1,
+            StructureNode::new(
+                NodeKind::Item {
+                    checked: Some(checked),
+                },
+                vec![StructureNode::paragraph(vec![Run::literal(
+                    text.into(),
+                    marks,
+                )])],
+            ),
+        );
+        self.finish(
+            root,
+            Some(Caret {
+                path: [parent, &[ix + 1, 0]].concat(),
+                offset: text.len(),
+            }),
+            millis,
+        )
+    }
+    /// Consume a typed Markdown prefix in the same structural transaction.
+    pub fn input_rule(
+        &self,
+        path: &[usize],
+        prefix: &str,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        let mut root = self.root.clone();
+        let node = root.node_mut(path)?;
+        if node.kind != NodeKind::Paragraph {
+            return Err(StructureError::Unsupported);
+        }
+        node.runs.clear();
+        let mut caret_path = path.to_vec();
+        match prefix {
+            "# " | "## " | "### " | "#### " | "##### " | "###### " => {
+                node.kind = NodeKind::Heading((prefix.len() - 1) as u8)
+            }
+            "> " => {
+                *node = StructureNode::new(NodeKind::Quote, vec![StructureNode::paragraph(vec![])]);
+                caret_path.push(0);
+            }
+            "- " | "* " | "1. " | "[] " | "[ ] " => {
+                let checked = matches!(prefix, "[] " | "[ ] ").then_some(false);
+                let item = StructureNode::new(
+                    NodeKind::Item { checked },
+                    vec![StructureNode::paragraph(vec![])],
+                );
+                *node = StructureNode::new(
+                    NodeKind::List {
+                        ordered: prefix == "1. ",
+                        start: 1,
+                    },
+                    vec![item],
+                );
+                caret_path.extend([0, 0]);
+            }
+            _ => return Err(StructureError::Unsupported),
+        }
+        self.finish(
+            root,
+            Some(Caret {
+                path: caret_path,
+                offset: 0,
+            }),
+            millis,
+        )
+    }
+    /// Replace a range whose endpoints are top-level text blocks, preserving the
+    /// unselected runs and removing only the intervening selected blocks.
+    pub fn replace_between_blocks(
+        &self,
+        start: usize,
+        end: usize,
+        text: &str,
+        marks: Marks,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        let first = self
+            .root
+            .children
+            .first()
+            .ok_or(StructureError::InvalidPath)?;
+        let last = self
+            .root
+            .children
+            .last()
+            .ok_or(StructureError::InvalidPath)?;
+        if !matches!(first.kind, NodeKind::Paragraph | NodeKind::Heading(_))
+            || !matches!(last.kind, NodeKind::Paragraph | NodeKind::Heading(_))
+        {
+            return Err(StructureError::Unsupported);
+        }
+        let start = byte_offset(&first.text(), start, TextUnit::Utf8)?;
+        let end = byte_offset(&last.text(), end, TextUnit::Utf8)?;
+        let (left, _) = cut_runs(&first.runs, start);
+        let (_, right) = cut_runs(&last.runs, end);
+        let mut merged = first.clone();
+        merged.runs = normalize([left, vec![Run::literal(text.into(), marks)], right].concat());
+        self.finish(
+            StructureNode::new(NodeKind::Root, vec![merged]),
+            Some(Caret {
+                path: vec![0],
+                offset: start + text.len(),
+            }),
+            millis,
+        )
+    }
+    /// Change a text block's presentation without round-tripping unrelated blocks.
+    pub fn set_text_kind(
+        &self,
+        path: &[usize],
+        kind: NodeKind,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        if !matches!(
+            kind,
+            NodeKind::Paragraph | NodeKind::Heading(1..=6) | NodeKind::Code { .. }
+        ) {
+            return Err(StructureError::Unsupported);
+        }
+        let mut root = self.root.clone();
+        let node = root.node_mut(path)?;
+        if !matches!(
+            node.kind,
+            NodeKind::Paragraph | NodeKind::Heading(_) | NodeKind::Code { .. }
+        ) {
+            return Err(StructureError::Unsupported);
+        }
+        let text = node.text();
+        if matches!(kind, NodeKind::Code { .. }) {
+            node.code = text;
+            node.runs.clear();
+        } else if matches!(node.kind, NodeKind::Code { .. }) {
+            node.runs = vec![Run::literal(text, Marks::default())];
+            node.code.clear();
+        }
+        node.kind = kind;
+        self.finish(
+            root,
+            Some(Caret {
+                path: path.into(),
+                offset: 0,
+            }),
+            millis,
+        )
+    }
+
+    pub fn replace_code(
+        &self,
+        path: &[usize],
+        range: Range<usize>,
+        text: &str,
+        millis: u64,
+    ) -> StructureResult<Transaction> {
+        let mut root = self.root.clone();
+        let node = root.node_mut(path)?;
+        if !matches!(node.kind, NodeKind::Code { .. }) {
+            return Err(StructureError::Unsupported);
+        }
+        let range = byte_range(&node.code, range, TextUnit::Utf8)?;
+        node.code.replace_range(range.clone(), text);
+        self.finish(
+            root,
+            Some(Caret {
+                path: path.into(),
+                offset: range.start + text.len(),
+            }),
+            millis,
+        )
+    }
     /// Select nested nodes in source order (or reverse order), including across cells and blocks.
     pub fn select_nodes(&self, anchor: &[usize], head: &[usize]) -> StructureResult<Selection> {
         let anchor = self

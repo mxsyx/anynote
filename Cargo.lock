@@ -247,11 +247,13 @@ dependencies = [
  "gpui-kit",
  "image",
  "interprocess",
+ "markdown",
  "pdfium-render",
  "resvg 0.45.1",
  "serde",
  "serde_json",
  "tokio",
+ "unicode-segmentation",
  "uuid",
 ]
 
