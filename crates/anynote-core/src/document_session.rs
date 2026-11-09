@@ -64,6 +64,7 @@ pub struct DocumentSnapshot {
     content: DocumentContent,
     resources: std::collections::BTreeMap<Uuid, String>,
     primary_image: Option<Uuid>,
+    primary_pdf: Option<Uuid>,
 }
 impl DocumentSnapshot {
     pub fn new(id: DocumentId, revision: i64, head: Uuid, content: DocumentContent) -> Self {
@@ -74,6 +75,7 @@ impl DocumentSnapshot {
             content,
             resources: Default::default(),
             primary_image: None,
+            primary_pdf: None,
         }
     }
     pub fn id(&self) -> &DocumentId {
@@ -98,6 +100,13 @@ impl DocumentSnapshot {
     pub fn with_primary_image(mut self, resource: Option<Uuid>) -> Self {
         self.primary_image = resource;
         self
+    }
+    pub fn with_primary_pdf(mut self, resource: Option<Uuid>) -> Self {
+        self.primary_pdf = resource;
+        self
+    }
+    pub fn primary_pdf(&self) -> Option<Uuid> {
+        self.primary_pdf
     }
     pub fn primary_image(&self) -> Option<Uuid> {
         self.primary_image

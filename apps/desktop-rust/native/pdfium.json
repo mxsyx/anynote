@@ -3,37 +3,47 @@
   "release": "chromium/7350",
   "release_url": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/7350",
   "binding_feature": "pdfium_7350",
-  "purpose": "RM02 ABI and artifact pin; runtime integration and security qualification belong to RM25/RM36",
+  "purpose": "RM25 runtime ABI and archive/library integrity pin; platform release and security qualification remain RM32/RM36",
   "assets": [
     {
       "name": "pdfium-linux-x64.tgz",
       "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7350/pdfium-linux-x64.tgz",
       "sha256": "5a53c802a970d7d1414c0d2fdd8a0900e239b3e7e4eff7a5ddcbd433322606f2",
-      "size": 2948065
+      "size": 2948065,
+      "library_path": "lib/libpdfium.so",
+      "library_sha256": "b0d81bb77ba1c6360ad9adad1ebb9262a0c42e4a3e6392874a2d25f6d008f6a0"
     },
     {
       "name": "pdfium-mac-arm64.tgz",
       "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7350/pdfium-mac-arm64.tgz",
       "sha256": "279d69972954968a61ffab26ac60dc1b80066133e8f5e82cb3ee47d1df5cd28e",
-      "size": 2768583
+      "size": 2768583,
+      "library_path": "lib/libpdfium.dylib",
+      "library_sha256": "d1c141c1df65c743e74adb3cbb62efbc8078b2fce5fb1dab4f2a12cdb8c82c46"
     },
     {
       "name": "pdfium-mac-x64.tgz",
       "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7350/pdfium-mac-x64.tgz",
       "sha256": "bb438ecbf93b4a906b412f19a53ece371c03eb020e0a89a2686142a4c382349b",
-      "size": 2891184
+      "size": 2891184,
+      "library_path": "lib/libpdfium.dylib",
+      "library_sha256": "81084edb55f3876d831f657f6ccaaba5f49befb5ab4f66ae71a6f23f17fdca44"
     },
     {
       "name": "pdfium-win-arm64.tgz",
       "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7350/pdfium-win-arm64.tgz",
       "sha256": "8c5a2578b7edb51bd66983478f4faa412bb2aa6c70567b75b8ec00eeb387cca4",
-      "size": 2914602
+      "size": 2914602,
+      "library_path": "bin/pdfium.dll",
+      "library_sha256": "35943bd2091cdd56925cb742fd79be1eed640874054ab7cee19c457b5cd4ebba"
     },
     {
       "name": "pdfium-win-x64.tgz",
       "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7350/pdfium-win-x64.tgz",
       "sha256": "0289ee5f6beaa001c1fa0fc96dfdbc2f0238cd4b1cfc72a75ac473fa191dfbe6",
-      "size": 3068321
+      "size": 3068321,
+      "library_path": "bin/pdfium.dll",
+      "library_sha256": "8f9600aeeb4f0ed4d5ab55ba772903c04175b05f13137f2712efe886d8c5b60b"
     }
   ]
 }

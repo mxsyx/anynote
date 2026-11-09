@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub(crate) struct DocumentStore {
     queue: WriteQueue,
     images: crate::image::service::Uploads,
+    readers: crate::asset_reader::AssetReaders,
 }
 fn storage(error: ReadError) -> ServiceError {
     ServiceError::new(match error.kind() {
@@ -22,7 +23,7 @@ fn snapshot(book: Uuid, note: Note, reader: &ReadonlyNotebook) -> ServiceResult<
         || note.node.kind != NodeKind::Note
         || !matches!(
             note.node.note_type,
-            Some(NoteType::Markdown | NoteType::Image)
+            Some(NoteType::Markdown | NoteType::Image | NoteType::Pdf)
         )
     {
         return Err(ServiceError::new(ErrorCode::InvalidRequest));
@@ -44,6 +45,11 @@ fn snapshot(book: Uuid, note: Note, reader: &ReadonlyNotebook) -> ServiceResult<
     } else {
         None
     };
+    let primary_pdf = if note.node.note_type == Some(NoteType::Pdf) {
+        note.primary_resource_id.as_deref().map(parse).transpose()?
+    } else {
+        None
+    };
     Ok(DocumentSnapshot::new(
         DocumentId::new(book, parse(&note.node.id)?),
         note.node.revision,
@@ -60,7 +66,8 @@ fn snapshot(book: Uuid, note: Note, reader: &ReadonlyNotebook) -> ServiceResult<
         ),
     )
     .with_resources(resources)
-    .with_primary_image(primary_image))
+    .with_primary_image(primary_image)
+    .with_primary_pdf(primary_pdf))
 }
 impl DocumentStore {
     pub(crate) fn reading_job(
@@ -94,6 +101,7 @@ impl DocumentStore {
         Ok(Self {
             queue: WriteQueue::open(&root, 8).map_err(storage)?,
             images: Default::default(),
+            readers: Default::default(),
         })
     }
     pub(crate) async fn execute(
@@ -101,6 +109,13 @@ impl DocumentStore {
         command: Command,
         state: &RuntimeState,
     ) -> ServiceResult<Reply> {
+        if let Command::Asset(command) = command {
+            return self
+                .readers
+                .execute(command, &self.queue)
+                .await
+                .map(Reply::Asset);
+        }
         if let Command::Image(command) = command {
             return self
                 .images

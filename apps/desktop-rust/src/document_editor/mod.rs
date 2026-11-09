@@ -143,6 +143,7 @@ pub struct DocumentEditor {
     rich_scroll: Option<(ListOffset, u64)>,
     source_scroll: Option<(Point<Pixels>, u64)>,
     images: images::Images,
+    pdf: Option<Entity<crate::pdf::PdfView>>,
     board: Option<Entity<crate::board::BoardSession>>,
     board_pending: Option<anynote_editor::model::BlockId>,
     board_subscription: Option<Subscription>,
@@ -199,6 +200,7 @@ impl DocumentEditor {
             rich_scroll: None,
             source_scroll: None,
             images: Default::default(),
+            pdf: None,
             board: None,
             board_pending: None,
             board_subscription: None,
@@ -882,6 +884,12 @@ impl Focusable for DocumentEditor {
 }
 impl Render for DocumentEditor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(pdf) = &self.pdf {
+            return div()
+                .id("document-pdf-reader")
+                .size_full()
+                .child(pdf.clone());
+        }
         if let Some(board) = &self.board {
             return div()
                 .id("document-board-session")

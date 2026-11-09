@@ -119,7 +119,26 @@ impl DocumentEditor {
         {
             editor.open_image(resource, window, cx);
         }
+        editor.open_pdf(window, cx);
         editor
+    }
+    fn open_pdf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(base) = self.state.save.as_ref().map(|s| s.base()) else {
+            return;
+        };
+        let Some(resource) = base.primary_pdf() else {
+            return;
+        };
+        let Some(client) = cx
+            .try_global::<BackendSession>()
+            .map(|s| s.client().clone())
+        else {
+            return;
+        };
+        let scope = anynote_core::asset::AssetScope::new(base.id().clone(), base.head(), resource);
+        let view = cx.new(|cx| crate::pdf::PdfView::new(scope, client, window, cx));
+        view.focus_handle(cx).focus(window, cx);
+        self.pdf = Some(view);
     }
     pub fn resource_request(
         &self,
@@ -336,6 +355,7 @@ impl DocumentEditor {
             self.rekey();
             self.changed(Ok(()), window, cx);
             self.focus.focus(window, cx);
+            self.open_pdf(window, cx);
         }
         cx.notify();
     }

@@ -18,7 +18,7 @@ struct Upload {
 #[derive(Default)]
 pub(crate) struct Uploads {
     entries: HashMap<Uuid, Upload>,
-    reads: HashMap<Uuid, (VerifiedAsset, Instant)>,
+    reads: crate::asset_reader::AssetReaders,
 }
 fn invalid() -> ServiceError {
     ServiceError::new(ErrorCode::InvalidRequest)
@@ -66,63 +66,58 @@ impl Uploads {
     ) -> ServiceResult<ImageReply> {
         self.entries
             .retain(|_, s| s.touched.elapsed() < Duration::from_secs(30 * 60));
-        self.reads
-            .retain(|_, (_, touched)| touched.elapsed() < Duration::from_secs(60));
         match command {
             ImageCommand::BeginRead { scope, token } => {
-                if self.reads.len() >= 16 || self.reads.contains_key(&token) {
-                    return Err(invalid());
+                use anynote_core::asset::*;
+                match self
+                    .reads
+                    .execute(
+                        AssetCommand::Open {
+                            scope: AssetScope::new(scope.document, scope.revision, scope.resource),
+                            token,
+                        },
+                        queue,
+                    )
+                    .await?
+                {
+                    AssetReply::Opened { hash, length, mime } => {
+                        if length > codec::MAX_BYTES as u64 {
+                            self.reads
+                                .execute(AssetCommand::Close { token }, queue)
+                                .await?;
+                            return Err(invalid());
+                        }
+                        return Ok(ImageReply::Info { hash, length, mime });
+                    }
+                    _ => return Err(invalid()),
                 }
-                let ticket = queue
-                    .submit(move |catalog| {
-                        let note = scope.document.note().to_string();
-                        let revision = scope.revision.to_string();
-                        catalog
-                            .notebook(&scope.document.notebook().to_string())?
-                            .read()
-                            .resource(
-                                &scope.resource.to_string(),
-                                Some(ResourceScope::note(&note).with_revision(&revision)),
-                            )
-                    })
-                    .map_err(storage)?;
-                let asset = tokio::task::spawn_blocking(move || ticket.wait())
-                    .await
-                    .map_err(|_| ServiceError::new(ErrorCode::Storage))?
-                    .map_err(storage)?;
-                let info = asset.info().clone();
-                if info.size > codec::MAX_BYTES as u64 {
-                    return Err(invalid());
-                }
-                self.reads.insert(token, (asset, Instant::now()));
-                return Ok(ImageReply::Info {
-                    hash: info.hash,
-                    length: info.size,
-                    mime: info.mime,
-                });
             }
             ImageCommand::Read {
                 token,
                 offset,
                 length,
             } => {
-                if length == 0 || length as usize > MAX_CHUNK_BYTES {
-                    return Err(invalid());
-                }
-                let (asset, touched) = self
+                use anynote_core::asset::*;
+                let AssetReply::Chunk { bytes } = self
                     .reads
-                    .get_mut(&token)
-                    .ok_or_else(|| ServiceError::new(ErrorCode::InvalidToken))?;
-                *touched = Instant::now();
-                let hash = asset.info().hash.clone();
-                return Ok(ImageReply::Chunk {
-                    bytes: asset
-                        .read_range(&hash, offset, length as usize)
-                        .map_err(storage)?,
-                });
+                    .execute(
+                        AssetCommand::Read {
+                            token,
+                            offset,
+                            length,
+                        },
+                        queue,
+                    )
+                    .await?
+                else {
+                    return Err(invalid());
+                };
+                return Ok(ImageReply::Chunk { bytes });
             }
             ImageCommand::EndRead { token } => {
-                self.reads.remove(&token);
+                self.reads
+                    .execute(anynote_core::asset::AssetCommand::Close { token }, queue)
+                    .await?;
                 return Ok(ImageReply::Ack);
             }
             ImageCommand::Release {

@@ -4,6 +4,18 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm25"></a>
+
+## 2026-11-09 · RM25 PDF 引擎、页面与文本几何
+
+- [x] RM25.1：锁定 Pdfium 7350 的五个平台归档与动态库摘要，安装/运行时校验及 macOS arm64 ABI 装载；密码、旋转 CropBox、混合字体与受控修订资源原型通过。
+- [x] RM25.2：默认原生 PDF reader，页图、五页分组按需缩略图、跳页/翻页/缩放/适页/适宽、256 KiB 范围读取、单槽队列与取消；不全量常驻 PDF 或解码全书。
+- [x] RM25.3：native glyph、UTF-16 范围、页面双向 normalized 变换与统一渲染配置；真实 PDF、100 MiB 稀疏文件、迟到结果、切页/关闭、20 次租约释放及 UI 交互通过。
+
+实际发现并修复 7350 并发字体加载原生崩溃：适配层串行化完整 Pdfium 操作，文档空闲不持锁。PDF 与图片共享修订资源租约实现，私有协议 v3、新增 snapshot primary_pdf；无持久格式变更。PDF 笔记打开进入只读页面视图，选择/批注/索引仍留 RM26。实现、预算、原生取消非抢占边界与复现见 [PDF 阅读契约](RUST-PDF-READER.md)。
+
+macOS 26.2 arm64 / Rust 1.99.1 / `b23aa64` 工作树：8 项新增 PDF 测试、4 项图片回归通过，完整 workspace 313 passed / 0 failed；3 个 ignored 均为既有子进程 fixture。全 features/no-media Clippy、fmt、5 工程/844 包依赖边界通过。单实例回归需短 TMPDIR 和本机 socket 权限；调整测试环境后通过。实际隔离 `.app` 检查了页面、混合字体、缩略图和旋转页；截图/日志在 `tmp/rm25/`。CI 已接 native 安装，但未运行远端 CI；其他平台和签名/漏洞版本资格仍归 RM32/36，未关闭 V/A/F。
+
 <a id="rm24"></a>
 
 ## 2026-11-09 · RM24 白板保存与历史资源闭包

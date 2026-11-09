@@ -12,3 +12,6 @@ pub mod migration;
 
 mod document_store;
 pub mod image;
+
+mod asset_reader;
+pub mod pdf;

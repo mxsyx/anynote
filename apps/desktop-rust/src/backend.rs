@@ -94,6 +94,7 @@ impl Backend {
             }
             Command::CreateDocument
             | Command::Image(_)
+            | Command::Asset(_)
             | Command::GetNotebookPreferences { .. }
             | Command::SetNotebookPreferences { .. }
             | Command::OpenLastDocument

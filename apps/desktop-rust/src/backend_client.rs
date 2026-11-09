@@ -105,13 +105,15 @@ fn disconnect(shared: &Shared) {
 fn matches_reply(command: &Command, reply: &Reply) -> bool {
     matches!(
         (command, reply),
-        (
-            Command::CreateDocument
-                | Command::OpenLastDocument
-                | Command::OpenDocument { .. }
-                | Command::SaveBoard(_),
-            Reply::Document(_)
-        ) | (Command::SaveDocument(_), Reply::DocumentSaved(_))
+        (Command::Asset(_), Reply::Asset(_))
+            | (
+                Command::CreateDocument
+                    | Command::OpenLastDocument
+                    | Command::OpenDocument { .. }
+                    | Command::SaveBoard(_),
+                Reply::Document(_)
+            )
+            | (Command::SaveDocument(_), Reply::DocumentSaved(_))
             | (Command::Image(_), Reply::Image(_))
             | (Command::RunReading(_), Reply::Reading(_))
             | (
