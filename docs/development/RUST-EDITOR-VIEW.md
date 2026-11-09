@@ -4,7 +4,7 @@
 
 ## 入口与所有权
 
-`cargo run -p anynote-desktop --locked` 启动后选择“新建草稿…”。窗口标题明确标为“未保存”；这是由调用者传入 Markdown 的临时 `DocumentEditor`，尚未读取笔记或建立保存会话。RM19 继续拥有 DocumentSession、CAS、650ms debounce、切笔记及关闭 flush。
+`cargo run -p anynote-desktop --locked` 启动后选择“新建笔记…”或“继续编辑…”。RM19 已接独立目录的持久笔记和 `DocumentSession`；`DocumentEditor::new` 仍可作为不持久化的测试宿主。保存、源码及生命周期契约见 [RM19](RUST-DOCUMENT-SESSION.md)。
 
 实现位于 `apps/desktop-rust/src/document_editor/`：
 
@@ -15,7 +15,7 @@
 - `accessibility.rs`：按模型生成段落/标题及 table/row/header/cell/TextRun 语义，包括未渲染单元格；将读屏选择回映到正文位置。
 - `mod.rs`：实体、Kit 控件、菜单/浮条、源码原型、剪贴板及视图组合；`tests.rs` 为纯状态及 GPUI 行为测试。
 
-没有第二套保存器或 JS 编辑器。新增桌面对已锁定 `markdown = 1.0.0`、`unicode-segmentation = 1.13.3` 的直接依赖；Kit/GPUI 版本和功能开关未升级。
+没有第二套保存器或 JS 编辑器。新增桌面对已锁定 `markdown = 1.0.0`、`unicode-segmentation = 1.13.3` 的直接依赖；Kit/GPUI 版本未升级；RM19 随后启用 Kit 的 Markdown 高亮特性。
 
 ## 已实现的交互契约
 
@@ -29,7 +29,7 @@ GFM 没有可重解析为 task 的空 `- [ ] `。空任务意图只存在视图�
 
 原生 UTF-16 非空范围遇到代理对时向外取整，光标取前一标量边界，超尾范围截至结尾；RM16 对源范围的严格验证不变。组合开始冻结逻辑/源位置，preedit 不改文档或历史；支持 marked 区域内局部替换及选区更新，commit 一笔、cancel 保留 source/redo。越出冻结范围的组合更新明确拒绝。源码 preedit 活跃时阻止模式切换和共享 undo，避免程序化更新丢失未提交文字。
 
-源码二级入口使用 Kit `EditorState`，消费 `InputEditsEvent` 的逐步 edit/snapshot，不读取可能已超前的当前值来解释旧范围。程序化 `set_value` 不回发 edits；源码 undo/redo 被路由到同一 RM16 owner。这里只验证共享历史及回声抑制；完整源码查找替换、折叠、选区/滚动恢复和保存生命周期仍归 RM19。
+源码二级入口使用 Kit `EditorState`，RM19 将每个 `InputEditsEvent` 的不可变最终 snapshot 映射为一次 core patch，不读取可能已超前的当前值来解释旧范围。程序化 `set_value` 不回发 edits；源码 undo/redo 被路由到同一 RM16 owner。本节记录 RM18 的共享历史与回声抑制证据；完整源码与保存进展见 [RM19](RUST-DOCUMENT-SESSION.md)。
 
 原生剪贴板支持纯文本、应用自身 Markdown 元数据和表格 TSV。复制单一富文本范围会生成平衡的 marks，opaque 复制保留原文；未知外部图片/文件条目显示未接入提示，不假装已创建资源。
 

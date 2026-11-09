@@ -12,6 +12,10 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import { chromium } from "playwright";
+import { format, resolveConfig } from "prettier";
+import { geometryCases } from "./rust-board-geometry-cases.mjs";
+import { probeReachability } from "./rust-board-reachability.mjs";
+import { orderCases } from "./rust-board-order-cases.mjs";
 
 // Only the verification harness executes the frozen JS dependency. The native
 // editor never links this bundle or loads an Excalidraw/React runtime.
@@ -20,6 +24,13 @@ const { build } = createRequire(require.resolve("vite"))("esbuild");
 const root = resolve("tests/fixtures/rust-board");
 const output = resolve("tmp/rm22");
 mkdirSync(output, { recursive: true });
+const fixtureFormat = await resolveConfig(resolve(root, "actions.json"));
+const writeFixture = async (path, value) => {
+  writeFileSync(
+    path,
+    await format(JSON.stringify(value), { ...fixtureFormat, parser: "json" }),
+  );
+};
 const entry = realpathSync(
   "apps/desktop/node_modules/@excalidraw/excalidraw/dist/dev/index.js",
 );
@@ -28,7 +39,9 @@ const version = JSON.parse(
   readFileSync(resolve(dirname(entry), "../../package.json"), "utf8"),
 ).version;
 assert.equal(version, "0.18.0");
-const instrumented = `${source}\nglobalThis.rm22 = { actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds };`;
+const instrumented = `${source}
+import { createRoot as rm22CreateRoot } from "react-dom/client";
+globalThis.rm22 = { actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds, cropElement, rescalePointsInElement, ActionManager, DEFAULT_UI_OPTIONS, Excalidraw, React: React44, createRoot: rm22CreateRoot };`;
 await build({
   stdin: { contents: instrumented, resolveDir: dirname(entry), loader: "js" },
   alias: {
@@ -95,6 +108,30 @@ const cases = [
     action: "group",
     selected: ["element-0", "element-2"],
     command: { kind: "group", id: "reference-group" },
+  },
+  {
+    action: "alignTop",
+    selected: ["element-0", "element-1", "element-2"],
+    selectedGroups: ["reference-group"],
+    command: { kind: "align", axis: "y", alignment: "start" },
+  },
+  {
+    action: "alignLeft",
+    selected: ["element-0", "element-1", "element-2"],
+    selectedGroups: ["reference-group"],
+    command: { kind: "align", axis: "x", alignment: "start" },
+  },
+  {
+    action: "distributeHorizontally",
+    selected: ["element-0", "element-1", "element-2", "element-7"],
+    selectedGroups: ["reference-group"],
+    command: { kind: "distribute", axis: "x" },
+  },
+  {
+    action: "distributeVertically",
+    selected: ["element-0", "element-1", "element-2", "element-7"],
+    selectedGroups: ["reference-group"],
+    command: { kind: "distribute", axis: "y" },
   },
   {
     action: "bringToFront",
@@ -198,19 +235,55 @@ const installed = existsSync(cache)
       .find(existsSync)
   : undefined;
 const browser = await chromium.launch({
-  executablePath: process.env.RM22_CHROMIUM || installed,
+  executablePath:
+    process.env.RM22_CHROMIUM ||
+    installed ||
+    (existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      : undefined),
   headless: true,
   args: ["--no-sandbox"],
 });
 try {
   const context = await browser.newContext();
   await context.route("**/*", (route) => route.abort());
+  await context.route("http://localhost/rm22", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><html><head></head><body></body></html>",
+    }),
+  );
   const page = await context.newPage();
-  await page.goto("about:blank");
+  page.setDefaultTimeout(15000);
+  page.on("pageerror", (error) => console.error(error.message));
+  await page.goto("http://localhost/rm22");
   await page.evaluate(() => {
     Date.now = () => 1700000000000;
+    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
   });
   await page.addScriptTag({ path: resolve(output, "reference.js") });
+  const geometry = await page.evaluate(geometryCases);
+  const ordering = await page.evaluate(orderCases);
+  const orderingPath = resolve(root, "ordering.json");
+  if (process.argv.includes("--write")) {
+    await writeFixture(orderingPath, ordering);
+  } else {
+    assert.deepEqual(
+      ordering,
+      JSON.parse(readFileSync(orderingPath, "utf8")),
+      "ordering drift",
+    );
+  }
+  const geometryPath = resolve(root, "geometry.json");
+  if (process.argv.includes("--write")) {
+    await writeFixture(geometryPath, geometry);
+  } else {
+    assert.deepEqual(
+      geometry,
+      JSON.parse(readFileSync(geometryPath, "utf8")),
+      "geometry drift",
+    );
+  }
   const result = await page.evaluate(
     ({ base, cases }) => {
       const { actions, getDefaultAppState, restoreElements, Scene } =
@@ -280,6 +353,20 @@ try {
     { base, cases },
   );
   const hash = (value) => createHash("sha256").update(value).digest("hex");
+  const reachability = await probeReachability(page, {
+    base,
+    css: resolve(dirname(entry), "index.css"),
+  });
+  const reachabilityPath = resolve(root, "reachability.json");
+  if (process.argv.includes("--write")) {
+    await writeFixture(reachabilityPath, reachability);
+  } else {
+    assert.deepEqual(
+      reachability,
+      JSON.parse(readFileSync(reachabilityPath, "utf8")),
+      "entry-point drift",
+    );
+  }
   const hashes = Object.fromEntries(
     readdirSync(dirname(entry))
       .filter((name) => name.endsWith(".js"))
@@ -313,13 +400,13 @@ try {
       toggleTheme: true,
     },
     reachability:
-      "registration/type presence is not UI reachability; see RUST-BOARD-COMPATIBILITY.md",
+      "reachability.json records mounted desktop controls and macOS shortcut routing; side effects and conditional entries remain separate acceptance",
   };
   const fixture = {
     schema,
     upstream: "@excalidraw/excalidraw@0.18.0",
     scope:
-      "real upstream action.perform calls with real Scene; no pointer/UI, rendering or native text-metrics acceptance",
+      "real upstream action/geometry results plus mounted desktop entry probes; no full pointer/history-engine, native text-metrics or rendering acceptance",
     ignoredElementFields: ["version", "versionNonce", "updated", "index"],
     hashes,
     ...result,
@@ -327,7 +414,7 @@ try {
   const path = resolve(root, "actions.json");
   if (process.argv.includes("--write")) {
     mkdirSync(root, { recursive: true });
-    writeFileSync(path, JSON.stringify(fixture, null, 2) + "\n");
+    await writeFixture(path, fixture);
   } else {
     const frozen = JSON.parse(readFileSync(path, "utf8"));
     assert.deepEqual(fixture.schema, frozen.schema, "wrapper/type drift");
@@ -349,6 +436,10 @@ try {
       {
         status: "passed",
         steps: result.steps.length,
+        geometryCases: geometry.length,
+        entryActions: reachability.actions.length,
+        upstreamCreationHistories: reachability.creations.length,
+        orderingTraces: ordering.length,
         registeredActions: result.registeredActions.length,
         scope: fixture.scope,
       },

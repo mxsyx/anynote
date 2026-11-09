@@ -10,6 +10,8 @@ publish.workspace = true
 anynote-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+dom_query = "=0.27.0"
+markdown = "=1.0.0"
 unicode-segmentation = "=1.13.3"
 
 [lints]

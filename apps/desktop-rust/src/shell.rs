@@ -29,7 +29,8 @@ actions!(
         ZoomIn,
         ZoomOut,
         ResetZoom,
-        OpenDocumentEditor
+        OpenDocumentEditor,
+        OpenLastDocument
     ]
 );
 
@@ -62,7 +63,8 @@ pub fn install_actions(cx: &mut App) {
     ]);
     let menus = vec![
         Menu::new("Anynote").items([
-            MenuItem::action("新建草稿…", OpenDocumentEditor),
+            MenuItem::action("新建笔记…", OpenDocumentEditor),
+            MenuItem::action("继续编辑…", OpenLastDocument),
             MenuItem::action("选择文件…", ChooseFile),
             MenuItem::action("编辑测试文本…", EditText),
             MenuItem::separator(),
@@ -173,6 +175,45 @@ impl Shell {
         }
     }
 
+    fn open_document(&mut self, last: bool, window: &mut Window, cx: &mut Context<Self>) {
+        use crate::{backend_client::Response, backend_session::BackendSession};
+        use anynote_core::backend::{Command, Reply};
+        let Some(session) = cx.try_global::<BackendSession>() else {
+            return;
+        };
+        if session.is_quitting() {
+            return;
+        }
+        let client = session.client().clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let result = match client.submit(
+                if last {
+                    Command::OpenLastDocument
+                } else {
+                    Command::CreateDocument
+                },
+                std::time::Duration::from_secs(15),
+            ) {
+                Ok(request) => request.receive().await,
+                Err(error) => Err(error),
+            };
+            let _ = this.update(cx, |this, cx| {
+                if let Ok(Response::Reply(Reply::Document(snapshot))) = result {
+                    if cx.global::<BackendSession>().is_quitting() {
+                        return;
+                    }
+                    if let Err(error) = crate::document_editor::open_document(snapshot, cx) {
+                        this.selected = format!("无法打开笔记：{error}").into();
+                    }
+                } else {
+                    this.selected = "无法打开笔记；可先新建笔记，或稍后重试".into();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn choose_file(&mut self, _: &ChooseFile, window: &mut Window, cx: &mut Context<Self>) {
         if self.picking {
             return;
@@ -277,26 +318,12 @@ impl Render for Shell {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::choose_file))
             .on_action(cx.listener(Self::edit_text))
-            .on_action(|_: &OpenDocumentEditor, _, cx| {
-                let result = gpui_kit::open_window(
-                    WindowOptions {
-                        titlebar: Some(TitlebarOptions {
-                            title: Some("Anynote · 草稿（未保存）".into()),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    },
-                    cx,
-                    |window, cx| {
-                        cx.new(|cx| {
-                            crate::document_editor::DocumentEditor::new(String::new(), window, cx)
-                        })
-                    },
-                );
-                if let Err(error) = result {
-                    eprintln!("open document draft: {error}");
-                }
-            })
+            .on_action(cx.listener(|this, _: &OpenDocumentEditor, window, cx| {
+                this.open_document(false, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &OpenLastDocument, window, cx| {
+                this.open_document(true, window, cx)
+            }))
             .on_action(cx.listener(Self::toggle_theme))
             .on_action(|_: &CloseWindow, window, _| window.remove_window())
             .on_action(cx.listener(|this, _: &FollowSystemTheme, window, cx| {
@@ -346,10 +373,17 @@ impl Render for Shell {
                             .gap_2()
                             .child(
                                 Button::new("open-document-editor")
-                                    .label("新建草稿…")
+                                    .label("新建笔记…")
                                     .on_click(|_, window, cx| {
                                         window.dispatch_action(Box::new(OpenDocumentEditor), cx)
                                     }),
+                            )
+                            .child(
+                                Button::new("open-last-document")
+                                    .label("继续编辑…")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.open_document(true, window, cx)
+                                    })),
                             )
                             .child(
                                 Button::new("choose-file")

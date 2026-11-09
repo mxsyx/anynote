@@ -32,7 +32,7 @@ pub(super) struct Tree {
     pub positions: TextMap,
 }
 impl Snapshot {
-    pub fn new(state: &DocumentState, keys: &[u64]) -> Self {
+    pub fn new(state: &DocumentSession, keys: &[u64]) -> Self {
         let leaves = state
             .projection
             .leaves

@@ -8,3 +8,6 @@ pub mod shell;
 pub mod wire;
 
 pub mod migration;
+
+mod document_store;
+pub mod image;

@@ -272,6 +272,33 @@ fn cancel_response(mut response: SearchResponse) -> SearchResponse {
     response
 }
 impl ReadonlyNotebook {
+    /// Search through the owning connection, including a notebook held by the write queue.
+    pub fn search(&self, request: &SearchRequest) -> ReadResult<SearchResponse> {
+        request.validate()?;
+        if request
+            .notebook_ids
+            .as_ref()
+            .is_some_and(|ids| ids.len() != 1 || ids[0] != self.metadata().id)
+        {
+            return Err(ReadError::invalid_input("搜索范围与当前笔记本不符"));
+        }
+        let mut results = self.query(request)?;
+        let truncated = results.len() > request.limit;
+        results.truncate(request.limit);
+        if !js_trim(&request.query).is_empty() {
+            for hit in &mut results {
+                hit.location = Some(self.locate_hit(hit, &request.query)?);
+            }
+        }
+        Ok(SearchResponse {
+            request_id: request.request_id.clone(),
+            results,
+            warnings: vec![],
+            cancelled: false,
+            truncated,
+            searched: 1,
+        })
+    }
     fn query(&self, request: &SearchRequest) -> ReadResult<Vec<SearchHit>> {
         self.check_path()?;
         let query = js_trim(&request.query);

@@ -105,7 +105,21 @@ fn disconnect(shared: &Shared) {
 fn matches_reply(command: &Command, reply: &Reply) -> bool {
     matches!(
         (command, reply),
-        (Command::Ping, Reply::Pong)
+        (
+            Command::CreateDocument | Command::OpenLastDocument | Command::OpenDocument { .. },
+            Reply::Document(_)
+        ) | (Command::SaveDocument(_), Reply::DocumentSaved(_))
+            | (Command::Image(_), Reply::Image(_))
+            | (Command::RunReading(_), Reply::Reading(_))
+            | (
+                Command::GetNotebookPreferences { .. } | Command::SetNotebookPreferences { .. },
+                Reply::NotebookPreferences { .. }
+            )
+            | (
+                Command::DocumentResource { .. },
+                Reply::DocumentResource { .. }
+            )
+            | (Command::Ping, Reply::Pong)
             | (
                 Command::StartHealthCheck { .. }
                     | Command::CancelTask { .. }

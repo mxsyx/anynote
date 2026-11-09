@@ -631,6 +631,10 @@ fn upstream_action_sequence_matches_and_undo_redo_replays_every_state() {
         "../../../tests/fixtures/rust-board/actions.json"
     ))
     .unwrap();
+    assert_reference_trace(&fixture);
+}
+
+fn assert_reference_trace(fixture: &Value) {
     let original = serde_json::to_string(&fixture["initial"]).unwrap();
     let mut board = Board::new(Scene::parse(&original).unwrap(), 128);
     let mut snapshots = vec![normalized(board.scene())];
@@ -646,7 +650,7 @@ fn upstream_action_sequence_matches_and_undo_redo_replays_every_state() {
         assert_json_matches(
             &normalized(board.scene()),
             &step["expected"],
-            &step["action"].to_string(),
+            &format!("{}/{}", fixture["name"], step["action"]),
         );
         if changed {
             snapshots.push(normalized(board.scene()));
@@ -663,6 +667,18 @@ fn upstream_action_sequence_matches_and_undo_redo_replays_every_state() {
         assert_eq!(&normalized(board.scene()), expected);
     }
     assert!(!board.redo());
+}
+
+#[test]
+fn upstream_group_frame_and_bound_label_ordering_roundtrips_history() {
+    let traces: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/ordering.json"
+    ))
+    .unwrap();
+    assert_eq!(traces.len(), 14);
+    for trace in traces {
+        assert_reference_trace(&trace);
+    }
 }
 
 fn assert_json_matches(actual: &Value, expected: &Value, path: &str) {
@@ -757,4 +773,155 @@ fn structural_order_keys_cross_base62_integer_boundaries() {
     assert_eq!(keys[62], "b00");
     assert_eq!(keys[124], "b10");
     assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn upstream_crop_and_path_geometry_matches_and_roundtrips_history() {
+    let cases: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/geometry.json"
+    ))
+    .unwrap();
+    assert!(cases.len() >= 137);
+    for case in cases {
+        let original = json!({"elements":[case["initial"].clone()],"files":{"sample":{"id":"sample","resourceId":"resource"}}}).to_string();
+        let mut board = Board::new(Scene::parse(&original).unwrap(), 4);
+        let command: Command = serde_json::from_value(case["command"].clone()).unwrap();
+        let changed = board
+            .apply(command, stamp())
+            .unwrap_or_else(|error| panic!("{}: {error}", case["name"]));
+        let mut expected = case["expected"].clone();
+        for key in ["version", "versionNonce", "updated", "index"] {
+            expected.as_object_mut().unwrap().remove(key);
+        }
+        assert_geometry_matches(
+            &normalized(board.scene())["elements"][0],
+            &expected,
+            case["name"].as_str().unwrap(),
+        );
+        let after = board.scene().serialize().unwrap();
+        if changed {
+            assert!(board.undo());
+            assert_eq!(board.scene().serialize().unwrap(), original);
+            assert!(board.redo());
+            assert_eq!(board.scene().serialize().unwrap(), after);
+        }
+    }
+}
+
+fn assert_geometry_matches(actual: &Value, expected: &Value, path: &str) {
+    match (actual, expected) {
+        (Value::Object(a), Value::Object(b)) => {
+            assert_eq!(
+                a.keys().collect::<std::collections::BTreeSet<_>>(),
+                b.keys().collect::<std::collections::BTreeSet<_>>(),
+                "keys at {path}"
+            );
+            for (key, value) in a {
+                assert_geometry_matches(value, &b[key], &format!("{path}/{key}"));
+            }
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            assert_eq!(a.len(), b.len(), "length at {path}");
+            for (i, (a, b)) in a.iter().zip(b).enumerate() {
+                assert_geometry_matches(a, b, &format!("{path}/{i}"));
+            }
+        }
+        (Value::Number(a), Value::Number(b)) => {
+            let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
+            assert!(
+                (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0),
+                "number at {path}: {a} != {b}"
+            );
+        }
+        _ => assert_eq!(actual, expected, "value at {path}"),
+    }
+}
+
+#[test]
+fn geometry_errors_preserve_scene_selection_and_redo() {
+    use anynote_editor::board::CropHandle;
+    let mut board = board();
+    select(&mut board, &["element-7"]);
+    apply(&mut board, style(json!({"opacity": 50})));
+    assert!(board.undo());
+    let before = board.scene().serialize().unwrap();
+    for command in [
+        Command::CropImage {
+            id: "element-7".into(),
+            handle: CropHandle::N,
+            natural_width: 0.0,
+            natural_height: 10.0,
+            pointer: Point::new(1.0, 2.0),
+            aspect_ratio: None,
+        },
+        Command::CropImage {
+            id: "element-0".into(),
+            handle: CropHandle::N,
+            natural_width: 100.0,
+            natural_height: 100.0,
+            pointer: Point::new(1.0, 2.0),
+            aspect_ratio: None,
+        },
+        Command::ResizePath {
+            id: "element-0".into(),
+            geometry: Geometry::new(0.0, 0.0, 10.0, 10.0, 0.0).unwrap(),
+        },
+    ] {
+        assert!(
+            board
+                .apply_batch(&[style(json!({"opacity": 10})), command], stamp())
+                .is_err()
+        );
+        assert_eq!(board.scene().serialize().unwrap(), before);
+        assert!(board.has_redo());
+        assert_eq!(
+            board.selected_ids(),
+            &std::collections::BTreeSet::from(["element-7".into()])
+        );
+    }
+}
+
+#[test]
+fn repeated_crop_accepts_boundary_roundoff_and_preserves_unknown_crop_data() {
+    use anynote_editor::board::CropHandle;
+    let mut scene: Value = serde_json::from_str(INPUT).unwrap();
+    scene["elements"][7]["crop"] = json!({
+        "x": -1e-12, "y": 0, "width": 80, "height": 80,
+        "naturalWidth": 100, "naturalHeight": 100, "future": {"retain":true}
+    });
+    let mut board = Board::new(Scene::from_json(scene).unwrap(), 4);
+    let original = board.scene().serialize().unwrap();
+    for distance in [0.75, 0.5] {
+        let g = board
+            .scene()
+            .element("element-7")
+            .unwrap()
+            .geometry()
+            .unwrap();
+        apply(
+            &mut board,
+            Command::CropImage {
+                id: "element-7".into(),
+                handle: CropHandle::Se,
+                natural_width: 100.0,
+                natural_height: 100.0,
+                pointer: Point::new(g.x() + g.width() * distance, g.y() + g.height() * distance),
+                aspect_ratio: None,
+            },
+        );
+        assert_eq!(
+            board
+                .scene()
+                .element("element-7")
+                .unwrap()
+                .field("crop")
+                .unwrap()["future"],
+            json!({"retain":true})
+        );
+    }
+    assert!(board.undo());
+    assert!(board.undo());
+    assert_eq!(board.scene().serialize().unwrap(), original);
+    assert!(board.redo());
+    assert!(board.redo());
 }

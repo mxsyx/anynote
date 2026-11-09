@@ -19,7 +19,7 @@ impl Directory {
             .join("../../tmp/rm03")
             .join(Uuid::new_v4().to_string());
         std::fs::create_dir_all(&path).unwrap();
-        Self(path)
+        Self(path.canonicalize().unwrap())
     }
     fn client(&self) -> BackendClient {
         BackendClient::launch(
@@ -433,5 +433,242 @@ fn parallel_callers_and_ping_latency_sample() {
     }
     elapsed.sort();
     std::fs::write(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp/rm03/ipc-latency.json"), serde_json::json!({"samples":50,"ping_p95_us":elapsed[47],"scope":"warm debug backend ping only; excludes save validation and SQLite business commit"}).to_string()).unwrap();
+    close(&client);
+}
+
+fn document(
+    client: &BackendClient,
+    command: Command,
+) -> anynote_core::document_session::DocumentSnapshot {
+    match reply(client, command) {
+        Reply::Document(snapshot) => snapshot,
+        _ => panic!("document expected"),
+    }
+}
+fn save_request(
+    base: &anynote_core::document_session::DocumentSnapshot,
+    generation: u64,
+    body: &str,
+) -> anynote_core::document_session::SaveDocument {
+    use anynote_core::document_session::*;
+    SaveDocument::new(
+        Uuid::new_v4(),
+        generation,
+        DocumentSnapshot::new(
+            base.id().clone(),
+            base.revision(),
+            base.head(),
+            base.content().with_body(body.into()),
+        ),
+    )
+}
+#[test]
+fn document_cas_lost_ack_restart_and_large_source() {
+    let dir = Directory::new();
+    let client = dir.client();
+    let initial = document(&client, Command::CreateDocument);
+    let body = "中文🦀\r\n".repeat(100_000);
+    let pending = save_request(&initial, 4, &body);
+    // Cancel only response delivery; a submitted write may still commit.
+    drop(
+        client
+            .submit(Command::SaveDocument(pending.clone()), TIMEOUT)
+            .unwrap(),
+    );
+    let saved = document(
+        &client,
+        Command::OpenDocument {
+            id: initial.id().clone(),
+        },
+    );
+    assert_eq!(saved.revision(), initial.revision() + 1);
+    assert_eq!(saved.content().body(), body);
+    let error = client
+        .submit(Command::SaveDocument(pending), TIMEOUT)
+        .unwrap()
+        .receive_blocking()
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::Conflict);
+    let other = document(&client, Command::CreateDocument);
+    let next = save_request(&saved, 5, "latest");
+    match reply(&client, Command::SaveDocument(next.clone())) {
+        Reply::DocumentSaved(ack) => {
+            assert_eq!(ack.epoch(), next.epoch());
+            assert_eq!(ack.generation(), 5);
+            assert_eq!(ack.snapshot().id(), initial.id());
+        }
+        _ => panic!("save ack expected"),
+    }
+    assert_eq!(
+        document(
+            &client,
+            Command::OpenDocument {
+                id: other.id().clone()
+            }
+        )
+        .content()
+        .body(),
+        ""
+    );
+    close(&client);
+    let client = dir.client();
+    assert_eq!(
+        document(
+            &client,
+            Command::OpenDocument {
+                id: initial.id().clone()
+            }
+        )
+        .content()
+        .body(),
+        "latest"
+    );
+    assert_eq!(
+        document(&client, Command::OpenLastDocument).id(),
+        initial.id()
+    );
+    close(&client);
+}
+#[test]
+fn document_resources_are_bound_to_original_note_and_revision() {
+    use anynote_core::document_session::DocumentId;
+    use anynote_storage::notebook::{CreateNode, NotePatch, ResourceWrite, WriteQueue};
+    let dir = Directory::new();
+    let root = dir.0.join("workspace");
+    std::fs::create_dir_all(&root).unwrap();
+    let queue = WriteQueue::open(&root, 8).unwrap();
+    let resource_id = Uuid::new_v4();
+    let (id, first, second, other) = queue
+        .submit(move |catalog| {
+            let meta = catalog.create_notebook("resources")?;
+            let book = catalog.notebook(&meta.id)?;
+            let body = format!("![asset](anynote-resource:{resource_id})");
+            let asset = |bytes: &[u8]| {
+                ResourceWrite::bytes(
+                    resource_id.to_string(),
+                    "asset".into(),
+                    "text/plain".into(),
+                    bytes.into(),
+                )
+            };
+            let note = book.create_node(
+                &CreateNode::note("original", body.clone()),
+                &[asset(b"old")?],
+            )?;
+            let next = book.save_note(
+                &note.node.id,
+                note.node.revision,
+                &NotePatch {
+                    body: Some(body),
+                    ..Default::default()
+                },
+                &[asset(b"new")?],
+            )?;
+            let other = book.create_node(&CreateNode::note("other", ""), &[])?;
+            Ok((
+                DocumentId::new(
+                    Uuid::parse_str(&meta.id).unwrap(),
+                    Uuid::parse_str(&note.node.id).unwrap(),
+                ),
+                Uuid::parse_str(note.head_revision_id.as_ref().unwrap()).unwrap(),
+                Uuid::parse_str(next.head_revision_id.as_ref().unwrap()).unwrap(),
+                Uuid::parse_str(&other.node.id).unwrap(),
+            ))
+        })
+        .unwrap()
+        .wait()
+        .unwrap();
+    drop(queue);
+    let client = dir.client();
+    for (revision, expected) in [(first, b"old"), (second, b"new")] {
+        match reply(
+            &client,
+            Command::DocumentResource {
+                id: id.clone(),
+                revision,
+                resource: resource_id,
+                offset: 0,
+                length: 3,
+            },
+        ) {
+            Reply::DocumentResource { bytes } => assert_eq!(bytes, expected),
+            _ => panic!("bytes expected"),
+        }
+    }
+    let error = client
+        .submit(
+            Command::DocumentResource {
+                id: DocumentId::new(id.notebook(), other),
+                revision: first,
+                resource: resource_id,
+                offset: 0,
+                length: 3,
+            },
+            TIMEOUT,
+        )
+        .unwrap()
+        .receive_blocking()
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::NotFound);
+    close(&client);
+}
+
+#[test]
+fn builtin_reading_and_settings_cross_real_backend_and_reopen() {
+    use anynote_core::builtin::*;
+    let directory = Directory::new();
+    let client = directory.client();
+    let Reply::Document(base) = reply(&client, Command::CreateDocument) else {
+        panic!("document")
+    };
+    let req = ReadingRequest::new(Uuid::new_v4(), base.clone(), ReadingCommand::RecordSession);
+    let Reply::Reading(saved) = reply(&client, Command::RunReading(req.clone())) else {
+        panic!("reading")
+    };
+    assert!(saved.content().body().contains("第 1 次整理"));
+    let Reply::Reading(again) = reply(&client, Command::RunReading(req)) else {
+        panic!("reading")
+    };
+    assert_eq!(saved, again);
+    let Reply::NotebookPreferences {
+        revision,
+        mut preferences,
+    } = reply(
+        &client,
+        Command::GetNotebookPreferences {
+            notebook: base.id().notebook(),
+        },
+    )
+    else {
+        panic!("preferences")
+    };
+    preferences.goal = 8;
+    assert!(matches!(
+        reply(
+            &client,
+            Command::SetNotebookPreferences {
+                notebook: base.id().notebook(),
+                expected: revision,
+                preferences
+            }
+        ),
+        Reply::NotebookPreferences { .. }
+    ));
+    close(&client);
+    let client = directory.client();
+    let Reply::Document(opened) = reply(
+        &client,
+        Command::OpenDocument {
+            id: base.id().clone(),
+        },
+    ) else {
+        panic!("document")
+    };
+    assert_eq!(opened, saved);
+    let req = ReadingRequest::new(Uuid::new_v4(), opened, ReadingCommand::AppendGoal);
+    let Reply::Reading(saved) = reply(&client, Command::RunReading(req)) else {
+        panic!("reading")
+    };
+    assert!(saved.content().body().contains("目标：8 篇。"));
     close(&client);
 }

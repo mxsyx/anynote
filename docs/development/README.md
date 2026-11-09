@@ -9,6 +9,9 @@
 - [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：RM16 的坐标/选区、原子 patch、marks/link、增量历史、composition 和后续视图/保存接入契约。
 - [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：RM17 的列表/表格/块命令、复杂粘贴、atom 与跨块选区、序列化边界及 RM18 接续契约。
 - [Rust 连续编辑视图](RUST-EDITOR-VIEW.md)：RM18 的原生草稿、Kit 几何/输入、共享历史、可访问性原型、测试证据及未完成验收项。
+- [Rust 静态内置业务](RUST-BUILTIN-BUSINESS.md)：RM20 声明块、阅读命令、原子回执、静态偏好与已知样例/未知脚本验收边界。
+- [Rust 源码模式与保存会话](RUST-DOCUMENT-SESSION.md)：RM19 的源码工具、共享历史、串行 CAS、断线核对、资源版本绑定和窗口生命周期边界。
+- [Rust 图片阅读与版本](RUST-IMAGE-MEDIA.md)：RM21 的有界解码、图片块、上传与修订绑定、矩形批注、复制/导出和设备验收边界。
 - [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。
 - [Rust schema v5 写存储](RUST-WRITE-STORAGE.md)：RM05 的写队列/租约/LRU/pin、核心事务、历史资源与提案，以及 RM06 跨库闭包、幂等回执和 TS 双向互通复现。
 - [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：RM07 的 HTML 差分、预览租约、目录授权、下载边界、采集回执和 TS/Rust 互通复现。
@@ -17,7 +20,7 @@
 - [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)：RM12 的配对/claim/事务回执、同切面投影、RM10 接续顺序和保留扩展本地闭环。
 - [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：RM13 的 LevelDB 副本、平台凭据原型、插件状态保全、逆映射与复现方法。
 - [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)：RM14 的完整保全、可重入 journal、原路径租约、最新数据回退、故障演练及正式激活缺口。
-- [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene/事务边界、0.18 动作库存、已测操作族及未覆盖的完整兼容门槛。
+- [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene/事务边界、0.18 默认入口与快捷键矩阵、裁剪/路径/组框层级差分及完整兼容门槛。
 - [开发工作流](DEVELOPMENT-WORKFLOW.md)
 - [文档维护与临时文件规则](DOCUMENTATION.md)
 - [类型编译与边界](TYPESCRIPT-MIGRATION.md)

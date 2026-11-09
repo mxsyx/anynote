@@ -232,6 +232,56 @@ Linux x64 / Rust 1.99.1 / Node 24.11.1；全部材料在 `tmp/rm10/` 隔离目�
 
 RM22.1–.3 均保留未完成：注册 action 不是实际可达矩阵，类型存在也不代表创建/编辑完成。尚缺默认菜单/快捷键完整实测、原生字体及复杂连接几何、开放 binding/elbow 路由、组编辑和复杂组/框层级、路径变换/图片裁剪、完整剪贴板/库等操作及对应旧版历史/序列差分。当前 26 步没有测旧版 pointer/history engine，也未验像素、性能、实际资源闭包保存或三平台。详细契约、按类型证据和复现见[白板兼容方法](RUST-BOARD-COMPATIBILITY.md)；不得据此关闭 E8/M6、推进旧白板退役或宣称 RM22 完成。
 
+### 2026-11-09 · RM22 续实施
+
+沿用唯一 Board/Scene/事务历史，新增 `CropImage`、`ResizePath`；图片裁剪支持八手柄、旋转/翻转、比例约束、原图边界与恢复完整图片，路径支持负坐标/多点缩放并保留压力。组级对齐/分布实现最外层组边界及重叠中心间距规则；新 `order` 模块处理跨组、框内外、绑定文字和墓碑的排列。带绑定图片、elbow/绑定路径仍拒绝，避免在缺少连接布局时产生错误 scene。未新增依赖、UI 或持久格式；MIT 移植许可随代码保留。
+
+上游证据扩展为 30 步主轨迹、14 条层级序列（84 步）、145 例几何，Rust 逐步业务 JSON 差分及 undo/redo。多框部分选择的置顶差分揭示 0.18 每次从原数组计算、仅最后一个 frame 排列保留；按冻结版语义实现并记录，没有用理想化算法生成参考值。裁剪组合覆盖八手柄、两种角度、四种翻转、两种比例模式，另有未裁剪/已有裁剪的极端 pointer，以及路径零跨度/负坐标。
+
+新增隔离浏览器入口探针，挂载真实 Excalidraw 和 AnyNote 的四个 UIOptions，记录主菜单、更多工具、属性和右键菜单、93 个运行时动作（91 注册项加 undo/redo）的 macOS 快捷键分派。测试页面由路由直接返回 localhost 安全上下文，外部请求阻断。`export:false` 仍允许 saveFileToDisk 分派、默认图片导出及右键复制图片，明确保留在迁移范围。快捷键普查拦截副作用；另有 8 类工具的真实指针/文字创建和旧版键盘 undo/redo，不能混称所有动作都已完整执行。
+
+本机 macOS、Rust 1.99.1、Node 24.22.0、独立 Chrome 临时配置：23 项 Rust 白板测试通过，包含上述参数化语料及连续裁剪的浮点边界/未知属性保留；当前 editor crate 全部 85 项测试通过；editor 全 targets Clippy `-D warnings` 通过。脚本的 ESLint/Prettier、Rust 定向格式与 diff whitespace 检查通过。浏览器初次受沙箱进程限制，获准离线测试后运行；Playwright 缓存缺失时复用已安装的 Chrome。中途 Cargo 锁文件与其他在途依赖修改短暂不同步，未由本任务修改锁文件，恢复一致后 `--locked --offline` 检查通过。临时日志/bundle 位于 `tmp/rm22/`。
+
+RM22 仍部分完成：尚缺条件入口完整交互、原生字体布局、开放绑定/elbow、组内编辑、完整路径/剪贴板/库/导出及其全序列历史差分。已同步 TODO、兼容契约和文档索引；不关闭 E8/M6，也未接管旧白板或改动其他在途功能。
+
+<a id="rm21"></a>
+
+## RM21 · 图片阅读、文档图片与版本（2026-11-09）
+
+完成有界静态解码、EXIF 方向/相机信息、640 缩略图与 2560 阅读预览、安全 SVG、缩放/适应/实际尺寸/平移/视图旋转。图片块复用 core 编辑事务，保留 anynote-resource/core.image 未知字段，宽度 32–4096 或自适应；文件选择、剪贴板和外部拖放走同一后台导入管线。区域批注固定原图归一化矩形和 hash；旋转另存 PNG 新修订，历史原字节与旧批注不漂移。
+
+媒体写入纳入 RM19 CAS 与媒体 generation，ack/断线核对同时匹配 hash；失败保留待提交字节，冲突另存复制资源。复用 VerifiedAsset 实现有界读取租约，避免每 256 KiB 重验整图 hash；关闭/取消/读完释放句柄和纹理。原图复制/导出不使用旋转预览；跨库、完整快照和 Markdown 导出复用既有服务。
+
+本机 `cargo test`：core/editor/storage **127 项通过、2 个既有辅助夹具 ignored**；desktop 带 ui-tests 的库与 image/image_backend/image_storage/image_ui **41 项通过**。覆盖真实后端上传/CAS/历史/批注/句柄，跨库与导出闭包，生产控件粘贴/文件选择/拖入/取消/宽度/选区/批注/原图复制导出/旋转/历史/冲突另存和关闭迟到结果。另有 archive/transfer **18 项通过**；五工程全目标 Clippy（含 ui-tests）、定向 rustfmt、依赖边界（5 工程 / 844 包）与 diff 空白检查通过，日志 `tmp/rm21-*.log`。发现并修复了 arbitrary_precision + tagged enum 的浮点坐标往返问题。
+
+本地矩阵完成，未接管真实资料。原生隔离 macOS 构建打开笔记、插入菜单与文件选择器，但路径确认工具反复回到根目录，未完成原生图片画面及系统导出选择器；真实照片、DPI、内存和三平台验收留 RM31/32。静态首帧、SVG 外部资源禁用及 40MP/24MP/纹理预算详见[图片契约](RUST-IMAGE-MEDIA.md)，不关闭整组 M6/INV-07 或 RM18/19 平台缺口。
+
+<a id="rm20"></a>
+
+## RM20 · 声明块与静态内置业务（2026-11-09）
+
+已知阅读 callout 与原生 details/提示块可展示、字段编辑、共享撤销；未知/未来/非法数据保留源码、复制和导出。采集卡片使用有预算的 HTML 文本标签及样式白名单，原生投影不执行脚本、事件或远程资源。阅读菜单提供创建、模板、UTF-16 统计、同步/异步检索追加、目标、整理次数及 RM07 公开文本下载；偏好窗口提供目标和白板/视频/HTML、远程嵌入同意。新 Notebook 远程同意默认关闭。
+
+复用 RM19 flush/CAS/epoch/generation，网络任务不阻塞后端协议循环。相同 operation UUID 与摘要核对持久回执；正文、历史、FTS、次数、回执及 content_seq 同事务。新增 TEMP trigger 故障注入验证回执失败全部回滚。固定 manifest/checksum/schema 转换保留 v1/v2 状态和未知字段；未转换的旧状态阻止默认值覆盖。没有新增动态插件系统。所有首方 adapter 的归属及未知脚本迁移阻塞见[业务契约](RUST-BUILTIN-BUSINESS.md)。
+
+本机 core/editor/storage 联合回归 **127 项通过**，services 内置业务 **9 项通过**，desktop 带 ui-tests 的库测试 **30 项通过**，真实后端阅读/偏好/重开 **1 项通过**。新增 RM20 专项共 18 项：editor 4、services 9、storage 2、GPUI 2、backend 1；GPUI 测试使用原生字段输入、点击应用、撤销、details 展开与原文复制。依赖边界 **5 工程 / 844 包**通过，`git diff --check` 通过。最终五工程全目标 Clippy（含 desktop ui-tests）通过；本轮新增文件 rustfmt 检查通过。临时日志位于 `tmp/rm20/`，最终 Clippy 日志为 `clippy-final.log`。
+
+补充服务回归：lib **18 项通过**（包括已有 RM07 下载器本地 socket/超时/取消/TLS 测试，沙箱禁止监听后获准重跑）；RM14 migration **11 项通过**。后者首次并行运行遇到 `MIGRATION_BUSY` 与临时目录 `PATH_REDIRECT`，使用规范路径 `TMPDIR=/private/tmp`、`--test-threads=1` 后通过；没有修改迁移实现或放宽校验。日志分别为 `tmp/rm20/migration-tests.log`、`migration-serial.log`。
+
+隔离状态目录启动了原生 macOS 窗口；桌面工具一次调用长时间阻塞，返回的可访问树只有窗口与菜单，因此未完成真实内容交互、导出文件选择器、卡片视觉对照或 IME 验收。未访问真实个人资料，未将私网拒绝/下载器单元测试算成真实公网成功下载。正式用户插件盘点、RM14 接管和 RM19 平台退出边界仍分别阻止对应阶段放行；不关闭 M5/E6。
+
+<a id="rm19"></a>
+
+## 2026-11-09 · RM19 源码模式与保存会话（部分完成）
+
+完成 RM19.1/.2 与 RM19.3 的应用内实现。`DocumentSession` 聚合唯一 core source/history/composition 和保存控制器；Kit 源码按需创建，启用 Markdown/inline grammar、高亮/行号/折叠/内置搜索替换和格式包裹，批次一次撤销、程序化无回声、反向选区和滚动恢复。补齐源码视口高度；沿用 RM18 正文视图而不改其几何/剪贴板范围。
+
+桌面私有协议 v2 接 Create/Open/Save/历史资源，控制帧 16 MiB 覆盖既有正文预算的 JSON 转义；后端延迟打开 RM05 单写队列。平台壳新建/继续编辑使用独立状态目录 `workspace/`，同笔记复用窗口，不激活旧用户目录。650ms debounce、串行 CAS、epoch/generation 和发送中输入隔离已实现；未知提交先读原笔记核对、明确未提交才允许重试；冲突保留两方快照，可复制、查看或另存正文。正常关闭、切换、失焦和应用内退出统一等待 flush/IME。
+
+本机 macOS / Rust 1.99.1，core/editor/desktop 联合回归 **118 项通过**，另有 1 项 ignored 子进程夹具由父测试执行；新增 4 状态、5 GPUI、2 真实后端测试。覆盖批量替换/选区/源码视口与折叠候选/滚动、断线/失败/迟到 ack/IME 等待、切换隔离、丢失响应后重开/大正文及历史资源绑定。短 TMPDIR 避开既有平台 socket 长度限制；沙箱拒绝 socket 后获准复跑通过。Clippy、rustfmt、依赖边界（5 工程 / 844 包）通过。新增五项锁定语法依赖，Kit/GPUI 版本不变；日志在 `tmp/rm19/`。
+
+真实原生窗口打开了隔离笔记和源码入口，后续工具报状态变化及 timeoutReached，未完成实际输入/关闭/重开验收。Kit `on_app_quit` 不可取消，系统 Dock/OS 退出仍可能绕过应用内保存屏障；平台结束组合输入请求接口亦未提供，只能等待 commit/cancel。RM19.3 保留未完成，不宣称跨进程崩溃草稿恢复、RM18/32/E5 或媒体/真实资料通过。详见[会话契约](RUST-DOCUMENT-SESSION.md)。
+
 <a id="rm18"></a>
 
 ## 2026-11-09 · RM18 连续 GPUI 编辑视图与原生输入（部分完成）

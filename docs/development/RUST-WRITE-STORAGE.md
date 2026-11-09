@@ -18,7 +18,7 @@ RM05 在 [RM04 只读模型](RUST-READONLY-STORAGE.md) 上增加写队列、SQLi
 - `add_annotation` / `delete_annotation` / `reanchor_annotations`：页码、归一化矩形、文本和颜色校验，目标必须匹配当前主资源 hash；删除为软删除。PDF 阅读笔记生成、提取及具体媒体操作由对应媒体组接续。
 - `set_core_setting` / `propose` / `apply_proposal` / `undo_proposal`：仅支持已有内置配置白名单和单笔记提案，不开放任意插件状态写入或执行入口。
 
-`read()` 借用 RM04 的读视图，在当前写连接上读取正文、历史、批注和资源。它不创建第二个 SQLite 连接，也不暴露 SQL；不要为已持写租约的库另开只读连接。业务 IPC、任务取消消息、资源 token 和管理 UI 由 RM28/29 等后续组接入，本组未改 RM03 的连通性命令。
+`read()` 借用 RM04 的读视图，在当前写连接上读取正文、历史、批注和资源。它不创建第二个 SQLite 连接，也不暴露 SQL；不要为已持写租约的库另开只读连接。RM19 已通过[保存会话](RUST-DOCUMENT-SESSION.md)接入普通笔记 CAS 和按修订读取资源的私有 IPC；任务取消消息、资源 token 和管理 UI 继续由 RM28/29 等后续组接入。RM05 本身未改 RM03 的连通性命令。
 
 ## 写租约与提交
 

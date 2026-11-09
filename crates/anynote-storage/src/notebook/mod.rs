@@ -1,5 +1,7 @@
 //! Schema-v5 notebooks. Connections stay on their owning storage thread.
 mod assets;
+mod builtin;
+pub use builtin::BuiltinValue;
 mod capture;
 mod catalog;
 pub use capture::AppliedCapture;
@@ -59,6 +61,9 @@ pub struct ReadError {
     message: String,
 }
 impl ReadError {
+    pub fn invalid_input(message: impl Into<String>) -> Self {
+        Self::new(ReadErrorKind::InvalidInput, message)
+    }
     pub fn kind(&self) -> ReadErrorKind {
         self.kind
     }

@@ -4,6 +4,29 @@ use serde_json::Value;
 
 const KNOWN: &str =
     include_str!("../../../../tests/fixtures/rust-migration/config/known-state-mappings.json");
+const KNOWN_BUSINESS: &str =
+    include_str!("../../../../tests/fixtures/builtin/known-manifests.json");
+
+/// Classification only. No declarations from the package become executable commands or views.
+pub fn is_known_business(entry: &Value) -> bool {
+    let Ok(known) = serde_json::from_str::<Vec<Known>>(KNOWN_BUSINESS) else {
+        return false;
+    };
+    known
+        .iter()
+        .any(|k| k.manifest == entry["manifest"] && entry["checksum"].as_str() == Some(&k.checksum))
+}
+pub fn is_known_source(path: &str, bytes: &[u8]) -> bool {
+    let Ok(entries) = serde_json::from_str::<Vec<Value>>(include_str!(
+        "../../../../tests/fixtures/rust-migration/inventory/known-plugins.json"
+    )) else {
+        return false;
+    };
+    let checksum = digest(bytes);
+    entries
+        .iter()
+        .any(|entry| entry["path"] == path && entry["sha256"] == checksum)
+}
 
 #[derive(Deserialize)]
 struct Known {
@@ -326,9 +349,11 @@ pub fn preserve_plugins(
         if id.len() > 100 {
             return Err(MigrationError::InvalidData);
         }
-        if known.iter().any(|k| {
-            k.manifest == entry["manifest"] && entry["checksum"].as_str() == Some(&k.checksum)
-        }) {
+        if is_known_business(&entry)
+            || known.iter().any(|k| {
+                k.manifest == entry["manifest"] && entry["checksum"].as_str() == Some(&k.checksum)
+            })
+        {
             report.known_entries.push(id.into());
         } else {
             report.unknown_entries.push(id.into());

@@ -67,24 +67,63 @@ impl Proposal {
     }
 }
 impl WritableNotebook {
+    /// Embedded images have no primary resource; authorize against the pinned current revision.
+    pub fn add_image_annotation(
+        &mut self,
+        note_id: &str,
+        revision: &str,
+        resource: &str,
+        request: &AnnotationInput,
+    ) -> ReadResult<String> {
+        let note = self.active(note_id, None)?;
+        conflict(note.head_revision_id.as_deref() == Some(revision))?;
+        let asset = self.view.resource(
+            resource,
+            Some(ResourceScope::note(note_id).with_revision(revision)),
+        )?;
+        conflict(asset.info().hash == request.asset_hash)?;
+        input(
+            asset.info().mime.starts_with("image/")
+                && request.page == 1
+                && request.selector.len() == 1,
+            "图片批注目标无效",
+        )?;
+        let r = &request.selector[0];
+        input(
+            [r.x, r.y, r.width, r.height]
+                .into_iter()
+                .all(|v| v.is_finite() && (0.0..=1.0).contains(&v))
+                && r.width > 0.
+                && r.height > 0.
+                && r.x + r.width <= 1.0000001
+                && r.y + r.height <= 1.0000001,
+            "图片批注范围无效",
+        )?;
+        text_limit(&request.body, 0, 10000)?;
+        let id = new_id();
+        self.transaction(&id, "annotation", |book| {
+            book.view.db.execute("INSERT INTO annotations(id,note_id,target_asset_hash,page,selector_json,quote,body,color,created_at) VALUES(?,?,?,1,?,'',?,'yellow',?)", params![id,note_id,request.asset_hash,serde_json::to_string(&request.selector)?,request.body,now()?])?;
+            book.index(note_id)?;
+            Ok(())
+        })?;
+        Ok(id)
+    }
     pub fn set_core_setting(
         &mut self,
         namespace: &str,
         key: &str,
         enabled: bool,
     ) -> ReadResult<bool> {
-        // These are existing persisted keys, not a new extension execution API.
-        input(
-            matches!(
-                namespace,
-                "anynote.whiteboard" | "anynote.video" | "anynote.html-import"
-            ) && matches!(key, "enabled" | "remoteEmbed"),
-            "未知内置配置",
-        )?;
-        self.transaction(&format!("{namespace}:{key}"),"extension",|book| {
-            book.view.db.execute("INSERT INTO extension_data(extension_id,key,value_json) VALUES(?,?,?) ON CONFLICT(extension_id,key) DO UPDATE SET value_json=excluded.value_json,revision=revision+1",params![namespace,key,enabled.to_string()])?;
-            Ok(enabled)
-        })
+        let (revision, mut preferences) = self.view.builtin_preferences()?;
+        match (namespace, key) {
+            ("anynote.whiteboard", "enabled") => preferences.whiteboard = enabled,
+            ("anynote.video", "enabled") => preferences.video = enabled,
+            ("anynote.html-import", "enabled") => preferences.html = enabled,
+            ("anynote.video", "remoteEmbed") => preferences.remote_embed = enabled,
+            _ => return Err(ReadError::invalid_input("未知内置配置")),
+        }
+        self.set_builtin_preferences(revision, &preferences)?;
+        Ok(enabled)
     }
     pub fn propose(
         &mut self,

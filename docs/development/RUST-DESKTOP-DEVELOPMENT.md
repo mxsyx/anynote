@@ -1,6 +1,6 @@
 # Rust 桌面开发入口
 
-RM02 固定工程与平台入口，RM03 增加原生后端、私有通信、任务与诊断基础。任务状态以 [TODO](TODO.md#rust-migration) 为准，实际验证摘要见[实施记录](IMPLEMENTATION.md#rm03)。当前未接 Notebook 业务数据或旧 Node 后端。
+RM02 固定工程与平台入口，RM03 增加原生后端、私有通信、任务与诊断基础。任务状态以 [TODO](TODO.md#rust-migration) 为准，实际验证摘要见[实施记录](IMPLEMENTATION.md#rm03)。RM19 已接独立目录的笔记创建、读取和 CAS 保存，见[保存会话](RUST-DOCUMENT-SESSION.md)；不接旧 Node 后端。
 
 ## 工程边界
 
@@ -109,7 +109,7 @@ RM32.1 仍须验证三平台的真实输入法候选窗/组合输入、系统文
 入口为 `apps/desktop-rust/src/backend.rs` 与 `backend_client.rs`；同一二进制的 `--backend` 分支在初始化 GPUI 和单实例窗口服务之前返回。正常桌面由 `BackendSession` 保留客户端，启动/重连在工作线程执行，UI 只调用 `submit` 并 await `RequestHandle::receive`。`receive_blocking` 仅供进程测试和窗口事件循环启动前使用。菜单退出和最后窗口关闭先请求后端排空再退出；OS 强制结束仍按断线恢复，不视作成功。
 
 - 后端拥有一个 Tokio runtime；匿名 stdin/stdout 管道的读写线程各接容量 **16** 的有界队列，满队列等待，客户端普通请求最多 **14** 个，另保留 **2** 个取消/退出控制请求名额（总计 16），`submit` 满额返回 `Busy`。客户端按 deadline 返回 `Timeout`，丢弃随后到达的结果；丢弃等待句柄会撤销等待，不等于撤销业务任务。任务取消使用独立 `CancelTask`。
-- 线格式为 `kind:u8 + length:u32 big-endian + body`。kind 1 为最长 **1 MiB** 的 serde JSON；kind 2 为 `headerLength:u32 + StreamHeader JSON + bytes`，header 最长 **512 B**，二进制单块最长 **256 KiB**。先校验长度再分配。未知帧/命令、额外字段、截断帧返回结构化错误并关闭该会话；没有 HTTP/TCP、SQL、任意方法调用或插件命令。
+- 线格式为 `kind:u8 + length:u32 big-endian + body`。kind 1 为最长 **16 MiB** 的 serde JSON（RM19 私有协议 v2，覆盖正文预算的 JSON 转义）；kind 2 为 `headerLength:u32 + StreamHeader JSON + bytes`，header 最长 **512 B**，二进制单块最长 **256 KiB**。先校验长度再分配。未知帧/命令、额外字段、截断帧返回结构化错误并关闭该会话；没有 HTTP/TCP、SQL、任意方法调用或插件命令。
 - `anynote_core::backend` 固定 `Request/Command/Reply/ServerMessage/ServiceError`。Ready 给出 `version=1` 与随机 `epoch`；每个请求含同一 epoch 和递增 `request_id`。旧 epoch、重复/倒序 ID 拒绝；客户端按 epoch/ID 配对，仅接受与命令匹配的结果类型。`TaskRecord` 的 ID 不随重启变化，sequence 只递增，过期事件不覆盖当前状态。
 - 当前静态命令仅有 Ping、健康检查任务、取消/等待/列举任务、诊断设置/查询/清空/导出、读取/释放资源及 Shutdown。健康检查是可取消的进程连通性任务，最长 60 秒，不是备份、保存或导入实现。后续业务在此枚举中显式加类型并接 services，不增加通用 RPC。
 - `anynote_services::tasks::TaskHistory` 是唯一任务历史 owner。最多 **8** 个活动任务、**200** 条历史；状态变更先持久化再回复/发事件。重启把 running/committing 转为 interrupted；已终结任务不能被旧完成事件复活。显式退出取消只读健康任务并发送终态与所有等待结果，最后回复 Ack；处于 committing 时返回 Busy，业务提交接入后须先完成其提交协调，不能用退出取消冒充回滚。

@@ -1,5 +1,5 @@
 use super::operation::{active, execute, expand_selection};
-use super::{BoardError, ElementKind, Geometry, Point, Scene, scene::invalid};
+use super::{BoardError, CropHandle, ElementKind, Geometry, Point, Scene, scene::invalid};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::{
@@ -83,6 +83,18 @@ pub enum Command {
     Geometry {
         id: String,
         geometry: Geometry,
+    },
+    ResizePath {
+        id: String,
+        geometry: Geometry,
+    },
+    CropImage {
+        id: String,
+        handle: CropHandle,
+        natural_width: f64,
+        natural_height: f64,
+        pointer: Point,
+        aspect_ratio: Option<f64>,
     },
     Group {
         id: String,

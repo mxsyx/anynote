@@ -240,6 +240,17 @@ impl ReadonlyNotebook {
         })
         .collect()
     }
+    pub fn resources_at_revision(
+        &self,
+        note: &str,
+        revision: &str,
+    ) -> ReadResult<Vec<RevisionResource>> {
+        self.check_path()?;
+        uuid(note)?;
+        uuid(revision)?;
+        model::rows(&self.db, "SELECT rr.* FROM revision_resources rr JOIN note_revisions r ON r.id=rr.revision_id WHERE r.note_id=? AND r.id=?", [note, revision])?
+            .into_iter().map(|v| { let r: RevisionResource = serde_json::from_value(v)?; uuid(&r.resource_id)?; assets::check_hash(&r.asset_hash)?; Ok(r) }).collect()
+    }
     pub fn folder_path(&self, parent_id: Option<&str>) -> ReadResult<String> {
         self.check_path()?;
         let mut parts = Vec::new();

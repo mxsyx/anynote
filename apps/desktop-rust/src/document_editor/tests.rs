@@ -3,7 +3,7 @@ use super::*;
 #[core::prelude::v1::test]
 fn decoded_projection_and_source_positions_preserve_marks_entities_and_unicode() {
     let source = "# 标题\n\n原有 __格式__ &amp; e\u{301} 🦀\n\n- one\n  - two\n\n| a | b |\n|---|---|\n| c | |\n\n:::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
-    let mut state = DocumentState::new(source.into());
+    let mut state = DocumentSession::new(source.into());
     assert!(state.projection.text.contains("原有 格式 & e\u{301} 🦀"));
     let at = state.projection.text.find('🦀').unwrap();
     state.select(at, at + "🦀".len()).unwrap();
@@ -27,7 +27,7 @@ fn decoded_projection_and_source_positions_preserve_marks_entities_and_unicode()
 
 #[core::prelude::v1::test]
 fn document_replay_heading_tasks_table_empty_cells_and_history() {
-    let mut state = DocumentState::new(String::new());
+    let mut state = DocumentSession::new(String::new());
     state.replace("##").unwrap();
     state.replace(" ").unwrap();
     state.replace("连续编辑标题").unwrap();
@@ -74,7 +74,7 @@ fn document_replay_heading_tasks_table_empty_cells_and_history() {
 
 #[core::prelude::v1::test]
 fn composition_is_display_only_then_one_undo_and_cancel_preserves_source() {
-    let mut state = DocumentState::new("**ab**\n\n末尾".into());
+    let mut state = DocumentSession::new("**ab**\n\n末尾".into());
     state.select(1, 1).unwrap();
     let initial = state.editor.document().source().to_owned();
     state.begin_or_update_composition(None, "n", 1..1).unwrap();
@@ -98,7 +98,7 @@ fn composition_is_display_only_then_one_undo_and_cancel_preserves_source() {
 
 #[core::prelude::v1::test]
 fn plain_paste_cross_paragraph_replacement_and_code_keep_one_core_history() {
-    let mut state = DocumentState::new("**first**\n\nsecond\n\nlast".into());
+    let mut state = DocumentSession::new("**first**\n\nsecond\n\nlast".into());
     state.select(2, 9).unwrap();
     state.replace("中").unwrap();
     assert!(
@@ -127,7 +127,7 @@ fn plain_paste_cross_paragraph_replacement_and_code_keep_one_core_history() {
 
 #[core::prelude::v1::test]
 fn empty_tasks_compose_cancel_and_commit_without_serializing_a_placeholder() {
-    let mut state = DocumentState::new(String::new());
+    let mut state = DocumentSession::new(String::new());
     state.replace("[]").unwrap();
     state.replace(" ").unwrap();
     assert!(state.pending_task.is_some());
@@ -163,9 +163,9 @@ fn empty_tasks_compose_cancel_and_commit_without_serializing_a_placeholder() {
 fn atom_before_after_delete_and_rich_copy_preserve_source() {
     let original =
         "**strong**\n\n:::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
-    let mut state = DocumentState::new(original.into());
+    let mut state = DocumentSession::new(original.into());
     state.select(1, 4).unwrap();
-    let copied = DocumentState::new(state.selected_markdown().unwrap());
+    let copied = DocumentSession::new(state.selected_markdown().unwrap());
     assert_eq!(copied.projection.text, "tro");
     assert!(
         copied.projection.leaves[0].runs[0]
@@ -190,7 +190,7 @@ fn atom_before_after_delete_and_rich_copy_preserve_source() {
 
 #[core::prelude::v1::test]
 fn quote_exit_returns_to_top_level_heading() {
-    let mut state = DocumentState::new(String::new());
+    let mut state = DocumentSession::new(String::new());
     state.replace(">").unwrap();
     state.replace(" ").unwrap();
     state.replace("引用内容").unwrap();
@@ -215,7 +215,8 @@ fn quote_exit_returns_to_top_level_heading() {
 #[core::prelude::v1::test]
 fn accessible_table_structure_and_text_selection_include_offscreen_cells() {
     use std::hash::{Hash, Hasher};
-    let mut state = DocumentState::new("# 标题\n\n| one | two |\n|---|---|\n| 中文 | 🦀 |".into());
+    let mut state =
+        DocumentSession::new("# 标题\n\n| one | two |\n|---|---|\n| 中文 | 🦀 |".into());
     let at = state.projection.text.find('🦀').unwrap();
     state.select(at + 4, at).unwrap();
     let keys = (0..state.projection.leaves.len() as u64).collect::<Vec<_>>();
@@ -269,7 +270,7 @@ fn native_utf16_ranges_round_surrogates_without_weakening_core_validation() {
 
 #[core::prelude::v1::test]
 fn formatting_breaks_typing_history_and_block_move_is_atomic() {
-    let mut state = DocumentState::new(String::new());
+    let mut state = DocumentSession::new(String::new());
     state.replace("plain").unwrap();
     state.command("bold").unwrap();
     state.replace("strong").unwrap();
@@ -284,7 +285,7 @@ fn formatting_breaks_typing_history_and_block_move_is_atomic() {
             .has(anynote_editor::inline::Mark::Strong)
     );
     let original = "first\n\nsecond\n\n:::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
-    let mut state = DocumentState::new(original.into());
+    let mut state = DocumentSession::new(original.into());
     state.move_block(2, 0).unwrap();
     let moved = state.editor.document().source();
     assert!(moved.find(":::anynote").unwrap() < moved.find("first").unwrap());
@@ -537,6 +538,171 @@ mod ui {
                 assert_eq!(editor.read(cx).geometry.borrow().rem, px(size));
                 assert!(editor.read(cx).caret_bounds(window).is_some());
             }
+        })
+        .unwrap();
+    }
+    #[gpui_kit::test]
+    fn source_replace_all_is_atomic_and_mode_switch_keeps_reverse_selection(
+        cx: &mut TestAppContext,
+    ) {
+        let (window, editor) = open(cx, "# Title\n\nalpha 🦀 alpha\n");
+        cx.update_window(window, |_, window, cx| {
+            editor.update(cx, |e, cx| e.toggle_source(window, cx));
+            window.render_frame(cx);
+            let source = editor.read(cx).source.as_ref().unwrap().clone();
+            source.update(cx, |s, cx| {
+                s.set_search_query("alpha", false, cx);
+                s.replace_all_search_matches("beta", window, cx);
+            });
+        })
+        .unwrap();
+        cx.update_window(window, |_, window, cx| {
+            assert_eq!(editor.read(cx).source(), "# Title\n\nbeta 🦀 beta\n");
+            assert_eq!(editor.read(cx).undo_steps(), 1);
+            editor.update(cx, |e, cx| e.run(&RunCommand::new("undo"), window, cx));
+            assert_eq!(editor.read(cx).source(), "# Title\n\nalpha 🦀 alpha\n");
+            let source = editor.read(cx).source.as_ref().unwrap().clone();
+            source.update(cx, |s, cx| {
+                s.set_selected_range_with_direction(9..14, true, cx)
+            });
+            editor.update(cx, |e, cx| e.toggle_source(window, cx));
+            assert!(editor.read(cx).state.anchor > editor.read(cx).state.head);
+            editor.update(cx, |e, cx| e.toggle_source(window, cx));
+            let source = editor.read(cx).source.as_ref().unwrap().read(cx);
+            assert_eq!(source.selected_range(), 9..14);
+            assert!(source.is_selection_reversed());
+            editor.update(cx, |e, cx| e.source_format("bold", window, cx));
+            assert!(editor.read(cx).source().contains("**alpha**"));
+        })
+        .unwrap();
+    }
+    fn snapshot(body: &str) -> anynote_core::document_session::DocumentSnapshot {
+        use anynote_core::document_session::*;
+        DocumentSnapshot::new(
+            DocumentId::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4()),
+            1,
+            uuid::Uuid::new_v4(),
+            DocumentContent::new("Note".into(), body.into(), vec![], false),
+        )
+    }
+    #[gpui_kit::test]
+    fn switching_waits_for_original_ack_and_rejects_late_response(cx: &mut TestAppContext) {
+        use anynote_core::document_session::*;
+        let (window, editor) = open(cx, "original");
+        cx.update_window(window, |_, window, cx| {
+            editor.update(cx, |e, cx| {
+                e.state.save = Some(session::SaveController::new(snapshot("original")));
+                e.state.source_edit(0..8, "draft").unwrap();
+                let generation = e.state.editor.document().generation();
+                let save = e.state.save.as_mut().unwrap();
+                save.observe(generation, std::time::Instant::now());
+                let pending = save
+                    .prepare("draft", false, true, std::time::Instant::now())
+                    .unwrap();
+                e.saving = true;
+                let next = snapshot("other note");
+                let next_id = next.id().clone();
+                e.switch_document(next, window, cx);
+                assert_eq!(e.source(), "draft");
+                assert!(e.switching.is_some());
+                let ack = SaveDocument::new(
+                    pending.epoch(),
+                    generation,
+                    DocumentSnapshot::new(
+                        pending.snapshot().id().clone(),
+                        2,
+                        uuid::Uuid::new_v4(),
+                        pending.snapshot().content().clone(),
+                    ),
+                );
+                assert!(e.state.save.as_mut().unwrap().acknowledge(&ack));
+                e.saving = false;
+                e.flush(window, cx);
+                assert_eq!(e.source(), "other note");
+                assert_eq!(e.state.save.as_ref().unwrap().base().id(), &next_id);
+                assert!(!e.state.save.as_mut().unwrap().acknowledge(&ack));
+                assert_eq!(e.undo_steps(), 0);
+            })
+        })
+        .unwrap();
+    }
+    #[gpui_kit::test]
+    fn close_waits_for_ime_and_preserves_draft_when_backend_unavailable(cx: &mut TestAppContext) {
+        let (window, editor) = open(cx, "start");
+        cx.update_window(window, |_, window, cx| {
+            editor.update(cx, |e, cx| {
+                e.state.save = Some(session::SaveController::new(snapshot("start")));
+                e.state
+                    .begin_or_update_composition(Some(0..5), "中文", 6..6)
+                    .unwrap();
+                e.request_close(window, cx);
+                assert!(e.closing);
+                assert_eq!(e.source(), "start");
+                assert!(e.is_composing());
+                assert_eq!(
+                    e.state.save.as_ref().unwrap().status,
+                    session::SaveStatus::WaitingForInput
+                );
+                e.state.commit_composition(None).unwrap();
+                e.flush(window, cx);
+                assert_eq!(e.text(), "中文");
+                assert!(e.state.save.as_ref().unwrap().dirty());
+                assert!(e.state.save.as_ref().unwrap().retry_needed());
+            })
+        })
+        .unwrap();
+        assert!(cx.update_window(window, |_, _, _| ()).is_ok());
+    }
+    #[gpui_kit::test]
+    fn source_editor_fills_viewport_and_restores_scroll(cx: &mut TestAppContext) {
+        let text = format!(
+            "# Heading\n\n```rust\nfn main() {{\n    let value = 1;\n}}\n```\n\n{}",
+            "paragraph\n\n".repeat(80)
+        );
+        let (window, editor) = open(cx, &text);
+        cx.update_window(window, |_, window, cx| {
+            editor.update(cx, |e, cx| e.toggle_source(window, cx));
+            window.render_frame(cx);
+            let source = editor.read(cx).source.as_ref().unwrap().clone();
+            assert!(source.read(cx).input_bounds().size.height > px(300.));
+            assert_eq!(source.read(cx).language_name().as_ref(), "markdown");
+            assert!((0..8).any(|line| source.read(cx).display_map().is_fold_candidate(line)));
+            source.update(cx, |s, cx| {
+                s.set_scroll_offset(point(px(0.), px(-300.)), cx)
+            });
+            window.render_frame(cx);
+            editor.update(cx, |e, cx| {
+                e.toggle_source(window, cx);
+                e.toggle_source(window, cx);
+            });
+            window.render_frame(cx);
+            let source = editor.read(cx).source.as_ref().unwrap().read(cx);
+            assert_eq!(source.scroll_offset().y, px(-300.));
+        })
+        .unwrap();
+    }
+    #[gpui_kit::test]
+    fn switching_source_drains_queued_input_and_ignores_retired_widget(cx: &mut TestAppContext) {
+        let (window, editor) = open(cx, "before");
+        cx.update_window(window, |_, window, cx| {
+            editor.update(cx, |e, cx| e.toggle_source(window, cx));
+            let old_source = editor.read(cx).source.as_ref().unwrap().clone();
+            old_source.update(cx, |s, cx| {
+                s.replace_text_in_range(None, "pending", window, cx)
+            });
+            editor.update(cx, |e, cx| {
+                e.toggle_source(window, cx);
+                assert_eq!(e.source(), "pendingbefore");
+                e.toggle_source(window, cx);
+            });
+            old_source.update(cx, |s, cx| {
+                s.replace_text_in_range(None, "late", window, cx)
+            });
+        })
+        .unwrap();
+        cx.update_window(window, |_, _, cx| {
+            assert_eq!(editor.read(cx).source(), "pendingbefore");
+            assert_eq!(editor.read(cx).undo_steps(), 1);
         })
         .unwrap();
     }

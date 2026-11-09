@@ -8,7 +8,7 @@ publish.workspace = true
 
 [features]
 default = []
-media = ["dep:image", "dep:resvg", "dep:pdfium-render"]
+media = ["dep:pdfium-render"]
 ui-tests = ["gpui-kit/test-support"]
 
 [dependencies]
@@ -18,7 +18,7 @@ anynote-core.workspace = true
 anynote-storage.workspace = true
 anynote-services.workspace = true
 anynote-editor.workspace = true
-gpui-kit.workspace = true
+gpui-kit = { workspace = true, features = ["tree-sitter-markdown", "tree-sitter-markdown-inline"] }
 serde.workspace = true
 serde_json.workspace = true
 interprocess.workspace = true
@@ -26,8 +26,9 @@ async-channel.workspace = true
 directories.workspace = true
 markdown = "=1.0.0"
 unicode-segmentation = "=1.13.3"
-image = { workspace = true, optional = true }
-resvg = { workspace = true, optional = true }
+sha2 = "=0.10.9"
+image.workspace = true
+resvg.workspace = true
 pdfium-render = { workspace = true, optional = true }
 
 [lints]

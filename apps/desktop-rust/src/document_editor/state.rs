@@ -22,7 +22,8 @@ pub(super) struct Composition {
     pub local: Range<usize>,
 }
 
-pub(super) struct DocumentState {
+pub(super) struct DocumentSession {
+    pub save: Option<super::session::SaveController>,
     pub editor: Editor,
     pub projection: Projection,
     pub anchor: usize,
@@ -33,11 +34,12 @@ pub(super) struct DocumentState {
     pending_after: Option<LeafId>,
     started: Instant,
 }
-impl DocumentState {
+impl DocumentSession {
     pub fn new(source: String) -> Self {
         let editor = Editor::new(Document::new(source), HistoryBudget::default());
         let projection = Projection::new(editor.document(), 0);
         Self {
+            save: None,
             editor,
             projection,
             anchor: 0,
@@ -802,6 +804,35 @@ impl DocumentState {
             .find(|c| c.span().start >= leaf.span.start && c.span().end <= leaf.span.end)?
             .copy_markdown(start..end, TextUnit::Utf8)
             .ok()
+    }
+    pub fn source_snapshot(&mut self, next: &str) -> Result<()> {
+        let old = self.editor.document().source();
+        if old == next {
+            return Ok(());
+        }
+        let mut prefix = old
+            .bytes()
+            .zip(next.bytes())
+            .take_while(|(a, b)| a == b)
+            .count();
+        while !old.is_char_boundary(prefix) || !next.is_char_boundary(prefix) {
+            prefix -= 1;
+        }
+        let mut suffix = old[prefix..]
+            .bytes()
+            .rev()
+            .zip(next[prefix..].bytes().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        while !old.is_char_boundary(old.len() - suffix)
+            || !next.is_char_boundary(next.len() - suffix)
+        {
+            suffix -= 1;
+        }
+        self.source_edit(
+            prefix..old.len() - suffix,
+            &next[prefix..next.len() - suffix],
+        )
     }
     pub fn source_edit(&mut self, range: Range<usize>, replacement: &str) -> Result<()> {
         self.pending_task = None;

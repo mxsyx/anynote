@@ -95,10 +95,10 @@
       "export": false,
       "toggleTheme": true
     },
-    "reachability": "registration/type presence is not UI reachability; see RUST-BOARD-COMPATIBILITY.md"
+    "reachability": "reachability.json records mounted desktop controls and macOS shortcut routing; side effects and conditional entries remain separate acceptance"
   },
   "upstream": "@excalidraw/excalidraw@0.18.0",
-  "scope": "real upstream action.perform calls with real Scene; no pointer/UI, rendering or native text-metrics acceptance",
+  "scope": "real upstream action/geometry results plus mounted desktop entry probes; no full pointer/history-engine, native text-metrics or rendering acceptance",
   "ignoredElementFields": ["version", "versionNonce", "updated", "index"],
   "hashes": {
     "chunk-3KPV5WBD.js": "c1719a90e913026aa3007a85a083bf9bf8f59124591d12d4ef508fd6770f2aa4",
@@ -133,15 +133,13 @@
         "roundness": null,
         "seed": 1,
         "version": 2,
-        "versionNonce": 428152832,
+        "versionNonce": 630745088,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "a0"
       },
       {
@@ -164,15 +162,13 @@
         "roundness": null,
         "seed": 2,
         "version": 2,
-        "versionNonce": 2130208768,
+        "versionNonce": 1820465152,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "a1"
       },
       {
@@ -195,15 +191,13 @@
         "roundness": null,
         "seed": 3,
         "version": 2,
-        "versionNonce": 1495406592,
+        "versionNonce": 642476032,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "a2"
       },
       {
@@ -226,15 +220,13 @@
         "roundness": null,
         "seed": 4,
         "version": 2,
-        "versionNonce": 1403742208,
+        "versionNonce": 1149179904,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "text": "文字😀",
         "originalText": "文字😀",
         "fontSize": 20,
@@ -266,15 +258,13 @@
         "roundness": null,
         "seed": 5,
         "version": 2,
-        "versionNonce": 488577024,
+        "versionNonce": 413034496,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "points": [
           [0, 0],
           [20, 20]
@@ -308,15 +298,13 @@
         "roundness": null,
         "seed": 6,
         "version": 2,
-        "versionNonce": 436103168,
+        "versionNonce": 349968384,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "points": [
           [0, 0],
           [20, 20]
@@ -350,15 +338,13 @@
         "roundness": null,
         "seed": 7,
         "version": 2,
-        "versionNonce": 1501304832,
+        "versionNonce": 1217488896,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "points": [
           [0, 0],
           [20, 20]
@@ -392,15 +378,13 @@
         "roundness": null,
         "seed": 8,
         "version": 2,
-        "versionNonce": 502360064,
+        "versionNonce": 1368987648,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "fileId": "sample",
         "status": "saved",
         "scale": [1, 1],
@@ -427,15 +411,13 @@
         "roundness": null,
         "seed": 9,
         "version": 2,
-        "versionNonce": 37296128,
+        "versionNonce": 35940352,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "a8",
         "name": null
       },
@@ -459,15 +441,13 @@
         "roundness": null,
         "seed": 10,
         "version": 2,
-        "versionNonce": 730097664,
+        "versionNonce": 1857427456,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "a9"
       },
       {
@@ -490,15 +470,13 @@
         "roundness": null,
         "seed": 11,
         "version": 2,
-        "versionNonce": 190191616,
+        "versionNonce": 290940928,
         "isDeleted": false,
         "boundElements": [],
         "updated": 1700000000000,
         "link": null,
         "locked": false,
-        "customData": {
-          "unknown": "preserve"
-        },
+        "customData": { "unknown": "preserve" },
         "index": "aA"
       }
     ],
@@ -506,9 +484,7 @@
       "viewBackgroundColor": "#ffffff",
       "scrollX": 4,
       "scrollY": 6,
-      "zoom": {
-        "value": 1.25
-      }
+      "zoom": { "value": 1.25 }
     },
     "files": {
       "sample": {
@@ -522,14 +498,10 @@
     {
       "action": "changeStrokeColor",
       "selected": ["element-0", "element-1", "element-7"],
-      "value": {
-        "currentItemStrokeColor": "#cc0000"
-      },
+      "value": { "currentItemStrokeColor": "#cc0000" },
       "command": {
         "kind": "style",
-        "properties": {
-          "strokeColor": "#cc0000"
-        }
+        "properties": { "strokeColor": "#cc0000" }
       },
       "expected": {
         "elements": [
@@ -556,9 +528,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -583,9 +553,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -610,9 +578,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -637,9 +603,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -673,9 +637,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -711,9 +673,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -749,9 +709,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -787,9 +745,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -818,9 +774,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -846,9 +800,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -873,18 +825,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -898,14 +846,10 @@
     {
       "action": "changeBackgroundColor",
       "selected": ["element-0", "element-3", "element-7"],
-      "value": {
-        "currentItemBackgroundColor": "#ffeeaa"
-      },
+      "value": { "currentItemBackgroundColor": "#ffeeaa" },
       "command": {
         "kind": "style",
-        "properties": {
-          "backgroundColor": "#ffeeaa"
-        }
+        "properties": { "backgroundColor": "#ffeeaa" }
       },
       "expected": {
         "elements": [
@@ -932,9 +876,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -959,9 +901,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -986,9 +926,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -1013,9 +951,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -1049,9 +985,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1087,9 +1021,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1125,9 +1057,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1163,9 +1093,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -1194,9 +1122,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -1222,9 +1148,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -1249,18 +1173,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -1275,12 +1195,7 @@
       "action": "changeFillStyle",
       "selected": ["element-0", "element-1"],
       "value": "hachure",
-      "command": {
-        "kind": "style",
-        "properties": {
-          "fillStyle": "hachure"
-        }
-      },
+      "command": { "kind": "style", "properties": { "fillStyle": "hachure" } },
       "expected": {
         "elements": [
           {
@@ -1306,9 +1221,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -1333,9 +1246,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -1360,9 +1271,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -1387,9 +1296,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -1423,9 +1330,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1461,9 +1366,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1499,9 +1402,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1537,9 +1438,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -1568,9 +1467,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -1596,9 +1493,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -1623,18 +1518,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -1649,12 +1540,7 @@
       "action": "changeStrokeWidth",
       "selected": ["element-0", "element-1"],
       "value": 2,
-      "command": {
-        "kind": "style",
-        "properties": {
-          "strokeWidth": 2
-        }
-      },
+      "command": { "kind": "style", "properties": { "strokeWidth": 2 } },
       "expected": {
         "elements": [
           {
@@ -1680,9 +1566,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -1707,9 +1591,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -1734,9 +1616,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -1761,9 +1641,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -1797,9 +1675,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1835,9 +1711,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1873,9 +1747,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -1911,9 +1783,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -1942,9 +1812,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -1970,9 +1838,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -1997,18 +1863,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -2023,12 +1885,7 @@
       "action": "changeStrokeStyle",
       "selected": ["element-0", "element-1"],
       "value": "dashed",
-      "command": {
-        "kind": "style",
-        "properties": {
-          "strokeStyle": "dashed"
-        }
-      },
+      "command": { "kind": "style", "properties": { "strokeStyle": "dashed" } },
       "expected": {
         "elements": [
           {
@@ -2054,9 +1911,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -2081,9 +1936,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -2108,9 +1961,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -2135,9 +1986,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -2171,9 +2020,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2209,9 +2056,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2247,9 +2092,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2285,9 +2128,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -2316,9 +2157,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -2344,9 +2183,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -2371,18 +2208,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -2400,10 +2233,7 @@
       "command": {
         "kind": "roughness",
         "value": 2,
-        "seeds": {
-          "element-0": 305862656,
-          "element-1": 1259870208
-        }
+        "seeds": { "element-0": 591554560, "element-1": 1588946944 }
       },
       "expected": {
         "elements": [
@@ -2425,14 +2255,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -2452,14 +2280,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -2484,9 +2310,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -2511,9 +2335,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -2547,9 +2369,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2585,9 +2405,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2623,9 +2441,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2661,9 +2477,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -2692,9 +2506,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -2720,9 +2532,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -2747,18 +2557,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -2773,12 +2579,7 @@
       "action": "changeOpacity",
       "selected": ["element-0", "element-1", "element-7"],
       "value": 60,
-      "command": {
-        "kind": "style",
-        "properties": {
-          "opacity": 60
-        }
-      },
+      "command": { "kind": "style", "properties": { "opacity": 60 } },
       "expected": {
         "elements": [
           {
@@ -2799,14 +2600,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -2826,14 +2625,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -2858,9 +2655,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -2885,9 +2680,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -2921,9 +2714,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2959,9 +2750,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -2997,9 +2786,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3035,9 +2822,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -3066,9 +2851,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -3094,9 +2877,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -3121,18 +2902,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -3146,10 +2923,7 @@
     {
       "action": "group",
       "selected": ["element-0", "element-2"],
-      "command": {
-        "kind": "group",
-        "id": "reference-group"
-      },
+      "command": { "kind": "group", "id": "reference-group" },
       "expected": {
         "elements": [
           {
@@ -3170,14 +2944,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-0",
@@ -3197,14 +2969,12 @@
             "groupIds": ["reference-group"],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -3229,9 +2999,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -3256,9 +3024,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -3292,9 +3058,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3330,9 +3094,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3368,9 +3130,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3406,9 +3166,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -3437,9 +3195,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -3465,9 +3221,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -3492,18 +3246,1394 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
+          "zoom": { "value": 1.25 }
+        },
+        "files": {
+          "sample": {
+            "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+            "mimeType": "image/png",
+            "created": 1
           }
+        }
+      }
+    },
+    {
+      "action": "alignTop",
+      "selected": ["element-0", "element-1", "element-2"],
+      "selectedGroups": ["reference-group"],
+      "command": { "kind": "align", "axis": "y", "alignment": "start" },
+      "expected": {
+        "elements": [
+          {
+            "id": "element-1",
+            "type": "diamond",
+            "x": 30,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "transparent",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 1588946944,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-0",
+            "type": "rectangle",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 40,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 591554560,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-2",
+            "type": "ellipse",
+            "x": 60,
+            "y": 35,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 3,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-3",
+            "type": "text",
+            "x": 90,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 4,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "text": "文字😀",
+            "originalText": "文字😀",
+            "fontSize": 20,
+            "fontFamily": 1,
+            "textAlign": "left",
+            "verticalAlign": "top",
+            "containerId": null,
+            "autoResize": true,
+            "lineHeight": 1.25
+          },
+          {
+            "id": "element-4",
+            "type": "line",
+            "x": 120,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 5,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-5",
+            "type": "arrow",
+            "x": 150,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 6,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": "arrow",
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-6",
+            "type": "freedraw",
+            "x": 180,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 7,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-7",
+            "type": "image",
+            "x": 210,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 8,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "fileId": "sample",
+            "status": "saved",
+            "scale": [1, 1],
+            "crop": null
+          },
+          {
+            "id": "element-8",
+            "type": "frame",
+            "x": 240,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 9,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "name": null
+          },
+          {
+            "id": "element-9",
+            "type": "iframe",
+            "x": 270,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 10,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-10",
+            "type": "embeddable",
+            "x": 300,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 11,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          }
+        ],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": { "value": 1.25 }
+        },
+        "files": {
+          "sample": {
+            "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+            "mimeType": "image/png",
+            "created": 1
+          }
+        }
+      }
+    },
+    {
+      "action": "alignLeft",
+      "selected": ["element-0", "element-1", "element-2"],
+      "selectedGroups": ["reference-group"],
+      "command": { "kind": "align", "axis": "x", "alignment": "start" },
+      "expected": {
+        "elements": [
+          {
+            "id": "element-1",
+            "type": "diamond",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "transparent",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 1588946944,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-0",
+            "type": "rectangle",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 40,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 591554560,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-2",
+            "type": "ellipse",
+            "x": 60,
+            "y": 35,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 3,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-3",
+            "type": "text",
+            "x": 90,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 4,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "text": "文字😀",
+            "originalText": "文字😀",
+            "fontSize": 20,
+            "fontFamily": 1,
+            "textAlign": "left",
+            "verticalAlign": "top",
+            "containerId": null,
+            "autoResize": true,
+            "lineHeight": 1.25
+          },
+          {
+            "id": "element-4",
+            "type": "line",
+            "x": 120,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 5,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-5",
+            "type": "arrow",
+            "x": 150,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 6,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": "arrow",
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-6",
+            "type": "freedraw",
+            "x": 180,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 7,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-7",
+            "type": "image",
+            "x": 210,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 8,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "fileId": "sample",
+            "status": "saved",
+            "scale": [1, 1],
+            "crop": null
+          },
+          {
+            "id": "element-8",
+            "type": "frame",
+            "x": 240,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 9,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "name": null
+          },
+          {
+            "id": "element-9",
+            "type": "iframe",
+            "x": 270,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 10,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-10",
+            "type": "embeddable",
+            "x": 300,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 11,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          }
+        ],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": { "value": 1.25 }
+        },
+        "files": {
+          "sample": {
+            "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+            "mimeType": "image/png",
+            "created": 1
+          }
+        }
+      }
+    },
+    {
+      "action": "distributeHorizontally",
+      "selected": ["element-0", "element-1", "element-2", "element-7"],
+      "selectedGroups": ["reference-group"],
+      "command": { "kind": "distribute", "axis": "x" },
+      "expected": {
+        "elements": [
+          {
+            "id": "element-1",
+            "type": "diamond",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "transparent",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 1588946944,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-0",
+            "type": "rectangle",
+            "x": 75,
+            "y": 10,
+            "width": 20,
+            "height": 40,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 591554560,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-2",
+            "type": "ellipse",
+            "x": 135,
+            "y": 35,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 3,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-3",
+            "type": "text",
+            "x": 90,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 4,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "text": "文字😀",
+            "originalText": "文字😀",
+            "fontSize": 20,
+            "fontFamily": 1,
+            "textAlign": "left",
+            "verticalAlign": "top",
+            "containerId": null,
+            "autoResize": true,
+            "lineHeight": 1.25
+          },
+          {
+            "id": "element-4",
+            "type": "line",
+            "x": 120,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 5,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-5",
+            "type": "arrow",
+            "x": 150,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 6,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": "arrow",
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-6",
+            "type": "freedraw",
+            "x": 180,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 7,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-7",
+            "type": "image",
+            "x": 210,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 8,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "fileId": "sample",
+            "status": "saved",
+            "scale": [1, 1],
+            "crop": null
+          },
+          {
+            "id": "element-8",
+            "type": "frame",
+            "x": 240,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 9,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "name": null
+          },
+          {
+            "id": "element-9",
+            "type": "iframe",
+            "x": 270,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 10,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-10",
+            "type": "embeddable",
+            "x": 300,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 11,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          }
+        ],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": { "value": 1.25 }
+        },
+        "files": {
+          "sample": {
+            "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",
+            "mimeType": "image/png",
+            "created": 1
+          }
+        }
+      }
+    },
+    {
+      "action": "distributeVertically",
+      "selected": ["element-0", "element-1", "element-2", "element-7"],
+      "selectedGroups": ["reference-group"],
+      "command": { "kind": "distribute", "axis": "y" },
+      "expected": {
+        "elements": [
+          {
+            "id": "element-1",
+            "type": "diamond",
+            "x": 0,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "transparent",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 1588946944,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-0",
+            "type": "rectangle",
+            "x": 75,
+            "y": 10,
+            "width": 20,
+            "height": 40,
+            "angle": 0,
+            "strokeColor": "#cc0000",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "hachure",
+            "strokeWidth": 2,
+            "strokeStyle": "dashed",
+            "roughness": 2,
+            "opacity": 60,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 591554560,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-2",
+            "type": "ellipse",
+            "x": 135,
+            "y": 35,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": ["reference-group"],
+            "frameId": null,
+            "roundness": null,
+            "seed": 3,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-3",
+            "type": "text",
+            "x": 90,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 4,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "text": "文字😀",
+            "originalText": "文字😀",
+            "fontSize": 20,
+            "fontFamily": 1,
+            "textAlign": "left",
+            "verticalAlign": "top",
+            "containerId": null,
+            "autoResize": true,
+            "lineHeight": 1.25
+          },
+          {
+            "id": "element-4",
+            "type": "line",
+            "x": 120,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 5,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-5",
+            "type": "arrow",
+            "x": 150,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 6,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": "arrow",
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-6",
+            "type": "freedraw",
+            "x": 180,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 7,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "points": [
+              [0, 0],
+              [20, 20]
+            ],
+            "startBinding": null,
+            "endBinding": null,
+            "startArrowhead": null,
+            "endArrowhead": null,
+            "pressures": [0.5, 0.8],
+            "simulatePressure": false,
+            "lastCommittedPoint": null
+          },
+          {
+            "id": "element-7",
+            "type": "image",
+            "x": 210,
+            "y": 16.25,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "#ffeeaa",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 60,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 8,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "fileId": "sample",
+            "status": "saved",
+            "scale": [1, 1],
+            "crop": null
+          },
+          {
+            "id": "element-8",
+            "type": "frame",
+            "x": 240,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 9,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" },
+            "name": null
+          },
+          {
+            "id": "element-9",
+            "type": "iframe",
+            "x": 270,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 10,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          },
+          {
+            "id": "element-10",
+            "type": "embeddable",
+            "x": 300,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "angle": 0,
+            "strokeColor": "#1e1e1e",
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 1,
+            "opacity": 100,
+            "groupIds": [],
+            "frameId": null,
+            "roundness": null,
+            "seed": 11,
+            "isDeleted": false,
+            "boundElements": [],
+            "link": null,
+            "locked": false,
+            "customData": { "unknown": "preserve" }
+          }
+        ],
+        "appState": {
+          "viewBackgroundColor": "#ffffff",
+          "scrollX": 4,
+          "scrollY": 6,
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -3517,17 +4647,14 @@
     {
       "action": "bringToFront",
       "selected": ["element-0", "element-2"],
-      "command": {
-        "kind": "layer",
-        "layer": "front"
-      },
+      "command": { "kind": "layer", "layer": "front" },
       "expected": {
         "elements": [
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -3541,14 +4668,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -3573,9 +4698,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -3609,9 +4732,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3647,9 +4768,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3685,9 +4804,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -3704,7 +4821,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -3723,9 +4840,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -3754,9 +4869,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -3782,9 +4895,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -3809,14 +4920,12 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 75,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -3831,19 +4940,17 @@
             "groupIds": ["reference-group"],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -3863,18 +4970,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -3888,16 +4991,13 @@
     {
       "action": "sendToBack",
       "selected": ["element-0", "element-2"],
-      "command": {
-        "kind": "layer",
-        "layer": "back"
-      },
+      "command": { "kind": "layer", "layer": "back" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 75,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -3912,19 +5012,17 @@
             "groupIds": ["reference-group"],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -3944,15 +5042,13 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -3966,14 +5062,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -3998,9 +5092,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -4034,9 +5126,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4072,9 +5162,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4110,9 +5198,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4129,7 +5215,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -4148,9 +5234,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -4179,9 +5263,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -4207,9 +5289,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -4234,18 +5314,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -4259,17 +5335,14 @@
     {
       "action": "bringForward",
       "selected": ["element-0", "element-2"],
-      "command": {
-        "kind": "layer",
-        "layer": "forward"
-      },
+      "command": { "kind": "layer", "layer": "forward" },
       "expected": {
         "elements": [
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -4283,19 +5356,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 75,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -4310,19 +5381,17 @@
             "groupIds": ["reference-group"],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -4342,9 +5411,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -4369,9 +5436,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -4405,9 +5470,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4443,9 +5506,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4481,9 +5542,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4500,7 +5559,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -4519,9 +5578,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -4550,9 +5607,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -4578,9 +5633,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -4605,18 +5658,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -4630,16 +5679,13 @@
     {
       "action": "sendBackward",
       "selected": ["element-0", "element-2"],
-      "command": {
-        "kind": "layer",
-        "layer": "backward"
-      },
+      "command": { "kind": "layer", "layer": "backward" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 75,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -4654,19 +5700,17 @@
             "groupIds": ["reference-group"],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -4686,15 +5730,13 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -4708,14 +5750,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -4740,9 +5780,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -4776,9 +5814,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4814,9 +5850,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4852,9 +5886,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -4871,7 +5903,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -4890,9 +5922,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -4921,9 +5951,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -4949,9 +5977,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -4976,18 +6002,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -5002,16 +6024,13 @@
       "action": "ungroup",
       "selected": ["element-0", "element-2"],
       "selectedGroups": ["reference-group"],
-      "command": {
-        "kind": "ungroup",
-        "id": "reference-group"
-      },
+      "command": { "kind": "ungroup", "id": "reference-group" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 75,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -5026,19 +6045,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -5058,15 +6075,13 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5080,14 +6095,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -5112,9 +6125,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -5148,9 +6159,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5186,9 +6195,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5224,9 +6231,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5243,7 +6248,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5262,9 +6267,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -5293,9 +6296,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -5321,9 +6322,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -5348,18 +6347,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -5373,16 +6368,13 @@
     {
       "action": "distributeHorizontally",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "distribute",
-        "axis": "x"
-      },
+      "command": { "kind": "distribute", "axis": "x" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 67.5,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -5397,19 +6389,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 35,
             "width": 20,
             "height": 20,
@@ -5429,15 +6419,13 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5451,14 +6439,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -5483,9 +6469,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -5519,9 +6503,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5557,9 +6539,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5595,9 +6575,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5614,7 +6592,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5633,9 +6611,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -5664,9 +6640,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -5692,9 +6666,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -5719,18 +6691,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -5744,17 +6712,14 @@
     {
       "action": "distributeVertically",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "distribute",
-        "axis": "y"
-      },
+      "command": { "kind": "distribute", "axis": "y" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
-            "y": 10,
+            "x": 67.5,
+            "y": 12.5,
             "width": 20,
             "height": 40,
             "angle": 0,
@@ -5768,20 +6733,18 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
-            "y": 55,
+            "x": 135,
+            "y": 35,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5800,15 +6763,13 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
-            "y": 80,
+            "x": 0,
+            "y": 10,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -5822,14 +6783,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -5854,9 +6813,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -5890,9 +6847,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5928,9 +6883,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5966,9 +6919,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -5985,7 +6936,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -6004,9 +6955,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -6035,9 +6984,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -6063,9 +7010,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -6090,18 +7035,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -6115,17 +7056,13 @@
     {
       "action": "alignTop",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "y",
-        "alignment": "start"
-      },
+      "command": { "kind": "align", "axis": "y", "alignment": "start" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 67.5,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -6140,19 +7077,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 10,
             "width": 20,
             "height": 20,
@@ -6172,14 +7107,12 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
+            "x": 0,
             "y": 10,
             "width": 20,
             "height": 20,
@@ -6194,14 +7127,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -6226,9 +7157,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -6262,9 +7191,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6300,9 +7227,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6338,9 +7263,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6357,7 +7280,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -6376,9 +7299,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -6407,9 +7328,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -6435,9 +7354,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -6462,18 +7379,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -6487,17 +7400,13 @@
     {
       "action": "alignBottom",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "y",
-        "alignment": "end"
-      },
+      "command": { "kind": "align", "axis": "y", "alignment": "end" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 67.5,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -6512,19 +7421,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 30,
             "width": 20,
             "height": 20,
@@ -6544,14 +7451,12 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
+            "x": 0,
             "y": 30,
             "width": 20,
             "height": 20,
@@ -6566,14 +7471,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -6598,9 +7501,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -6634,9 +7535,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6672,9 +7571,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6710,9 +7607,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -6729,7 +7624,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -6748,9 +7643,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -6779,9 +7672,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -6807,9 +7698,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -6834,18 +7723,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -6859,17 +7744,13 @@
     {
       "action": "alignVerticallyCentered",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "y",
-        "alignment": "center"
-      },
+      "command": { "kind": "align", "axis": "y", "alignment": "center" },
       "expected": {
         "elements": [
           {
             "id": "element-0",
             "type": "rectangle",
-            "x": 0,
+            "x": 67.5,
             "y": 10,
             "width": 20,
             "height": 40,
@@ -6884,19 +7765,17 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
             "type": "ellipse",
-            "x": 60,
+            "x": 135,
             "y": 20,
             "width": 20,
             "height": 20,
@@ -6916,14 +7795,12 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
             "type": "diamond",
-            "x": 30,
+            "x": 0,
             "y": 20,
             "width": 20,
             "height": 20,
@@ -6938,14 +7815,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -6970,9 +7845,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -7006,9 +7879,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7044,9 +7915,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7082,9 +7951,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7101,7 +7968,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -7120,9 +7987,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -7151,9 +8016,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -7179,9 +8042,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -7206,18 +8067,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -7231,11 +8088,7 @@
     {
       "action": "alignLeft",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "x",
-        "alignment": "start"
-      },
+      "command": { "kind": "align", "axis": "x", "alignment": "start" },
       "expected": {
         "elements": [
           {
@@ -7256,14 +8109,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -7288,9 +8139,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -7310,14 +8159,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -7342,9 +8189,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -7378,9 +8223,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7416,9 +8259,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7454,9 +8295,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7473,7 +8312,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -7492,9 +8331,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -7523,9 +8360,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -7551,9 +8386,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -7578,18 +8411,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -7603,11 +8432,7 @@
     {
       "action": "alignRight",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "x",
-        "alignment": "end"
-      },
+      "command": { "kind": "align", "axis": "x", "alignment": "end" },
       "expected": {
         "elements": [
           {
@@ -7628,14 +8453,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -7660,9 +8483,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -7682,14 +8503,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -7714,9 +8533,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -7750,9 +8567,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7788,9 +8603,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7826,9 +8639,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -7845,7 +8656,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -7864,9 +8675,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -7895,9 +8704,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -7923,9 +8730,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -7950,18 +8755,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -7975,11 +8776,7 @@
     {
       "action": "alignHorizontallyCentered",
       "selected": ["element-0", "element-1", "element-2"],
-      "command": {
-        "kind": "align",
-        "axis": "x",
-        "alignment": "center"
-      },
+      "command": { "kind": "align", "axis": "x", "alignment": "center" },
       "expected": {
         "elements": [
           {
@@ -8000,14 +8797,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -8032,9 +8827,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -8054,14 +8847,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -8086,9 +8877,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -8122,9 +8911,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8160,9 +8947,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8198,9 +8983,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8217,7 +9000,7 @@
             "id": "element-7",
             "type": "image",
             "x": 210,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -8236,9 +9019,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [1, 1],
@@ -8267,9 +9048,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -8295,9 +9074,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -8322,18 +9099,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -8347,10 +9120,7 @@
     {
       "action": "flipHorizontal",
       "selected": ["element-0", "element-7"],
-      "command": {
-        "kind": "flip",
-        "axis": "x"
-      },
+      "command": { "kind": "flip", "axis": "x" },
       "expected": {
         "elements": [
           {
@@ -8371,14 +9141,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -8403,9 +9171,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -8425,14 +9191,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -8457,9 +9221,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -8493,9 +9255,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8531,9 +9291,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8569,9 +9327,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8588,7 +9344,7 @@
             "id": "element-7",
             "type": "image",
             "x": 0,
-            "y": 10,
+            "y": 16.25,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -8607,9 +9363,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [-1, 1],
@@ -8638,9 +9392,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -8666,9 +9418,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -8693,18 +9443,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -8718,10 +9464,7 @@
     {
       "action": "flipVertical",
       "selected": ["element-0", "element-7"],
-      "command": {
-        "kind": "flip",
-        "axis": "y"
-      },
+      "command": { "kind": "flip", "axis": "y" },
       "expected": {
         "elements": [
           {
@@ -8742,14 +9485,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -8774,9 +9515,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -8796,14 +9535,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -8828,9 +9565,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -8864,9 +9599,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8902,9 +9635,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8940,9 +9671,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -8959,7 +9688,7 @@
             "id": "element-7",
             "type": "image",
             "x": 0,
-            "y": 30,
+            "y": 23.75,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -8978,9 +9707,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [-1, -1],
@@ -9009,9 +9736,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -9037,9 +9762,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -9064,18 +9787,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -9089,10 +9808,7 @@
     {
       "action": "toggleElementLock",
       "selected": ["element-0"],
-      "command": {
-        "kind": "lock",
-        "locked": true
-      },
+      "command": { "kind": "lock", "locked": true },
       "expected": {
         "elements": [
           {
@@ -9113,14 +9829,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": true,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -9145,9 +9859,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -9167,14 +9879,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -9199,9 +9909,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -9235,9 +9943,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9273,9 +9979,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9311,9 +10015,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9330,7 +10032,7 @@
             "id": "element-7",
             "type": "image",
             "x": 0,
-            "y": 30,
+            "y": 23.75,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -9349,9 +10051,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [-1, -1],
@@ -9380,9 +10080,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -9408,9 +10106,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -9435,18 +10131,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -9460,10 +10152,7 @@
     {
       "action": "toggleElementLock",
       "selected": ["element-0"],
-      "command": {
-        "kind": "lock",
-        "locked": false
-      },
+      "command": { "kind": "lock", "locked": false },
       "expected": {
         "elements": [
           {
@@ -9484,14 +10173,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -9516,9 +10203,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -9538,14 +10223,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -9570,9 +10253,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -9606,9 +10287,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9644,9 +10323,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9682,9 +10359,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -9701,7 +10376,7 @@
             "id": "element-7",
             "type": "image",
             "x": 0,
-            "y": 30,
+            "y": 23.75,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -9720,9 +10395,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [-1, -1],
@@ -9751,9 +10424,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -9779,9 +10450,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -9806,18 +10475,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {
@@ -9831,9 +10496,7 @@
     {
       "action": "deleteSelectedElements",
       "selected": ["element-1"],
-      "command": {
-        "kind": "delete"
-      },
+      "command": { "kind": "delete" },
       "expected": {
         "elements": [
           {
@@ -9854,14 +10517,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 305862656,
+            "seed": 591554560,
             "isDeleted": false,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-2",
@@ -9886,9 +10547,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-1",
@@ -9908,14 +10567,12 @@
             "groupIds": [],
             "frameId": null,
             "roundness": null,
-            "seed": 1259870208,
+            "seed": 1588946944,
             "isDeleted": true,
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-3",
@@ -9940,9 +10597,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "text": "文字😀",
             "originalText": "文字😀",
             "fontSize": 20,
@@ -9976,9 +10631,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -10014,9 +10667,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -10052,9 +10703,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "points": [
               [0, 0],
               [20, 20]
@@ -10071,7 +10720,7 @@
             "id": "element-7",
             "type": "image",
             "x": 0,
-            "y": 30,
+            "y": 23.75,
             "width": 20,
             "height": 20,
             "angle": 0,
@@ -10090,9 +10739,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "fileId": "sample",
             "status": "saved",
             "scale": [-1, -1],
@@ -10121,9 +10768,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            },
+            "customData": { "unknown": "preserve" },
             "name": null
           },
           {
@@ -10149,9 +10794,7 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           },
           {
             "id": "element-10",
@@ -10176,18 +10819,14 @@
             "boundElements": [],
             "link": null,
             "locked": false,
-            "customData": {
-              "unknown": "preserve"
-            }
+            "customData": { "unknown": "preserve" }
           }
         ],
         "appState": {
           "viewBackgroundColor": "#ffffff",
           "scrollX": 4,
           "scrollY": 6,
-          "zoom": {
-            "value": 1.25
-          }
+          "zoom": { "value": 1.25 }
         },
         "files": {
           "sample": {

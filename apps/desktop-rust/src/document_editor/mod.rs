@@ -1,10 +1,16 @@
-//! Continuous Markdown editing. RM16 owns the document and history; this module
-//! owns only projection, native input, focus and current-frame geometry.
+//! Continuous and source editing share one document session, history and save
+//! controller; projection and native input never own a second body.
 mod accessibility;
+mod builtin;
 mod element;
+mod images;
 mod input;
 mod projection;
+mod saving;
+mod session;
 mod state;
+pub use saving::{FlushState, flush_all, open_document};
+mod source_mode;
 #[cfg(test)]
 mod tests;
 
@@ -29,7 +35,7 @@ use gpui_kit::{
     *,
 };
 use projection::LeafId;
-use state::{DocumentState, Result};
+use state::{DocumentSession, Result};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Clone, PartialEq, serde::Deserialize, Action)]
@@ -44,6 +50,9 @@ impl RunCommand {
 }
 
 const COMMANDS: &[(&str, &str)] = &[
+    ("reading-card", "阅读卡片"),
+    ("callout", "提示块"),
+    ("details", "折叠块"),
     ("paragraph", "正文"),
     ("h1", "一级标题"),
     ("h2", "二级标题"),
@@ -58,6 +67,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("code", "代码块"),
     ("table", "表格"),
     ("rule", "分隔线"),
+    ("image", "图片…"),
 ];
 
 pub fn insert_menu() -> Menu {
@@ -77,6 +87,7 @@ pub fn insert_menu() -> Menu {
 
 pub fn install_actions(cx: &mut App) {
     for (mac, other, command) in [
+        ("cmd-s", "ctrl-s", "save"),
         ("cmd-b", "ctrl-b", "bold"),
         ("cmd-i", "ctrl-i", "italic"),
         ("cmd-z", "ctrl-z", "undo"),
@@ -94,10 +105,9 @@ pub fn install_actions(cx: &mut App) {
     }
 }
 
-/// A transient draft view. The caller supplies Markdown; persistence belongs to
-/// the subsequent document-session integration, not to a second autosave owner.
+/// Continuous and source views share one document, history and save controller.
 pub struct DocumentEditor {
-    state: DocumentState,
+    state: DocumentSession,
     focus: FocusHandle,
     layout: ListState,
     geometry: Rc<RefCell<element::GeometryFrame>>,
@@ -120,10 +130,28 @@ pub struct DocumentEditor {
     menu: Option<Entity<AppMenuBar>>,
     show_search: bool,
     error: Option<String>,
+    save_task: Option<Task<()>>,
+    debounce_task: Option<Task<()>>,
+    saving: bool,
+    flush_requested: bool,
+    closing: bool,
+    switching: Option<anynote_core::document_session::DocumentSnapshot>,
+    lifecycle: Vec<Subscription>,
+    source_blur: Option<Subscription>,
+    rich_scroll: Option<(ListOffset, u64)>,
+    source_scroll: Option<(Point<Pixels>, u64)>,
+    images: images::Images,
+    builtin_pending: Option<anynote_core::builtin::ReadingCommand>,
+    builtin_request: Option<(anynote_core::builtin::ReadingRequest, u64, uuid::Uuid)>,
+    builtin_running: bool,
+    builtin_task: Option<Task<()>>,
+    preferences_task: Option<Task<()>>,
+    expanded_blocks: std::collections::HashSet<anynote_editor::model::BlockId>,
+    capture_cards: HashMap<anynote_editor::model::BlockId, anynote_editor::capture_card::CardNode>,
 }
 impl DocumentEditor {
     pub fn new(source: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let state = DocumentState::new(source);
+        let state = DocumentSession::new(source);
         let layout = ListState::new(
             state.projection.rows.len(),
             ListAlignment::Top,
@@ -155,8 +183,27 @@ impl DocumentEditor {
             menu: (!cfg!(target_os = "macos")).then(|| AppMenuBar::new(cx)),
             show_search: false,
             error: None,
+            save_task: None,
+            debounce_task: None,
+            saving: false,
+            flush_requested: false,
+            closing: false,
+            switching: None,
+            lifecycle: vec![],
+            source_blur: None,
+            rich_scroll: None,
+            source_scroll: None,
+            images: Default::default(),
+            builtin_pending: None,
+            builtin_request: None,
+            builtin_running: false,
+            builtin_task: None,
+            preferences_task: None,
+            expanded_blocks: Default::default(),
+            capture_cards: Default::default(),
         };
         this.rekey();
+        this.install_lifecycle(window, cx);
         this
     }
     pub fn source(&self) -> &str {
@@ -176,6 +223,17 @@ impl DocumentEditor {
     }
 
     fn rekey(&mut self) {
+        self.capture_cards = self
+            .state
+            .editor
+            .document()
+            .blocks()
+            .iter()
+            .filter_map(|block| {
+                anynote_editor::capture_card::parse(&self.source()[block.span()])
+                    .map(|card| (block.id(), card))
+            })
+            .collect();
         let mut identities = HashMap::new();
         self.keys = self
             .state
@@ -227,6 +285,7 @@ impl DocumentEditor {
         }
         self.geometry.borrow_mut().leaves.clear();
         self.update_slash(window, cx);
+        self.schedule_save(window, cx);
         window.notify_text_input_changed(&self.focus);
         window.notify_text_selection_changed(&self.focus);
         cx.notify();
@@ -278,9 +337,22 @@ impl DocumentEditor {
         })
     }
     fn run(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
-        if self.source_composing(window, cx)
-            || (self.source.is_some() && !matches!(action.name.as_str(), "undo" | "redo"))
-        {
+        if self.run_builtin(&action.name, window, cx) {
+            return;
+        }
+        if action.name == "save" {
+            self.retry_save(window, cx);
+            return;
+        }
+        if action.name == "image" {
+            self.choose_images(window, cx);
+            return;
+        }
+        if self.source.is_some() && !matches!(action.name.as_str(), "undo" | "redo") {
+            self.source_format(&action.name, window, cx);
+            return;
+        }
+        if self.source_composing(window, cx) {
             self.error = Some("请先完成当前输入".into());
             cx.notify();
             return;
@@ -403,65 +475,6 @@ impl DocumentEditor {
                 })
         });
     }
-    fn sync_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(source) = &self.source {
-            let text = self.source().to_owned();
-            let selection = self.state.editor.selection().range();
-            source.update(cx, |source, cx| {
-                source.set_value(text, window, cx);
-                source.set_selected_range(selection, cx);
-            });
-        }
-    }
-    fn toggle_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_composing() || self.source_composing(window, cx) {
-            self.error = Some("请先完成当前输入".into());
-            cx.notify();
-            return;
-        }
-        if self.source.take().is_some() {
-            self.source_subscription = None;
-            self.focus.focus(window, cx);
-            cx.notify();
-            return;
-        }
-        let text = self.source().to_owned();
-        let selection = self.state.editor.selection().range();
-        let source = cx.new(|cx| {
-            let mut input = EditorState::new(window, cx).language("markdown");
-            input.set_value(text, window, cx);
-            input.set_selected_range(selection, cx);
-            input
-        });
-        self.source_subscription = Some(cx.subscribe_in(
-            &source,
-            window,
-            |this, _, event: &InputEditsEvent, window, cx| {
-                // The event carries each intermediate snapshot. Reading current value
-                // here would collapse queued edits and corrupt their byte coordinates.
-                for (edit, snapshot) in event.edits() {
-                    let text = snapshot.to_string();
-                    let Some(replacement) = text.get(edit.start_byte..edit.new_end_byte) else {
-                        this.error = Some("无效源码编辑批次".into());
-                        break;
-                    };
-                    let result = this
-                        .state
-                        .source_edit(edit.start_byte..edit.old_end_byte, replacement);
-                    if result.is_err() {
-                        this.changed(result, window, cx);
-                        this.sync_source(window, cx);
-                        return;
-                    }
-                }
-                this.changed(Ok(()), window, cx);
-            },
-        ));
-        source.update(cx, |input, cx| input.focus(window, cx));
-        self.source = Some(source);
-        self.slash = None;
-        cx.notify();
-    }
     pub fn find_text(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if query.is_empty() || self.is_composing() {
             return false;
@@ -503,16 +516,7 @@ impl DocumentEditor {
         }
     }
     fn paste_item(&mut self, item: ClipboardItem, window: &mut Window, cx: &mut Context<Self>) {
-        if item
-            .entries()
-            .iter()
-            .any(|e| !matches!(e, ClipboardEntry::String(_)))
-        {
-            self.changed(
-                Err("图片与文件插入将在资源会话接入后提供".into()),
-                window,
-                cx,
-            );
+        if self.paste_images(&item, window, cx) {
             return;
         }
         let markdown = item
@@ -614,6 +618,9 @@ impl DocumentEditor {
         let first = row.leaves.start;
         let leaf = self.state.projection.leaves[first].clone();
         let key = self.keys[first];
+        if let Some(image) = self.render_image_block(first, window, cx) {
+            return image;
+        }
         let owner = cx.entity();
         let mut content = div()
             .id(("row", key))
@@ -664,7 +671,9 @@ impl DocumentEditor {
         } else if let Some(marker) = leaf.marker {
             content = content.child(div().text_color(cx.theme().muted_foreground).child(marker));
         }
-        if row.table.is_some() {
+        if let Some(block) = self.render_builtin(first, key, cx) {
+            content = content.child(div().flex_1().min_w_0().child(block));
+        } else if row.table.is_some() {
             for leaf_ix in row.leaves {
                 content = content.child(
                     div()
@@ -686,6 +695,30 @@ impl DocumentEditor {
             );
         }
         if matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule) {
+            if let Some(block) = leaf.id.block {
+                content = content.child(
+                    Button::new(("copy-source-block", key))
+                        .small()
+                        .ghost()
+                        .label("复制原文")
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(block) = this.state.editor.document().block(block) {
+                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                    this.source()[block.span()].to_owned(),
+                                ));
+                            }
+                        })),
+                );
+                content = content.child(
+                    Button::new(("export-source-block", key))
+                        .small()
+                        .ghost()
+                        .label("导出原文…")
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.export_block(block, window, cx)
+                        })),
+                );
+            }
             let label = if leaf.kind == NodeKind::Rule {
                 "分隔线"
             } else {
@@ -745,6 +778,7 @@ impl DocumentEditor {
             .py_2()
             .border_b_1()
             .border_color(cx.theme().border)
+            .child(self.reading_menu(cx))
             .child(
                 Button::new("insert-content")
                     .small()
@@ -771,10 +805,7 @@ impl DocumentEditor {
                     .small()
                     .ghost()
                     .label(label)
-                    .disabled(
-                        self.is_composing()
-                            || (self.source.is_some() && !matches!(id, "undo" | "redo")),
-                    )
+                    .disabled(self.is_composing())
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.run(&RunCommand::new(id), window, cx)
                     })),
@@ -801,6 +832,10 @@ impl DocumentEditor {
                     .ghost()
                     .label("查找")
                     .on_click(cx.listener(|this, _, window, cx| {
+                        if let Some(source) = &this.source {
+                            source.update(cx, |s, cx| s.open_search(true, cx));
+                            return;
+                        }
                         this.show_search = !this.show_search;
                         if this.show_search {
                             this.search.update(cx, |s, cx| s.focus(window, cx));
@@ -829,6 +864,7 @@ impl Focusable for DocumentEditor {
 }
 impl Render for DocumentEditor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.images.previews.clear();
         if self.last_rem != window.rem_size() || self.last_scale != window.scale_factor() {
             let (leaf, _) = self.state.projection.at(self.state.head);
             let selected_was_visible = self.geometry.borrow().leaves.contains_key(&self.keys[leaf]);
@@ -845,14 +881,28 @@ impl Render for DocumentEditor {
         }
         let entity = cx.entity();
         let source = self.source.clone();
-        let content = if let Some(source) = source {
+        let content = if let Some(image) = &self.images.active {
+            let image = image.clone();
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .child(
+                    Button::new("close-image-reader")
+                        .label("返回正文")
+                        .on_click(cx.listener(|this, _, window, cx| this.close_image(window, cx))),
+                )
+                .child(image)
+                .into_any_element()
+        } else if let Some(source) = source {
             div()
                 .id("source-editor")
                 .flex_1()
                 .min_h_0()
                 .child(
                     SourceEditor::new(&source)
-                        .h_full()
+                        .h(relative(1.))
                         .aria_label("Markdown 原文"),
                 )
                 .into_any_element()
@@ -884,6 +934,25 @@ impl Render for DocumentEditor {
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
             .on_action(cx.listener(Self::run))
+            .child(self.render_image_status(cx))
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, window, cx| {
+                this.import_images(
+                    paths
+                        .0
+                        .iter()
+                        .cloned()
+                        .map(images::ImageInput::File)
+                        .collect(),
+                    None,
+                    window,
+                    cx,
+                )
+            }))
+            .on_action(
+                cx.listener(|this, _: &crate::shell::CloseWindow, window, cx| {
+                    this.request_close(window, cx)
+                }),
+            )
             .capture_action(cx.listener(|this, _: &kit_input::Undo, window, cx| {
                 if this.focus.is_focused(window)
                     || this
@@ -914,6 +983,7 @@ impl Render for DocumentEditor {
                 view.child(gpui_kit::div().h_8().flex_shrink_0().child(menu))
             })
             .child(self.render_toolbar(cx))
+            .child(self.render_save_status(cx))
             .when(self.show_search, |div| {
                 div.child(
                     gpui_kit::div()
@@ -934,6 +1004,8 @@ impl Render for DocumentEditor {
             .child(
                 div()
                     .id("document-content")
+                    .flex()
+                    .flex_col()
                     .role(Role::MultilineTextInput)
                     .aria_label("文档内容")
                     .test_support()
@@ -1015,7 +1087,6 @@ impl Render for DocumentEditor {
                             cx.propagate();
                         }
                     }))
-                    .on_action(|_: &crate::shell::CloseWindow, window, _| window.remove_window())
                     .child(content)
                     .when_some(self.slash.clone(), |div, menu| {
                         div.child(

@@ -2,8 +2,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const PROTOCOL_VERSION: u32 = 1;
-pub const MAX_CONTROL_BYTES: usize = 1024 * 1024;
+pub const PROTOCOL_VERSION: u32 = 2;
+// A storage body allows two million UTF-16 units; JSON escapes can use six bytes each.
+pub const MAX_CONTROL_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_CHUNK_BYTES: usize = 256 * 1024;
 pub const QUEUE_CAPACITY: usize = 16;
 pub const MAX_PENDING_REQUESTS: usize = QUEUE_CAPACITY - 2;
@@ -239,6 +240,29 @@ impl TaskRecord {
     deny_unknown_fields
 )]
 pub enum Command {
+    Image(crate::image::ImageCommand),
+    RunReading(crate::builtin::ReadingRequest),
+    GetNotebookPreferences {
+        notebook: Uuid,
+    },
+    SetNotebookPreferences {
+        notebook: Uuid,
+        expected: i64,
+        preferences: crate::builtin::NotebookPreferences,
+    },
+    CreateDocument,
+    OpenLastDocument,
+    OpenDocument {
+        id: crate::document_session::DocumentId,
+    },
+    SaveDocument(crate::document_session::SaveDocument),
+    DocumentResource {
+        id: crate::document_session::DocumentId,
+        revision: Uuid,
+        resource: Uuid,
+        offset: u64,
+        length: u32,
+    },
     Ping,
     StartHealthCheck {
         delay_ms: u64,
@@ -307,11 +331,25 @@ impl Request {
     deny_unknown_fields
 )]
 pub enum Reply {
+    Image(crate::image::ImageReply),
+    Reading(crate::document_session::DocumentSnapshot),
+    NotebookPreferences {
+        revision: i64,
+        preferences: crate::builtin::NotebookPreferences,
+    },
+    Document(crate::document_session::DocumentSnapshot),
+    DocumentSaved(crate::document_session::SaveDocument),
+    DocumentResource {
+        bytes: Vec<u8>,
+    },
     Pong,
     Task(TaskRecord),
     Tasks(Vec<TaskRecord>),
     Diagnostics(DiagnosticSnapshot),
-    Resource { token: Uuid, length: u64 },
+    Resource {
+        token: Uuid,
+        length: u64,
+    },
     Ack,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]

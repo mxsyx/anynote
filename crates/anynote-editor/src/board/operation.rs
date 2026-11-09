@@ -60,6 +60,8 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             | Command::View { .. }
             | Command::Insert { .. }
             | Command::Geometry { .. }
+            | Command::ResizePath { .. }
+            | Command::CropImage { .. }
             | Command::Text { .. }
             | Command::Points { .. }
             | Command::BindText { .. }
@@ -122,7 +124,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             }
         }
         Command::Align { axis, alignment } => {
-            let bounds = independent_bounds(scene, &selected)?;
+            let bounds = transform_groups(scene, &selected)?;
             if bounds.len() < 2 {
                 return Ok(());
             }
@@ -135,7 +137,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 .iter()
                 .map(|(_, b)| b[dimension + 2])
                 .fold(f64::NEG_INFINITY, f64::max);
-            for (id, bounds) in bounds {
+            for (ids, bounds) in bounds {
                 let delta = match alignment {
                     Alignment::Start => min - bounds[dimension],
                     Alignment::End => max - bounds[dimension + 2],
@@ -143,38 +145,67 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                         (min + max - bounds[dimension] - bounds[dimension + 2]) / 2.0
                     }
                 };
-                move_on_axis(scene, &id, *axis, delta)?;
+                for id in ids {
+                    move_on_axis(scene, &id, *axis, delta)?;
+                }
             }
         }
         Command::Distribute { axis } => {
-            let mut bounds = independent_bounds(scene, &selected)?;
-            if bounds.len() < 3 {
+            let mut bounds = transform_groups(scene, &selected)?;
+            if bounds.len() < 2 {
                 return Ok(());
             }
             let dimension = if matches!(axis, Axis::X) { 0 } else { 1 };
             bounds.sort_by(|(_, a), (_, b)| {
                 (a[dimension] + a[dimension + 2]).total_cmp(&(b[dimension] + b[dimension + 2]))
             });
-            let min = bounds.first().unwrap().1[dimension];
-            let max = bounds.last().unwrap().1[dimension + 2];
+            let min = bounds
+                .iter()
+                .map(|(_, b)| b[dimension])
+                .fold(f64::INFINITY, f64::min);
+            let max = bounds
+                .iter()
+                .map(|(_, b)| b[dimension + 2])
+                .fold(f64::NEG_INFINITY, f64::max);
             let total: f64 = bounds
                 .iter()
                 .map(|(_, b)| b[dimension + 2] - b[dimension])
                 .sum();
             let gap = (max - min - total) / (bounds.len() - 1) as f64;
             if gap < 0.0 {
-                return Err(invalid(
-                    "overlapping distribution requires upstream center-spacing policy",
-                ));
-            }
-            let mut cursor = min;
-            for (id, b) in bounds {
-                move_on_axis(scene, &id, *axis, cursor - b[dimension])?;
-                cursor += b[dimension + 2] - b[dimension] + gap;
+                let first = bounds
+                    .iter()
+                    .position(|(_, b)| b[dimension] == min)
+                    .unwrap();
+                let last = bounds
+                    .iter()
+                    .position(|(_, b)| b[dimension + 2] == max)
+                    .unwrap();
+                let center = |b: &[f64; 4]| (b[dimension] + b[dimension + 2]) / 2.0;
+                let step = (center(&bounds[last].1) - center(&bounds[first].1))
+                    / (bounds.len() - 1) as f64;
+                let mut cursor = center(&bounds[first].1);
+                for (index, (ids, b)) in bounds.into_iter().enumerate() {
+                    if index != first && index != last {
+                        cursor += step;
+                        for id in ids {
+                            move_on_axis(scene, &id, *axis, cursor - center(&b))?;
+                        }
+                    }
+                }
+            } else {
+                let mut cursor = min;
+                for (ids, b) in bounds {
+                    for id in ids {
+                        move_on_axis(scene, &id, *axis, cursor - b[dimension])?;
+                    }
+                    cursor += b[dimension + 2] - b[dimension] + gap;
+                }
             }
         }
+
         Command::Flip { axis } => {
-            let bounds = independent_bounds(scene, &selected)?;
+            let bounds = independent_bounds(scene, &selected, false)?;
             if bounds.is_empty() {
                 return Ok(());
             }
@@ -226,6 +257,76 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 }
                 next.write(scene.edit(&id)?);
             }
+        }
+        Command::CropImage {
+            id,
+            handle,
+            natural_width,
+            natural_height,
+            pointer,
+            aspect_ratio,
+        } => {
+            let element = editable(scene, id)?;
+            if element.kind() != ElementKind::Image {
+                return Err(invalid("not an image"));
+            }
+            require_unbound(element)?;
+            super::crop::crop_image(
+                scene.edit(id)?,
+                *handle,
+                *natural_width,
+                *natural_height,
+                *pointer,
+                *aspect_ratio,
+            )?;
+        }
+        Command::ResizePath { id, geometry } => {
+            geometry.validate()?;
+            let element = editable(scene, id)?;
+            require_unbound(element)?;
+            if !matches!(
+                element.kind(),
+                ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw
+            ) || element.field("elbowed") == Some(&json!(true))
+            {
+                return Err(invalid("requires a non-elbow path"));
+            }
+            let mut points: Vec<Point> = serde_json::from_value(
+                element
+                    .field("points")
+                    .cloned()
+                    .ok_or_else(|| invalid("missing points"))?,
+            )?;
+            if points.len() < 2 {
+                return Err(invalid("path needs two points"));
+            }
+            for point in &points {
+                point.validate()?;
+            }
+            let bounds = point_bounds(&points);
+            let width = bounds[2] - bounds[0];
+            let height = bounds[3] - bounds[1];
+            if (width == 0.0 && geometry.width() != 0.0)
+                || (height == 0.0 && geometry.height() != 0.0)
+            {
+                return Err(invalid("cannot expand a degenerate path dimension"));
+            }
+            let sx = if width == 0.0 {
+                1.0
+            } else {
+                geometry.width() / width
+            };
+            let sy = if height == 0.0 {
+                1.0
+            } else {
+                geometry.height() / height
+            };
+            for point in &mut points {
+                *point = Point(point.x() * sx, point.y() * sy);
+                point.validate()?;
+            }
+            set(scene, id, "points", json!(points))?;
+            geometry.write(scene.edit(id)?);
         }
         Command::Geometry { id, geometry } => {
             geometry.validate()?;
@@ -822,43 +923,8 @@ fn reorder(scene: &mut Scene, selected: &BTreeSet<String>, layer: Layer) -> Resu
     if selected.is_empty() {
         return Ok(());
     }
-    // Crossing frame/group boundaries needs the corresponding layout policy.
-    if scene.elements().any(|e| e.reference("frameId").is_some()) {
-        return Err(invalid("frame-aware layer movement not implemented"));
-    }
-    if matches!(layer, Layer::Backward | Layer::Forward)
-        && scene
-            .elements()
-            .any(|e| !selected.contains(e.id()) && !e.group_ids().is_empty())
-    {
-        return Err(invalid(
-            "crossing another group requires group-aware layer movement",
-        ));
-    }
     let before: Vec<_> = scene.elements.iter().map(|e| e.id().to_owned()).collect();
-    match layer {
-        Layer::Back | Layer::Front => scene
-            .elements
-            .sort_by_key(|e| selected.contains(e.id()) == matches!(layer, Layer::Front)),
-        Layer::Backward => {
-            for ix in 1..scene.elements.len() {
-                if selected.contains(scene.elements[ix].id())
-                    && !selected.contains(scene.elements[ix - 1].id())
-                {
-                    scene.elements.swap(ix, ix - 1);
-                }
-            }
-        }
-        Layer::Forward => {
-            for ix in (0..scene.elements.len().saturating_sub(1)).rev() {
-                if selected.contains(scene.elements[ix].id())
-                    && !selected.contains(scene.elements[ix + 1].id())
-                {
-                    scene.elements.swap(ix, ix + 1);
-                }
-            }
-        }
-    }
+    super::order::reorder(scene, selected, layer);
     if !before.iter().eq(scene.elements.iter().map(|e| e.id())) {
         reindex(scene)?;
     }
@@ -899,15 +965,48 @@ fn reindex(scene: &mut Scene) -> Result<(), BoardError> {
     Ok(())
 }
 
+type TransformGroup = (Vec<String>, [f64; 4]);
+fn transform_groups(
+    scene: &Scene,
+    selected: &BTreeSet<String>,
+) -> Result<Vec<TransformGroup>, BoardError> {
+    let bounds = independent_bounds(scene, selected, true)?;
+    let mut groups: Vec<TransformGroup> = Vec::new();
+    let mut indices = BTreeMap::new();
+    // Preserve scene order when equally positioned groups are distributed.
+    let bounds: BTreeMap<_, _> = bounds.into_iter().collect();
+    for element in scene.elements().filter(|e| selected.contains(e.id())) {
+        let b = bounds[element.id()];
+        if let Some(group) = element.group_ids().last() {
+            let index = *indices.entry((*group).to_owned()).or_insert_with(|| {
+                groups.push((Vec::new(), b));
+                groups.len() - 1
+            });
+            let (ids, combined) = &mut groups[index];
+            ids.push(element.id().to_owned());
+            combined[0] = combined[0].min(b[0]);
+            combined[1] = combined[1].min(b[1]);
+            combined[2] = combined[2].max(b[2]);
+            combined[3] = combined[3].max(b[3]);
+        } else {
+            groups.push((vec![element.id().to_owned()], b));
+        }
+    }
+    Ok(groups)
+}
+
 fn independent_bounds(
     scene: &Scene,
     selected: &BTreeSet<String>,
+    allow_groups: bool,
 ) -> Result<Vec<(String, [f64; 4])>, BoardError> {
     let mut result = Vec::new();
     for id in selected {
         let element = editable(scene, id)?;
         require_unbound(element)?;
-        if !element.group_ids().is_empty() || element.reference("frameId").is_some() {
+        if (!allow_groups && !element.group_ids().is_empty())
+            || element.reference("frameId").is_some()
+        {
             return Err(invalid("group/frame transform policy not implemented"));
         }
         let g = element.geometry()?;

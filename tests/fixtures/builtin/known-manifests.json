@@ -1,0 +1,392 @@
+[
+  {
+    "manifest": {
+      "id": "garden.async-related",
+      "name": "异步相关阅读索引",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "查询当前 Notebook 的阅读记录，将命中标题及短片段追加到当前笔记。",
+      "permissions": ["notes:read", "notes:write", "search:read"],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.async-related.append",
+            "title": "追加异步相关阅读索引",
+            "action": {
+              "kind": "transformMarkdown",
+              "asyncSearch": [
+                {
+                  "query": "阅读记录",
+                  "limit": 5,
+                  "id": "reading"
+                }
+              ],
+              "script": "async(note, host) => { const matches = await host.search('reading'); return note.body + '\\n\\n## 异步相关阅读索引\\n\\n' + (matches.results.length ? matches.results.map(r => '- ' + r.title + '：' + r.snippet.replace(/\\n/g, ' ')).join('\\n') : '未找到相关阅读记录。') + (matches.truncated ? '\\n更多结果已省略。' : '') + '\\n'; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "8783bf3111c3bef0c04ade1d19cea46e3c5fface503017853b40eae56a90c001"
+  },
+  {
+    "manifest": {
+      "id": "garden.reading",
+      "name": "阅读卡片",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "declarative",
+      "description": "通过公开声明插入可编辑的阅读摘记与任务模板。",
+      "permissions": ["notes:write"],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.reading.insert",
+            "title": "插入阅读卡片",
+            "action": {
+              "kind": "insertBlock",
+              "type": "garden.reading.card"
+            }
+          },
+          {
+            "id": "garden.reading.template",
+            "title": "插入阅读模板",
+            "action": {
+              "kind": "appendMarkdown",
+              "body": "## 阅读摘记\n\n- [ ] 记录核心观点\n- [ ] 写下一个问题\n"
+            }
+          }
+        ],
+        "editorNodes": [
+          {
+            "type": "garden.reading.card",
+            "title": "阅读卡片",
+            "dataVersion": 1,
+            "presentation": "callout",
+            "fields": [
+              {
+                "key": "quote",
+                "label": "摘录",
+                "default": "记录值得留下的文字"
+              },
+              {
+                "key": "thought",
+                "label": "思考",
+                "default": "我的理解"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "checksum": "b60a3149228a1ba52ccf841dbbb71dddc45938a39298749a3d56d13a8b22904f"
+  },
+  {
+    "manifest": {
+      "id": "garden.network",
+      "name": "公开资料摘要",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "读取明确声明的公开文本地址并追加摘要；示例地址需替换为可用的公开服务。",
+      "permissions": ["notes:read", "notes:write", "network"],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.network.append",
+            "title": "追加公开资料摘要",
+            "action": {
+              "kind": "transformMarkdown",
+              "networkRequests": [
+                {
+                  "id": "reference",
+                  "url": "https://example.com/anynote-demo.txt"
+                }
+              ],
+              "script": "async (note, host) => { const response = await host.request('reference'); return note.body + '\\n\\n## 公开资料摘要\\n\\n' + response.text + '\\n'; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "a287e36b8eee720f93d6fd9f7dd8b94a32e80e4342f04a1a47648434bbd09edb"
+  },
+  {
+    "manifest": {
+      "id": "garden.preferences",
+      "name": "可配置阅读摘要",
+      "version": "0.1.1",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "使用当前 Notebook 的设置，在笔记末尾追加阅读目标。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "settings": {
+          "version": 1,
+          "fields": [
+            {
+              "key": "heading",
+              "label": "摘要标题",
+              "kind": "text",
+              "default": "阅读目标",
+              "maxLength": 80
+            },
+            {
+              "key": "goal",
+              "label": "每周目标篇数",
+              "kind": "number",
+              "default": 3,
+              "min": 1,
+              "max": 100,
+              "integer": true
+            },
+            {
+              "key": "enabled",
+              "label": "追加整理摘要",
+              "kind": "boolean",
+              "default": true
+            }
+          ]
+        },
+        "dataMigrations": [
+          {
+            "id": "garden.preferences.v2",
+            "title": "阅读目标字段升级",
+            "target": "settings",
+            "fromVersion": 1,
+            "toVersion": 1,
+            "fromSettingsChecksum": "be3ae45e65a409b3d118007edec32f4629d338e714fa7ccbd851838ff1b04bbd",
+            "rename": {
+              "target": "goal"
+            }
+          }
+        ],
+        "commands": [
+          {
+            "id": "garden.preferences.append",
+            "title": "按设置追加阅读目标",
+            "action": {
+              "kind": "transformMarkdown",
+              "script": "(note)=>note.settings.enabled ? note.body+'\\n\\n## '+note.settings.heading+'\\n\\n目标：'+note.settings.goal+' 篇。\\n' : note.body"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "f3824102788da09f05016b69aac2cfc05e1a1f137c43f505857ca718b3258536"
+  },
+  {
+    "manifest": {
+      "id": "garden.preferences",
+      "name": "可配置阅读摘要",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "使用当前 Notebook 的设置，在笔记末尾追加阅读目标。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "settings": {
+          "version": 1,
+          "fields": [
+            {
+              "key": "heading",
+              "label": "摘要标题",
+              "kind": "text",
+              "default": "阅读目标",
+              "maxLength": 80
+            },
+            {
+              "key": "target",
+              "label": "目标篇数",
+              "kind": "number",
+              "default": 3,
+              "min": 1,
+              "max": 100,
+              "integer": true
+            },
+            {
+              "key": "enabled",
+              "label": "追加整理摘要",
+              "kind": "boolean",
+              "default": true
+            }
+          ]
+        },
+        "commands": [
+          {
+            "id": "garden.preferences.append",
+            "title": "按设置追加阅读目标",
+            "action": {
+              "kind": "transformMarkdown",
+              "script": "(note)=>note.settings.enabled ? note.body+'\\n\\n## '+note.settings.heading+'\\n\\n目标：'+note.settings.target+' 篇。\\n' : note.body"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "a77d132a85e74ee0fa248009bae8223711e683a9a8735e15d8715931822df387"
+  },
+  {
+    "manifest": {
+      "id": "garden.related",
+      "name": "相关阅读索引",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "查询当前 Notebook 的阅读记录，将命中标题及短片段追加到当前笔记。",
+      "permissions": ["notes:read", "notes:write", "search:read"],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.related.append",
+            "title": "追加相关阅读索引",
+            "action": {
+              "kind": "transformMarkdown",
+              "searchContext": {
+                "query": "阅读记录",
+                "limit": 5
+              },
+              "script": "(note) => note.body + '\\n\\n## 相关阅读索引\\n\\n' + (note.searchContext.results.length ? note.searchContext.results.map(r => '- ' + r.title + '：' + r.snippet.replace(/\\n/g, ' ')).join('\\n') : '未找到相关阅读记录。') + (note.searchContext.truncated ? '\\n更多结果已省略。' : '') + '\\n'"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "fa2d26dda5a27f05bb1a2e57e76bb3f1a59c5a5a7d3002c919ad60d130e84c29"
+  },
+  {
+    "manifest": {
+      "id": "garden.session",
+      "name": "阅读整理记录",
+      "version": "0.1.1",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "按 Notebook 记录整理次数，同时追加当前笔记的整理摘要。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "stateVersion": 2,
+        "dataMigrations": [
+          {
+            "id": "garden.session.v2",
+            "title": "整理次数升级",
+            "target": "scriptState",
+            "fromVersion": 1,
+            "toVersion": 2,
+            "rename": {
+              "runs": "visits"
+            },
+            "defaults": {
+              "lastTitle": ""
+            }
+          }
+        ],
+        "commands": [
+          {
+            "id": "garden.session.record",
+            "title": "记录一次阅读整理",
+            "action": {
+              "kind": "transformMarkdownWithState",
+              "script": "(note) => { const visits = (Number.isSafeInteger(note.state.visits) ? note.state.visits : 0) + 1; return {body: note.body + '\\n\\n## 整理记录\\n\\n本 Notebook 第 ' + visits + ' 次整理。\\n', state: {...note.state, visits, lastTitle: note.title}}; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "a8877c1b1fdc90a0367f8b9f7c56d2d78bba6e789ba213227bfd0b9843af207a"
+  },
+  {
+    "manifest": {
+      "id": "garden.session",
+      "name": "阅读整理记录",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "按 Notebook 记录整理次数，同时追加当前笔记的整理摘要。",
+      "permissions": [
+        "notes:read",
+        "notes:write",
+        "settings:read",
+        "settings:write"
+      ],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.session.record",
+            "title": "记录一次阅读整理",
+            "action": {
+              "kind": "transformMarkdownWithState",
+              "script": "(note) => { const runs = (Number.isSafeInteger(note.state.runs) ? note.state.runs : 0) + 1; return {body: note.body + '\\n\\n## 整理记录\\n\\n本 Notebook 第 ' + runs + ' 次整理。\\n', state: {runs, lastTitle: note.title}}; }"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "2ece527fd94d4a917eb2df59eb51e1c0a9bf0c7934ccafd4e3b4480205983816"
+  },
+  {
+    "manifest": {
+      "id": "garden.summary",
+      "name": "阅读整理脚本",
+      "version": "0.1.0",
+      "engines": {
+        "anynote": "^0.1.0"
+      },
+      "runtime": "quickjs-transform",
+      "description": "在当前笔记末尾追加字数摘要，保留原正文和扩展块。",
+      "permissions": ["notes:read", "notes:write"],
+      "contributes": {
+        "commands": [
+          {
+            "id": "garden.summary.count",
+            "title": "追加阅读字数摘要",
+            "action": {
+              "kind": "transformMarkdown",
+              "script": "(note) => note.body + '\\n\\n## 阅读统计\\n\\n正文字符数：' + note.body.length + '\\n'"
+            }
+          }
+        ],
+        "editorNodes": []
+      }
+    },
+    "checksum": "d661f35303d6cdbd6142391bc26568e1d348901c273ac4c6aef923588e9b6262"
+  }
+]

@@ -15,15 +15,19 @@ enum Input {
     Closed,
     Invalid(ServiceError),
     Finished(Uuid),
+    ReadingFinished(u64, ServiceResult<Reply>),
 }
 struct Backend {
     epoch: Uuid,
+    directory: std::path::PathBuf,
+    documents: Option<crate::document_store::DocumentStore>,
     last_request: u64,
     store: RuntimeState,
     tasks: TaskHistory,
     diagnostics: Diagnostics,
     resources: Resources,
     workers: HashMap<Uuid, tokio::task::JoinHandle<()>>,
+    reading_workers: HashMap<u64, tokio::task::JoinHandle<()>>,
     waits: HashMap<u64, Uuid>,
     input: async_channel::Sender<Input>,
     output: async_channel::Sender<Frame>,
@@ -64,6 +68,48 @@ impl Backend {
     }
     async fn command(&mut self, request: &Request) -> ServiceResult<Option<Reply>> {
         Ok(Some(match request.command() {
+            Command::RunReading(reading) => {
+                if self.reading_workers.len() >= MAX_ACTIVE_TASKS {
+                    return Err(ServiceError::new(ErrorCode::Busy));
+                }
+                if self.documents.is_none() {
+                    self.documents =
+                        Some(crate::document_store::DocumentStore::open(&self.directory)?);
+                }
+                let job = self
+                    .documents
+                    .as_ref()
+                    .unwrap()
+                    .reading_job(reading.clone());
+                let id = request.id();
+                let input = self.input.clone();
+                self.reading_workers.insert(
+                    id,
+                    tokio::spawn(async move {
+                        let result = job.await;
+                        let _ = input.send(Input::ReadingFinished(id, result)).await;
+                    }),
+                );
+                return Ok(None);
+            }
+            Command::CreateDocument
+            | Command::Image(_)
+            | Command::GetNotebookPreferences { .. }
+            | Command::SetNotebookPreferences { .. }
+            | Command::OpenLastDocument
+            | Command::OpenDocument { .. }
+            | Command::SaveDocument(_)
+            | Command::DocumentResource { .. } => {
+                if self.documents.is_none() {
+                    self.documents =
+                        Some(crate::document_store::DocumentStore::open(&self.directory)?);
+                }
+                self.documents
+                    .as_mut()
+                    .unwrap()
+                    .execute(request.command().clone(), &self.store)
+                    .await?
+            }
             Command::Ping => Reply::Pong,
             Command::StartHealthCheck { delay_ms } => {
                 if *delay_ms > 60_000 {
@@ -202,6 +248,10 @@ impl Backend {
                         self.publish(task).await?;
                     }
                 }
+                Input::ReadingFinished(id, result) => {
+                    self.reading_workers.remove(&id);
+                    self.respond(id, result).await?;
+                }
                 Input::Frame(frame) => {
                     let request = match frame.decode::<Request>() {
                         Ok(request) => request,
@@ -305,23 +355,29 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         Ok(())
     });
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
+        .enable_all()
         .build()
         .map_err(|_| ServiceError::new(ErrorCode::Storage))?;
     let mut backend = Backend {
         epoch: Uuid::new_v4(),
+        directory: directory.to_owned(),
+        documents: None,
         last_request: 0,
         store,
         tasks,
         diagnostics,
         resources: Resources::default(),
         workers: HashMap::new(),
+        reading_workers: HashMap::new(),
         waits: HashMap::new(),
         input,
         output,
     };
     let result = runtime.block_on(backend.run(incoming));
     for (_, worker) in backend.workers.drain() {
+        worker.abort();
+    }
+    for (_, worker) in backend.reading_workers.drain() {
         worker.abort();
     }
     backend.input.close();
