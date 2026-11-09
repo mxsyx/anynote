@@ -121,3 +121,5 @@ pub(crate) fn uuid(value: &str) -> ReadResult<()> {
         Err(ReadError::new(ReadErrorKind::InvalidInput, "无效 UUID"))
     }
 }
+
+mod pdf;

@@ -10,6 +10,8 @@ use std::{
 };
 use uuid::Uuid;
 
+mod pdf_index;
+
 enum Input {
     Frame(Frame),
     Closed,
@@ -21,6 +23,7 @@ struct Backend {
     epoch: Uuid,
     directory: std::path::PathBuf,
     documents: Option<crate::document_store::DocumentStore>,
+    pdf_indexes: HashMap<Uuid, pdf_index::IndexSession>,
     last_request: u64,
     store: RuntimeState,
     tasks: TaskHistory,
@@ -68,6 +71,7 @@ impl Backend {
     }
     async fn command(&mut self, request: &Request) -> ServiceResult<Option<Reply>> {
         Ok(Some(match request.command() {
+            Command::Pdf(command) => self.pdf_command(command.clone()).await?,
             Command::RunReading(reading) => {
                 if self.reading_workers.len() >= MAX_ACTIVE_TASKS {
                     return Err(ServiceError::new(ErrorCode::Busy));
@@ -132,6 +136,7 @@ impl Backend {
                 let task = self
                     .tasks
                     .transition(&self.store, *task_id, TaskStatus::Cancelled)?;
+                self.pdf_indexes.remove(task_id);
                 if let Some(worker) = self.workers.remove(task_id) {
                     worker.abort();
                 }
@@ -364,6 +369,7 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         epoch: Uuid::new_v4(),
         directory: directory.to_owned(),
         documents: None,
+        pdf_indexes: HashMap::new(),
         last_request: 0,
         store,
         tasks,

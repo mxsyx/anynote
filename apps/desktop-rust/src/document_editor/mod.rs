@@ -10,7 +10,7 @@ mod projection;
 mod saving;
 mod session;
 mod state;
-pub use saving::{FlushState, flush_all, open_document};
+pub use saving::{FlushState, flush_all, open_document, open_document_at};
 mod source_mode;
 #[cfg(test)]
 mod tests;
@@ -607,11 +607,12 @@ impl DocumentEditor {
         let render_context = RenderContext::from_app(cx)
             .with_body_font_size(window.rem_size())
             .on_link_click(|url, event, _, cx| {
-                if if cfg!(target_os = "macos") {
+                let follow = if cfg!(target_os = "macos") {
                     event.modifiers().platform
                 } else {
                     event.modifiers().control
-                } {
+                };
+                if follow && !saving::open_pdf_link(url, cx) {
                     cx.open_url(url);
                 }
             });

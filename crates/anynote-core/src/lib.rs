@@ -12,3 +12,5 @@ pub mod document_session;
 pub mod board;
 
 pub mod asset;
+
+pub mod pdf;

@@ -212,3 +212,36 @@ fn hundred_megabyte_pdf_reads_ranges_without_loading_unreferenced_stream() {
         bytes.load(Ordering::Relaxed)
     );
 }
+
+#[test]
+fn native_selection_and_search_follow_rotated_glyphs() {
+    use anynote_desktop::pdf::selection;
+    let doc = engine::open(Cursor::new(fixture("geometry.pdf")), None).unwrap();
+    for page in 0..8 {
+        let raster = engine::render(&doc, page, 960, true, || false).unwrap();
+        let hits = selection::find(raster.text(), "Anynote", page);
+        assert_eq!(hits.len(), 1);
+        let range = selection::utf16_selection(&raster, hits[0].range()).unwrap();
+        let draft = selection::select(&raster, range, "comment".into());
+        assert_eq!(draft.quote(), "Anynote");
+        assert!(draft.is_valid());
+        for glyph in raster.glyphs().iter().filter(|g| g.text() == "A") {
+            let q = raster.geometry().normalized_quad(glyph.bounds().unwrap());
+            let p = [
+                q.iter().map(|p| p[0]).sum::<f64>() / 4.,
+                q.iter().map(|p| p[1]).sum::<f64>() / 4.,
+            ];
+            assert_eq!(selection::hit(&raster, p), Some(glyph.index()));
+        }
+        let (text, partial) = engine::extract(&doc, page, 4_500_000, || false).unwrap();
+        assert_eq!(text, raster.text());
+        assert!(!partial);
+        let (prefix, partial) = engine::extract(&doc, page, 3, || false).unwrap();
+        assert!(partial);
+        assert_eq!(prefix.encode_utf16().count(), 3);
+    }
+    assert!(matches!(
+        engine::extract(&doc, 0, 100, || true),
+        Err(PdfError::Cancelled)
+    ));
+}

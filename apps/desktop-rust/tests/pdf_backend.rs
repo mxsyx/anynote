@@ -103,3 +103,113 @@ fn worker_latest_request_close_and_password_retry() {
         drop(worker);
     }
 }
+
+#[test]
+fn index_tasks_publish_once_and_cancel_or_fail_without_replacing_text() {
+    use anynote_core::pdf::*;
+    let f = PdfBackend::new("geometry.pdf");
+    let reader = ResourceReader::open(
+        f.client.clone(),
+        f.scope.clone(),
+        Arc::new(AtomicBool::new(false)),
+    )
+    .unwrap();
+    let hash = reader.hash().to_owned();
+    drop(reader);
+    let begin = || {
+        let Reply::Pdf(PdfReply::IndexStarted { task }) =
+            f.reply(Command::Pdf(PdfCommand::BeginIndex {
+                scope: f.scope.clone(),
+                hash: hash.clone(),
+                total: 2,
+            }))
+        else {
+            panic!()
+        };
+        task
+    };
+    let completed = begin();
+    for page in 0..2 {
+        f.reply(Command::Pdf(PdfCommand::IndexPage {
+            task: completed,
+            page,
+            text: format!("native text page {page}"),
+            truncated: false,
+        }));
+    }
+    assert!(
+        matches!(f.reply(Command::Pdf(PdfCommand::FinishIndex {task:completed})),Reply::Pdf(PdfReply::Indexed {coverage}) if coverage.state()==IndexState::Complete)
+    );
+    let cancelled = begin();
+    f.reply(Command::Pdf(PdfCommand::IndexPage {
+        task: cancelled,
+        page: 0,
+        text: "must not publish".into(),
+        truncated: false,
+    }));
+    f.reply(Command::CancelTask { task_id: cancelled });
+    let failed = f
+        .client
+        .submit(
+            Command::Pdf(PdfCommand::FinishIndex { task: cancelled }),
+            Duration::from_secs(10),
+        )
+        .unwrap()
+        .receive_blocking()
+        .unwrap_err();
+    assert_eq!(failed.code(), ErrorCode::Cancelled);
+    let invalid = begin();
+    assert!(
+        f.client
+            .submit(
+                Command::Pdf(PdfCommand::FinishIndex { task: invalid }),
+                Duration::from_secs(10)
+            )
+            .unwrap()
+            .receive_blocking()
+            .is_err()
+    );
+    let Reply::Tasks(tasks) = f.reply(Command::ListTasks) else {
+        panic!()
+    };
+    assert_eq!(
+        tasks.iter().find(|t| t.id() == completed).unwrap().status(),
+        TaskStatus::Completed
+    );
+    assert_eq!(
+        tasks.iter().find(|t| t.id() == cancelled).unwrap().status(),
+        TaskStatus::Cancelled
+    );
+    assert_eq!(
+        tasks.iter().find(|t| t.id() == invalid).unwrap().status(),
+        TaskStatus::Failed
+    );
+    f.reply(Command::Shutdown);
+    for _ in 0..100 {
+        if f.client.has_exited() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let root = f
+        .root
+        .join("workspace")
+        .join(f.scope.document().notebook().to_string());
+    let book = anynote_storage::notebook::ReadonlyNotebook::open(
+        &root,
+        Some(&f.scope.document().notebook().to_string()),
+    )
+    .unwrap();
+    let query = anynote_storage::notebook::SearchRequest::new(
+        Uuid::new_v4().to_string(),
+        "must not publish".into(),
+    );
+    assert!(book.search(&query).unwrap().results.is_empty());
+    assert_eq!(
+        book.pdf_coverage(&f.scope.document().note().to_string(), &hash)
+            .unwrap()
+            .unwrap()
+            .state(),
+        IndexState::Complete
+    );
+}

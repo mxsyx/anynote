@@ -105,7 +105,8 @@ fn disconnect(shared: &Shared) {
 fn matches_reply(command: &Command, reply: &Reply) -> bool {
     matches!(
         (command, reply),
-        (Command::Asset(_), Reply::Asset(_))
+        (Command::Pdf(_), Reply::Pdf(_))
+            | (Command::Asset(_), Reply::Asset(_))
             | (
                 Command::CreateDocument
                     | Command::OpenLastDocument

@@ -13,6 +13,7 @@ use gpui_kit::{
     test::{TestEventExt, TestQueryExt, TestWindowExt},
 };
 use support::PdfBackend;
+#[track_caller]
 fn spin(
     cx: &mut TestAppContext,
     window: gpui_kit::AnyWindowHandle,
@@ -123,6 +124,11 @@ fn navigation_zoom_thumbnails_and_close_use_real_controls(cx: &mut TestAppContex
         view.read(cx).cached_texture_count() == 6
     });
     cx.update_window(window, |_, w, cx| {
+        w.scroll(
+            "pdf-thumbnail-list",
+            gpui_kit::ScrollDelta::Pixels(gpui_kit::point(px(0.), px(-400.))),
+            cx,
+        );
         let point = w.find_by_label("第 5 页").bounds().center();
         w.pointer_down(point, gpui_kit::MouseButton::Left, cx);
         w.pointer_up(point, gpui_kit::MouseButton::Left, cx);
@@ -192,4 +198,129 @@ fn password_retry_and_pdf_snapshot_entry(cx: &mut TestAppContext) {
         assert!(w.try_find("save-document").is_none())
     })
     .unwrap();
+}
+
+#[gpui_kit::test]
+fn selection_search_annotation_note_index_and_anchor_controls(cx: &mut TestAppContext) {
+    use anynote_core::pdf::*;
+    cx.background_executor.allow_parking();
+    let f = PdfBackend::new("geometry.pdf");
+    let (window, view) = reader(cx, &f);
+    spin(cx, window, |_, cx| view.read(cx).raster().is_some());
+    cx.update_window(window, |_, w, cx| {
+        view.focus_handle(cx).focus(w, cx);
+        w.press("secondary-a", cx);
+        assert!(
+            view.read(cx)
+                .selected_text()
+                .unwrap()
+                .contains("Anynote page 1")
+        );
+        w.press("secondary-c", cx);
+        assert!(
+            cx.read_from_clipboard()
+                .unwrap()
+                .text()
+                .unwrap()
+                .contains("中文测试")
+        );
+        w.click("pdf-comment", cx);
+        w.input("A reading insight", cx);
+        w.click("pdf-annotate", cx);
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| !view.read(cx).annotations().is_empty());
+    let annotation = cx.update(|cx| view.read(cx).annotations()[0].id());
+    cx.update(|cx| BackendSession::install(f.client.clone(), cx));
+    cx.update_window(window, |_, w, cx| {
+        w.click(format!("pdf-note-{annotation}"), cx)
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| {
+        view.read(cx).reading_status().contains("已创建阅读笔记")
+    });
+    cx.update_window(window, |_, w, cx| {
+        assert_eq!(
+            view.read(cx).annotations()[0].draft().body(),
+            "A reading insight"
+        );
+        w.click(format!("pdf-link-{annotation}"), cx);
+        assert!(
+            cx.read_from_clipboard()
+                .unwrap()
+                .text()
+                .unwrap()
+                .contains(&annotation.to_string())
+        );
+        w.click("pdf-search-input", cx);
+        w.input("Anynote page 3", cx);
+        w.click("pdf-search", cx);
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| {
+        view.read(cx).page() == 2
+            && view.read(cx).selected_text().as_deref() == Some("Anynote page 3")
+    });
+    cx.update_window(window, |_, w, cx| {
+        for _ in 0..5 {
+            w.click("pdf-zoom-in", cx);
+        }
+        w.click("pdf-hit-next", cx);
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| view.read(cx).raster().is_some());
+    cx.update_window(window, |_, w, cx| {
+        let v = view.read(cx);
+        let r = v.raster().unwrap();
+        let glyph = r.glyphs().iter().find(|g| g.text() == "A").unwrap();
+        let q = r.geometry().normalized_quad(glyph.bounds().unwrap());
+        let bounds = v.page_bounds().unwrap();
+        let p = gpui_kit::point(
+            bounds.origin.x + bounds.size.width * q[0][0] as f32,
+            bounds.origin.y + bounds.size.height * q[0][1] as f32,
+        );
+        assert!(
+            w.find("pdf-page").bounds().contains(&p),
+            "search must reveal its match at high zoom"
+        );
+        w.click("pdf-fit-page", cx);
+        w.click("pdf-index", cx);
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| {
+        !view.read(cx).is_indexing() && view.read(cx).reading_status().contains("已索引 8 页")
+    });
+    cx.update_window(window, |_, w, cx| {
+        view.update(cx, |v, cx| {
+            v.navigate(PdfAnchor::Annotation(annotation), w, cx)
+        });
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| {
+        view.read(cx).raster().is_some_and(|r| r.page() == 0)
+    });
+    cx.update_window(window, |_, w, cx| {
+        let v = view.read(cx);
+        let raster = v.raster().unwrap();
+        let bounds = v.page_bounds().unwrap();
+        let a = raster.glyphs().iter().find(|g| g.text() == "A").unwrap();
+        let z = &raster.glyphs()[a.index() + 6];
+        let center = |glyph: &anynote_desktop::pdf::Glyph| {
+            let q = raster.geometry().normalized_quad(glyph.bounds().unwrap());
+            gpui_kit::point(
+                bounds.origin.x
+                    + bounds.size.width * (q.iter().map(|p| p[0]).sum::<f64>() / 4.) as f32,
+                bounds.origin.y
+                    + bounds.size.height * (q.iter().map(|p| p[1]).sum::<f64>() / 4.) as f32,
+            )
+        };
+        let (from, to) = (center(a), center(z));
+        w.drag(from, to, cx);
+        assert_eq!(view.read(cx).selected_text().as_deref(), Some("Anynote"));
+        w.click(format!("pdf-delete-{annotation}"), cx);
+    })
+    .unwrap();
+    spin(cx, window, |_, cx| view.read(cx).annotations().is_empty());
+    cx.update_window(window, |_, w, cx| view.update(cx, |v, cx| v.close(w, cx)))
+        .unwrap();
 }

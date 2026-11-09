@@ -4,6 +4,20 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm26"></a>
+
+## 2026-11-09 · RM26 PDF 选择、批注、索引与回链
+
+- [x] RM26.1：基于 native glyph 的拖选、键盘选择/复制、跨页搜索与放大定位；高亮/批注/删除、持久阅读笔记和页面/批注回链进入原生 PDF 阅读器。
+- [x] RM26.2：所有操作校验笔记/修订/主资源/hash，历史只读，旧 hash 批注显式提示且不绘制；确认后才将原坐标重锚定。替换文件后旧文本/批注不污染当前全文搜索。
+- [x] RM26.3：500 页 / 4500000 UTF-16（含页标记）索引，complete/partial/scanned 覆盖状态、真实 TaskHistory、取消/失败不发布；复制重映射批注回链，完整/当前归档保留索引与批注，开放导出保留原 PDF 与批注 JSON。
+
+复用 RM05 写队列、现有 annotation/note_text、RM03 任务和 RM25 资源/几何；新增 `anynote.pdf.index` 扩展元数据，键为 `note.UUID`，schema v5 不变，私有桌面协议升为 v4。索引原生提取与存储发布分离，后端只在全部预算内页面成功后原子发布；提交开始后沿用不可取消边界。实现及接续见 [PDF 阅读契约](RUST-PDF-READER.md)。
+
+macOS 26.2 arm64 / Rust 1.99.1 / `95353f7` 工作树：新增 8 项测试通过，完整 workspace 321 passed / 0 failed，3 个 ignored 是既有子进程 fixture；全 features/no-media Clippy、fmt、依赖边界（5 工程 / 844 包）通过。完整测试需短 TMPDIR 和本机 socket 权限；初次沙箱 EPERM 后允许本机 IPC 的重跑通过。最终选区颜色/放大定位调整后重跑 3 项 PDF UI 测试及全 features Clippy。原生隔离 `.app` 使用临时 SQLite/CAS 与真实后端，验证搜索 8 处、8 页索引完成、保存批注、创建阅读笔记与修饰键点击回链。临时日志和 probe 在 `tmp/rm26/`。
+
+本组完成 E7 本地语义，不代表 Windows/Linux、真实设备、签名发行或原路径接管验收；RM32/36、F017 OCR、F018 带批注 PDF 导出及其他 V/A/F 状态不变。
+
 <a id="rm25"></a>
 
 ## 2026-11-09 · RM25 PDF 引擎、页面与文本几何

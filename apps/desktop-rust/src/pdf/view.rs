@@ -12,7 +12,11 @@ use gpui_kit::{
 };
 use std::sync::Arc;
 
+mod controls;
+mod interaction;
+
 pub struct PdfView {
+    reading: interaction::Reading,
     scope: AssetScope,
     client: BackendClient,
     worker: Option<PdfWorker>,
@@ -57,6 +61,7 @@ impl PdfView {
         cx: &mut Context<Self>,
     ) -> Self {
         let mut view = Self {
+            reading: interaction::Reading::new(window, cx),
             scope,
             client,
             worker: None,
@@ -125,6 +130,7 @@ impl PdfView {
         self.raster = None;
     }
     pub fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.reading.stop();
         self.closed = true;
         self.generation += 1;
         self.worker = None;
@@ -143,6 +149,7 @@ impl PdfView {
         let password = self.password.read(cx).value().to_string();
         self.password
             .update(cx, |input, cx| input.set_value("", window, cx));
+        self.reading.password = password.clone();
         let (worker, ready) = PdfWorker::open(self.client.clone(), self.scope.clone(), password);
         self.worker = Some(worker);
         let generation = self.generation;
@@ -157,6 +164,7 @@ impl PdfView {
                     Ok((count, hash)) => {
                         this.count = count;
                         this.hash = hash;
+                        this.load_annotations(window, cx);
                         this.page = this.page.min(count - 1);
                         this.render_page(window, cx);
                     }
@@ -221,6 +229,8 @@ impl PdfView {
                             this.geometry = Some(raster.geometry.clone());
                             this.texture = Some(image);
                             this.raster = Some(raster);
+                            this.apply_search_selection();
+                            this.center_focus();
                         }
                         Err(error) => this.error = Some(error),
                     }
@@ -279,6 +289,9 @@ impl PdfView {
         if page >= self.count || self.closed {
             return;
         }
+        self.reading.selection = None;
+        self.reading.drag = None;
+        self.reading.focused = None;
         self.page = page;
         self.pan = [0.; 2];
         self.page_input.update(cx, |input, cx| {
@@ -305,6 +318,10 @@ impl PdfView {
         cx.notify();
     }
     fn key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.reading_key(event, window, cx) {
+            cx.stop_propagation();
+            return;
+        }
         match event.keystroke.key.as_str() {
             "right" | "pagedown" => self.go(self.page.saturating_add(1), window, cx),
             "left" | "pageup" => self.go(self.page.saturating_sub(1), window, cx),
@@ -424,7 +441,8 @@ impl Render for PdfView {
             .min_w_0()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(toolbar);
+            .child(toolbar)
+            .child(self.reading_toolbar(cx));
         if let Some(error) = &self.error {
             root = root.child(
                 div()
@@ -484,7 +502,7 @@ impl Render for PdfView {
                 }
             },
             move |bounds, _, window, cx| {
-                let _ = paint_owner.update(cx, |this, _| {
+                let _ = paint_owner.update(cx, |this, cx| {
                     let Some(image) = &this.texture else {
                         return;
                     };
@@ -502,6 +520,7 @@ impl Render for PdfView {
                         ),
                         size(px(width), px(height)),
                     );
+                    this.reading.destination = Some(destination);
                     let _ = window.paint_image(
                         bounds,
                         destination,
@@ -510,6 +529,7 @@ impl Render for PdfView {
                         0,
                         false,
                     );
+                    this.paint_annotations(destination, window, cx);
                 });
             },
         )
@@ -527,7 +547,12 @@ impl Render for PdfView {
             .overflow_hidden()
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, w, cx| this.focus.focus(w, cx)),
+                cx.listener(|this, event, w, cx| this.selection_start(event, w, cx)),
+            )
+            .on_mouse_move(cx.listener(Self::selection_move))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _, _, _| this.reading.drag = None),
             )
             .on_key_down(cx.listener(Self::key))
             .on_scroll(cx.listener(|this, event: &ScrollEvent, window, cx| {
@@ -543,6 +568,7 @@ impl Render for PdfView {
             body = body.child(
                 div()
                     .id("pdf-thumbnail-list")
+                    .test_support()
                     .w_32()
                     .flex_shrink_0()
                     .overflow_y_scroll()
@@ -582,30 +608,31 @@ impl Render for PdfView {
                 self.scale() * 100.
             )
         };
-        root.child(body.child(page)).child(
-            div()
-                .id("pdf-status")
-                .test_support()
-                .role(Role::Status)
-                .aria_label(status.clone())
-                .flex()
-                .items_center()
-                .gap_2()
-                .h_8()
-                .flex_shrink_0()
-                .px_2()
-                .text_sm()
-                .text_color(cx.theme().muted_foreground)
-                .child(status)
-                .when(self.loading, |row| {
-                    row.child("正在读取 PDF").child(
-                        Button::new("pdf-cancel")
-                            .small()
-                            .ghost()
-                            .label("取消")
-                            .on_click(cx.listener(|this, _, _, cx| this.cancel(cx))),
-                    )
-                }),
-        )
+        root.child(body.child(page).child(self.annotation_panel(cx)))
+            .child(
+                div()
+                    .id("pdf-status")
+                    .test_support()
+                    .role(Role::Status)
+                    .aria_label(status.clone())
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .h_8()
+                    .flex_shrink_0()
+                    .px_2()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(status)
+                    .when(self.loading, |row| {
+                        row.child("正在读取 PDF").child(
+                            Button::new("pdf-cancel")
+                                .small()
+                                .ghost()
+                                .label("取消")
+                                .on_click(cx.listener(|this, _, _, cx| this.cancel(cx))),
+                        )
+                    }),
+            )
     }
 }

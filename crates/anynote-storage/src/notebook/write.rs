@@ -545,7 +545,7 @@ impl WritableNotebook {
         if node.node.kind == NodeKind::Note && node.node.deleted_at.is_none() {
             let mut parts = vec![
                 source,
-                db.query_row("SELECT body FROM note_text WHERE note_id=?", [id], |r| {
+                db.query_row("SELECT t.body FROM note_text t JOIN notes n ON n.node_id=t.note_id JOIN resources r ON r.id=n.primary_resource_id WHERE t.note_id=? AND t.asset_hash=r.asset_hash", [id], |r| {
                     r.get::<_, String>(0)
                 })
                 .optional()?
@@ -553,7 +553,7 @@ impl WritableNotebook {
             ];
             parts.extend(
                 db.prepare(
-                    "SELECT quote,body FROM annotations WHERE note_id=? AND deleted_at IS NULL",
+                    "SELECT a.quote,a.body FROM annotations a JOIN notes n ON n.node_id=a.note_id WHERE a.note_id=? AND a.deleted_at IS NULL AND (n.note_type<>'pdf' OR a.target_asset_hash=(SELECT asset_hash FROM resources WHERE id=n.primary_resource_id))",
                 )?
                 .query_map([id], |r| {
                     Ok(format!(

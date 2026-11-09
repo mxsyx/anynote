@@ -67,6 +67,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_quit_mode(gpui_kit::QuitMode::LastWindowClosed)
         .run(move |cx| {
             gpui_kit::init(cx);
+            anynote_desktop::backend_session::BackendSession::install(ui_client.clone(), cx);
+            anynote_desktop::document_editor::install_actions(cx);
             gpui_kit::component::Theme::sync_system_appearance(None, cx);
             gpui_kit::open_window(
                 WindowOptions {

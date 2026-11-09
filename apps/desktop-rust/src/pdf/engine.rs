@@ -219,3 +219,39 @@ pub fn render(
         text: content,
     })
 }
+
+/// Extract text without allocating a page bitmap. The remaining budget counts UTF-16 units.
+pub fn extract(
+    document: &NativeDocument<'_>,
+    page: u16,
+    budget: usize,
+    cancelled: impl Fn() -> bool,
+) -> Result<(String, bool), PdfError> {
+    let _operation = OPERATIONS.lock().unwrap_or_else(|e| e.into_inner());
+    if cancelled() {
+        return Err(PdfError::Cancelled);
+    }
+    let page = document
+        .document
+        .as_ref()
+        .unwrap()
+        .pages()
+        .get(page)
+        .map_err(error)?;
+    let text = page.text().map_err(error)?;
+    let mut body = String::new();
+    let mut units = 0;
+    for ch in text.chars().iter() {
+        if cancelled() {
+            return Err(PdfError::Cancelled);
+        }
+        if let Some(c) = ch.unicode_char() {
+            if units + c.len_utf16() > budget {
+                return Ok((body, true));
+            }
+            units += c.len_utf16();
+            body.push(c);
+        }
+    }
+    Ok((body, false))
+}

@@ -726,3 +726,137 @@ fn maximum_utf16_notebook_name_remains_valid_after_import_suffix() {
     assert_eq!(imported.name.encode_utf16().count(), 240);
     assert!(imported.name.ends_with("（导入）"));
 }
+
+#[test]
+fn pdf_index_and_annotation_roundtrip_preserve_original_and_search_coverage() {
+    use anynote_core::{asset::AssetScope, document_session::DocumentId, image::ImageRect, pdf::*};
+    use uuid::Uuid;
+    let dir = temp();
+    let queue = WriteQueue::open(dir.path(), 4).unwrap();
+    let bytes = fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/pdf/w3c-dummy.pdf"),
+    )
+    .unwrap();
+    let source_bytes = bytes.clone();
+    let (book, note, hash, annotation) = queue
+        .submit(move |catalog| {
+            let id = catalog.create_notebook("PDF Archive")?.id;
+            let b = catalog.notebook(&id)?;
+            let resource = Uuid::new_v4();
+            let mut request = CreateNode::note("Paper", "");
+            request.note_type = Some(NoteType::Pdf);
+            request.primary_resource_id = Some(resource.to_string());
+            let note = b.create_node(
+                &request,
+                &[ResourceWrite::bytes(
+                    resource.to_string(),
+                    "a.pdf".into(),
+                    "application/pdf".into(),
+                    bytes,
+                )?],
+            )?;
+            let hash = b
+                .read()
+                .resource(
+                    &resource.to_string(),
+                    Some(ResourceScope::note(&note.node.id)),
+                )?
+                .info()
+                .hash
+                .clone();
+            let scope = AssetScope::new(
+                DocumentId::new(
+                    Uuid::parse_str(&id).unwrap(),
+                    Uuid::parse_str(&note.node.id).unwrap(),
+                ),
+                Uuid::parse_str(note.head_revision_id.as_ref().unwrap()).unwrap(),
+                resource,
+            );
+            let draft = AnnotationDraft::new(
+                1,
+                vec![ImageRect {
+                    x: 0.1,
+                    y: 0.1,
+                    width: 0.2,
+                    height: 0.1,
+                }],
+                "passage".into(),
+                "archived remark".into(),
+            );
+            let PdfReply::Annotation { id: annotation } = b.execute_pdf(PdfCommand::Annotate {
+                scope: scope.clone(),
+                hash: hash.clone(),
+                draft: draft.clone(),
+            })?
+            else {
+                panic!()
+            };
+            b.execute_pdf(PdfCommand::ReadingNote {
+                scope: scope.clone(),
+                hash: hash.clone(),
+                draft,
+                annotation: Some(annotation),
+            })?;
+            let mut builder = IndexBuilder::new(2).unwrap();
+            builder.push(0, "native searchable body".into(), true);
+            let (body, coverage) = builder.finish().unwrap();
+            b.publish_pdf_index(&scope, &hash, &body, &coverage)?;
+            Ok((id, note.node.id, hash, annotation.to_string()))
+        })
+        .unwrap()
+        .wait()
+        .unwrap();
+    for (mode, name) in [
+        (SnapshotMode::Full, "full"),
+        (SnapshotMode::Current, "current"),
+    ] {
+        let output = dir.path().join(format!("pdf-{name}.anynote"));
+        export_archive(
+            &mut cut(&queue, dir.path(), &book),
+            mode,
+            &output,
+            true,
+            &Cancellation::default(),
+        )
+        .unwrap();
+        let restored = import_archive(&output, dir.path(), &Cancellation::default()).unwrap();
+        let b = ReadonlyNotebook::open(&dir.path().join(&restored.id), Some(&restored.id)).unwrap();
+        assert_eq!(
+            b.pdf_coverage(&note, &hash).unwrap().unwrap().state(),
+            IndexState::Partial
+        );
+        assert_eq!(b.annotations(&note, false).unwrap()[0].id, annotation);
+        for query in ["searchable", "archived remark"] {
+            assert!(
+                b.search(&SearchRequest::new(
+                    Uuid::new_v4().to_string(),
+                    query.into()
+                ))
+                .unwrap()
+                .results
+                .iter()
+                .any(|hit| hit.node.id == note)
+            );
+        }
+    }
+    let output = dir.path().join("open.zip");
+    export_markdown(
+        &mut cut(&queue, dir.path(), &book),
+        &output,
+        OpenExportFormat::Zip,
+        &Cancellation::default(),
+    )
+    .unwrap();
+    let entries = unzip(&output);
+    assert!(
+        entries
+            .iter()
+            .any(|(name, bytes)| name.ends_with(".pdf") && *bytes == source_bytes)
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|(name, bytes)| name.ends_with(".annotations.json")
+                && String::from_utf8_lossy(bytes).contains(&annotation))
+    );
+}

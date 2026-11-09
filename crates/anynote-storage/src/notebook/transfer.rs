@@ -105,6 +105,7 @@ struct Snapshot {
     assets: Vec<Value>,
     metadata: Vec<Value>,
     reports: Vec<Value>,
+    pdf_indexes: Vec<Value>,
 }
 fn field<'a>(row: &'a Value, key: &str) -> ReadResult<&'a str> {
     row[key]
@@ -300,7 +301,14 @@ impl WritableNotebook {
             params![META, serde_json::to_string(&revision_ids)?],
             &mut budget,
         )?;
+        let pdf_indexes = model::rows_bounded(
+            &self.view.db,
+            "SELECT * FROM extension_data WHERE extension_id='anynote.pdf.index' AND key IN (SELECT 'note.' || value FROM json_each(?)) ORDER BY key",
+            [serde_json::to_string(&note_ids)?],
+            &mut budget,
+        )?;
         let result = Snapshot {
+            pdf_indexes,
             nodes,
             notes,
             revisions,
@@ -356,7 +364,9 @@ impl WritableNotebook {
         let nodes = map(&data.nodes, "id")?;
         let resources = map(&data.resources, "id")?;
         let revisions = map(&data.revisions, "id")?;
+        let annotations = map(&data.annotations, "id")?;
         let rewrite = Rewriter {
+            annotations: &annotations,
             request,
             nodes: &nodes,
             resources: &resources,
@@ -496,7 +506,7 @@ impl WritableNotebook {
                         "import_reports" => {
                             row["report_json"] = rewrite.text(field(&row, "report_json")?).into()
                         }
-                        "annotations" => row["id"] = new_id().into(),
+                        "annotations" => row["id"] = mapped(&annotations, &row["id"])?,
                         "extension_data" => {
                             let mut meta: Value = serde_json::from_str(field(&row, "value_json")?)?;
                             meta["noteId"] = mapped(&nodes, &meta["noteId"])?;
@@ -506,6 +516,20 @@ impl WritableNotebook {
                     }
                     insert(&book.view.db, table, &row)?;
                 }
+            }
+            for original in &data.pdf_indexes {
+                let mut row = original.clone();
+                let note = field(&row, "key")?
+                    .strip_prefix("note.")
+                    .ok_or_else(|| ReadError::invalid_input("PDF 索引键无效"))?;
+                row["key"] = format!(
+                    "note.{}",
+                    nodes
+                        .get(note)
+                        .ok_or_else(|| ReadError::invalid_input("PDF 索引目标缺失"))?
+                )
+                .into();
+                insert(&book.view.db, "extension_data", &row)?;
             }
             for row in &data.notes {
                 book.index(&nodes[field(row, "node_id")?])?;
@@ -632,6 +656,7 @@ struct Rewriter<'a> {
     request: &'a TransferRequest,
     nodes: &'a HashMap<String, String>,
     resources: &'a HashMap<String, String>,
+    annotations: &'a HashMap<String, String>,
 }
 impl Rewriter<'_> {
     fn text(&self, text: &str) -> String {
@@ -641,7 +666,7 @@ impl Rewriter<'_> {
             Regex::new(r#"(?i)("[^"\n]*resourceId"\s*:\s*")([a-f0-9-]{36})(")"#).unwrap()
         });
         static LINK: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(?i)anynote://notebook/([a-f0-9-]{36})/note/([a-f0-9-]{36})").unwrap()
+            Regex::new(r"(?i)anynote://notebook/([a-f0-9-]{36})/note/([a-f0-9-]{36})(?:#pdf-annotation-([a-f0-9-]{36}))?").unwrap()
         });
         let text = RESOURCE.replace_all(text, |c: &Captures| {
             self.resources
@@ -659,8 +684,20 @@ impl Rewriter<'_> {
             if c[1] == self.request.notebook_id
                 && let Some(id) = self.nodes.get(&c[2])
             {
+                let anchor = c
+                    .get(3)
+                    .map(|m| {
+                        format!(
+                            "#pdf-annotation-{}",
+                            self.annotations
+                                .get(m.as_str())
+                                .map(String::as_str)
+                                .unwrap_or(m.as_str())
+                        )
+                    })
+                    .unwrap_or_default();
                 return format!(
-                    "anynote://notebook/{}/note/{id}",
+                    "anynote://notebook/{}/note/{id}{anchor}",
                     self.request.target_notebook_id
                 );
             }

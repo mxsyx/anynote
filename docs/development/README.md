@@ -11,7 +11,7 @@
 - [Rust 连续编辑视图](RUST-EDITOR-VIEW.md)：RM18 的原生草稿、Kit 几何/输入、共享历史、可访问性原型、测试证据及未完成验收项。
 - [Rust 静态内置业务](RUST-BUILTIN-BUSINESS.md)：RM20 声明块、阅读命令、原子回执、静态偏好与已知样例/未知脚本验收边界。
 - [Rust 源码模式与保存会话](RUST-DOCUMENT-SESSION.md)：RM19 的源码工具、共享历史、串行 CAS、断线核对、资源版本绑定和窗口生命周期边界。
-- [Rust PDF 引擎与阅读视图](RUST-PDF-READER.md)：RM25 的锁定 Pdfium、修订范围读取、页面/缩略图、文字几何、取消释放与 native 复现。
+- [Rust PDF 引擎与阅读视图](RUST-PDF-READER.md)：RM25/26 的锁定 Pdfium、页面/文字几何、选择/批注/回链、索引预算与任务、资源闭包和 native 复现。
 - [Rust 图片阅读与版本](RUST-IMAGE-MEDIA.md)：RM21 的有界解码、图片块、上传与修订绑定、矩形批注、复制/导出和设备验收边界。
 - [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。
 - [Rust schema v5 写存储](RUST-WRITE-STORAGE.md)：RM05 的写队列/租约/LRU/pin、核心事务、历史资源与提案，以及 RM06 跨库闭包、幂等回执和 TS 双向互通复现。

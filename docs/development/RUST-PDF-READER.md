@@ -1,14 +1,14 @@
 # Rust PDF 引擎与阅读视图
 
-RM25.1–RM25.3 的接续契约。任务状态统一见 [TODO](TODO.md#rm25)；文字选择、批注、索引及阅读笔记属于 RM26。
+RM25.1–RM26.3 的接续契约。任务状态统一见 [TODO](TODO.md#rm26)；OCR 和带批注 PDF 文件导出仍为 F017/F018。
 
 ## 所有权与接入
 
 - `apps/desktop-rust/src/pdf/engine.rs` 封装 Pdfium；`NativeDocument` 不暴露原生句柄，打开、页面/文本/渲染和销毁共用操作锁。实际发现 7350 的字体加载在并行用例中触发 `CFX_FontMapper` 原生分配器崩溃；绑定的 `sync/thread_safe` 不足以保护完整调用序列。现在串行化完整操作，空闲文档不占锁，多个阅读会话仍可存在。并行默认测试已通过。
 - `worker.rs` 在命名后台线程持有原生文档和受控 reader；单槽请求队列、generation 与关闭标记共同拒绝迟到结果。关闭解除租约、销毁文档；全局 native library 保留至进程退出。
 - `view.rs` 的 `PdfView` 持有页码、缩放、输入实体和纹理，复用 Kit Button/Input，支持按钮、Tab 和页面区的左右键/PageUp/PageDown/Home/End、+/−、0、Escape。图像转换也在后台执行。加载状态置于固定高度状态栏，避免改变适页视口；测量同时检查显示缩放变化。页面区支持滚动查看放大后的内容。
-- PDF 笔记通过 `OpenDocument` 返回 `DocumentSnapshot.primary_pdf`，`DocumentEditor` 直接打开只读阅读视图，切笔记/释放时关闭旧会话。原文保存接口仍拒绝 PDF，避免把 PDF 笔记当 Markdown 写回。目录与完整历史导航仍由 RM28/RM26 接线。
-- 新增 `anynote-core::asset::{AssetScope, AssetCommand, AssetReply}`，私有桌面协议升为 v3。`asset_reader.rs` 的租约实现由 PDF 与既有 ImageCommand 共用；笔记/修订/资源绑定、CAS hash、文件身份及范围校验继续由 RM04/05 的 `VerifiedAsset` 执行。没有新数据库格式或历史兼容分支。
+- PDF 笔记通过 `OpenDocument` 返回 `DocumentSnapshot.primary_pdf`，`DocumentEditor` 直接打开只读阅读视图，切笔记/释放时关闭旧会话。原文保存接口仍拒绝 PDF，避免把 PDF 笔记当 Markdown 写回。页面/批注回链已接原生窗口；目录与完整历史列表导航仍由 RM28 接线。
+- 新增 `anynote-core::asset::{AssetScope, AssetCommand, AssetReply}`，RM25 私有桌面协议为 v3，RM26 增加 PdfCommand/PdfReply 后升为 v4。`asset_reader.rs` 的租约实现由 PDF 与既有 ImageCommand 共用；笔记/修订/资源绑定、CAS hash、文件身份及范围校验继续由 RM04/05 的 `VerifiedAsset` 执行。没有新增表或历史兼容分支；RM26 索引覆盖元数据复用 extension_data。
 
 ## 范围读取、预算与取消
 
@@ -22,7 +22,25 @@ PDF 使用 `Read + Seek` 接入原生 custom-file callback，每个后端范围�
 
 `PageGeometry` 从与页面 bitmap 完全相同的 `PdfRenderConfig` 调用 native `pixels_to_points` 取得仿射基，提供页面点与左上角原点 normalized 坐标双向转换。CropBox、页面旋转与 raster 缩放统一处理，不拼接字符宽度。
 
-`Glyph` 保留原生字符 index、Unicode 文本、UTF-16 范围、native tight bounds 和文字角度；无法取得 bbox 的字符保留文本且 bbox 为 None，不伪造矩形。`PageRaster` 提供文本、glyph 与几何；UI 上传纹理后不再保留重复的 CPU 像素。RM26 必须复用这些坐标，并绑定当前 scope/hash；尚未实现用户文字选择、搜索、高亮或批注。
+`Glyph` 保留原生字符 index、Unicode 文本、UTF-16 范围、native tight bounds 和文字角度；无法取得 bbox 的字符保留文本且 bbox 为 None，不伪造矩形。`PageRaster` 提供文本、glyph 与几何；UI 上传纹理后不再保留重复的 CPU 像素。RM26 选择、搜索和批注复用这些坐标，并绑定当前 scope/hash。
+
+## 选择、批注与阅读回链
+
+`selection.rs` 按原生 normalized_quad 命中 glyph，保留原生文字顺序与 UTF-16 范围，按相邻几何合并矩形。支持拖选、Cmd/Ctrl+A/C/F、Shift+左右、Escape；批注最多 100 个矩形、引用/内容各 10000 UTF-16。页面只绘制当前 hash 的批注，白色 PDF 页面上的选区使用 Kit info 色、批注使用 warning 色；搜索与批注导航在放大视图中滚动至目标。
+
+`view/interaction.rs` 持有输入实体、选区和可取消工作，`view/controls.rs` 提供搜索/批注工具条与每组 10 条的侧栏。`search.rs` 单独按需提取文字，不渲染整书，最多 500 页 / 4500000 UTF-16 / 1000 命中；达到预算明确提示结果不完整。搜索保留原文偏移，不用大小写转换后的字节位置猜测几何。
+
+`notebook/pdf.rs` 复用既有批注与笔记事务。读写先核对笔记、修订、主资源及 hash；历史修订允许阅读/生成阅读笔记，禁止修改批注和发布索引。旧文件批注保留在侧栏并提示，用户确认重锚定时明确告知沿用原页码/坐标、没有自动文字匹配。文件被替换后，旧 hash 的正文索引与批注从当前 FTS 排除。
+
+阅读笔记保存引用、批注和 `anynote://notebook/UUID/note/UUID#pdf-page-N` 或 `#pdf-annotation-UUID`。编辑器修饰键点击回链通过 OpenDocument 重新解析当前文档，激活已有或新建 PDF 窗口并导航；删除/失效批注显示错误，历史文件批注不静默套用当前页面。复制包含 PDF 和阅读笔记的树时同步映射节点与批注 ID。
+
+## 索引任务与持久化
+
+`index.rs` 在独立线程使用受控 ResourceReader 和 Pdfium 只提取文字，密码仅驻留当前进程。`IndexBuilder` 按页序接受数据，最多 500 页与 4500000 UTF-16，预算包含 `[第 N 页]` 标记；不得截断代理对。完成全量为 complete，触及预算但有文字为 partial，没有可用文字为 scanned；scanned 不推断 OCR 能力或自动运行 OCR。
+
+`backend/pdf_index.rs` 创建真实 TaskHistory 并暂存提取结果，FinishIndex 必须收到全部允许页或显式预算截断。失败、取消、缺页及迟到完成不改 note_text/FTS/覆盖状态。提交先转 Committing，再通过单写队列原子更新三者；提交开始后的取消遵循既有 TooLate 语义。UI 关闭/切换释放提取任务；进程异常退出由既有任务恢复标记 Interrupted。native 同步调用仍不能强制中断。
+
+覆盖元数据保存于 `extension_data(namespace=anynote.pdf.index, key=note.UUID, schema_version=1)`，值绑定 asset hash；数据库 schema v5 不变。完整快照、当前快照和复制保留覆盖状态；当前快照重建 FTS 同时包含当前 hash 的 PDF 提取文本与批注。完整/当前 `.anynote` 归档回读和开放导出的原 PDF 字节、批注 JSON 已验证；开放导出没有将批注烧录进 PDF。
 
 ## Native 安装与 ABI
 
@@ -39,7 +57,7 @@ export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 
 这次五个平台归档均实际下载并验证摘要，只有 macOS arm64 实际装载、解析和渲染。Linux/macOS x64/Windows 的 ABI、字体和显示仍归 RM32；签名、包内布局、更新后的漏洞版本与最终重分发清单归 RM36。锁定 7350 是复现基线，不代表生产安全准入。没有采用 WebView 后备，也不新增 RM27 依赖。
 
-## 验证与复现
+## 验证与复现（RM25 基线）
 
 2026-11-09：macOS 26.2 arm64，Rust 1.99.1，`b23aa64` 工作树。
 
@@ -64,4 +82,10 @@ cargo run -p anynote-desktop --example pdf_probe --locked
 
 语料：`tests/fixtures/pdf/geometry.pdf` / `encrypted.pdf` 由 `scripts/pdf-fixtures.py` 使用 reportlab 4.4.5、pypdf 6.1.1 生成；解锁测试密码为 `rm25-test`。保留 RM01 的 `three-pages.pdf`，并加入 [W3C 公开 Dummy PDF](https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf)，断言实际文字 `Dummy PDF file`。生成器只用于测试，不进入产品依赖。临时日志、安装产物、截图和大 PDF 均放 `tmp/rm25/`。
 
-本组仅交付 E7 的原生引擎与页面/几何前段，不关闭 RM26、RM32/36 或任何 V/A/F 真实验收项。
+## RM26 验证增量
+
+2026-11-09：macOS 26.2 arm64、Rust 1.99.1、`95353f7` 工作树。沿用上述命令与 native 库，新增 8 项测试：core 2 项预算/UTF-16/回链，storage 2 项替换/历史/重锚定/搜索/复制闭包，native 1 项真实几何选区与搜索提取，backend 1 项完成/取消/失败任务，UI 1 项生产控件全流程，archive 1 项完整/当前/开放导出。既有测试同时回归，完整 workspace **321 passed / 0 failed / 3 ignored**（既有子进程 fixture）。首次沙箱本机 socket EPERM，短 TMPDIR 并允许本机 IPC 后整套通过。
+
+全 features Clippy、无 media Clippy、fmt 和依赖边界通过。最终选区颜色与放大搜索滚动调整后再次运行 PDF UI 3 项及全 features Clippy，通过；没有将模拟 UI 断言当成三平台验收。日志在 `tmp/rm26/`。真实隔离 `.app` 验证 8 处搜索、8 页索引、保存批注、生成持久阅读笔记并点击回链返回 PDF。最终构建确认白色页面上的青色选区与原生文字对齐，截图为 `tmp/rm26/selection.png`。
+
+RM25/26 本地实现完成；Windows/Linux 原生能力、读屏/设备和签名发行继续归 RM32/36，OCR/带批注 PDF 文件导出继续归 F017/F018。
