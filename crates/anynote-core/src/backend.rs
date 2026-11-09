@@ -256,6 +256,7 @@ pub enum Command {
         id: crate::document_session::DocumentId,
     },
     SaveDocument(crate::document_session::SaveDocument),
+    SaveBoard(crate::board::BoardSave),
     DocumentResource {
         id: crate::document_session::DocumentId,
         revision: Uuid,

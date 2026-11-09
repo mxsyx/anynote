@@ -149,9 +149,17 @@ impl DocumentStore {
         } else {
             None
         };
+        let remember_document = matches!(
+            command,
+            Command::CreateDocument | Command::OpenDocument { .. }
+        );
         let resources = if let Command::SaveDocument(request) = &command {
             self.images
                 .resources(request.snapshot().id(), request.resources())?
+        } else if let Command::SaveBoard(request) = &command {
+            let mut ids = request.images().to_vec();
+            ids.push(request.preview());
+            self.images.resources(request.base().id(), &ids)?
         } else {
             vec![]
         };
@@ -201,6 +209,13 @@ impl DocumentStore {
                             catalog.notebook(&id.notebook().to_string())?.read(),
                         )
                         .map(Reply::Document)
+                    }
+                    Command::SaveBoard(request) => {
+                        let id = request.base().id();
+                        let book = catalog.notebook(&id.notebook().to_string())?;
+                        crate::board::persistence::commit(book, &request, resources)
+                            .and_then(|note| snapshot(id.notebook(), note, book.read()))
+                            .map(Reply::Document)
                     }
                     Command::SaveDocument(request) => {
                         let base = request.snapshot();
@@ -272,7 +287,7 @@ impl DocumentStore {
             .await
             .map_err(|_| ServiceError::new(ErrorCode::Storage))?
             .map_err(storage)??;
-        if let Reply::Document(snapshot) = &reply {
+        if remember_document && let Reply::Document(snapshot) = &reply {
             state.write(
                 "document.last.identity",
                 &serde_json::to_vec(snapshot.id())

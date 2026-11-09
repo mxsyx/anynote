@@ -1,6 +1,7 @@
 //! Continuous and source editing share one document session, history and save
 //! controller; projection and native input never own a second body.
 mod accessibility;
+mod boards;
 mod builtin;
 mod element;
 mod images;
@@ -68,6 +69,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("table", "表格"),
     ("rule", "分隔线"),
     ("image", "图片…"),
+    ("board", "白板…"),
 ];
 
 pub fn insert_menu() -> Menu {
@@ -141,6 +143,9 @@ pub struct DocumentEditor {
     rich_scroll: Option<(ListOffset, u64)>,
     source_scroll: Option<(Point<Pixels>, u64)>,
     images: images::Images,
+    board: Option<Entity<crate::board::BoardSession>>,
+    board_pending: Option<anynote_editor::model::BlockId>,
+    board_subscription: Option<Subscription>,
     builtin_pending: Option<anynote_core::builtin::ReadingCommand>,
     builtin_request: Option<(anynote_core::builtin::ReadingRequest, u64, uuid::Uuid)>,
     builtin_running: bool,
@@ -194,6 +199,9 @@ impl DocumentEditor {
             rich_scroll: None,
             source_scroll: None,
             images: Default::default(),
+            board: None,
+            board_pending: None,
+            board_subscription: None,
             builtin_pending: None,
             builtin_request: None,
             builtin_running: false,
@@ -337,6 +345,13 @@ impl DocumentEditor {
         })
     }
     fn run(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
+        if self.board.is_some() {
+            return;
+        }
+        if action.name == "board" {
+            self.insert_board(window, cx);
+            return;
+        }
         if self.run_builtin(&action.name, window, cx) {
             return;
         }
@@ -618,6 +633,9 @@ impl DocumentEditor {
         let first = row.leaves.start;
         let leaf = self.state.projection.leaves[first].clone();
         let key = self.keys[first];
+        if let Some(board) = self.render_board_block(first, key, window, cx) {
+            return board;
+        }
         if let Some(image) = self.render_image_block(first, window, cx) {
             return image;
         }
@@ -864,6 +882,14 @@ impl Focusable for DocumentEditor {
 }
 impl Render for DocumentEditor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(board) = &self.board {
+            return div()
+                .id("document-board-session")
+                .size_full()
+                .bg(cx.theme().background)
+                .text_color(cx.theme().foreground)
+                .child(board.clone());
+        }
         self.images.previews.clear();
         if self.last_rem != window.rem_size() || self.last_scale != window.scale_factor() {
             let (leaf, _) = self.state.projection.at(self.state.head);

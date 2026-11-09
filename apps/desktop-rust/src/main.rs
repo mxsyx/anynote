@@ -21,6 +21,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut probe = Probe::default();
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--board-window") => {
+                let scene = if let Some(path) = args.next() {
+                    use std::io::Read;
+                    let mut source = String::new();
+                    std::fs::File::open(path)?
+                        .take(16 * 1024 * 1024 + 1)
+                        .read_to_string(&mut source)?;
+                    if source.len() > 16 * 1024 * 1024 {
+                        return Err("board scene exceeds 16 MiB".into());
+                    }
+                    anynote_editor::board::Scene::parse(&source)?
+                } else {
+                    anynote_editor::board::Scene::parse(
+                        "{\"elements\":[],\"files\":{},\"appState\":{}}",
+                    )?
+                };
+                if args.next().is_some() {
+                    return Err("--board-window accepts at most one scene path".into());
+                }
+                gpui_kit::application()
+                    .with_assets(gpui_kit::assets::Assets)
+                    .with_quit_mode(gpui_kit::QuitMode::LastWindowClosed)
+                    .run(move |cx| {
+                        use gpui_kit::AppContext;
+                        gpui_kit::init(cx);
+                        anynote_desktop::board::install_actions(cx);
+                        Theme::sync_system_appearance(None, cx);
+                        gpui_kit::open_window(
+                            gpui_kit::WindowOptions {
+                                window_bounds: Some(gpui_kit::WindowBounds::Windowed(
+                                    gpui_kit::Bounds::centered(
+                                        None,
+                                        gpui_kit::size(gpui_kit::px(1100.), gpui_kit::px(760.)),
+                                        cx,
+                                    ),
+                                )),
+                                titlebar: Some(gpui_kit::TitlebarOptions {
+                                    title: Some("Anynote · 白板临时草稿".into()),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            cx,
+                            move |window, cx| {
+                                cx.new(|cx| {
+                                    anynote_desktop::board::BoardView::new(scene, window, cx)
+                                })
+                            },
+                        )
+                        .expect("open board window");
+                        cx.activate(true);
+                    });
+                return Ok(());
+            }
             Some("--backend") => {
                 if args.next().is_some() {
                     return Err("--backend accepts no further arguments".into());

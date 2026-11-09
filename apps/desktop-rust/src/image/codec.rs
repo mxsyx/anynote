@@ -19,6 +19,9 @@ static SVG_FONTS: LazyLock<Arc<resvg::usvg::fontdb::Database>> = LazyLock::new(|
     fonts.load_system_fonts();
     Arc::new(fonts)
 });
+pub(crate) fn font_database() -> Arc<resvg::usvg::fontdb::Database> {
+    SVG_FONTS.clone()
+}
 pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Clone, Debug)]

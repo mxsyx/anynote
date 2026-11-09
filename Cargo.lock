@@ -243,6 +243,7 @@ dependencies = [
  "anynote-services",
  "anynote-storage",
  "async-channel",
+ "base64 0.22.1",
  "directories",
  "gpui-kit",
  "image",

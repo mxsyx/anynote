@@ -99,6 +99,7 @@ impl Backend {
             | Command::OpenLastDocument
             | Command::OpenDocument { .. }
             | Command::SaveDocument(_)
+            | Command::SaveBoard(_)
             | Command::DocumentResource { .. } => {
                 if self.documents.is_none() {
                     self.documents =

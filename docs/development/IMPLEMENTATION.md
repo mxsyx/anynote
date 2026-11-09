@@ -4,6 +4,30 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm24"></a>
+
+## 2026-11-09 · RM24 白板保存与历史资源闭包
+
+笔记白板块已接原生插入/预览/编辑及显式保存/取消。打开前复用 RM19 flush，冻结 directive ID、note revision/head 和正文 generation；提交期间冻结白板，取消不写白板 revision，应用内关窗/切笔记等待显式提交确认。保存结果用 epoch/head/generation 校验回填，保存失败与冲突保留草稿，未确认响应重试原请求；重连使用新客户端，后续正文不能被旧请求覆盖。
+
+scene、嵌图、PNG 预览通过 RM05 单写队列/既有事务与递归 pin 一起发布，复用 RM21 分块上传和预览资源加载。PNG 和画布共用轮廓/排线/扰动/箭头几何、字体与图片变换。没有新增持久格式、表或依赖，保留原 RM23 工作树内容。详细入口、预算与复现见[白板保存契约](RUST-BOARD-VIEW.md#rm24)。
+
+新增 4 项测试：directive 局部更新；真实后端/SQLite/CAS 持久化、写入故障回滚、重启幂等重试、图片重绑下历史 pin、复制/移动、完整归档导入和开放导出原图；2 项生产控件 UI integration tests 覆盖打开前 flush、绘制/保存/取消/重开、冲突草稿及保存中关闭。macOS arm64 / Rust 1.99.1 / `884bd2b` 工作树最终 core/editor/storage 128 项、desktop 72 项、archive/transfer 18 项通过，3 个 ignored 是既有子进程 fixture。Clippy `-D warnings`、改动文件 rustfmt、diff 检查与依赖边界通过。单实例测试初次遇默认临时路径 SUN_LEN/沙箱 socket 拒绝，短路径并允许本机 socket 后通过；锁定跨平台缓存补齐后边界为 5 工程/844 包。
+
+仅关闭 RM24 本地保存/资源闭包。RM22/23 完整动作与渲染、RM19 系统退出限制、真实三平台/物理设备/性能及 V/A/F 保持原门槛，本次不声称人工视觉验收或正式用户资料接管。
+
+<a id="rm23"></a>
+
+## 2026-11-09 · RM23 白板绘制与交互（部分完成）
+
+新增 `apps/desktop-rust/src/board/` 与 `--board-window [scene.json]`，纯原生 GPUI 临时草稿；复用 RM22 原子命令/保真 scene/历史和 RM21 解码器，没有修改 RM22 格式、后端写事务或笔记保存责任。交付共享几何命中、九项工具选择、四角变换与路径控制点、框选/组选择、Kit 文字输入、字体轮廓、裁剪/旋转图片显示、系统剪贴板、菜单和快捷键。一次手势只发布一次历史，失败/取消保留原 scene；异步资源有取消/generation，资产未变不重复解码。
+
+新增 5 项模块测试、6 项几何/手势测试、3 项生产视图 UI integration tests。修复实际测试暴露的 GPUI 空 dash 数组崩溃、关闭文字对话框后焦点丢失，以及真窗口 LastResort 抢先匹配导致中文缺字。检查了中文实际字形输出；测试平台覆盖主题、缩放/DPI、图片粘贴与组合，不宣称三平台、真实 IME 或性能终验。
+
+最终检查：新增 14/14、既有 RM22 内核 23/23 测试通过；桌面构建、全 targets（含 ui-tests）Clippy `-D warnings`、改动文件 rustfmt 与 `git diff --check` 通过；93 个动作名称与冻结 fixture 逐行核对。最终 macOS 真窗口再次确认中文字形，并验证关闭临时窗口后进程退出。验证期间 Cargo 压缩包缓存被清空，按原锁文件恢复后完成复测，未升级依赖。
+
+[原生白板契约](RUST-BOARD-VIEW.md) 记录入口、资源上限、接续责任及 93 项冻结 action 的逐项缺口。RoughJS 像素等价、全字体/彩色 emoji、开放绑定/elbow、frame、完整控件与库/搜索/导出等仍缺；RM23.1–.3 不勾选。临时窗口关闭丢弃，白板块/保存闭环留 RM24，不把预览作为产品持久化验收。
+
 <a id="rm14"></a>
 
 ## 2026-11-08 · RM14 原路径接管与回退（副本原型，部分完成）

@@ -28,6 +28,7 @@ markdown = "=1.0.0"
 unicode-segmentation = "=1.13.3"
 sha2 = "=0.10.9"
 image.workspace = true
+base64 = "=0.22.1"
 resvg.workspace = true
 pdfium-render = { workspace = true, optional = true }
 

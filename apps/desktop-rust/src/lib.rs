@@ -1,6 +1,7 @@
 pub mod backend;
 pub mod backend_client;
 pub mod backend_session;
+pub mod board;
 pub mod document_editor;
 pub mod instance;
 pub mod probe;

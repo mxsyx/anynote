@@ -21,6 +21,7 @@
 - [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：RM13 的 LevelDB 副本、平台凭据原型、插件状态保全、逆映射与复现方法。
 - [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)：RM14 的完整保全、可重入 journal、原路径租约、最新数据回退、故障演练及正式激活缺口。
 - [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene/事务边界、0.18 默认入口与快捷键矩阵、裁剪/路径/组框层级差分及完整兼容门槛。
+- [Rust 原生白板视图与交互](RUST-BOARD-VIEW.md)：RM23 原生绘制/交互、93 个冻结动作接线缺口，以及 RM24 显式保存、原子资源闭包、历史/跨库/归档互通与复现。
 - [开发工作流](DEVELOPMENT-WORKFLOW.md)
 - [文档维护与临时文件规则](DOCUMENTATION.md)
 - [类型编译与边界](TYPESCRIPT-MIGRATION.md)

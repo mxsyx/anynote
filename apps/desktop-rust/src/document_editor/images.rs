@@ -328,86 +328,9 @@ impl DocumentEditor {
         let block = leaf.id.block?;
         let parsed = anynote_editor::image::parse(&self.source()[leaf.span.clone()])?;
         let resource = Uuid::parse_str(&parsed.resource).ok()?;
-        let scope = self.scope(resource)?;
         let key = self.keys[ix];
-        let saved = self
-            .state
-            .save
-            .as_ref()?
-            .base()
-            .resources()
-            .contains_key(&resource);
-        let cache = self
-            .images
-            .cache
-            .get(&resource)
-            .filter(|image| image.read(cx).scope() == &scope)
-            .cloned();
-        let preview = self.images.previews.contains(&resource) || self.images.previews.len() < 8;
-        if preview {
-            self.images.previews.insert(resource);
-        }
-        if preview && cache.is_none() && saved && self.images.queued.insert(resource) {
-            let owner = cx.weak_entity();
-            let alt = parsed.alt.clone();
-            window.on_next_frame(move |window, cx| {
-                let _ = owner.update(cx, |this, cx| {
-                    this.images.queued.remove(&resource);
-                    if !this.images.previews.contains(&resource)
-                        || this.scope(resource).as_ref() != Some(&scope)
-                    {
-                        return;
-                    }
-                    let Some(client) = cx
-                        .try_global::<BackendSession>()
-                        .map(|s| s.client().clone())
-                    else {
-                        return;
-                    };
-                    if this.images.cache.len() >= 8
-                        && let Some(old) = this
-                            .images
-                            .cache
-                            .keys()
-                            .find(|id| !this.images.previews.contains(id))
-                            .copied()
-                        && let Some(image) = this.images.cache.remove(&old)
-                    {
-                        this.images.observations.remove(&old);
-                        image.update(cx, |v, cx| v.close(window, cx));
-                    }
-                    let image = cx.new(|cx| ImageView::new(scope, client, true, alt, window, cx));
-                    let subscription = cx.observe_in(&image, window, |this, _, _, cx| {
-                        this.layout.remeasure();
-                        cx.notify();
-                    });
-                    this.images.observations.insert(resource, subscription);
-                    this.images.cache.insert(resource, image);
-                    cx.notify();
-                });
-            });
-        }
-        let width = parsed.width;
-        let (natural_width, natural_height) = cache
-            .as_ref()
-            .and_then(|view| view.read(cx).dimensions())
-            .unwrap_or((320, 200));
-        // Persisted image width is document geometry, independent of chrome spacing.
-        let image = div()
-            .w(px(width.unwrap_or(natural_width) as f32))
-            .max_w_full()
-            .aspect_ratio(natural_width as f32 / natural_height as f32);
-        let image = if let Some(view) = cache {
-            image.child(view)
-        } else {
-            image.child(if saved && !preview {
-                "打开查看图片"
-            } else if saved {
-                "正在读取图片"
-            } else {
-                "图片等待保存"
-            })
-        };
+        let (image, saved) =
+            self.render_resource_preview(resource, parsed.alt, parsed.width, window, cx)?;
         Some(
             div()
                 .id(("image-block", key))
@@ -455,6 +378,94 @@ impl DocumentEditor {
                 )
                 .into_any_element(),
         )
+    }
+    pub(super) fn render_resource_preview(
+        &mut self,
+        resource: Uuid,
+        alt: String,
+        width: Option<u32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<(AnyElement, bool)> {
+        let scope = self.scope(resource)?;
+        let saved = self
+            .state
+            .save
+            .as_ref()?
+            .base()
+            .resources()
+            .contains_key(&resource);
+        let cache = self
+            .images
+            .cache
+            .get(&resource)
+            .filter(|image| image.read(cx).scope() == &scope)
+            .cloned();
+        let preview = self.images.previews.contains(&resource) || self.images.previews.len() < 8;
+        if preview {
+            self.images.previews.insert(resource);
+        }
+        if preview && cache.is_none() && saved && self.images.queued.insert(resource) {
+            let owner = cx.weak_entity();
+            let alt = alt.clone();
+            window.on_next_frame(move |window, cx| {
+                let _ = owner.update(cx, |this, cx| {
+                    this.images.queued.remove(&resource);
+                    if !this.images.previews.contains(&resource)
+                        || this.scope(resource).as_ref() != Some(&scope)
+                    {
+                        return;
+                    }
+                    let Some(client) = cx
+                        .try_global::<BackendSession>()
+                        .map(|s| s.client().clone())
+                    else {
+                        return;
+                    };
+                    if this.images.cache.len() >= 8
+                        && let Some(old) = this
+                            .images
+                            .cache
+                            .keys()
+                            .find(|id| !this.images.previews.contains(id))
+                            .copied()
+                        && let Some(image) = this.images.cache.remove(&old)
+                    {
+                        this.images.observations.remove(&old);
+                        image.update(cx, |v, cx| v.close(window, cx));
+                    }
+                    let image = cx.new(|cx| ImageView::new(scope, client, true, alt, window, cx));
+                    let subscription = cx.observe_in(&image, window, |this, _, _, cx| {
+                        this.layout.remeasure();
+                        cx.notify();
+                    });
+                    this.images.observations.insert(resource, subscription);
+                    this.images.cache.insert(resource, image);
+                    cx.notify();
+                });
+            });
+        }
+        let (natural_width, natural_height) = cache
+            .as_ref()
+            .and_then(|view| view.read(cx).dimensions())
+            .unwrap_or((320, 200));
+        // Persisted image width is document geometry, independent of chrome spacing.
+        let image = div()
+            .w(px(width.unwrap_or(natural_width) as f32))
+            .max_w_full()
+            .aspect_ratio(natural_width as f32 / natural_height as f32);
+        let image = if let Some(view) = cache {
+            image.child(view)
+        } else {
+            image.child(if saved && !preview {
+                "打开查看图片"
+            } else if saved {
+                "正在读取图片"
+            } else {
+                "图片等待保存"
+            })
+        };
+        Some((image.into_any_element(), saved))
     }
     pub(super) fn open_image(
         &mut self,

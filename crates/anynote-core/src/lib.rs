@@ -8,3 +8,5 @@ pub mod recovery;
 
 pub mod document_session;
 pub mod builtin;
+
+pub mod board;

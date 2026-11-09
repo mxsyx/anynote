@@ -26,11 +26,16 @@ pub fn flush_all(cx: &mut App) -> FlushState {
         let state = window.update(cx, |_, window, cx| {
             editor.update(cx, |editor, cx| {
                 editor.request_close(window, cx);
-                if editor.state.save.as_ref().is_some_and(|s| s.retry_needed())
+                if editor
+                    .board
+                    .as_ref()
+                    .is_some_and(|b| b.read(cx).is_failed())
+                    || editor.state.save.as_ref().is_some_and(|s| s.retry_needed())
                     || (editor.builtin_request.is_some() && !editor.builtin_running)
                 {
                     FlushState::Failed
-                } else if editor.is_composing()
+                } else if editor.board.is_some()
+                    || editor.is_composing()
                     || editor.images.importing
                     || editor.source_composing(window, cx)
                     || editor.state.save.as_ref().is_some_and(|s| s.dirty())
@@ -270,6 +275,11 @@ impl DocumentEditor {
     }
     pub(super) fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.closing = true;
+        if let Some(board) = self.board.clone() {
+            board.update(cx, |b, cx| b.close(cx));
+            return;
+        }
+        self.board_pending = None;
         self.flush(window, cx);
     }
     /// The caller may load another note in advance; it cannot replace a dirty session.
@@ -280,6 +290,11 @@ impl DocumentEditor {
         cx: &mut Context<Self>,
     ) {
         self.switching = Some(snapshot);
+        if let Some(board) = self.board.clone() {
+            board.update(cx, |b, cx| b.close(cx));
+            return;
+        }
+        self.board_pending = None;
         self.flush(window, cx);
     }
     fn complete_flush(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -294,6 +309,10 @@ impl DocumentEditor {
             return;
         }
         self.flush_requested = false;
+        if self.board_pending.is_some() {
+            self.start_board(window, cx);
+            return;
+        }
         if self.builtin_pending.is_some() {
             self.start_reading(window, cx);
             return;
@@ -321,6 +340,9 @@ impl DocumentEditor {
         cx.notify();
     }
     fn pump_save(&mut self, force: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.board.is_some() {
+            return;
+        }
         if self.builtin_running || self.builtin_request.is_some() {
             return;
         }
