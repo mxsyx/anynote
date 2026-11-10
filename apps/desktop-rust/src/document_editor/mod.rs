@@ -114,6 +114,9 @@ pub struct DocumentEditor {
     state: DocumentSession,
     focus: FocusHandle,
     layout: ListState,
+    table_scroll: HashMap<(anynote_editor::model::BlockId, Vec<usize>), ScrollHandle>,
+    code_scroll: HashMap<u64, ScrollHandle>,
+    reveal_selection: bool,
     geometry: Rc<RefCell<element::GeometryFrame>>,
     accessible_positions: Rc<RefCell<accessibility::TextMap>>,
     keys: Vec<u64>,
@@ -125,6 +128,7 @@ pub struct DocumentEditor {
     last_scale: f32,
     overlay_anchor: Point<Pixels>,
     dragging_selection: bool,
+    drag_position: Option<Point<Pixels>>,
     slash: Option<Entity<PopupMenu>>,
     slash_first: Option<String>,
     slash_start: Option<usize>,
@@ -172,6 +176,9 @@ impl DocumentEditor {
             state,
             focus,
             layout,
+            table_scroll: HashMap::new(),
+            code_scroll: HashMap::new(),
+            reveal_selection: false,
             geometry: Default::default(),
             accessible_positions: Default::default(),
             keys: vec![],
@@ -183,6 +190,7 @@ impl DocumentEditor {
             last_scale: window.scale_factor(),
             overlay_anchor: point(px(0.), px(0.)),
             dragging_selection: false,
+            drag_position: None,
             slash: None,
             slash_first: None,
             slash_start: None,
@@ -265,10 +273,32 @@ impl DocumentEditor {
             })
             .collect();
         self.identities = identities;
+        let code_keys: std::collections::HashSet<_> = self
+            .state
+            .projection
+            .leaves
+            .iter()
+            .enumerate()
+            .filter(|(_, leaf)| matches!(leaf.kind, NodeKind::Code { .. }))
+            .map(|(ix, _)| self.keys[ix])
+            .collect();
+        self.code_scroll.retain(|key, _| code_keys.contains(key));
+        for key in code_keys {
+            self.code_scroll.entry(key).or_default();
+        }
+        self.table_scroll.retain(|(block, path), _| {
+            self.state.projection.rows.iter().any(|row| {
+                row.table
+                    .as_ref()
+                    .is_some_and(|(id, p, ..)| id == block && p == path)
+            })
+        });
     }
     fn changed(&mut self, result: Result<()>, window: &mut Window, cx: &mut Context<Self>) {
         self.error = result.err();
         self.view_revision += 1;
+        self.accessible_positions.borrow_mut().clear();
+        self.reveal_selection = !self.dragging_selection;
         let generation = self.state.editor.document().generation();
         if generation != self.projected_generation {
             self.stop_video(cx);
@@ -290,7 +320,10 @@ impl DocumentEditor {
         }
         let (leaf, _) = self.state.projection.at(self.state.head);
         let row = self.state.projection.row_for(leaf);
-        if self.geometry.borrow().leaves.contains_key(&self.keys[leaf]) {
+        if self.dragging_selection {
+            // Edge dragging owns scrolling until release; revealing the active
+            // row here would undo the next autoscroll step.
+        } else if self.geometry.borrow().leaves.contains_key(&self.keys[leaf]) {
             self.layout.scroll_to_reveal_item(row);
         } else {
             // Unmeasured rows have no reliable pixel height yet. Jump by model
@@ -629,18 +662,48 @@ impl DocumentEditor {
                 }
             });
         let flow = FlowPosition::at(&[&block], 0, true);
+        let content = block.render_with_id(
+            ("content", self.keys[ix]),
+            flow,
+            &render_context,
+            window,
+            cx,
+        );
+        let content = if let Some(scroll) = self.code_scroll.get(&self.keys[ix]) {
+            div()
+                .w_full()
+                .min_w_0()
+                .relative()
+                .child(
+                    div()
+                        .id(("code-scroll", self.keys[ix]))
+                        .test_support()
+                        .w_full()
+                        .max_h(rems(20.))
+                        .overflow_y_scroll()
+                        .track_scroll(scroll)
+                        .child(content),
+                )
+                .child(
+                    gpui_kit::base::ScrollableMask::new(Axis::Vertical, scroll)
+                        .id(("code-mask", self.keys[ix])),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .child(gpui_kit::base::Scrollbar::vertical(scroll)),
+                )
+                .into_any_element()
+        } else {
+            content
+        };
         div()
             .id(("leaf", self.keys[ix]))
             .role(Role::Paragraph)
             .a11y_synthetic_children(|builder| builder.parent_node().set_hidden())
             .test_support()
-            .child(block.render_with_id(
-                ("content", self.keys[ix]),
-                flow,
-                &render_context,
-                window,
-                cx,
-            ))
+            .child(content)
             .into_any_element()
     }
     fn render_row(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -660,6 +723,7 @@ impl DocumentEditor {
         let owner = cx.entity();
         let mut content = div()
             .id(("row", key))
+            .test_support()
             .flex()
             .items_start()
             .gap_2()
@@ -709,19 +773,52 @@ impl DocumentEditor {
         }
         if let Some(block) = self.render_builtin(first, key, cx) {
             content = content.child(div().flex_1().min_w_0().child(block));
-        } else if row.table.is_some() {
+        } else if let Some((block, path, row_ix, row_count, columns)) = &row.table {
+            let scroll = self
+                .table_scroll
+                .entry((*block, path.clone()))
+                .or_default()
+                .clone();
+            let mut cells = div().flex().items_stretch().w(rems(12. * *columns as f32));
             for leaf_ix in row.leaves {
-                content = content.child(
+                cells = cells.child(
                     div()
                         .id(("cell", self.keys[leaf_ix]))
-                        .flex_1()
-                        .min_w_0()
+                        .w(rems(12.))
+                        .flex_shrink_0()
                         .border_1()
                         .border_color(cx.theme().border)
                         .p_2()
                         .child(self.render_leaf(leaf_ix, window, cx)),
                 );
             }
+            content = content.child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .relative()
+                    .child(
+                        div()
+                            .id(("table-scroll", key))
+                            .test_support()
+                            .w_full()
+                            .overflow_x_scroll()
+                            .track_scroll(&scroll)
+                            .child(cells),
+                    )
+                    .child(
+                        gpui_kit::base::ScrollableMask::new(Axis::Horizontal, &scroll)
+                            .id(("table-mask", key)),
+                    )
+                    .when(row_ix + 1 == *row_count, |view| {
+                        view.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .child(gpui_kit::base::Scrollbar::horizontal(&scroll)),
+                        )
+                    }),
+            );
         } else {
             content = content.child(
                 div()
@@ -782,24 +879,30 @@ impl DocumentEditor {
             .child(
                 div()
                     .id(("drag-handle", key))
-                    .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                    .child(
-                        Button::new(("move", key))
-                            .small()
-                            .ghost()
-                            .label("块操作")
-                            .dropdown_menu(move |menu, _, _| {
-                                menu.action_context(focus.clone())
-                                    .menu(
-                                        "上移",
-                                        Box::new(RunCommand::new(format!("move-up:{first}"))),
-                                    )
-                                    .menu(
-                                        "下移",
-                                        Box::new(RunCommand::new(format!("move-down:{first}"))),
-                                    )
-                            }),
-                    ),
+                    .test_support()
+                    .cursor_grab()
+                    .px_2()
+                    .py_1()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("⠿")
+                    .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone())),
+            )
+            .child(
+                Button::new(("move", key))
+                    .small()
+                    .ghost()
+                    .label("块操作")
+                    .dropdown_menu(move |menu, _, _| {
+                        menu.action_context(focus.clone())
+                            .menu(
+                                "上移",
+                                Box::new(RunCommand::new(format!("move-up:{first}"))),
+                            )
+                            .menu(
+                                "下移",
+                                Box::new(RunCommand::new(format!("move-down:{first}"))),
+                            )
+                    }),
             )
             .into_any_element()
     }
@@ -1089,8 +1192,33 @@ impl Render for DocumentEditor {
                                         .zip(positions.position(selection.focus));
                                     drop(positions);
                                     if let Some((anchor, head)) = range {
-                                        let result = this.state.select(anchor, head);
-                                        this.changed(result, window, cx);
+                                        if this.is_composing() {
+                                            let text = this.state.display_text();
+                                            use anynote_editor::selection::{
+                                                TextUnit, offset_from_byte,
+                                            };
+                                            if let (Ok(start), Ok(end)) = (
+                                                offset_from_byte(
+                                                    &text,
+                                                    anchor.min(head),
+                                                    TextUnit::Utf16,
+                                                ),
+                                                offset_from_byte(
+                                                    &text,
+                                                    anchor.max(head),
+                                                    TextUnit::Utf16,
+                                                ),
+                                            ) {
+                                                this.set_selected_text_range(
+                                                    start..end,
+                                                    window,
+                                                    cx,
+                                                );
+                                            }
+                                        } else {
+                                            let result = this.state.select(anchor, head);
+                                            this.changed(result, window, cx);
+                                        }
                                     }
                                 });
                             }
@@ -1104,10 +1232,13 @@ impl Render for DocumentEditor {
                     .overflow_hidden()
                     .on_key_down(cx.listener(Self::key_down))
                     .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-                    .on_mouse_move(cx.listener(Self::mouse_move))
                     .on_mouse_up(
                         MouseButton::Left,
-                        cx.listener(|this, _, _, _| this.dragging_selection = false),
+                        cx.listener(|this, _, _, _| this.stop_selection_drag()),
+                    )
+                    .on_mouse_up_out(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, _| this.stop_selection_drag()),
                     )
                     .on_action(cx.listener(|this, _: &kit_input::Copy, window, cx| {
                         if this.source.is_none() {

@@ -87,6 +87,38 @@ pub struct Transaction {
     millis: u64,
 }
 impl Transaction {
+    /// Preview the resulting source to resolve a logical selection before commit.
+    /// This does not mutate the document or publish a history entry.
+    pub fn source_after(&self, document: &Document) -> Result<String, EditError> {
+        if self.generation != document.generation() {
+            return Err(SourceError::Stale.into());
+        }
+        validate_patches(document.source(), &self.patches)?;
+        let mut source = document.source().to_owned();
+        replay(&mut source, &self.patches)?;
+        Ok(source)
+    }
+
+    /// Combine prepared edits against the same snapshot into one history entry.
+    /// The caller owns the final selection; child selections are not composed.
+    /// Patch conflicts are validated atomically by `Editor::apply`.
+    pub fn combine(
+        generation: u64,
+        transactions: impl IntoIterator<Item = Self>,
+        kind: EditKind,
+        millis: u64,
+    ) -> Result<Self, EditError> {
+        let mut patches = Vec::new();
+        for transaction in transactions {
+            if transaction.generation != generation {
+                return Err(SourceError::Stale.into());
+            }
+            patches.extend(transaction.patches);
+        }
+        patches.sort_by_key(|patch| patch.range.start);
+        Ok(Self::new(generation, patches, kind, millis))
+    }
+
     pub fn new(generation: u64, patches: Vec<Patch>, kind: EditKind, millis: u64) -> Self {
         Self {
             generation,

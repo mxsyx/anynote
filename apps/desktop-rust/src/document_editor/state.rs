@@ -296,7 +296,24 @@ impl DocumentSession {
                 .map_err(error)?;
             return self.apply(tx);
         }
-        Err("此跨结构选区暂不支持替换；可分别编辑或使用原文".into())
+        let first = a.id.block.ok_or("没有起始块")?;
+        let last = b.id.block.ok_or("没有结束块")?;
+        let blocks = doc.blocks();
+        let first_ix = blocks.iter().position(|block| block.id() == first).unwrap();
+        let last_ix = blocks.iter().position(|block| block.id() == last).unwrap();
+        let mut end_path = b.id.path.clone();
+        end_path[0] = last_ix - first_ix;
+        let tx = Structure::for_blocks(doc, first, last)
+            .map_err(error)?
+            .replace_between(
+                (&a.id.path, start),
+                (&end_path, end),
+                text,
+                self.marks.clone(),
+                self.millis(),
+            )
+            .map_err(error)?;
+        self.apply(tx)
     }
     pub fn paste(&mut self, text: &str, markdown: bool) -> Result<()> {
         if self.pending_task.is_some() {
@@ -630,22 +647,58 @@ impl DocumentSession {
 
     pub fn format(&mut self, format: Format) -> Result<()> {
         let range = self.range();
-        let (ix, start) = self.projection.at(range.start);
-        let (last, end) = self.projection.at(range.end);
-        if ix != last {
-            return Err("请在同一段落内设置格式".into());
+        let mut transactions = Vec::new();
+        let mut block = None;
+        let mut contents = Vec::new();
+        for leaf in &self.projection.leaves {
+            let start = range.start.max(leaf.logical.start);
+            let end = range.end.min(leaf.logical.end);
+            if start >= end
+                || !matches!(
+                    leaf.kind,
+                    NodeKind::Paragraph | NodeKind::Heading(_) | NodeKind::Cell
+                )
+            {
+                continue;
+            }
+            let Some(id) = leaf.id.block else { continue };
+            if block != Some(id) {
+                contents = InlineContent::for_block(self.editor.document(), id).map_err(error)?;
+                block = Some(id);
+            }
+            let content = contents
+                .iter()
+                .find(|c| c.span().start >= leaf.span.start && c.span().end <= leaf.span.end)
+                .ok_or("请选择可编辑文字")?;
+            transactions.push(
+                content
+                    .format(
+                        start - leaf.logical.start..end - leaf.logical.start,
+                        TextUnit::Utf8,
+                        format.clone(),
+                        self.millis(),
+                    )
+                    .map_err(error)?,
+            );
         }
-        let leaf = &self.projection.leaves[ix];
-        let id = leaf.id.block.ok_or("请选择文字")?;
-        let content = InlineContent::for_block(self.editor.document(), id)
-            .map_err(error)?
-            .into_iter()
-            .find(|c| c.span().start >= leaf.span.start && c.span().end <= leaf.span.end)
-            .ok_or("请选择可编辑文字")?;
-        let tx = content
-            .format(start..end, TextUnit::Utf8, format, self.millis())
-            .map_err(error)?;
-        self.apply(tx)
+        if transactions.is_empty() {
+            return Err("请选择可编辑文字".into());
+        }
+        let (anchor, head) = (self.anchor, self.head);
+        let tx = Transaction::combine(
+            self.editor.document().generation(),
+            transactions,
+            EditKind::Format,
+            self.millis(),
+        )
+        .map_err(error)?;
+        let preview = Document::new(tx.source_after(self.editor.document()).map_err(error)?);
+        let projection = Projection::new(&preview, 0);
+        self.apply(tx.with_selection(Selection::new(
+            self.editor.document().generation(),
+            Position::new(projection.source_at(anchor), Affinity::Before),
+            Position::new(projection.source_at(head), Affinity::After),
+        )))
     }
     pub fn toggle_task(&mut self, ix: usize, checked: bool) -> Result<()> {
         let leaf = &self.projection.leaves[ix];

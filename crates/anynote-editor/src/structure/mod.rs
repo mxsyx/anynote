@@ -1,5 +1,6 @@
 //! Versioned structural commands prepare RM16 transactions; they never own history or saved state.
 mod blocks;
+mod range;
 mod table;
 mod tree;
 

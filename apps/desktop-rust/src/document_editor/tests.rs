@@ -1,6 +1,74 @@
 use super::*;
 
 #[core::prelude::v1::test]
+fn nested_ranges_replace_and_format_atomically() {
+    let source = "before\n\n- **alpha**\n  - nested\n- omega\n\n> quoted tail\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let start = state.projection.text.find("alpha").unwrap() + 2;
+    let end = state.projection.text.find("quoted").unwrap() + 3;
+    state.select(start, end).unwrap();
+    state.replace("中").unwrap();
+    assert_eq!(state.projection.text, "before\nal中ted tail\nafter");
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    state.select(end, start).unwrap();
+    state.command("italic").unwrap();
+    assert_eq!(state.anchor, end);
+    assert_eq!(state.head, start);
+    assert_eq!(state.editor.undo_steps(), 1);
+    assert!(state.editor.document().source().contains('*'));
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    assert_eq!((state.anchor, state.head), (end, start));
+    state.command("redo").unwrap();
+    assert_eq!((state.anchor, state.head), (end, start));
+}
+
+#[core::prelude::v1::test]
+fn cell_range_preserves_rectangle_marks_and_one_history_entry() {
+    let source = "before\n\n| a | b |\n|---|---|\n| **cat** | dog |\n| eel | fox |\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let start = state.projection.text.find("cat").unwrap() + 1;
+    let end = state.projection.text.find("fox").unwrap() + 1;
+    state.select(start, end).unwrap();
+    state.replace("🦀").unwrap();
+    let cells: Vec<_> = state
+        .projection
+        .leaves
+        .iter()
+        .filter(|l| l.kind == NodeKind::Cell)
+        .map(|l| l.text.as_str())
+        .collect();
+    assert_eq!(cells, ["a", "b", "c🦀", "", "", "ox"]);
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    state.select(start, end).unwrap();
+    state.command("italic").unwrap();
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+}
+
+#[core::prelude::v1::test]
+fn cross_structure_failure_preserves_source_history_and_selection() {
+    let start = 1;
+    // Inline code cannot cover a hard line break; preparing another leaf first
+    // must not publish that partial formatting change.
+    let source = "- alpha\n\n> beta  \n> gamma";
+    let mut state = DocumentSession::new(source.into());
+    let generation = state.editor.document().generation();
+    state.select(start, state.projection.text.len()).unwrap();
+    let selected = (state.anchor, state.head);
+    assert!(state.command("inlineCode").is_err());
+    assert_eq!(state.editor.document().source(), source);
+    assert_eq!(state.editor.document().generation(), generation);
+    assert_eq!(state.editor.undo_steps(), 0);
+    assert_eq!((state.anchor, state.head), selected);
+}
+
+#[core::prelude::v1::test]
 fn decoded_projection_and_source_positions_preserve_marks_entities_and_unicode() {
     let source = "# 标题\n\n原有 __格式__ &amp; e\u{301} 🦀\n\n- one\n  - two\n\n| a | b |\n|---|---|\n| c | |\n\n:::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
     let mut state = DocumentSession::new(source.into());
@@ -252,6 +320,65 @@ fn accessible_table_structure_and_text_selection_include_offscreen_cells() {
 }
 
 #[core::prelude::v1::test]
+fn accessible_nested_lists_links_and_marks_keep_text_order() {
+    use std::hash::{Hash, Hasher};
+    let mut state = DocumentSession::new("- **bold** [link](https://example.com)\n  - nested\n\n> quoted\n\n| a | b |\n|---|---|\n| c | d |".into());
+    state.select(state.projection.text.len(), 2).unwrap();
+    let keys = (0..state.projection.leaves.len() as u64).collect::<Vec<_>>();
+    let tree = accessibility::Snapshot::new(&state, &keys).build(|key| {
+        let mut hash = std::hash::DefaultHasher::new();
+        key.hash(&mut hash);
+        accesskit::NodeId(hash.finish())
+    });
+    let nodes = tree
+        .nodes
+        .iter()
+        .map(|(id, node)| (*id, node))
+        .collect::<HashMap<_, _>>();
+    fn text(id: accesskit::NodeId, nodes: &HashMap<accesskit::NodeId, &accesskit::Node>) -> String {
+        let node = nodes[&id];
+        if node.role() == Role::TextRun {
+            node.value().unwrap_or("").into()
+        } else {
+            node.children().iter().map(|id| text(*id, nodes)).collect()
+        }
+    }
+    let value: String = tree.roots.iter().map(|id| text(*id, &nodes)).collect();
+    assert_eq!(value, state.display_text());
+    assert_eq!(
+        nodes
+            .values()
+            .filter(|node| node.role() == Role::List)
+            .count(),
+        2
+    );
+    assert_eq!(
+        nodes
+            .values()
+            .filter(|node| node.role() == Role::ListItem)
+            .count(),
+        2
+    );
+    assert!(nodes.values().any(|node| node.role() == Role::Blockquote));
+    assert!(
+        nodes
+            .values()
+            .any(|node| node.role() == Role::Link && node.url() == Some("https://example.com"))
+    );
+    assert!(
+        nodes
+            .values()
+            .any(|node| node.value() == Some("bold") && node.font_weight() == Some(700.))
+    );
+    let selection = tree.selection.unwrap();
+    assert_eq!(
+        tree.positions.position(selection.anchor),
+        Some(state.anchor)
+    );
+    assert_eq!(tree.positions.position(selection.focus), Some(state.head));
+}
+
+#[core::prelude::v1::test]
 fn native_utf16_ranges_round_surrogates_without_weakening_core_validation() {
     let text = "a🦀b";
     assert_eq!(state::native_byte_range(text, 2..2).unwrap(), 1..1);
@@ -329,6 +456,160 @@ mod ui {
             .unwrap()
         })
     }
+    #[gpui_kit::test]
+    fn code_scroll_keeps_document_fixed_and_reveals_keyboard_caret(cx: &mut TestAppContext) {
+        let code = (0..60).map(|ix| format!("line {ix}\n")).collect::<String>();
+        let source = format!("```rust\n{code}```\n\nlast");
+        let (window, editor) = open(cx, &source);
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            let key = editor.read(cx).keys[0];
+            let top = editor.read(cx).layout.logical_scroll_top();
+            window.scroll(
+                ("code-scroll", key),
+                ScrollDelta::Pixels(point(px(0.), px(-180.))),
+                cx,
+            );
+            assert_eq!(editor.read(cx).layout.logical_scroll_top(), top);
+            assert!(editor.read(cx).code_scroll[&key].offset().y < px(-100.));
+            editor.update(cx, |view, cx| {
+                let end = view.state.projection.leaves[0].logical.end;
+                let result = view.state.select(end, end);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.simulate_next_frame(cx);
+            window.render_frame(cx);
+            let view = editor.read(cx);
+            let caret = view.caret_bounds(window).unwrap();
+            assert!(view.code_scroll[&key].bounds().contains(&caret.center()));
+            assert_eq!(view.layout.logical_scroll_top(), top);
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn table_horizontal_scroll_is_shared_and_does_not_move_document(cx: &mut TestAppContext) {
+        let (window, editor) = open(
+            cx,
+            "| a | b | c | d | e | f |\n|---|---|---|---|---|---|\n| g | h | i | j | k | l |\n\nend",
+        );
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            let keys = editor.read(cx).keys.clone();
+            let top = editor.read(cx).layout.logical_scroll_top();
+            let before = editor.read(cx).geometry.borrow().leaves[&keys[0]]
+                .bounds()
+                .left();
+            window.scroll(
+                ("table-scroll", keys[0]),
+                ScrollDelta::Pixels(point(px(-240.), px(0.))),
+                cx,
+            );
+            let view = editor.read(cx);
+            assert_eq!(view.layout.logical_scroll_top(), top);
+            assert!(view.table_scroll.values().next().unwrap().offset().x < px(-100.));
+            let geometry = view.geometry.borrow();
+            let header = geometry.leaves[&keys[0]].bounds().left();
+            let body = geometry.leaves[&keys[6]].bounds().left();
+            assert!(header < before - px(100.));
+            assert!((header - body).abs() < px(1.));
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn pointer_block_drag_uses_shared_history(cx: &mut TestAppContext) {
+        let source = "first\n\nsecond\n\nthird";
+        let (window, editor) = open(cx, source);
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            let keys = editor.read(cx).keys.clone();
+            window.drag_to(("drag-handle", keys[2]), ("row", keys[0]), cx);
+            assert_eq!(editor.read(cx).text(), "third\nfirst\nsecond");
+            assert_eq!(editor.read(cx).undo_steps(), 1);
+            editor.update(cx, |view, cx| view.focus.focus(window, cx));
+            window.press(primary("cmd-z"), cx);
+            assert_eq!(editor.read(cx).source(), source);
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn stationary_edge_drag_scrolls_across_frames_and_stops_outside_on_release(
+        cx: &mut TestAppContext,
+    ) {
+        let source = (0..100)
+            .map(|ix| format!("paragraph {ix}\n\n"))
+            .collect::<String>();
+        let (window, editor) = open(cx, &source);
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            let bounds = editor.read(cx).geometry.borrow().bounds;
+            let start = editor.read(cx).geometry.borrow().leaves[&editor.read(cx).keys[0]]
+                .bounds()
+                .center();
+            window.dispatch_event(
+                MouseMoveEvent {
+                    position: start,
+                    ..Default::default()
+                }
+                .to_platform_input(),
+                cx,
+            );
+            window.render_frame(cx);
+            window.dispatch_event(
+                MouseDownEvent {
+                    position: start,
+                    button: MouseButton::Left,
+                    click_count: 1,
+                    ..Default::default()
+                }
+                .to_platform_input(),
+                cx,
+            );
+            assert!(editor.read(cx).dragging_selection);
+            window.render_frame(cx);
+            let edge = point(start.x, bounds.bottom() + px(5.));
+            window.dispatch_event(
+                MouseMoveEvent {
+                    position: edge,
+                    pressed_button: Some(MouseButton::Left),
+                    ..Default::default()
+                }
+                .to_platform_input(),
+                cx,
+            );
+            window.render_frame(cx);
+        })
+        .unwrap();
+        cx.run_until_parked();
+        cx.update_window(window, |_, window, cx| {
+            // Drive separate frames without moving the pointer again.
+            for _ in 0..8 {
+                window.render_frame(cx);
+                window.simulate_next_frame(cx);
+            }
+            let view = editor.read(cx);
+            assert_ne!(view.layout.logical_scroll_top(), ListOffset::default());
+            assert!(view.selection().end > 20);
+            let edge = view.drag_position.unwrap();
+            window.dispatch_event(
+                MouseUpEvent {
+                    position: edge,
+                    button: MouseButton::Left,
+                    click_count: 1,
+                    ..Default::default()
+                }
+                .to_platform_input(),
+                cx,
+            );
+            assert!(!editor.read(cx).dragging_selection);
+            assert!(editor.read(cx).drag_position.is_none());
+        })
+        .unwrap();
+    }
+
     #[gpui_kit::test]
     fn native_partial_preedit_and_source_switch_guard(cx: &mut TestAppContext) {
         let (window, editor) = open(cx, "ab");

@@ -20,7 +20,7 @@
 - [Rust 源码模式与保存会话（RM19）](RUST-DOCUMENT-SESSION.md)：调用约束与验证方法。
 - [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：调用约束与验证方法。
 - [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：调用约束与验证方法。
-- [Rust 连续编辑视图（RM18）](RUST-EDITOR-VIEW.md)：调用约束与验证方法。
+- [Rust 连续编辑视图（RM18）](RUST-EDITOR-VIEW.md)：跨结构事务、滚动与拖选、可访问性语义、保存/媒体重放和 Kit 接口边界。
 - [Rust 图片阅读、文档图片与版本（RM21）](RUST-IMAGE-MEDIA.md)：调用约束与验证方法。
 - [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：调用约束与验证方法。
 - [RM37 旧桌面退役与消费者接续](RUST-LEGACY-RETIREMENT.md)：调用约束与验证方法。

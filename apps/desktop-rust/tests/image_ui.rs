@@ -14,6 +14,145 @@ use uuid::Uuid;
 #[path = "support/media_ui.rs"]
 mod media_ui;
 use media_ui::{Backend, click_label, reply, spin};
+
+#[gpui_kit::test]
+fn nested_range_paste_save_reopen_preserves_media_resource(cx: &mut TestAppContext) {
+    cx.background_executor.allow_parking();
+    let backend = Backend::new();
+    let Reply::Document(base) = reply(&backend.client, Command::CreateDocument) else {
+        panic!()
+    };
+    let resource = Uuid::new_v4();
+    let mut encoded = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgb8(2, 2)
+        .write_to(&mut encoded, image::ImageFormat::Png)
+        .unwrap();
+    reply(
+        &backend.client,
+        Command::Image(ImageCommand::Upload {
+            document: base.id().clone(),
+            resource,
+            name: "range.png".into(),
+            offset: 0,
+            bytes: encoded.into_inner(),
+            complete: true,
+        }),
+    );
+    let image = anynote_editor::image::markdown(&resource.to_string(), "preserved").unwrap();
+    let body = format!("before\n\n- alpha\n  - nested\n\n> quoted tail\n\n{image}");
+    let Reply::DocumentSaved(saved) = reply(
+        &backend.client,
+        Command::SaveDocument(
+            SaveDocument::new(
+                Uuid::new_v4(),
+                1,
+                DocumentSnapshot::new(
+                    base.id().clone(),
+                    base.revision(),
+                    base.head(),
+                    base.content().with_body(body.clone()),
+                ),
+            )
+            .with_resources(vec![resource]),
+        ),
+    ) else {
+        panic!()
+    };
+    let snapshot = saved.snapshot().clone();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        document_editor::install_actions(cx);
+        BackendSession::install(backend.client.clone(), cx);
+    });
+    let (window, editor) = cx.update(|cx| {
+        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
+            cx.new(|cx| DocumentEditor::from_snapshot(snapshot.clone(), w, cx))
+        })
+        .unwrap()
+    });
+    cx.update_window(window, |_, w, cx| {
+        w.render_frame(cx);
+        editor.update(cx, |editor, cx| {
+            let text = editor.text();
+            let start = text[..text.find("alpha").unwrap() + 2]
+                .encode_utf16()
+                .count();
+            let end = text[..text.find("quoted").unwrap() + 3]
+                .encode_utf16()
+                .count();
+            editor.set_selected_text_range(start..end, w, cx);
+        });
+        cx.write_to_clipboard(ClipboardItem::new_string("中文🦀".into()));
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-v"
+            } else {
+                "ctrl-v"
+            },
+            cx,
+        );
+        assert!(
+            editor
+                .read(cx)
+                .text()
+                .starts_with("before\nal中文🦀ted tail")
+        );
+        assert_eq!(editor.read(cx).undo_steps(), 1);
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-z"
+            } else {
+                "ctrl-z"
+            },
+            cx,
+        );
+        assert_eq!(editor.read(cx).source(), body);
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-shift-z"
+            } else {
+                "ctrl-shift-z"
+            },
+            cx,
+        );
+        w.click("save-document", cx);
+    })
+    .unwrap();
+    spin(
+        cx,
+        window,
+        |_, cx| matches!(reply(&backend.client, Command::OpenDocument { id: base.id().clone() }), Reply::Document(d) if d.content().body() == editor.read(cx).source()),
+    );
+    let final_source = cx.update(|cx| editor.read(cx).source().to_owned());
+    let Reply::Document(reopened) = reply(
+        &backend.client,
+        Command::OpenDocument {
+            id: base.id().clone(),
+        },
+    ) else {
+        panic!()
+    };
+    assert_eq!(reopened.resources(), snapshot.resources());
+    assert_eq!(reopened.content().body(), final_source);
+    assert!(final_source.contains(&image));
+    cx.update_window(window, |_, w, cx| {
+        editor.focus_handle(cx).focus(w, cx);
+        w.dispatch_action(Box::new(anynote_desktop::shell::CloseWindow), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    let (_, reopened_view) = cx.update(|cx| {
+        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
+            cx.new(|cx| DocumentEditor::from_snapshot(reopened, w, cx))
+        })
+        .unwrap()
+    });
+    cx.update(|cx| {
+        assert_eq!(reopened_view.read(cx).source(), final_source);
+        assert_eq!(reopened_view.read(cx).undo_steps(), 0);
+    });
+}
+
 #[gpui_kit::test]
 fn paste_width_reader_rotate_version_and_close_use_production_controls(cx: &mut TestAppContext) {
     cx.background_executor.allow_parking();
