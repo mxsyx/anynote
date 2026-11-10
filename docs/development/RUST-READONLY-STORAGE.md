@@ -1,6 +1,6 @@
 # Rust schema v5 只读存储接续
 
-RM04 的实现入口为 [`anynote-storage::notebook`](../../crates/anynote-storage/src/notebook/mod.rs)，状态统一见 [TODO](TODO.md#rm04)，本轮结果见[实施记录](IMPLEMENTATION.md#rm04)。这是本机合成数据上的只读数据面，未接 GPUI 业务页面，不代表 M2 或三平台数据验收放行。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与接口
 

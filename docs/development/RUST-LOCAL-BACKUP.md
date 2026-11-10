@@ -1,6 +1,6 @@
 # Rust 本地备份 v3 接续
 
-对应 [RM09](TODO.md#rm09)，实施证据见[实施记录](IMPLEMENTATION.md#rm09)。复用 [RM08 冻结切面](RUST-SNAPSHOT-ARCHIVE.md)，保持旧 `anynote.local-backup` v3 文件布局，不引入 crate 或 Notebook schema 变更。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 服务与任务接入
 
@@ -44,7 +44,7 @@ DB manifest 的 `chunks` 保留有序位置和重复 hash，物理文件集合�
 
 恢复复用同一校验流程，之后调用 RM08 的 `remap_imported_notebook` 重置 ID/lineage、改写库内链接并重建索引，fsync 后发布到新 UUID 目录。拒绝与备份目录交叠，失败不注册半库、不替换原库。恢复目的地必须由宿主授权。
 
-## 验证与边界
+## 验证方法
 
 ```sh
 cargo test -p anynote-services --test local_backup --test archive --locked --offline
@@ -55,4 +55,4 @@ node_modules/.bin/vitest run tests/backup-local.test.mjs tests/backup-boundaries
 python3 scripts/check-rust-workspace.py
 ```
 
-互通脚本使用 `.build` 旧 TS 基线、冻结语料及 `tmp/rm09` 隔离副本；依赖允许 Node 启动本机子进程的环境。Linux/Windows 卷 fixtures 位于 `tests/fixtures/volume/`。本地测试和模拟错误不等于真实用户库、三平台原生 API、NTFS/exFAT/APFS 物理卷、拔盘/断电或 20 GiB 性能验收；这些继续由 RM32/33 完成。完整白板/PDF 工作流闭包仍随 RM24/26 终验。当前同步 SQLite 完整性检查期间，取消可能延后至该阶段结束。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

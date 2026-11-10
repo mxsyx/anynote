@@ -1,6 +1,6 @@
 # RM27 系统 WebView 与视频
 
-更新：2026-11-10。本地实现与 macOS 探针已交付；不声明三平台支持或 provider 真实播放通过。任务状态以 [TODO](TODO.md#rm27) 为准。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与入口
 
@@ -34,16 +34,16 @@
 
 私有 desktop 协议由 v4 升至 v5，新增类型化 `VideoMetadata` command/reply。schema v5 与旧正文 `core.video` v1 格式不变。
 
-## Provider 与 CSP 证据
+## Provider 与 CSP 约束
 
 旧 `apps/desktop/index.html` 仅配置 `frame-src https://www.youtube-nocookie.com`，没有 Vimeo/Bilibili；旧文件作为迁移基线保持不改。
 
-| Provider   | 重建 URL                                                         | 当前原生策略与证据                                                          | 未验收                                     |
-| ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------ |
-| YouTube    | `https://www.youtube-nocookie.com/embed/{11位ID}`                | 固定模板、仅该 embed 的 frame-src/导航，协议与安全测试通过                  | WKWebView 实际播放、referrer/provider 限制 |
-| Vimeo      | `https://player.vimeo.com/video/{6–12位数字}`                    | 原生 wrapper 已补独立 frame-src，不再继承旧 CSP 遗漏；本机插入/保存重开通过 | 播放、重定向与受限视频                     |
-| Bilibili   | `https://player.bilibili.com/player.html?bvid={BV号}&autoplay=0` | 原生 wrapper 已补独立 frame-src；ID/模板/转义测试通过                       | 播放、地区/登录/编解码差异                 |
-| 通用 HTTPS | 无 iframe                                                        | 仅原生链接卡和显式元数据刷新                                                | 公网端点验收归 RM35                        |
+| Provider   | 重建 URL                                                         | 当前原生策略与证据                                  | 未验收                                     |
+| ---------- | ---------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------ |
+| YouTube    | `https://www.youtube-nocookie.com/embed/{11位ID}`                | 固定模板、仅该 embed 的 frame-src/导航              | WKWebView 实际播放、referrer/provider 限制 |
+| Vimeo      | `https://player.vimeo.com/video/{6–12位数字}`                    | 原生 wrapper 使用独立 frame-src                     | 播放、重定向与受限视频                     |
+| Bilibili   | `https://player.bilibili.com/player.html?bvid={BV号}&autoplay=0` | 原生 wrapper 使用独立 frame-src；校验 ID/模板与转义 | 播放、地区/登录/编解码差异                 |
+| 通用 HTTPS | 无 iframe                                                        | 仅原生链接卡和显式元数据刷新                        | 公网端点验收归 RM35                        |
 
 外部播放器没有 IPC handler、custom scheme 或业务 token；每次使用 incognito，iframe sandbox 仅 allow-scripts / allow-same-origin / allow-presentation，允许 fullscreen/encrypted-media，禁止弹窗、下载与父页面导航。父 wrapper 的 CSP 只控制该 frame，**不能替 provider 页面限制其内部 CDN/脚本请求**。禁止为未验证的 provider 故障扩大为任意 frame/script 源。
 
@@ -51,10 +51,10 @@
 
 依据锁定依赖源码及 [Kit WebView 官方指南](https://gpui-kit.com/docs/webview/) 核对：
 
-| 平台        | 启动/依赖                                                                           | 本轮证据                                                            |
+| 平台        | 启动/依赖                                                                           | 验收要求                                                            |
 | ----------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| macOS arm64 | 系统 WKWebView；Kit gpui-pre child                                                  | 真实本地 bridge/Range、bounds、focus API、显隐及销毁 100 次通过     |
-| Linux       | 正常桌面入口显式 X11；Wayland 会话需 XWayland；WebKitGTK 4.1 与 GTK 3 开发/运行依赖 | 源码约束核对；没有本轮 Linux 编译/真机证据，纯 Wayland child 不支持 |
+| macOS arm64 | 系统 WKWebView；Kit gpui-pre child                                                  | 验证 bridge/Range、bounds、焦点、显隐和销毁循环                     |
+| Linux       | 正常桌面入口显式 X11；Wayland 会话需 XWayland；WebKitGTK 4.1 与 GTK 3 开发/运行依赖 | 验证 X11/XWayland；纯 Wayland child 不支持                          |
 | Windows     | WebView2；启动前设置 `GPUI_DISABLE_DIRECT_COMPOSITION=1`；否则宿主返回可见错误      | 源码约束与运行门控已接；未编译/真机验证；incognito 需 WebView2 ≥101 |
 
 三平台真实系统焦点、Tab/Escape、浮层视觉/输入遮挡、跨屏 100/150/200% DPI、视频播放/编解码、子进程内存与故障恢复仍交 RM32；运行库发现/打包/签名交 RM36。原生探针中的三组 bounds 不冒充物理 DPI 验证；未改变 V/A/F 状态。
@@ -72,4 +72,4 @@ cargo build -p anynote-desktop --example webview_probe --locked --offline
 target/debug/examples/webview_probe tmp/rm27/webview-probe-100.json 100
 ```
 
-services 的实际 socket 测试及原生探针需要本机 socket/AppKit 权限。沙箱内的 EPERM/NSPasteboard 初始化失败不是应用通过；本轮在允许这些本机能力后重跑成功。临时日志在 `tmp/rm27-*`，探针 JSON 在 `tmp/rm27/`，可随时删除。
+服务 socket 测试及原生探针需要本机 socket/AppKit 权限；环境错误须如实记录，不能计为应用通过。

@@ -1,6 +1,6 @@
 # ADR-013 · 远端维护生命周期与手动保留配置
 
-状态：已采纳。日期：2026-10-21；G09，基于 `9834141` 工作树。补充 [ADR-005](005-generation-publication.md)。
+状态：采用。
 
 [返回 ADR 索引](README.md)
 
@@ -17,10 +17,6 @@
 
 ## 取舍与边界
 
-选择永久归档而不是删除所有证据，换取不复活旧身份及可核对的历史；R2 证据仍随历史增长。活动身份达到 2000 时拒绝新版本，但清理可在上限执行；保护项超预算不削弱保护。运行时子请求/CPU 配额和满预算真实成本由 G07 验证。2026-10-21 由 [ADR-014](014-cloudflare-transfer-resume.md) 补充未完成 multipart 会话登记、abort 与续传；空间估算仍排除未完成片段。
+选择永久归档而不是删除所有证据，换取不复活旧身份及可核对的历史；R2 证据仍随历史增长。活动身份达到 2000 时拒绝新版本，但清理可在上限执行；保护项超预算不削弱保护。运行时子请求/CPU 配额和满预算真实成本由 [真实云验收](../../development/TODO.md#a007) 验证。由 [ADR-014](014-cloudflare-transfer-resume.md) 补充未完成 multipart 会话登记、abort 与续传；空间估算仍排除未完成片段。
 
-## 实现与验证
-
-[维护规划/确认](../../../apps/cloudflare-backup/src/maintenance.ts)、[归档](../../../apps/cloudflare-backup/src/maintenance-history.ts)、[迁移](../../../apps/cloudflare-backup/migrations/0005.sql)、[客户端配置](../../../packages/backup/src/manage.ts)。
-
-[维护契约测试](../../../tests/remote-maintenance.test.mjs)、[可复用本地/真实服务场景](../../../scripts/cloud/maintenance-scenarios.mjs)、[浏览器交互](../../../scripts/remote-retention-smoke.mjs)。结果与剩余外部验证见 [历史实施证据](../../development/history/todo-2026-10-24.md#g09)。
+相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

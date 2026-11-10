@@ -1,6 +1,6 @@
 # Rust 原生白板视图与交互
 
-本轮是 [RM23](TODO.md#rm23) 的可运行原型与局部交付，**不能替换完整旧白板，RM23.1–.3 均未完成**。前置 [RM22](RUST-BOARD-COMPATIBILITY.md) 的开放绑定、文字布局、frame 和路径操作仍有缺口。未引入 React/WebView/WASM 或新的场景格式。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 使用入口与责任
 
@@ -13,7 +13,7 @@ cargo run --locked --offline -p anynote-desktop -- --board-window tests/fixtures
 
 实现位于 `apps/desktop-rust/src/board/`：`BoardInput` 拥有唯一 RM22 `Board`，`view` 拥有 focus/Kit 控件及异步资源任务，`geometry` 给绘制/命中提供共同理想轮廓，`paint` 直接生成 GPUI 路径/纹理，`text` 以系统字体排版生成字形轮廓，`assets` 复用 RM21 有界解码，`clipboard` 用 RM22 Duplicate 重映射关系。新增直接依赖是锁文件已有的 `base64 0.22.1`，未新增 crate。
 
-## 已交付的交互
+## 交互契约
 
 - 工具栏：选择、平移、矩形、菱形、椭圆、线条、箭头、手绘、文字、图片。V/H/R/D/E/L/A/P/T 与 1–8 对应常用工具；图片由文件选择器或系统图片剪贴板插入。没有 frame/嵌入工具的完成声明。
 - 同一世界/视口坐标转换处理负坐标、缩放和窗口原点。空心图形按轮廓命中，填充图形/文字/图片按面积命中；选择从顶层命中开始，Shift 增减展开后的组，框选包含完整轮廓；锁定和删除元素不命中。
@@ -31,7 +31,7 @@ cargo run --locked --offline -p anynote-desktop -- --board-window tests/fixtures
 
 先补 RM22 的绑定/文字/路径布局，再接完控制点、吸附、frame、组内编辑、图片裁剪交互及完整属性面板。随后补库、搜索、链接、清空、导出/复制 PNG/SVG、网格/吸附/禅模式等冻结入口；逐项建立旧版输入序列及像素/几何对比。不能以本地矩形或 headless 测试关闭整个 RM23。
 
-## 验证与复现
+## 验证方法
 
 ```sh
 cargo test --locked --offline -p anynote-desktop --lib board::tests
@@ -40,15 +40,11 @@ cargo test --locked --offline -p anynote-editor --test board
 cargo clippy --locked --offline -p anynote-desktop --all-targets --features ui-tests -- -D warnings
 ```
 
-本轮新增 5 项资源/剪贴板/字体测试、6 项坐标/手势/历史测试和 3 项真实生产视图的 GPUI UI integration tests。后者以指针/快捷键/Kit 菜单验证绘制、undo/redo、移动、复制粘贴、删除、取消、文字焦点、图片和组合，包含 headless resize/2× scale/深色主题。它们不等于操作系统 IME、真实 DPI 或全部原动作兼容。
-
-macOS 真窗口已用 RM01 scene 打开并绘制矩形；发现并修复 `LastResort` 优先匹配导致中文缺字的问题。去掉伪全字集字体后，真实字形 PNG 已人工检查中文及转义文本，最终 macOS 窗口再次确认中文显示正常；彩色 emoji 仍未完成。RM01 示例图片字节本身损坏，原生窗口明确显示损坏提示，没有伪造成功。
-
-本地系统窗口在沙箱中因 NSPasteboard 返回空值而无法启动，在允许 macOS 窗口服务的环境可运行。临时 app 包/字形 PNG 位于可删除的 `tmp/rm23/`。跨平台、真机 DPI/字体、设备输入和性能属于 RM32，未关闭任何 V/A/F 条目。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。
 
 ## 冻结动作逐项接线盘点
 
-以下 93 行来自 `tests/fixtures/rust-board/reachability.json` 的运行时 action 名称。它是**覆盖缺口盘点，不是 93 项通过报告**；“局部接线”只表示存在所列入口，不表示上游条件/像素/历史序列全覆盖。默认工具的八项旧版创建证据另见该 fixture 的 `creations`，本轮 frame 仍缺。
+以下 93 行来自 `tests/fixtures/rust-board/reachability.json` 的运行时 action 名称。它是**覆盖缺口盘点，不是 93 项通过报告**；“局部接线”只表示存在所列入口，不表示上游条件/像素/历史序列全覆盖。默认工具的八项旧版创建证据另见该 fixture 的 `creations`，frame 交互仍有缺口。
 
 | 冻结 action                    | 当前状态    | 入口或缺口                                            |
 | ------------------------------ | ----------- | ----------------------------------------------------- |
@@ -175,8 +171,6 @@ macOS 真窗口已用 RM01 scene 打开并绘制矩形；发现并修复 `LastRe
 
 ### 验证与复现
 
-2026-11-09，macOS arm64、Rust 1.99.1、锁定 GPUI Kit 0.9.0，基于 `884bd2b` 工作树（保留已有 RM23 改动）。新增 core directive 1 项、真实后端/存储闭环 1 项、生产控件 UI integration tests 2 项。后端测试使用真实子进程、SQLite/CAS 文件、重启与资源写入故障注入；UI 测试渲染真实控件并发送原生输入，不是模拟 RPC。
-
 验证覆盖：打开前未保存输入 flush；取消不写白板 revision；实际绘制、按钮/快捷键保存、重开/复制场景；冲突保留草稿；保存中关窗；scene/原图/PNG 历史读取；同 ID 被其他笔记重绑后仍使用旧 pin；跨库复制/移动；完整归档导入；开放导出 `.excalidraw.json` 重建内嵌原图；资源写入失败回滚、缺资源拒绝、已提交请求重启重试和后续正文防覆盖。
 
 ```sh
@@ -186,7 +180,3 @@ cargo test -p anynote-services --test archive --test transfer --locked --offline
 cargo clippy -p anynote-desktop --all-targets --features ui-tests --locked --offline -- -D warnings
 python3 scripts/check-rust-workspace.py
 ```
-
-结果：128 + 72 + 18 项通过，3 个 ignored 均为既有父测试调用的子进程 fixture；Clippy 和 5 工程/844 锁定包边界检查通过。macOS 单实例测试需短临时路径与本机 Unix socket 权限；初次默认路径触发 SUN_LEN，沙箱随后拒绝 socket，最终以短路径和允许本机 socket 的隔离环境重跑通过。依赖缓存缺失时先 `cargo fetch --locked`，不升级依赖。运行日志位于可删除的 `tmp/rm24-*.log`，隔离资料由测试清理。
-
-本轮没有新的桌面人工视觉验收、三平台真实 IME/读屏、物理卷/断电、用户资料接管或性能终验；这些不由本地自动化代替。保存闭包状态见 [RM24](TODO.md#rm24)，完整白板状态仍以 [RM22](TODO.md#rm22)/[RM23](TODO.md#rm23) 为准。

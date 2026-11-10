@@ -1,6 +1,6 @@
 # Rust 白板兼容契约与差分方法
 
-本文件定义 RM22 的 scene 边界、旧版动作证据和复现方法；进度只在 [TODO](TODO.md#rm22) 维护，实际运行结论在[实施记录](IMPLEMENTATION.md#rm22)。RM23 负责原生绘制/输入，RM24 负责资源、预览及 revision 原子保存。当前内核尚不能替换完整 Excalidraw 编辑器。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 数据与事务边界
 

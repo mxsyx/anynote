@@ -1,6 +1,6 @@
 # 本地磁盘备份设计
 
-当前实现采用 SQLite 物理分块与附件文件级增量，具体契约见 [存储设计](SQLITE-STORAGE.md) 和 [本地备份实现](../../packages/backup-local/README.md)。
+当前实现采用 SQLite 物理分块与附件文件级增量，具体契约见 [存储设计](SQLITE-STORAGE.md) 和 [Rust 本地备份契约](../development/RUST-LOCAL-BACKUP.md)。
 
 流程为：一致性捕获 → 校验并计算有序块 → 比较受管块 → 持久化写入日志 → 写后校验 → 原子发布完整清单 → 清理旧块及附件。只保留当前完整副本，恢复创建新 Notebook。目标以 `assets/sha256/` 保存完整附件文件，统一清单同时描述数据库块和附件。
 

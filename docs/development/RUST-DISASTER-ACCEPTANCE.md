@@ -1,6 +1,6 @@
 # Rust 物理盘与灾难恢复验收（RM33）
 
-2026-11-10。[RM33](TODO.md#rm33) 是真实设备验收。本轮交付本机预验证批次、可移交的双格式恢复包及实物执行清单；RM33.1–.3、V004–V009 均未完成。当前只有本机内置 APFS 证据，未收到外接测试盘路径或独立设备信息，未执行拔盘、填满磁盘、断电、远端访问或日常资料操作。RM14 正式接管/回退和 RM37 最终候选包仍是终验前置。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 本机预验证
 
@@ -42,30 +42,7 @@ python3 scripts/rust-recovery.py verify tmp/rm33-transfer --output tmp/rm33-rece
 
 本地 verify 会更新 `lastFullVerifiedAt`，因此只操作 bundle 的私有复制；归档只读。验证结束再次检查整个传输包未变。输出 `recovery-report.json` 包含两端设备标签/主机/平台/时间、两端驱动摘要、manifest 摘要及每格式业务结果。设备名不同不证明物理独立，`physical_device_independence=not_proven` 始终需要真人设备记录补证。
 
-本驱动使用小型黄金语料，不能覆盖全部媒体或大数据性能。本轮 `note_text` 为零行，FTS 只查询固定 `Markdown` 词；不能把它当作 PDF 全文/所有语言搜索验收。远端 committed 版本、系统配置/凭据和最新数据回退不在便携包中，必须按下面清单单独完成。
-
-## 2026-11-10 Mac 本机证据
-
-| 项目             | 事实                                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 环境             | Mac16,10，Apple M4 / 10 CPU / 32 GiB，macOS 26.2 arm64，Rust 1.99.1；debug、OS 缓存保留                           |
-| 物理拓扑         | 系统枚举仅 disk0；测试 Data 卷 disk3s5，APFS container disk3 → physical store disk0s2；单个内置 SSD，无外接测试盘 |
-| 原生卷结果       | APFS，稳定 UUID 非空，remote=false，挂载点 `/System/Volumes/Data`；未跨重启/重连验证 UUID 稳定性                  |
-| 批次             | `20261110T040604Z-57928`，selected_checks=passed，acceptance=incomplete，strict 退出 2                            |
-| 源码摘要         | `d00e5b12f6c83ad5efed2f34b563afecf5408361fdcaded829d91525c98689df`；批次内未变化，文档在批次后更新                |
-| 便携包 manifest  | `a55c3a5b3a696bc78acce5fa02707639ec561abe8eb135869d687f0fda3c7e84`                                                |
-| 本地驱动 SHA-256 | `d5c6ab1adfb2dec41c1673874649ba34b527bff8f88c5b3d123606b7fd4745ad`                                                |
-| 归档驱动 SHA-256 | `afdb2a8cc191cd475c91c89546a3b01d94585bd0f3ccd94cf9829be7cf0372cc`                                                |
-
-| 检查            | 结果与边界                                                                                                           |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 证据拒绝路径    | 5/5；损坏/缺失/额外文件、错误摘要、符号链接/越界条目、必需载荷、Full 资源闭包和 `-O` 失败报告                        |
-| Rust 回归       | 本地备份 17、归档 15、迁移 11，共 43 passed / 0 failed / 0 ignored；卷限制、交叠及故障切点包含 fixture，不是实物验收 |
-| 本地 v3         | 全量验证 5/5 文件；恢复 12 张表一致，6 笔记、9 历史、4 assets、1 批注、10 extension_data、1 内部链接                 |
-| 完整 `.anynote` | 同样的业务行/资源及搜索核对通过；源副本在验证前已删除，两条恢复均获得新库身份                                        |
-| 代码检查        | 相关 examples Clippy `-D warnings` 与 workspace fmt 通过；RM31 recovery 入口也已运行通过（strict 退出 2）            |
-
-原始日志、包及恢复目录保存在该批次的 tmp 目录；清理前移交需要长期保留的恢复资料，不能仅凭本页摘要重建包。长期结论以上表为准，临时产物删除不改变未验收状态。
+本驱动使用小型黄金语料，不能覆盖全部媒体或大数据性能。当前便携语料的 `note_text` 为零行，FTS 只查询固定 `Markdown` 词；不能把它当作 PDF 全文/所有语言搜索验收。远端 committed 版本、系统配置/凭据和最新数据回退不在便携包中，必须按下面清单单独完成。
 
 ## 真实设备批次执行清单
 

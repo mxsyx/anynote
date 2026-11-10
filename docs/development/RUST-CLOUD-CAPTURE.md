@@ -1,6 +1,6 @@
 # Rust 配对、采集消费与云浏览
 
-RM12 实现位于 `crates/anynote-services/src/cloud/{capture,browse,upload}.rs`；只读回执与投影查询位于 `crates/anynote-storage/src/notebook/capture.rs`。状态见 [TODO](TODO.md#rm12)，本轮证据见 [实施记录](IMPLEMENTATION.md#rm12)。沿用 schema v5、capture-v1 与 browse-snapshot-v1，不新增 Worker 路由、依赖或表。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 服务接入顺序
 

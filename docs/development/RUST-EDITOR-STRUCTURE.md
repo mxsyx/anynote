@@ -1,6 +1,6 @@
 # Rust 结构编辑内核
 
-对应 [RM17](TODO.md#rm17) 与 [E3 设计](../design/RUST-EDITOR-DESIGN.md)。本文件约束纯内核调用；实际执行证据见[实施记录](IMPLEMENTATION.md#rm17)。前置是 [RM16 事务/输入契约](RUST-EDITOR-TRANSACTIONS.md)。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与调用
 
@@ -54,9 +54,7 @@ RM15 的脚注、转义、HTML、引用、对齐表格、代码 meta、复杂/�
 
 超过 500000 UTF-16/5000 节点等富编辑预算的结构输出返回 `Budget`，不截断正文，也不无声生成新的 opaque 大块。表格维度在分配前做溢出/节点预算检查。结构命令使用独立历史单位，不与相邻普通输入合并；无语义变化的勾选/引用设置保留原始拼写且不增加历史。
 
-## 接续与验证
-
-HTML 剪贴板应先复用 RM07 `anynote-services::importer::convert_html` 的受限转换、资源本地化结果，再由宿主传入 Markdown/单元格矩阵；本模块不执行 HTML、下载媒体或解析任意路径读取权。RM18 负责原生剪贴板 MIME 选择、平台事件、拖放、字符命中、空段落视图和 a11y；RM19 负责保存；RM20/21 负责声明块/媒体业务。此次没有实现或验收这些后续接线。
+## 验证方法
 
 ```sh
 cargo test -p anynote-core -p anynote-editor --offline --locked
@@ -64,4 +62,4 @@ cargo clippy -p anynote-core -p anynote-editor --all-targets --offline --locked 
 python3 scripts/check-rust-workspace.py
 ```
 
-`crates/anynote-editor/tests/structure.rs` 覆盖独立矩阵预期、Unicode/marks、nested split/join/indent/lift、空项退出、资源链接、opaque/directive 字节、plain/Markdown/矩阵粘贴、表头删除、源选区、非法/过期/组合期间失败和完整 undo/redo。3 个固定 seed 各 200 轮表格编辑，另一个 seed 180 轮列表操作。共同语料的 38 个可富编辑块做结构转换/恢复，恰达 UTF-16 预算的样本断言拒绝增大输出。全量源文重解析和临时缓冲仍存在；测试不构成输入延迟、真实设备、原生窗口或三平台验收。临时日志在可删除的 `tmp/rm17/`。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

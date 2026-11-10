@@ -76,6 +76,28 @@ class AcceptanceTests(unittest.TestCase):
         self.assertFalse(report['publication_authorized'])
         self.assertTrue(all(r['status'] == 'blocked' for r in report['records']))
 
+    def test_completed_tasks_keep_candidate_evidence_requirements(self):
+        rows = {row['id']: row for row in a.inventory()}
+        self.assertTrue(rows['RM01']['local_complete'])
+        self.assertFalse(rows['RM19']['local_complete'])
+        self.assertFalse(rows['RM37']['local_complete'])
+        report = a.evaluate(a.template(), self.root)
+        self.assertEqual(next(r for r in report['records'] if r['id'] == 'RM01')['status'], 'blocked')
+
+    def test_incomplete_release_scope_is_rejected(self):
+        scope = self.root / 'scope.md'
+        scope.write_text('| RM01 | Only one boundary |\n')
+        with patch.object(a, 'RELEASE_SCOPE', str(scope)):
+            with self.assertRaisesRegex(ValueError, 'release scope incomplete'):
+                a.inventory()
+
+    def test_open_group_without_checklist_is_rejected(self):
+        todo = self.root / 'TODO.md'
+        todo.write_text('#### RM37 · Retirement\n\nNo checklist\n')
+        with patch.object(a, 'TODO', str(todo)):
+            with self.assertRaisesRegex(ValueError, 'no actionable checklist'):
+                a.inventory()
+
     def test_duplicate_missing_and_unknown_ids_rejected(self):
         for change in ('duplicate', 'missing', 'unknown'):
             bundle = a.template()

@@ -1,8 +1,6 @@
 # Rust 桌面迁移：数据、备份与协议兼容
 
-状态：设计方案，2026-11-08。本文与[迁移总方案](RUST-DESKTOP-MIGRATION.md)、[功能盘点](RUST-MIGRATION-INVENTORY.md)、[编辑器设计](RUST-EDITOR-DESIGN.md)配套。本文描述待实施方案；本次未运行迁移、修改业务代码、读取用户凭据或执行远端验收。
-
-RM13 离线配置读取与凭据原型已交付，具体已验证范围、格式及未验证平台见[实现入口](../development/RUST-CONFIG-MIGRATION.md)；RM14 已实现[隔离副本接管/回退演练](../development/RUST-MIGRATION-TAKEOVER.md)，正式路径激活、偏好回填和平台验收仍未完成；本文其他迁移步骤仍是设计约束，不据此推断已经接管或通过真实验收。
+本文定义 Rust 数据与协议设计，配套 [总方案](RUST-DESKTOP-MIGRATION.md)、[配置契约](../development/RUST-CONFIG-MIGRATION.md) 与 [接管契约](../development/RUST-MIGRATION-TAKEOVER.md)。剩余实现及验收见 [TODO](../development/TODO.md)。
 
 ## 1. 决策与边界
 
@@ -234,10 +232,4 @@ Rust 新增键使用 `a.b.c` 约定；旧键只作为读取映射保留。首次
 | 性能与资源 | 固定数据集分别运行旧 TS 与 Rust：1k/10k/100k节点、历史/附件密集库、20GiB流式边界；SSD/移动盘分别记录                               | p50/p95搜索、保存队列等待、捕获阻塞、复制/上传吞吐、RSS峰值、打开句柄/任务数与取消耗时；标准见总方案，未达标保留失败，不以单测通过替代                  |
 | 真实部署   | 隔离的小型 Cloudflare 测试 Notebook、三平台系统密钥服务、应用/系统重启、真实 24h/7d 老化                                           | 报告分别注明 local、local-workerd、real-cloud、real-device；真实网络与真实时间证据独立保存，不能沿用旧部署被清除的老化样本                              |
 
-现有测试是可复用的业务基准，不代表 Rust 已通过。先把格式 fixture 与纯状态机断言跨语言执行，再增加 Rust 子进程崩溃及 GPUI 端到端测试；Electron 特有 IPC 细节不逐行复制到新测试。源码测试目录为[tests](../../tests/)，旧真实验收边界见[Cloudflare 验收](../development/validation/CLOUD-ACCEPTANCE.md)。本次不部署 Worker、不改远端 schema、不创建/删除真实数据。
-
-## 7. 调研范围与待验证事项
-
-本次按 `codebase-memory` Tier 2 使用 `Anynote` 图（generation `2026-11-08T02:17:54Z`）定位 Storage、backup/capture 与组合根，核对调用链，并对本文引用的源文件执行 coverage 检查和针对性源读取。相关范围唯一记录的解析缺口为 `archive-stream.ts:397`，已直接读取补齐；`dist`、`node_modules`、`.wrangler` 与扩展图标属于有意排除，未将图覆盖视作全量证明。未读取实际用户 DB、密钥或已部署 Worker 状态。
-
-实施前必须补齐的技术证据：Rust bundled SQLite 的实际编译特性与 SQL 精确回读；当前 Electron 三平台密文/Local Storage 格式；Windows 文件替换与卷识别；HTML/Markdown 转换语义等价；TS 续传 manifest 字节兼容。各项都有上文工作包与失败处理，不能通过改写验收范围将其视为已完成。
+现有测试是可复用的业务基准，不代表 Rust 已通过。先把格式 fixture 与纯状态机断言跨语言执行，再增加 Rust 子进程崩溃及 GPUI 端到端测试；Electron 特有 IPC 细节不逐行复制到新测试。源码测试目录为[tests](../../tests/)，旧真实验收边界见[Cloudflare 验收](../development/validation/CLOUD-ACCEPTANCE.md)。

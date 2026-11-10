@@ -1,16 +1,17 @@
 # 设计
 
-记录架构、功能、存储格式与设计取舍。
+保留 Rust 目标方案和跨技术栈通用的设计契约；设计文档不记录实施进度。
 
-- [Rust + GPUI + GPUI-Kit 桌面迁移方案](RUST-DESKTOP-MIGRATION.md)：目标架构、技术选型、WebView 边界、迁移阶段与验收门槛；实施进度以 [TODO](../development/TODO.md#rust-migration) 为准。
-- [Rust 迁移现状与功能清单](RUST-MIGRATION-INVENTORY.md)：现有功能与操作入口、插件能力内置、保留及退役范围。
-- [Rust 数据与协议兼容方案](RUST-DATA-COMPATIBILITY.md)：SQLite、用户文件、配置凭据、归档、备份和 Cloudflare 协议的兼容与回滚。
-- [Rust 原生编辑器设计](RUST-EDITOR-DESIGN.md)：参考 quiet-md 的编辑内核与 GPUI 渲染，独立保持 AnyNote 文档格式和编辑体验。
-- [Anynote 产品与技术设计文档](Anynote-Design.md)
-- [本地磁盘备份设计](Anynote-Local-Disk-Backup-Design.md)
-- [浏览器笔记采集设计](BROWSER-CAPTURE.md)：网页选区、ChatGPT 对话、媒体采集包与 Cloudflare 采集/只读浏览；实现及剩余边界见 [功能说明](../features/BROWSER-CAPTURE.md)。
-- [搜索、导航与目录设计](NAVIGATION.md)
-- [SQLite 与不可变附件的增量备份](SQLITE-STORAGE.md)
-- [视觉组件与交互设计](UI.md)
+- [Anynote 产品与通用数据设计](Anynote-Design.md)：产品概念、通用数据、备份、导入导出与 AI 设计。
+- [本地磁盘备份设计](Anynote-Local-Disk-Backup-Design.md)：本地增量备份的发布、清理与恢复规则。
+- [浏览器扩展：笔记采集设计](BROWSER-CAPTURE.md)：方案、边界与验证要求。
+- [搜索、导航与目录设计](NAVIGATION.md)：方案、边界与验证要求。
+- [Rust 桌面迁移：数据、备份与协议兼容](RUST-DATA-COMPATIBILITY.md)：方案、边界与验证要求。
+- [Rust + GPUI + GPUI-Kit 桌面迁移方案](RUST-DESKTOP-MIGRATION.md)：方案、边界与验证要求。
+- [Rust 原生编辑器与媒体文档设计](RUST-EDITOR-DESIGN.md)：方案、边界与验证要求。
+- [Rust 桌面迁移：功能、依赖与插件退役清单](RUST-MIGRATION-INVENTORY.md)：方案、边界与验证要求。
+- [Rust 发行验收范围](RUST-RELEASE-SCOPE.md)：固定发行检查范围；独立于 TODO 完成状态。
+- [SQLite 与不可变附件的增量备份](SQLITE-STORAGE.md)：方案、边界与验证要求。
+- [视觉组件与交互设计](UI.md)：方案、边界与验证要求。
 
-- [架构决策 ADR](adr/README.md)
+- [架构决策索引](adr/README.md)：存储、编辑、备份与资源生命周期。

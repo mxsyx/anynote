@@ -1,30 +1,6 @@
 # 真实云备份验收
 
-> 状态归属：本文维护验收步骤和历史证据，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
-
-2026-10-03 已通过 Wrangler 自动创建并部署独立 Worker/D1/R2，真实 Cloudflare 验收 **passed**，13 项检查全部通过。结果见真实云报告。这些协议测试不代表完整产品发布验收通过。
-
-## 2026-10-25 重建与浏览器采集真实验证
-
-用户明确授权“直接删除原资源，部署新方案”后，对 `anynote-backup-acceptance-518ee6c2` 核对账号、Worker 绑定、D1 UUID、R2 桶及维护命名空间归属。先停用旧业务入口、删除旧维护类，再中止 1 个未完成 multipart 上传、删除 1,380 个 R2 对象，随后删除 R2 桶、旧 D1（含 93 个 committed / 13 个 staging generation）和 Worker。删除按精确资源身份执行，没有清理账号其他项目。
-
-同名重建 Worker/D1/R2 与维护命名空间，保留原 endpoint 和 APP_TOKEN；D1 UUID 与维护命名空间 ID 已确认更新，迁移 0001–0007 全部生效。真实 `/v1/capabilities` 返回 schema v5、`capture-v1` 与 `browse-snapshot-v1`。旧数据已删除，不存在回迁或旧备份恢复承诺。
-
-2026-10-25 20:52–20:53（北京时间），通过真实网络及桌面后端 `Storage` 创建独立小型测试笔记本“浏览器采集真实验收（可删除）”，9 项检查通过：
-
-- schema v5/采集能力与无效 Token 拒绝。
-- 首次云备份。
-- 配对码生成、一次兑换成功和二次兑换拒绝。
-- 固定快照目录与正文读取。
-- 含 1×1 PNG 与内联样式卡片的采集上传。
-- 桌面归入及同快照 backedUp 回执。
-- 云端正文与图片字节回读一致。
-- 再次备份不重复归入。
-- 清理已备份采集副本、撤销设备后访问被拒绝。
-
-这是实际 Worker/D1/R2 与桌面后端的协议闭环，不代表用户桌面 GUI/浏览器侧栏交互已验收。测试 Notebook 与三个小型备份保留供核对，测试设备已撤销、采集副本已清理；未进行容量、费用或长时间压力测试。临时脱敏报告在 `tmp/browser-capture/cloud-reset/` 的 `reset-result.json`、`deployment-verification.json` 和 `capture-acceptance.json`；本节记录长期结论。
-
-旧老化样本随用户授权的资源删除失效，原本的 24h/7d 时间不能继续使用。本地旧状态及锁文件已移至 `.cloudflare-acceptance/retired-before-schema-v5/`，仅保留历史依据；没有为本轮任务重建老化样本或宣称通过老化验收。后续需重新 seed 并等待真实时间。
+> 状态归属：本文维护部署与验收步骤，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）
 
@@ -114,17 +90,7 @@ npx wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc
 
 每次验收使用新的 Notebook 和 lineage。云端测试数据保留供核查，脚本不删除原有数据；清理时仅处理报告列出的本次测试范围。Cloudflare 已提供受并发保护的清理 API；新增维护场景只删除本次新建测试库中的指定旧版本，其余测试数据继续保留。详见 [远端维护](../../features/REMOTE-MAINTENANCE.md)。
 
-仅当报告 `mode=real-cloud`，所有选定目标 `status=passed` 且全部步骤通过，才能记录该目标的真实云协议验收成功。Linux 真实 GNOME Keyring、应用重启、正式自动备份与恢复流程已另行通过 [桌面验收](DESKTOP-CLOUD-ACCEPTANCE.md)。其他平台的系统密钥服务、系统重启、自动备份长期运行、超过 24 小时无引用对象的真实回收及厂商级故障仍需独立验收。
-
-## 本地验证
-
-```sh
-pnpm test
-pnpm run test:cloud:local
-pnpm run cloud:check
-```
-
-`pnpm test` 使用本地内存对象与 SQLite D1/R2 适配器验证验收逻辑。`test:cloud:local` 则启动官方 workerd，用隔离的本地 D1/R2、真实 HTTP 和并发请求执行同一套 Cloudflare 场景，报告明确为 `local-workerd`；临时服务、数据库和文件会在结束时清理。`cloud:check` 为 dry-run，仅打包，不上传。
+仅当报告 `mode=real-cloud`，所有选定目标 `status=passed` 且全部步骤通过，才能记录该目标的真实云协议验收成功。Linux 真实 GNOME Keyring、应用重启、正式自动备份与恢复流程已另行通过 [桌面验收](../RUST-CLOUD-ACCEPTANCE.md)。其他平台的系统密钥服务、系统重启、自动备份长期运行、超过 24 小时无引用对象的真实回收及厂商级故障仍需独立验收。
 
 ## 跨会话老化样本
 
@@ -150,4 +116,4 @@ pnpm exec wrangler r2 object get '<测试桶>/objects/<Notebook ID>/<hash>' \
   --remote --config .cloudflare-acceptance/wrangler.json --file /tmp/aging-object.bin
 ```
 
-只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 A008。样本身份、最早复验时间和剩余范围见 [Cloudflare 任务交接](../history/todo-progress-2026-10-25.md#cloudflare)。
+只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 A008。样本身份、最早复验时间和剩余范围见 [云剩余任务](../TODO.md#rm34)。

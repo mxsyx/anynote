@@ -1,6 +1,6 @@
 # Rust 快照、归档、开放导出与清理接续
 
-RM08 复用 [RM05 写队列与租约](RUST-WRITE-STORAGE.md)、schema v5、CAS 和 revision_resources。任务状态见 [TODO](TODO.md#rm08)，本轮证据见[实施记录](IMPLEMENTATION.md#rm08)。不改变 Notebook schema、`.anynote` 格式或旧 TS 实现。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 调用边界
 
@@ -38,7 +38,7 @@ RM08 复用 [RM05 写队列与租约](RUST-WRITE-STORAGE.md)、schema v5、CAS �
 
 [`cleanup.rs`](../../crates/anynote-storage/src/notebook/cleanup.rs) 的 `preview_cleanup` / `apply_cleanup` 由写队列执行。候选与旧核心清理相同，仅限超出保留数量和天数的持久快照；不删除 CAS、历史修订、未知 JSON、旧秘密、临时目录或第三方状态。参数为保留 1–1000 份、0–3650 天；最多 20 个内存计划，5 分钟过期。
 
-计划绑定当前写租约、storage epoch、content sequence、候选集合、文件身份/大小/hash；执行必须明确 `confirmed=true`，并重新计算和核对全部条件。重开、过期、引用变更、文件被替换、出现新候选或仍有活动 pin 时拒绝。快照大文件 hash 复核仍可能占用写队列，本轮没有大规模清理延迟验收。
+计划绑定当前写租约、storage epoch、content sequence、候选集合、文件身份/大小/hash；执行必须明确 `confirmed=true`，并重新计算和核对全部条件。重开、过期、引用变更、文件被替换、出现新候选或仍有活动 pin 时拒绝。快照大文件 hash 复核仍可能占用写队列，大规模清理延迟须按性能预算验收。
 
 执行先持久化 `_local/cleanup-quarantine/<planId>/journal.json`（`anynote.cleanup.v1`），再移动已审阅文件。移动失败尽力恢复；若恢复遇到路径冲突或文件异常，保留 journal 和剩余隔离文件。`recover_cleanup` 无需打开 DB，验证身份/hash，拒绝覆盖新快照。
 

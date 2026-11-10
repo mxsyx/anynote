@@ -1,6 +1,6 @@
 # Rust 配置与凭据读取器
 
-RM13 的离线读取与转换入口位于 `crates/anynote-services/src/config_migration/`。它只处理关闭后的保全副本，不自动发现或接管日常 userData，不改 Notebook schema v5。[RM14 副本演练](RUST-MIGRATION-TAKEOVER.md)已接入完整复制、Notebook 租约、journal、配置发布和最新数据回退；正式互斥、调度恢复及 Chromium 偏好回填仍待接线；真实安装和三平台兼容结论归 [RM32](TODO.md#rm32)。当前实现范围与验证摘要见 [RM13 实施记录](IMPLEMENTATION.md#rm13)。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## Local Storage
 
@@ -28,12 +28,12 @@ Chromium 的字符串标记 0 按 UTF-16LE 解码，标记 1 按 Latin-1 解码�
 
 `credentials::decrypt_legacy` 为锁定版本的一次性只读原型；不调用 Electron/Node，也不创建或替换旧平台主密钥。旧应用身份必须由预检提供，不能猜测其他应用的 keyring 条目。
 
-| 平台                                                          | 原生只读路径                                                                                                   | 当前证据                                                                                                                        |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Linux Secret Service                                          | 按 application + `chrome_libsecret_os_crypt_password_v2` 查询唯一未锁定条目；`v11`、PBKDF2-SHA1/1、AES-128-CBC | 独立 D-Bus、私有 GNOME Keyring、Electron 41.9.1 → Rust → 新 OS 条目回读通过                                                     |
-| macOS                                                         | Security.framework 查询指定 service/account；`v10`、PBKDF2-SHA1/1003、AES-128-CBC                              | RM32 macOS arm64 原生编译及配置 fixture/向量通过；真实 Keychain 读写、锁定与重启仍未测，见[设备报告](RUST-DEVICE-ACCEPTANCE.md) |
-| Windows                                                       | 从副本 Local State 读取 `os_crypt.encrypted_key`，DPAPI 只读解包，`v10` AES-256-GCM                            | 独立 Node 加密向量通过；DPAPI/Credential Manager 分支尚未编译或真机验证                                                         |
-| basic_text、KWallet、未知版本/封装、跨平台复制、锁定/拒绝访问 | 明确失败，不使用默认密码或明文回退                                                                             | 自动化失败路径与保全测试                                                                                                        |
+| 平台                                                          | 原生只读路径                                                                                                   | 验收边界                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Linux Secret Service                                          | 按 application + `chrome_libsecret_os_crypt_password_v2` 查询唯一未锁定条目；`v11`、PBKDF2-SHA1/1、AES-128-CBC | 使用独立 D-Bus 与私有 GNOME Keyring 验证旧密文 → Rust → 新 OS 条目回读       |
+| macOS                                                         | Security.framework 查询指定 service/account；`v10`、PBKDF2-SHA1/1003、AES-128-CBC                              | 验证真实 Keychain 读写、锁定与重启，见 [设备方法](RUST-DEVICE-ACCEPTANCE.md) |
+| Windows                                                       | 从副本 Local State 读取 `os_crypt.encrypted_key`，DPAPI 只读解包，`v10` AES-256-GCM                            | 分别验证加密向量及 DPAPI/Credential Manager 原生分支，不能以向量替代真机     |
+| basic_text、KWallet、未知版本/封装、跨平台复制、锁定/拒绝访问 | 明确失败，不使用默认密码或明文回退                                                                             | 自动化失败路径与保全测试                                                     |
 
 新 OS 条目使用 service `app.anynote.credentials`、account `secret.<原 secret UUID>`。`OsSecretStore` 仅启用各平台真实后端：Linux Secret Service / macOS Keychain / Windows Credential Manager；不使用 keyring 的默认 mock 后端。阻塞调用应在专用凭据线程运行，不能放入 UI 或 Tokio runtime 线程。
 
@@ -80,4 +80,4 @@ xvfb-run -a node scripts/rust-config-credential-smoke.mjs
 
 凭据 smoke 另需 `dbus-run-session`、`gnome-keyring-daemon`，自行创建独立 D-Bus 和临时 XDG 数据目录；Xvfb 下显式选择 GNOME Secret Service，检查整个生成目录未出现测试 token 明文，临时报告位于 `tmp/rm13/`。不要在用户登录 keyring 上直接执行底层示例；其环境保护标记只服务此测试驱动，不是生产授权边界。macOS/Windows 不使用 Linux smoke，须由 RM32 提供对应原生生成/回读证据。
 
-新增依赖固定于 Cargo.lock：rusty-leveldb 4.0.1（MIT）、keyring 3.6.3 / secret-service 4.0.0（MIT/Apache-2.0）、RustCrypto AES/CBC/GCM/PBKDF2/SHA 系列（MIT/Apache-2.0）、snap 1.1.2（BSD-3-Clause）、crc32c 0.6.9（Apache-2.0）、zeroize 1.9.1、tempfile 3.27.0。保留五个 crate，不引入 JS 宿主；最终发行依赖/许可证审计仍由 RM36 完成。
+依赖固定于 Cargo.lock：rusty-leveldb 4.0.1（MIT）、keyring 3.6.3 / secret-service 4.0.0（MIT/Apache-2.0）、RustCrypto AES/CBC/GCM/PBKDF2/SHA 系列（MIT/Apache-2.0）、snap 1.1.2（BSD-3-Clause）、crc32c 0.6.9（Apache-2.0）、zeroize 1.9.1、tempfile 3.27.0。保留五个 crate，不引入 JS 宿主；最终发行依赖/许可证审计仍由 RM36 完成。

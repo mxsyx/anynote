@@ -6,8 +6,6 @@
 
 ## 1. 调研范围与事实边界
 
-对 `apps/desktop`、桌面使用的 `packages/*`、插件 SDK/宿主/工具/首方适配器、操作白名单、相关测试入口、构建脚本和 CI 进行了图查询与源码核对。图项目为 `Anynote`，索引时间为 `2026-11-08T02:17:54Z`；图不自动监听本项目，所以关键结论同时检查当前文件。`apps/desktop/src/styles.css:2-6`、`packages/plugin-sdk/src/index.ts:343`、`packages/first-party-adapters/src/index.ts:31` 的解析缺口已直接读取；`dist`、`node_modules` 是有意排除的构建产物/依赖目录，不据此推断运行时不存在其他能力。下列定位行号对应本次快照，后续以符号、操作名与测试行为为准。
-
 当前架构并不是所有业务都在 React 中：
 
 1. [Electron 主入口](../../apps/desktop/electron/main.cts)（17-130、179-422）创建单实例窗口，持有系统凭据/对话框能力，校验操作白名单，并把请求发往 Storage utility process。
@@ -15,8 +13,6 @@
 3. [Storage 进程](../../apps/desktop/electron/storage.ts) 启动备份和扩展更新调度器；[backend 组合根](../../packages/backend/src/index.ts) 注入[备份服务](../../packages/backend/src/backup.ts)，SQLite 核心处理串行写、读取和任务。迁移不应重建一个可动态注册插件的总线来模拟这些调用。
 4. [App](../../apps/desktop/src/main.tsx)（158-3690）持有工作区导航、保存队列、页面和弹窗状态；PDF、图片、白板等功能独立组件按需加载。当前是 Electron BrowserWindow，**没有已实现的 GPUI/系统 WebView 宿主**。
 5. [首方宿主清单](../../packages/extension-host/src/bundled.ts)仅登记一个可信进程插件 `anynote.reading-template`。白板/视频/HTML 导入在扩展页显示为“首方扩展”，实际操作已经由 Storage 核心实现。
-
-本轮是设计调查，不启动已有应用、不验证真实云端、不执行迁移。源码存在、单元测试存在、历史记录通过、当前真实环境通过是四种不同证据。
 
 ## 2. 功能迁移及验收矩阵
 
@@ -69,8 +65,6 @@
 | 插件设置/数据/托管     | `getInstalledExtensionSettings`, `saveInstalledExtensionSettings`, `getExtensionDataOverview`, `previewExtensionDataMigration`, `previewExtensionDataRestore`, `applyExtensionDataReview`, `listExtensionDataNamespaces`, `previewExtensionDataCleanup`, `applyExtensionDataCleanup`, `listHostedExtensions`, `configureHostedExtension`, `executeHostedExtensionCommand`                                                                                           | 运行时管理退役；已知设置/状态迁移为内置业务，未知数据保留导出；离线数据导入不能激活原模块     |
 
 内部入口至少还包括 `registerNotebookDirectory`、`registerImportDirectory`、`prepareCaptureFile`、`startExportArchiveFile`、`startExportMarkdownFile`、`startImportArchiveFile`、`commitImport`、`commitImportMediaRetry`、`createLocalBackupCapture`、`createBackupSnapshot` 以及插件专用 `extensionGetState/extensionDeleteState/extensionPatch` 等。它们不是外部 WebView API；前一组保留为内部 Rust 调用，后一组按实际数据职责拆解并退役插件调用面。
-
-已发现一处不能照抄为“端到端完成”的接线差异：[RemoteMaintenance.tsx](../../apps/desktop/src/RemoteMaintenance.tsx):304 调用 `saveRemoteRetention`，当前 `operations.json` 未列该操作。基线阶段需要记录此路径的当前失败表现、服务实际能力以及 Rust 预期行为；迁移阶段补正确的 typed 入口与回归，不修改本轮业务代码，也不能为了对齐旧缺陷而删除“保存保留配置”交互。
 
 另有视频能力与页面策略的差异：[video.ts](../../packages/protocol/src/video.ts) 支持 YouTube、Vimeo、Bilibili 的受限嵌入地址，但 [index.html](../../apps/desktop/index.html):8 的 `frame-src` 只允许 YouTube。不能仅从 URL helper 推断另外两个 provider 的现有播放已通过；M0 应记录三类 provider 的实际基线，迁移时对每个保留 provider 完成嵌入权限、用户触发、离线缓存、退出清理和最终包回归。
 
@@ -125,7 +119,7 @@
 
 ## 5. 退役范围和执行清单
 
-本节在最终切换阶段执行；本轮仅编写设计。必须先达到 INV-01—23 对应门槛，再删除旧入口。执行时重新做 import、操作字符串、脚本名和文档链接搜索，确认新增代码未引入遗漏。
+本节定义最终切换的消费者清理约束。必须先达到 INV-01—23 对应门槛，再删除旧入口。执行时重新做 import、操作字符串、脚本名和文档链接搜索，确认新增代码未引入遗漏。
 
 | 退役面        | 当前范围                                                                                                                                                                                                               | 执行动作 / 完成判据                                                                                                                                                                       |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -137,7 +131,7 @@
 | 桌面运行/打包 | `scripts/{dev,desktop,start,preview,api,package-desktop,copy-excalidraw}.mjs`；Vite React 插件；根 `main`；Electron-builder 配置                                                                                       | 由 Cargo/原生打包替代桌面路径；迁移期 TS 参考工具仅用于测试，最终桌面产物与启动命令不需要 Node；浏览器/Worker 构建脚本分别保留                                                            |
 | 独立发行单元  | `scripts/build-{sdk,extension-tools,first-party-adapters,release-matrix}.mjs`、`extension-{dev,package}.mjs`、SDK/工具/首方 package smoke；`protocol/src/release.ts`                                                   | 退役 sdk/devtools/first-party 单元和包目录格式宣告，保留 desktop/worker/数据格式及适用版本规则；同步 lockfile/workspace/build-backend/check-workspaces/tsconfig/type-test references      |
 | CI            | `.github/workflows/ci.yml` 的 portable SDK/tool/first-party 构建与上传；`release.yml` 的 Electron 打包；发行凭据流程                                                                                                   | Rust fmt/clippy/test/原生 UI/安装包检查 + 独立 TS 浏览器/Worker 检查；校验最终产物无 Electron/Node/QuickJS/React；签名/公证/更新任务保留，不能因替换打包器而声称自动完成                  |
-| 文档          | `docs/features/extensions/*`；ADR 007/011；原总设计插件章节；development RELEASE-MATRIX/WORKFLOW/TYPESCRIPT-MIGRATION/IMPLEMENTATION/TODO 与验证入口                                                                   | 活跃手册改为内置能力，旧决策标明被本方案取代并保留必要历史；删除/移动时更新各 README 和所有相对链接；取消插件市场/高权限扩展相关未来任务，不误删浏览器扩展任务                            |
+| 文档          | `docs/design`、`docs/development`、`docs/features`                                                                                                                                                                     | 保留 Rust 与通用契约、未完成 TODO；删除 Electron 专属方案、实施日志、完成及取消任务，更新全部索引与链接                                                                                   |
 
 ### 5.1 测试按责任迁移，不能按文件名全删
 
@@ -152,15 +146,15 @@
 
 现有 [TODO](../development/TODO.md) 是未完成事项的权威状态；迁移阶段清单不应复制成另一份完成状态账本。以下边界必须保留：
 
-| 当前记录                                                                                        | 对迁移的要求                                                                                                                                                                                            |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F001/F002、V006—V009：平台卷/物理设备、exFAT 拔盘/磁盘满、断电耐久性、Windows/NTFS/不同设备验证 | Rust 适配需实现同等或更强语义；模拟故障不能替代实际设备。既有未通过项不得因更换语言标为通过                                                                                                             |
-| V012/V013：读屏、真实 IME、原生对话框、缩放/减少动态                                            | GPUI 需重新取得三平台证据；旧 axe/合成 composition 事件只作为参考，不证明新渲染栈可访问性                                                                                                               |
-| V014：低配/冷 OS 缓存、复杂 PDF/照片、小时级任务与内存增长                                      | 对原生/UI/WebView分别量测启动、输入、滚动、搜索、保存、媒体循环及退出资源释放；JS bundle 预算不再适用，保留用户感知耗时/规模/内存目标                                                                   |
-| F005：部分动态类型/运行校验未完成                                                               | Rust 类型只覆盖编译期内部值；外部 JSON/SQLite/ZIP/WebView/云响应仍需限额与 schema 验证，不能把 serde 解析成功当完整业务验证                                                                             |
-| F006/A011/V010/V011：签名/更新/公证/最终安装、升级、回退                                        | 新原生发行重新设计与验证；现有 workflow 构建 AppImage/DMG/NSIS 和 SHA256 不是已完成签名更新                                                                                                             |
-| A007—A009：远端长期调度/老化/真实容量                                                           | TS Worker继续保留，这些验收仍有效且未完成；Rust客户端小样本互通不证明真实 24h/7d、20GiB、满配额或成本目标                                                                                               |
-| F025：浏览器采集部分实现                                                                        | 已有本地/小规模云协议证据保留；真实扩展侧栏/桌面 GUI、商店、复杂媒体与分支等缺口继续记录                                                                                                                |
-| F012—F024 远期项                                                                                | 未实现崩溃草稿日志、AI Provider/流式面板、OCR/语义检索、PDF 批注文件导出、动态登录网页、E2EE、同步/协作等不是迁移前功能；插件生态扩展方向与本次要求冲突，应在实施规划时明确退役，而不是继续开新插件工程 |
+| 当前记录                                                                                   | 对迁移的要求                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F002、V006—V009：平台卷/物理设备、exFAT 拔盘/磁盘满、断电耐久性、Windows/NTFS/不同设备验证 | Rust 适配需实现同等或更强语义；模拟故障不能替代实际设备。既有未通过项不得因更换语言标为通过                                                                                                             |
+| V012/V013：读屏、真实 IME、原生对话框、缩放/减少动态                                       | GPUI 需重新取得三平台证据；旧 axe/合成 composition 事件只作为参考，不证明新渲染栈可访问性                                                                                                               |
+| V014：低配/冷 OS 缓存、复杂 PDF/照片、小时级任务与内存增长                                 | 对原生/UI/WebView分别量测启动、输入、滚动、搜索、保存、媒体循环及退出资源释放；JS bundle 预算不再适用，保留用户感知耗时/规模/内存目标                                                                   |
+| F005：部分动态类型/运行校验未完成                                                          | Rust 类型只覆盖编译期内部值；外部 JSON/SQLite/ZIP/WebView/云响应仍需限额与 schema 验证，不能把 serde 解析成功当完整业务验证                                                                             |
+| F006/A011/V010/V011：签名/更新/公证/最终安装、升级、回退                                   | 新原生发行重新设计与验证；现有 workflow 构建 AppImage/DMG/NSIS 和 SHA256 不是已完成签名更新                                                                                                             |
+| A007—A009：远端长期调度/老化/真实容量                                                      | TS Worker继续保留，这些验收仍有效且未完成；Rust客户端小样本互通不证明真实 24h/7d、20GiB、满配额或成本目标                                                                                               |
+| F025：浏览器采集部分实现                                                                   | 已有本地/小规模云协议证据保留；真实扩展侧栏/桌面 GUI、商店、复杂媒体与分支等缺口继续记录                                                                                                                |
+| F012—F024 远期项                                                                           | 未实现崩溃草稿日志、AI Provider/流式面板、OCR/语义检索、PDF 批注文件导出、动态登录网页、E2EE、同步/协作等不是迁移前功能；插件生态扩展方向与本次要求冲突，应在实施规划时明确退役，而不是继续开新插件工程 |
 
 阶段退出时，审阅人应能从每个 INV ID 跳到：实现入口、可复现输入、预期结果、实际结果、平台/设备/资源条件，以及任何未通过的具体原因。插件已知功能未完成、未知用户关键脚本未给出业务替代、白板只读化、数据仅可导出但原有编辑能力消失，都不满足“功能完整迁移”。

@@ -1,6 +1,6 @@
 # RM34 Rust 真实云验收批次
 
-状态以 [TODO RM34](TODO.md#rm34) 为准。本轮完成驱动、本地预验证及真实云小型闭环，RM34.1 已通过；RM34.2 长期调度、RM34.3 真实老化与物理删除仍未闭合，A007/A008/F025 状态不变，A009 独立保留。原生管理 GUI 与最终发行候选包不在本轮证据内。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 批次入口
 
@@ -62,15 +62,7 @@ node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.
 
 本机单元测试使用假时间仅校验流程，不能形成真实等待证据。对象 API 404 也不构成 R2 物理删除证据；到期后另用部署对应的 R2 管理权限检查报告列出的 `objects/<notebookId>/<hash>`，记录桶身份、对象键、检查时间和明确不存在结果。鉴权/网络错误不算删除。维护进程中断/重启、孤立 manifest/临时对象与 multipart 生命周期仍需受控批次证据，不能仅用本入口关闭 A008。
 
-## 2026-11-10 本地结果
-
-- 当前 macOS arm64、Node 24.22.0：合成 D1/R2 9 项通过；官方 local-workerd 及 Chromium 扩展 10 项通过。
-- 二次上传复用 DB/附件 228,070 字节，对象 PUT 为 0 字节；只表示本语料与请求边界。
-- 既有 RM10 协议回归 14 项通过；Rust cloud/capture/maintenance 12 项通过；老化状态机及 CLI 4 项通过；真实模式缺配置、重复标签保全、端点排他租约 3 项通过。
-- 原生探针锁定离线构建通过。本地首次回环监听被沙箱 EPERM 拒绝，获准本机监听后通过。最初 TS 测试缺构建产物，执行完整 build:backend 后通过。
-- 本地准备阶段没有真实云写入；用户随后提供 `.env.cloud`，真实运行见下一节。
-
-可重复验证命令：
+## 验证驱动
 
 ```sh
 cargo test -p anynote-services --test cloud --test cloud_capture --test maintenance --locked --offline
@@ -78,35 +70,4 @@ node --test scripts/test-rust-cloud.mjs
 pnpm exec vitest run tests/cloud-aging.test.mjs
 ```
 
-## 2026-11-10 真实云小型闭环
-
-用户指定仓库根目录 `.env.cloud` 后，只读取应用配置；没有修改 Worker 部署、D1 schema、账号令牌或既有数据。端点为 `https://anynote-backup-acceptance-518ee6c2.mxsyxin7605.workers.dev`，真实 capabilities 返回协议 v1、schema v5 及本批次全部所需能力。初次沙箱内请求 DNS 失败，获准网络访问后 HTTP 200。
-
-北京时间 14:12:45–14:15:19，批次 `rm34-20261110-01` 的 10 项检查全部通过。真实云首次/二次备份、旧版本及采集后恢复、配对/含媒体采集/同代 browse/撤销、head/writer 冲突均通过公开 API；断网、429 和丢回包由客户端代理注入。二次相同切面复用 228,070 字节 DB/附件，对象 PUT 为 0 字节。Rust 可执行文件摘要与运行报告一致。
-
-- 测试 Notebook：`0ace3573-3905-4d22-b864-c190c39dc5e1`。
-- lineage：`19f60808-ac77-4b31-b104-8ea832dc9fc2`。
-- 首版本：`bbcc0495-104f-45c6-a5a0-ff38603207f5`。
-- 最终版本：`200f26f2-33b7-47f8-a61d-a257ff2a16d8`。
-- 持久报告：`.cloudflare-acceptance/rm34/rm34-20261110-01.json`；临时详细材料：`tmp/rm34/cloud-KU1HYJ/`。
-
-浏览器证据来自实际 Chromium MV3 扩展页面，经本机代理访问真实 Worker；测试设备和浏览器配对设备均已撤销。Rust 使用实际服务实现的独立探针，未操作原生 RM29 管理 GUI，没有最终签名候选包结论。报告顶层 endpoint 是真实服务地址；identity.endpoint 是用于故障注入的回环代理地址，不能把临时代理端口作为后续连接配置。
-
-### 本批真实老化样本与接续时间
-
-样本状态为 `waiting`，持久文件 `.cloudflare-acceptance/rm34/rm34-20261110-01-aging.json`；Notebook `d5c567a7-e326-4e69-8b7e-b046822e1d16`，lineage `ee50105e-61b6-4c1b-8149-09da19a3a985`。本次新建五类样本：orphan、pinned、head、branch 和 staging。seed 通过公开 retention API 仅移除本次 orphan 版本，新对象仍受 24h 宽限保护；没有复用旧部署样本。
-
-- 建立完成：2026-11-10 14:16:18.991（北京时间）。
-- 24h 最早复验：2026-11-11 14:17:18.991；操作时建议 14:18 后，且须在 staging 满 7 天之前完成。
-- 7d 最早复验：2026-11-17 14:17:18.991；操作时建议 14:18 后，先确认 24h 阶段通过。
-
-2026-11-10 14:17 已使用正式 Rust restore 直接通过 HTTPS 恢复 pinned/head/branch 并核对正文，三项通过。结果记录在 `phases.baseline`，只验证复验入口，不冒充 24h/7d；未更改时间、staging 活动或对象老化 metadata。立即运行 24h 复验返回等待（退出码 2），未生成 24h 通过记录。
-
-接续命令（Node >=24，`.env.cloud` 保留在本机）：
-
-```sh
-node --use-env-proxy --env-file=.env.cloud scripts/cloud-aging-acceptance.mjs   --verify 24h --rust --state .cloudflare-acceptance/rm34/rm34-20261110-01-aging.json
-node --use-env-proxy --env-file=.env.cloud scripts/cloud-aging-acceptance.mjs   --verify 7d --rust --state .cloudflare-acceptance/rm34/rm34-20261110-01-aging.json
-```
-
-没有设置自动定时任务。到期后需执行对应命令；不能重新 seed 覆盖此文件。`.env.cloud` 目前仅提供 Worker 应用权限，尚未核对测试 R2 桶管理访问能力，因此 R2 物理删除仍须补管理端证据。长期调度、原生管理 GUI 和最终发行候选包不在上述结果中，RM34.2/.3 继续未完成。
+活动老化样本及下一阶段的接续输入见 [RM34](TODO.md#rm34)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。

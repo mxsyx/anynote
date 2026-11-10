@@ -1,6 +1,6 @@
 # Rust schema v5 写存储接续
 
-RM05 在 [RM04 只读模型](RUST-READONLY-STORAGE.md) 上增加写队列、SQLite 租约、事务及核心操作。实现位于 [`anynote-storage::notebook`](../../crates/anynote-storage/src/notebook/mod.rs)，任务状态见 [TODO](TODO.md#rm05)，实际验证见[实施记录](IMPLEMENTATION.md#rm05)。RM06 在同一写队列上接入跨库协议，见下方[跨库复制与移动](#跨库复制与移动)。不改变现有 schema v5、资源布局或旧 TS 产品代码。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与接口
 
@@ -42,7 +42,7 @@ SQL 提交前资源文件可能已发布。SQL 失败时回滚全部表行，但
 
 现有 `anynote.core.revision-meta`、`anynote.ai.proposals` 和内置配置使用原命名空间/键格式；未知 extension_data 的原 JSON、schema_version、revision 及未知正文均保留。旧秘密文件不在此模块读写或清理范围。
 
-## 复现与证据边界
+## 验证方法
 
 ```sh
 cargo test -p anynote-storage --locked --offline
@@ -53,11 +53,7 @@ node_modules/.bin/vitest run tests/storage.test.mjs tests/organization.test.mjs 
 python3 scripts/check-rust-workspace.py
 ```
 
-差分脚本依赖现有 `.build/packages/storage-sqlite`；缺少构建时按项目开发流程先构建旧后端。可用第一个参数传入非默认 `write_probe` 路径。所有输入与报告位于 `tmp/rm05/` 的独立合成目录，不接真实用户库或秘密。子进程执行受限的沙箱可能返回 EPERM 或使旧锁测试超时，应在允许本机子进程的环境重跑，不能吞掉执行错误作为通过。
-
-差分对比节点、正文、历史、元数据、删除批次语义、原始未知 JSON、资源修订和 content_seq。独立运行产生的时间、修订 UUID 按历史位置规范化；原库身份、资源 hash、整数、正文和未知 JSON 不归一化。另在同一份合成库交替运行两种语言，验证旧提案→Rust apply→旧 undo、Rust 提案→旧 apply→Rust undo、Rust 建库→旧续写及历史白板嵌图字节。三进程使用真实 SQLite 锁，未提交事务退出和持锁进程 SIGKILL 分别验证回滚与重开。
-
-本机离线存储结果不关闭 M3 整体、RM06–12、RM28/29、M8 接管、三平台、真实资料/卷、性能或 V/A/F 验收。该 RM05 结果未提供生产接管、导入、清理或完整 UI；RM06 跨库能力见下节。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。
 
 ## 跨库复制与移动
 

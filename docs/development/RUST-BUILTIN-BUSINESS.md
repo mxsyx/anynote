@@ -1,6 +1,6 @@
 # Rust 静态内置业务（RM20）
 
-2026-11-09。接续 RM19 的唯一正文、历史、保存会话，使用现有 schema v5 / 写队列及 RM07 下载器。没有新增插件宿主、manifest 注册、脚本执行、WASM 或 dylib 加载。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 原生入口与声明块
 
@@ -68,9 +68,7 @@
 
 **仍阻止迁移完整性放行**：实际用户插件/必需脚本未盘点。未知 ID、修改过的 checksum、非冻结版本以及任意用户 details schema 均不能声称已经内置；保全目录/状态和 unknown_entries，逐项确认业务归属或列为阻塞。仓库九份样例通过不等于真实用户插件迁移通过。RM37 清理旧设施前须继续完成此清单。
 
-## 验证
-
-本轮测试与平台观察记录见 [RM20 实施记录](IMPLEMENTATION.md#rm20)。主要复现命令：
+## 验证方法
 
 ```sh
 cargo test -p anynote-editor --test builtin
@@ -81,4 +79,4 @@ cargo test -p anynote-desktop --test backend
 python3 scripts/check-rust-workspace.py
 ```
 
-测试覆盖冻结卡片字段/围栏、原生输入与共享撤销、展开/复制、未知/未来数据、采集白名单/结构预算、UTF-16、检索追加、幂等创建与计数、CAS、事务回滚、取消/私网拒绝、状态版本映射、精确 checksum、真实后端进程及重开。测试资料位于 `tmp/rm20/`（后端测试沿用 `tmp/rm03/`），可删除；没有使用真实个人资料或真实公开服务成功下载作为证据。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

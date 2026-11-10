@@ -1,6 +1,6 @@
 # ADR-003 · 不可变 Asset、Resource 身份与历史闭包
 
-状态：已采纳（当前实现追认）。核对：2026-10-21，源码基线 `e975c1c`。
+状态：采用。
 
 [返回 ADR 索引](README.md)
 
@@ -18,10 +18,4 @@ Asset 用 SHA-256 内容寻址并以完整文件不可变保存；Resource 用�
 
 不采用覆盖原文件或只备份当前正文引用的方案。需要独立清理孤立对象；知识历史与回收站仍引用的资源不能删除。搬运 Notebook 必须包含数据库和附件。
 
-## 证据与验证
-
-[资源发布与闭包](../../../packages/storage-sqlite/src/assets.ts)、[资源换绑与保存](../../../packages/storage-sqlite/src/operations.ts)、[快照](../../../packages/storage-sqlite/src/database-snapshot.ts)。
-
-[SQLite/附件测试](../../../tests/sqlite-assets.test.mjs)、[扩展及资源历史测试](../../../tests/extensions.test.mjs)；[存储契约](../SQLITE-STORAGE.md)。
-
-本轮执行结果统一见 [G18 核对报告](../../development/history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

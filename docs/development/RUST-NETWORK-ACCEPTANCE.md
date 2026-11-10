@@ -1,10 +1,8 @@
 # Rust 内置下载服务公网验收
 
-RM35 / A010 的执行入口为 `scripts/rust-network-acceptance.mjs`。探针直接调用当前源码的 Rust 安全下载器、网页导入预览与提交、视频元数据服务、公开文本阅读命令。它使用临时 Notebook，不执行旧 Electron/QuickJS，也不代表原生 GUI 或签名发行包验收。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 当前状态与资源
-
-2026-11-10：已交付 Rust 观测、75 场景批次、真实业务状态断言、DNS 变更两阶段证据及本地回归。用户提供域名 `mxsyx.site`，DNS 由 Cloudflare 管理，目前没有独立公网服务器。尚未部署测试端点，RM35.1–.3 和 A010 保持未验收。
 
 Cloudflare DNS 可以配置本项记录；Worker 或代理边缘统一提供的受信任 TLS 不能覆盖可控自签名证书场景。后续需要一个能控制 443/TLS 的临时公网服务，至少两个可用公网地址（同机双地址或两台服务）用于多记录与完整地址变更。所有地址上运行相同场景服务及有效证书。无需接触 RM34 的 Worker/D1/R2 或老化命名空间。
 
@@ -40,7 +38,7 @@ Node 主入口加载一个证书对。多种证书可以分别部署到不同公
 
 ## 配置与证据
 
-复制 `scripts/network/config.example.json`，替换所有域名及 serviceId。任务期间还生成了 `tmp/rm35/mxsyx.site.config.json` 作为用户域名的待部署草稿；它不表示 DNS 已配置，删除后按上表重建即可。`deploymentEvidence` 相对配置文件目录解析，内容示例：
+复制 `scripts/network/config.example.json`，替换所有域名及 serviceId。`deploymentEvidence` 相对配置文件目录解析，内容示例：
 
 ```json
 {
@@ -70,7 +68,7 @@ node scripts/rust-network-acceptance.mjs /absolute/path/config.json \
 
 两次必须使用同一配置、部署记录与 Rust 探针二进制。最终批次重新执行所有场景，要求变更前后解析地址集合不相交、实际响应地址属于本轮固定地址。只有全部通过才输出 `passed` / 退出码 0。配置或资源证据缺失为 `blocked`，执行/断言失败为 `failed`，首次完成为 `waiting_dns_change`，均退出码 1。模板、`.invalid`、`.test`、localhost、IP literal、凭据 URL 和自定义端口不能作为公网端点配置。
 
-入口每次 `cargo build --locked`，自动读取 Cargo target 目录；记录源码提交、dirty 状态、rustc、二进制与部署记录 SHA256、OS/架构、域名、每次 DNS、连接尝试、实际 HTTP 响应 peer、已验证证书指纹、接收字节、结果与耗时。设置不可用代理验证生产 `.no_proxy()`；不加载私有根证书或替换解析器/传输。报告独立保存于 `tmp/reports/rust-network/<UUID>.json`。原始报告及部署证据需另行归档，长期结论记录于本文和 TODO。
+入口每次 `cargo build --locked`，自动读取 Cargo target 目录；记录源码提交、dirty 状态、rustc、二进制与部署记录 SHA256、OS/架构、域名、每次 DNS、连接尝试、实际 HTTP 响应 peer、已验证证书指纹、接收字节、结果与耗时。设置不可用代理验证生产 `.no_proxy()`；不加载私有根证书或替换解析器/传输。报告独立保存于 `tmp/reports/rust-network/<UUID>.json`。原始报告及部署证据需另行归档，未完成范围与阻塞维护于 TODO。
 
 ## 断言与观测边界
 
@@ -84,8 +82,6 @@ Rust 契约允许最多五次安全重定向，每一跳重新验证 DNS、固�
 
 ## 本地验证与退役范围
 
-本轮通过：Rust 网络 6 项、内置业务 10 项、视频元数据 1 项，Node 本地回归 7 项；探针构建、Clippy（`-D warnings`）、Rust fmt、脚本 ESLint/Prettier 与 diff 检查通过。公网入口用待部署配置得到 `blocked`（缺 deployment.json），未发起公网验收请求。
-
 ```sh
 cargo build --locked -p anynote-services --example network_probe
 cargo test --locked -p anynote-services --lib --test builtin
@@ -93,6 +89,6 @@ node --test scripts/test-rust-network.mjs
 cargo clippy --locked -p anynote-services --example network_probe -- -D warnings
 ```
 
-本机 socket 测试需要允许回环监听。Node 回归验证服务实际响应、错误证据不能误判通过、配置门控和四条真实 Rust 业务的私网拒绝。Rust 回归覆盖地址策略/实际 peer、流式预算、超时/取消、sink 错误、TLS 错误源链和任务局部观测，并修复公开文本/视频将取消丢失为普通错误及缩略图阶段取消后仍返回成功的问题。
+本机 socket 测试需要允许回环监听。Node 回归验证服务实际响应、错误证据不能误判通过、配置门控和四条真实 Rust 业务的私网拒绝。Rust 回归覆盖地址策略/实际 peer、流式预算、超时/取消、sink 错误、TLS 错误源链和任务局部观测，并检查业务取消及缩略图阶段的取消不会返回成功。
 
-旧 QuickJS 安装/授权撤销场景和 `test:plugin-network` 活跃入口退役；旧脚本与说明保留为历史。业务取消、DNS/TLS、重定向、凭据与预算继续由新入口验证。任何本地 HTTP/TLS、模拟证据和 NXDOMAIN 单独结果都不计 RM35/A010 公网通过。
+旧 QuickJS 安装/授权撤销场景和 `test:plugin-network` 活跃入口退役；旧脚本只作为迁移参考，删除前核对消费者。业务取消、DNS/TLS、重定向、凭据与预算继续由新入口验证。任何本地 HTTP/TLS、模拟证据和 NXDOMAIN 单独结果都不计 RM35/A010 公网通过。

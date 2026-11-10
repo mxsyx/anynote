@@ -1,6 +1,6 @@
 # Rust 文本事务与输入内核
 
-对应 [RM16](TODO.md#rm16) 和[编辑器设计](../design/RUST-EDITOR-DESIGN.md) E3 基础部分。模块位于 `crates/anynote-editor/src/{transaction,selection,history,composition,inline}.rs`，不依赖 GPUI、数据库或操作系统。RM17 接结构命令，RM18 接连续视图/原生输入，RM19 接保存会话；真实 IME 仍由 RM32 验证。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 状态所有权与事务
 
@@ -42,7 +42,7 @@ undo/redo 在临时源缓冲验证并重放整组正/反 patch，再一次发布
 
 RM18 应使用同一 token 协调平台 marked range 与视图几何，富文本预览由其逻辑投影呈现；不能把源码 overlay 当作已完成的富文本 IME 视图。RM19 在 composition 活跃时必须延后 flush，等平台确认 commit/cancel 后再保存或关闭，不能因已有 committed source 就跳过尚未结束的组合。这里没有平台事件、候选窗、焦点或保存行为的验收证据。
 
-## 验证
+## 验证方法
 
 ```sh
 cargo test -p anynote-core -p anynote-editor --offline --locked
@@ -50,4 +50,4 @@ cargo clippy -p anynote-core -p anynote-editor --all-targets --offline --locked 
 python3 scripts/check-rust-workspace.py
 ```
 
-`tests/text_transactions.rs` 的 17 项用例覆盖原子失败与 redo 保全、反向选区/affinity、Unicode 单位与 grapheme 删除、输入合并边界、预算不裁正文、composition 状态转移、marks/link/code/表格管道/CRLF 和源字节恢复。3 个固定 seed 各执行 300 轮 Unicode 编辑/组合，独立字符串模型校验结果并完整 undo/redo；另一个固定 seed 执行 240 轮重叠 marks/link。RM15 的共同语料和历史测试仍运行。当前执行结果见[RM16 实施记录](IMPLEMENTATION.md#rm16)，临时日志在可删除的 `tmp/rm16/`。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

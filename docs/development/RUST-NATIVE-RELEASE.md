@@ -1,6 +1,6 @@
 # RM36 原生候选打包与发行接线
 
-2026-11-10：RM36 实现提供 Rust 专用打包入口、四个架构候选配置、包扫描、原生签名/公证调用、目录安装事务与回退。真实身份、其他平台构建/安装、正式数据接管及最终发布仍分别受 A011、RM14、RM32、RM37/38 控制。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 构建与校验
 
@@ -48,7 +48,7 @@ python3 scripts/rust-release.py verify <Anynote.app> --signed --health
 
 - macOS：本机钥匙串中已有 Developer ID Application 身份，设置 `ANYNOTE_MAC_SIGN_IDENTITY`、`ANYNOTE_MAC_TEAM_ID`、`ANYNOTE_NOTARY_PROFILE`；非默认钥匙串可设 `ANYNOTE_MAC_KEYCHAIN`。先签 Pdfium，再把签后 hash 通过 **编译时** `ANYNOTE_PACKAGED_PDFIUM_SHA256` 写入程序，然后签整个 app。启用 hardened runtime 和时间戳；签名验证固定 Apple trust anchor 和 Team ID。ZIP 提交 `notarytool --wait` 必须返回 `Accepted`，app staple/validate 后再生成 DMG，DMG 再签名、公证和 staple/validate。运行时仍检查真实库 hash，不信任可修改的旁置 manifest。
 - Windows：用户证书库已有证书，设置 `ANYNOTE_WIN_CERT_SHA1`、`ANYNOTE_WIN_TIMESTAMP_URL`。先签 DLL，再编译固定 hash、签主程序；NSIS `!uninstfinalize` 签卸载程序，最后签安装器。每次都执行 Authenticode 验证并核对预期 thumbprint；缺配置、错误签名或签名工具失败均终止。
-- Linux：本轮只有内容校验和，`--sign` 明确拒绝；发布者签名策略与自动更新协议保持 F006/F007 待定。CI 不把 Linux 校验和标记为已签名。
+- Linux：仅提供内容校验和，`--sign` 明确拒绝；发布者签名策略与自动更新协议保持 F006/F007 待定。CI 不把 Linux 校验和标记为已签名。
 
 手动 `release.yml` 的 `sign=true` 使用 `release` environment：`identity.py` 在 runner 临时目录从 base64 P12 导入证书；Mac 用临时 keychain 和 Apple ID/app-specific password 建 notary profile，Windows 用 CurrentUser/My。`always` 步骤删除临时身份；密码、证书与命令 repr 不写报告。配置字段见 [发行凭据](RELEASE-CREDENTIALS.md)。
 
@@ -71,7 +71,5 @@ Windows NSIS 使用同样的候选预检/旧目录保留/后检回退流程；�
 - `rust.yml`：fmt、all-targets/all-features clippy、仓库依赖边界、原生测试、Xvfb 真实窗口/键盘/剪贴板/对话框及打包失败路径测试。
 - `retained.yml`：RM30 浏览器/Worker 隔离构建和 Rust/TS 互通，作为独立可复用 workflow。
 - `release.yml`：依赖上述检查，四架构原生构建、资源扫描、安装/升级/schema/篡改回归；上传候选安装器和证据，**不创建 GitHub Release、不部署**。macOS runner 用当前支持的 `macos-15` / `macos-15-intel`。
-
-本机证据记录在 `tmp/rm36/`，可丢弃；方法和结论保存在这里。当前 Mac arm64 优化 `.app`/DMG、资源自检、实际目录安装升级、原始资料哨兵不变、schema 999 拒绝无写入、Pdfium 篡改扫描/运行时/签名拒绝已验证。13 项失败路径测试、fmt、clippy 和 110 项桌面回归通过，1 项内部子进程 fixture 按原设计 ignored。首次桌面测试因未设置 Pdfium 路径失败的 5 项已在正确的锁定库路径下复跑通过，其余中断后的测试也已完成。
 
 未执行：真实 Developer ID/公证/Authenticode、Windows/Linux/macOS x64 构建安装、GitHub hosted workflow、最终 RM37 包、干净设备离线首用/卸载和正式原路径接管。不得据此勾选 A011、V010/V011、F006/F007 或 RM38。

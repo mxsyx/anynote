@@ -1,6 +1,6 @@
 # ADR-004 · 备份与同步分离及远端写入身份
 
-状态：已采纳（当前实现追认）。核对：2026-10-21，源码基线 `e975c1c`。
+状态：采用。
 
 [返回 ADR 索引](README.md)
 
@@ -18,10 +18,4 @@ Cloudflare 用分支 CAS 发布，接管提升 epoch；恢复默认创建新 Not
 
 不提供双向同步或冲突自动合并，也不假设应用退出后任务继续运行。Cloudflare 真实服务验收归 [A007–A009](../../development/TODO.md#a007)，独立设备验收归 [V 类任务](../../development/TODO.md#platform-validation)。
 
-## 证据与验证
-
-[备份服务及游标确认](../../../packages/backup/src/service.ts)、[Worker 发布](../../../apps/cloudflare-backup/src/index.ts)。
-
-[云流式测试](../../../tests/cloud-stream.test.mjs)；[远端维护](../../features/REMOTE-MAINTENANCE.md)、[故障演练](../../development/validation/RECOVERY-DRILLS.md)。
-
-本轮执行结果统一见 [G18 核对报告](../../development/history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

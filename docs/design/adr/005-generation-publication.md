@@ -1,6 +1,6 @@
 # ADR-005 · Cloudflare staging 与原子发布
 
-状态：已采纳（当前实现追认）。核对：2026-10-21，源码基线 `e975c1c`。
+状态：采用。
 
 [返回 ADR 索引](README.md)
 
@@ -18,10 +18,4 @@ D1 与 R2 没有跨服务事务，上传完成也不代表一个可恢复版本�
 
 不将 UPDATE 零行视为成功，不靠客户端自行声明 verified；R2 孤立对象由维护流程处理。原子发布的本地适配器证据不等于当前部署环境已验收。
 
-## 证据与验证
-
-[Worker plan/commit/status](../../../apps/cloudflare-backup/src/index.ts)、[上传提交](../../../packages/backup/src/cloud-snapshot.ts)、[响应丢失确认](../../../packages/backup/src/service.ts)。
-
-[云流式测试](../../../tests/cloud-stream.test.mjs)；[流式备份契约](../../features/STREAMING-CLOUD-BACKUP.md)、[真实云验收入口](../../development/validation/CLOUD-ACCEPTANCE.md)。
-
-本轮执行结果统一见 [G18 核对报告](../../development/history/todo-2026-10-24.md#g18)；测试入口和历史报告不等于本轮已执行或真实发布验收。
+相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

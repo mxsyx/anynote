@@ -1,6 +1,6 @@
 # Rust 桌面开发入口
 
-RM02 固定工程与平台入口，RM03 增加原生后端、私有通信、任务与诊断基础。任务状态以 [TODO](TODO.md#rust-migration) 为准，实际验证摘要见[实施记录](IMPLEMENTATION.md#rm03)。RM19 已接独立目录的笔记创建、读取和 CAS 保存，见[保存会话](RUST-DOCUMENT-SESSION.md)；不接旧 Node 后端。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 工程边界
 
@@ -47,7 +47,7 @@ cargo clippy -p anynote-core -p anynote-editor --all-targets --offline --locked 
 node_modules/.bin/vitest run tests/rust-markdown.test.ts
 ```
 
-Rust/TS 共读 `tests/fixtures/markdown/rm15.json` 的 54 份语料；Rust 另验证 RM01 冻结 Markdown、未知 JSON/资源、局部字节保留和固定 seed 源编辑不变量。完整结果见[RM15 实施记录](IMPLEMENTATION.md#rm15)。
+Rust/TS 共读 `tests/fixtures/markdown/rm15.json` 的 54 份语料；Rust 另验证 RM01 冻结 Markdown、未知 JSON/资源、局部字节保留和固定 seed 源编辑不变量。
 
 RM16 已增加 `transaction::Editor` 作为正文/选区/undo/composition 的唯一会话内核，`InlineContent` 提供逻辑文本范围的 marks/link 命令。后续编辑接线遵循[文本事务契约](RUST-EDITOR-TRANSACTIONS.md)，不直接修改已交给 Editor 的 Document 或另建历史。
 
@@ -77,13 +77,13 @@ RM16 已增加 `transaction::Editor` 作为正文/选区/undo/composition 的唯
 | Pdfium native                        | `apps/desktop-rust/native/pdfium.json` 固定 `chromium/7350`、Linux x64 / macOS x64+arm64 / Windows x64+arm64 归档 URL、大小、归档与动态库 SHA-256 | BSD-3-Clause 与其 THIRD_PARTY notices；使用不带 V8 的 `pdfium-*` 资产。RM25 已核验五个平台归档和动态库字节、macOS arm64 装载/渲染；其余平台、漏洞修复版本和随包许可证交 RM32/36，当前 pin 不是生产准入 |
 | 文本与字体                           | GPUI 的 `freetype-sys 0.20.1`、`yeslogic-fontconfig-sys 6.0.1`；Linux 系统 FreeType/fontconfig                                                    | 绑定 MIT；FreeType FTL/GPL 双许可，fontconfig MIT；系统字体许可证不由 crate 许可证覆盖                                                                                                                 |
 | Linux 窗口与 GPU                     | 系统 Wayland、X11/XCB、xkbcommon、Vulkan loader/驱动；本机 pkg-config：1.26.0 / 1.8.13+1.17.0 / 1.13.1 / 1.4.341                                  | Wayland/X11/XCB/xkbcommon 为 MIT 类许可，Vulkan loader Apache-2.0；驱动和发行打包另核对                                                                                                                |
-| macOS / Windows                      | 系统 AppKit/Metal/CoreText 或 Win32/DirectWrite/DirectComposition                                                                                 | 使用目标平台 SDK/运行库条款，本轮未验证 ABI 或重分发条件                                                                                                                                               |
+| macOS / Windows                      | 系统 AppKit/Metal/CoreText 或 Win32/DirectWrite/DirectComposition                                                                                 | 使用目标平台 SDK/运行库条款，ABI 与重分发条件须按目标平台核验                                                                                                                                          |
 | TLS native 实现                      | GPUI 间接依赖 `ring 0.17.14`                                                                                                                      | Apache-2.0 AND ISC；没有为 RM02 新建业务网络服务                                                                                                                                                       |
 | 单实例和平台目录                     | `interprocess 2.2.3`、`async-channel 2.5.0`、`directories 6.0.0`                                                                                  | MIT OR Apache-2.0；仅本地激活与标准用户目录                                                                                                                                                            |
 
-完整激活包的 name/version/license/source/native-links 清单由 `python3 scripts/check-rust-workspace.py` 重建于 `tmp/rm02/dependency-inventory.json`，2026-11-10 RM27 验证时 all-target/all-features 为 944 包，含测试与非当前平台，不能视作发行包大小。`Cargo.lock` 保存完整 checksum；该开发清单不替代 RM36 最终二进制/动态库/字体/资产的重分发审计。每次升级应同时核对官方源码及发布记录，并重跑本节测试，尤其 Kit/GPUI 不可单独换版。
+完整激活包的 name/version/license/source/native-links 清单由 `python3 scripts/check-rust-workspace.py` 重建于 `tmp/rm02/dependency-inventory.json`；清单包含测试及非当前平台依赖，不能视作发行包大小。`Cargo.lock` 保存完整 checksum；该开发清单不替代 RM36 最终二进制/动态库/字体/资产的重分发审计。每次升级应同时核对官方源码及发布记录，并重跑本节测试，尤其 Kit/GPUI 不可单独换版。
 
-## 验证入口与证据边界
+## 验证方法
 
 ```sh
 cargo fmt --all -- --check
@@ -93,17 +93,11 @@ cargo build -p anynote-desktop --locked
 target/debug/anynote-desktop --platform-probe
 ```
 
-`--platform-probe` 启动同一原生二进制的 `--probe-child` 并校验退出状态/输出；不会初始化窗口系统。RM03 的 `--backend` 使用另外的私有长度帧协议，不能将该探针当作通信验收。
-
-原生 X11 探针另需 `xdotool`、Xvfb、ImageMagick。在隔离显示中运行，避免改动用户剪贴板或窗口焦点：
-
 ```sh
 xvfb-run -a -s '-screen 0 1280x900x24' python3 scripts/rust-platform-smoke.py
 ```
 
-脚本验证实际窗口、键盘、剪贴板、Dialog Escape/焦点、主题/缩放、第二实例唤醒与关闭退出，报告和截图写入 `tmp/rm02/`。Xvfb 软件渲染证据不等于硬件 GPU 性能或真实 IME 验收。真实桌面可显式传 `--probe-window tmp/rm02/manual.jsonl` 记录窗口缩放和交互事件；该选项会记录测试输入与选择路径，仅在隔离测试会话开启。
-
-RM32.1 仍须验证三平台的真实输入法候选窗/组合输入、系统文件选择器、辅助功能、屏幕间 DPI 切换和 macOS 生命周期；RM27 验证系统 WebView。RM02 不关闭任何平台、性能、发行或业务验收项目。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。
 
 ## RM03 后端与公共接入契约
 

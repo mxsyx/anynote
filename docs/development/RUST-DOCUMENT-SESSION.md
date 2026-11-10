@@ -1,6 +1,6 @@
 # Rust 源码模式与保存会话（RM19）
 
-2026-11-09：RM19.1/.2 已实现，RM19.3 的应用内流程已接线，系统退出与真实输入验收仍未完成。任务状态以 [TODO](TODO.md#rm19) 为准；不关闭 RM18、RM32 或 E5 整体门槛。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 入口与所有权
 
@@ -38,9 +38,7 @@ opaque 块入口定位其源范围，全文原文入口保留源选区方向。�
 
 新增锁定包：tree-sitter 0.26.13（MIT）、tree-sitter-md 0.5.4（MIT）、tree-sitter-json 0.24.8（MIT，Kit feature 的共同依赖）、tree-sitter-language 0.1.9（MIT）、streaming-iterator 0.1.9（MIT OR Apache-2.0）。未升级 Kit/GPUI 或增加 crate。完整依赖和许可证以 Cargo.lock 与依赖清单脚本为准。
 
-## 验证与剩余门槛
-
-本机 macOS / Rust 1.99.1，合成语料、隔离 Notebook 和真实后端子进程：
+## 验证方法
 
 ```sh
 TMPDIR=/private/tmp cargo test -p anynote-desktop -p anynote-editor -p anynote-core --features anynote-desktop/ui-tests --locked --offline
@@ -49,10 +47,4 @@ cargo fmt --all -- --check
 python3 scripts/check-rust-workspace.py
 ```
 
-联合回归 **118 项通过**，另有 1 项由父测试调用的 ignored 子进程夹具。包含新增 4 项保存状态测试、5 项 GPUI 测试、2 项真实后端测试：650 ms 边界/串行及迟到 ack、保存中输入、失联核对、冲突和未提交重试、源码批量替换单步撤销/反向选区/退出控件的迟到事件隔离、视口高度/Markdown 折叠候选/滚动恢复、IME 阻止关闭、切笔记屏障，以及丢弃保存响应后原笔记重开、超过旧控制帧预算的 Unicode/CRLF 正文、历史资源不漂移/跨笔记拒绝。原有内核、平台壳和 IPC 回归保持通过。Clippy、rustfmt、依赖边界（5 工程 / 844 包）通过。
-
-macOS 默认临时目录使既有平台 socket 用例超过 SUN_LEN，改用短 TMPDIR；沙箱随后拒绝 socket，获准在沙箱外重跑通过。新后端测试目录先 canonicalize，复用 RM05 的严格路径契约，不放宽存储校验。原始日志在可删除的 `tmp/rm19/`。
-
-原生 UI 实际打开隔离测试壳、新建持久笔记并切到源码模式，观察到行号和保存状态；发现单行高度后补上视口布局回归。后续输入操作先报应用状态变化、再报 `timeoutReached`，未完成可归因的输入→关闭→重开验证，不能用截图宣称真实保存/输入法通过。
-
-剩余：锁定 GPUI 的 `App::on_app_quit` 明确不可取消，平台 `on_quit` 直接 shutdown；系统 Dock/OS 退出无法复用可失败留窗的应用内屏障，需 Kit 平台预退出接口。尚未取得请求 OS 结束组合输入的公开接口，目前只能等待平台 commit/cancel 并保留窗口；真实 IME、系统退出、读屏及跨平台生命周期继续验收。RM18 未完成的几何/输入缺口不因本组测试关闭；没有真实云、媒体保存、性能或发行验收结论。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

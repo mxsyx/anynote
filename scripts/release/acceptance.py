@@ -7,14 +7,15 @@ import re
 from . import native as n
 
 TODO = 'docs/development/TODO.md'
+RELEASE_SCOPE = 'docs/design/RUST-RELEASE-SCOPE.md'
 OPERATIONS = 'tests/fixtures/rust-migration/inventory/operations.json'
 INVARIANTS = 'scripts/rust-regression-invariants.json'
 PLATFORM_CHECKS = ('ci', 'signature', 'install', 'offline-first-use', 'uninstall-preserves-data',
                    'upgrade', 'failed-upgrade-rollback', 'schema-rejection', 'package-identity')
 FINAL_CHECKS = ('scope-decision', 'user-script-inventory', 'full-functionality',
                 'takeover-rehearsal', 'latest-data-rollback', 'release-runbook')
-# These are the explicitly future/cancelled tasks, not exemptions for migrated functionality.
-DEFERABLE = {'A009', 'F020'} | {f'F{i:03}' for i in range(9, 25) if i != 11}
+# Future work is not an exemption for migrated functionality.
+DEFERABLE = {'A009'} | {f'F{i:03}' for i in range(9, 25) if i not in (11, 20)}
 
 
 def require(condition, message):
@@ -28,15 +29,22 @@ def read_json(path):
 
 def inventory(root=n.ROOT):
     todo = (root / TODO).read_text(encoding='utf-8')
-    sections = re.findall(r'^#### (RM\d{2}) · ([^\n]+)\n(.*?)(?=^<a id="rm|^### 关键注意事项)',
+    scope = (root / RELEASE_SCOPE).read_text(encoding='utf-8')
+    required = re.findall(r'^\|\s*(RM\d{2})\s*\|\s*([^|\n]+)\s*\|\s*$', scope, re.M)
+    require(len(required) == 37 and {key for key, _ in required} == {f'RM{i:02}' for i in range(1, 38)},
+            'RM01–37 release scope incomplete')
+    # Removing completed TODOs never removes their final-candidate evidence checks.
+    rms = {key: {'title': title.strip(), 'local_complete': True} for key, title in required}
+    sections = re.findall(r'^#### (RM\d{2}) · ([^\n]+)\n(.*?)(?=^<a id=|^### |\Z)',
                           todo, re.M | re.S)
-    rms = {}
+    require(len(sections) == len({key for key, _, _ in sections}), 'duplicate RM task')
     for key, title, body in sections:
+        require(key in rms or key == 'RM38', 'unknown RM task')
+        boxes = re.findall(r'^- \[([ x])\] \*\*' + key + r'\.\d+\*\*', body, re.M)
+        require(bool(boxes), 'RM task has no actionable checklist')
         if key == 'RM38':
             continue
-        boxes = re.findall(r'^- \[([ x])\] \*\*' + key + r'\.\d+\*\*', body, re.M)
-        rms[key] = {'title': title, 'local_complete': all(x == 'x' for x in boxes) if boxes else '已完成' in title}
-    require(set(rms) == {f'RM{i:02}' for i in range(1, 38)}, 'RM01–37 inventory incomplete')
+        rms[key]['local_complete'] = all(x == 'x' for x in boxes)
     ops = read_json(root / OPERATIONS)
     inv = read_json(root / INVARIANTS)
     require(len(ops) == 146 and len({x['operation'] for x in ops}) == 146, 'expected 146 distinct operations')

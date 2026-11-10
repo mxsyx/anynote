@@ -1,116 +1,27 @@
-# 公共包发布矩阵
+# 发行矩阵
 
-Rust 桌面候选已使用 [原生发行配置](../../apps/desktop-rust/native/release.json)：macOS arm64/x64 `.app/DMG`、Windows x64 NSIS、Linux x64 AppImage。版本来源为根 Cargo workspace，并强制与根 package.json 一致；运行包仅包含 Rust/原生资源。构建、校验和签名方法见 [RM36 原生发行](RUST-NATIVE-RELEASE.md)。真实支持范围仍须 RM32/38 验证。
+桌面候选由 [原生发行配置](../../apps/desktop-rust/native/release.json) 定义，版本取根 Cargo workspace，并与根 package.json 一致。候选目标不等于已通过设备验收的支持声明。
 
-浏览器扩展与 Cloudflare Worker 沿用 [RM30 独立构建与互通](RETAINED-TS-INTEROP.md)。`release.yml` 当前只上传候选，不发布 Release。
+| 单元              | 构建/分发范围                                                    | 契约                                                       |
+| ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| Rust 桌面         | macOS arm64/x64 `.app/DMG`、Windows x64 NSIS、Linux x64 AppImage | 主程序/后端及原生库、字体、媒体资源；不携带旧桌面/插件宿主 |
+| 浏览器扩展        | 独立 MV3 构建                                                    | `.anyclip`、配对、采集、同代浏览                           |
+| Cloudflare Worker | 独立 TS 构建与 Wrangler 部署                                     | Worker/D1/R2、能力协商与备份协议                           |
 
-以下公共包矩阵是 RM37 清理前保留的旧 TS 参考，不再是 Rust 桌面发行定义：
-矩阵的单一来源是 [`packages/protocol/src/release.ts`](../../packages/protocol/src/release.ts)：
-该模块运行时中立，桌面主进程、Worker 与发布工具读取同一份定义，避免文档、
-脚本与代码三处漂移。
+## 数据与协议版本
 
-设计依据见 [产品与技术设计](../design/Anynote-Design.md) §19.2（独立发布项目与跨版本矩阵）、
-§16.5（SDK 语义版本与合约测试）与 §22.3（v1 发布门槛）。
+| 格式       | 版本                                         |
+| ---------- | -------------------------------------------- |
+| Notebook   | schema v5                                    |
+| 完整归档   | `anynote.notebook` v1                        |
+| 本地备份   | `anynote.local-backup` v3                    |
+| Cloudflare | `anynote.sqlite` v1，必需 `sqlite-assets-v1` |
 
-## 组成单元
+具体拒绝边界见 [数据契约](../design/RUST-DATA-COMPATIBILITY.md)，可选 capability 降级见 [保留 TS 互通](RETAINED-TS-INTEROP.md)。不为任意历史格式新增兼容层，不分发旧 SDK/插件包。
 
-| 单元          | 包 / 标识                       | 版本来源                        | 契约 | 渠道               | 可发布 npm |
-| ------------- | ------------------------------- | ------------------------------- | ---- | ------------------ | ---------- |
-| `desktop`     | `@anynote/desktop`              | 根 `package.json`               | —    | GitHub Release     | 否         |
-| `worker`      | `@anynote/cloudflare-backup`    | `apps/cloudflare-backup`        | —    | Wrangler 部署      | 否         |
-| `sdk`         | `@anynote/plugin-sdk`           | `packages/plugin-sdk`           | 1    | npm tarball        | 是         |
-| `devtools`    | `@anynote/extension-tools`      | `packages/extension-tools`      | —    | npm tarball        | 是         |
-| `first-party` | `@anynote/first-party-adapters` | `packages/first-party-adapters` | 1    | npm tarball        | 是         |
-| `format`      | `@anynote/protocol`             | `packages/protocol`             | —    | 内部（随单元分发） | 否         |
+## 发行要求
 
-- 版本彼此独立：升级 SDK 不强制升级桌面，反之亦然。
-- 桌面版本必须与根 `package.json` 一致，因为 `release.yml` 用标签 `v*.*.*` 校验
-  根版本；同时 `@anynote/desktop` 需保持同步。
-- 契约版本（`contract`）只在公开调用面形状变化时递增，与包版本解耦。
-
-## 格式与 schema
-
-| 格式                  | 标识                                  | 版本 | 归属     |
-| --------------------- | ------------------------------------- | ---- | -------- |
-| `notebook-schema`     | `notebook.sqlite`（`schema_version`） | 5    | `format` |
-| `notebook-archive`    | `anynote.notebook`                    | 1    | `format` |
-| `sqlite-backup`       | `anynote.sqlite`                      | 1    | `format` |
-| `local-backup`        | `anynote.local-backup`                | 3    | `format` |
-| `extension-package`   | `anynote.extension.v1`                | 1    | `format` |
-| `extension-directory` | `anynote.extension-directory.v1`      | 1    | `format` |
-| `extension-settings`  | `anynote.extension-settings.v1`       | 1    | `format` |
-
-格式版本按整数独立演进；结构变更须核对矩阵与拒绝边界。开发期不保证历史数据兼容，也不要求自动迁移；当前 v4 字段扩充见 [G14 决策](../design/NAVIGATION.md)。
-
-## 兼容窗口
-
-`compatibilityWindows` 声明“某消费者接受提供者处于哪个版本区间”，单元用 semver
-range、格式用整数 range。越界时按设计 §19.2 明确拒绝，不静默降级写入。
-
-| 消费者        | 提供者                | 接受范围 | 说明                                       |
-| ------------- | --------------------- | -------- | ------------------------------------------ |
-| `desktop`     | `notebook-schema`     | `5`      | SQLite 与独立附件 schema 5                 |
-| `desktop`     | `notebook-archive`    | `1`      | 完整归档 `anynote.notebook` v1             |
-| `desktop`     | `sqlite-backup`       | `1`      | 与 Worker 仅在同一物理分块协议版本内互操作 |
-| `worker`      | `sqlite-backup`       | `1`      | Worker 只接受 `anynote.sqlite` v1          |
-| `desktop`     | `sdk`                 | `^0.1.0` | 桌面宿主实现 SDK 0.1 契约                  |
-| `first-party` | `sdk`                 | `^0.1.0` | 首方适配器只使用 SDK 0.1 公开导出          |
-| `desktop`     | `extension-package`   | `1`      | 签名扩展包                                 |
-| `desktop`     | `extension-directory` | `1`      | 扩展目录                                   |
-| `desktop`     | `extension-settings`  | `1`      | 扩展设置                                   |
-| `desktop`     | `local-backup`        | `3`      | 本地磁盘备份清单                           |
-
-`checkReleaseCompatibility(consumer, provider, version)` 返回 `{ compatible, window }`
-或 `{ compatible: false, reason }`；`assertReleaseCompatibility` 在越界时抛错。
-
-## 发布产物
-
-```sh
-pnpm run build:release        # 构建 artifacts/release/ 与发布清单
-pnpm run test:release:matrix  # 兼容窗口 + 旧消费者在干净离线项目中的校验
-```
-
-`build:release` 复用既有便携构建入口（`build:sdk`、`build:extension-tools`、
-`build:first-party`），把产物汇集到 `artifacts/release/<unit>/`，并为每个可发布
-单元：
-
-- 写入/校正 `version`、`license`、`engines`，补齐 `files` 白名单；
-- 复制根 `LICENSE` 与 `CHANGELOG.md`；
-- 校验 `"type": "module"`、许可证、引擎与每个 ESM/类型入口文件真实存在；
-- 计算目录内容聚合 SHA-256。
-
-发布清单写入 `artifacts/release/release-matrix.json`（`anynote.release-manifest.v1`），
-包含各单元版本、契约、格式、兼容窗口、旧消费者清单与产物哈希，供 CI 与审计核对。
-
-## 旧消费者测试
-
-`tests/fixtures/legacy-consumer/consumer.ts` 固定了 0.1.0 的公开调用面（
-`@anynote/plugin-sdk` 与 `@anynote/first-party-adapters`）。`test:release:matrix` 将其
-复制到只含官方 tarball 的干净项目，用 `tsc` 编译后实际运行，并断言兼容窗口逻辑。
-改变公开调用面时，必须同时提升 `legacyConsumers` 的契约版本并更新 fixture，
-该 fixture 是现有调用面检查，不构成历史数据兼容承诺；开发期破坏性接口调整需同步版本、文档和有效消费者，不为移除功能保留测试。
-
-`tests/release-matrix.test.mjs` 另行校验矩阵与真实代码一致：单元版本对齐
-package.json、契约版本对齐导出常量、格式版本对齐 schema / 迁移 SQL、兼容窗口
-内部自洽。
-
-## 许可证与变更日志
-
-项目使用 **MIT** 许可证，全文见仓库根 [`LICENSE`](../../LICENSE)。矩阵中的
-`releaseLicense` 与各单元 package.json 的 `license` 字段统一为 `MIT`，构建产物会
-随包附带同一份 `LICENSE`。第三方依赖保留各自的许可证，不在本许可证覆盖范围内。
-
-根 `CHANGELOG.md` 按单元记录变更，并随每个 tarball 一起发布。
-
-## 当前边界
-
-发行身份的本地准备、手动 CI 预检及真实验收记录见 [发行凭据准备与验收](RELEASE-CREDENTIALS.md)。`pnpm run test:release:credentials` 只检查配置完整性，不代表签名或公证通过。
-
-SDK tarball 的类型与运行时独立消费通过 `pnpm run test:sdk:package` 验证。最终真实 CI/设备发行矩阵仍归 [V011](TODO.md#v011)。
-
-- 三份 tarball 可在干净离线项目中安装、类型检查并运行；`npm publish` 与完整
-  跨平台矩阵（旧桌面/新 Worker、新桌面/旧 Worker、旧插件/新桌面、新 schema
-  导入旧桌面）的原验收范围见 [跨平台验收](TODO.md#v001)，
-  实际首发要求按 [范围决策](TODO.md#f007) 与当前项目兼容性规则重审；
-  打包和发行验收见 [V010/V011](TODO.md#v010)，签名身份见 [A011](TODO.md#a011)，更新逻辑见 [F006](TODO.md#f006)。
-- 桌面以 GitHub Release 分发、Worker 以 Wrangler 部署，均不进入 npm。
+- 构建、资源摘要、架构、许可证、签名/公证及安装失败回退按 [原生发行](RUST-NATIVE-RELEASE.md) 执行。第三方依赖保留其许可证，项目 MIT 许可不覆盖第三方内容。
+- 真实身份按 [发行凭据](RELEASE-CREDENTIALS.md) 准备；自动更新与 Linux 发布者签名的剩余范围见 [F006](TODO.md#f006)。
+- `release.yml` 上传候选工件，不直接发布。最终候选必须完成 [固定验收范围](../design/RUST-RELEASE-SCOPE.md) 与 [发行复核](RUST-RELEASE-ACCEPTANCE.md)。
+- 平台范围由 [F007](TODO.md#f007) 确认；真实安装、离线首用、卸载保留数据、升级与回退归 [V010/V011](TODO.md#v010)。

@@ -1,6 +1,6 @@
 # Rust PDF 引擎与阅读视图
 
-RM25.1–RM26.3 的接续契约。任务状态统一见 [TODO](TODO.md#rm26)；OCR 和带批注 PDF 文件导出仍为 F017/F018。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与接入
 
@@ -57,9 +57,7 @@ export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 
 这次五个平台归档均实际下载并验证摘要，只有 macOS arm64 实际装载、解析和渲染。Linux/macOS x64/Windows 的 ABI、字体和显示仍归 RM32；签名、包内布局、更新后的漏洞版本与最终重分发清单归 RM36。锁定 7350 是复现基线，不代表生产安全准入。没有采用 WebView 后备，也不新增 RM27 依赖。
 
-## 验证与复现（RM25 基线）
-
-2026-11-09：macOS 26.2 arm64，Rust 1.99.1，`b23aa64` 工作树。
+## 验证方法
 
 ```sh
 cargo fmt --all -- --check
@@ -72,20 +70,4 @@ cargo build -p anynote-desktop --bin anynote-desktop --example pdf_probe --locke
 cargo run -p anynote-desktop --example pdf_probe --locked
 ```
 
-上述 native 测试需先设置 `ANYNOTE_PDFIUM_DIR`。Linux CI 已加入锁定库安装步骤；本次没有远端 CI 运行证据。
-
-- 4 项原生测试覆盖 0/90/180/270°、非零 CropBox、Helvetica/Times/CJK、倾斜文字、glyph 黑色像素命中、红色图形坐标、normalized 逆变换与主图/缩略图一致性、UTF-16 范围、密码、损坏文件、页越界及取消。100 MiB 稀疏 PDF 的未引用 stream 不被解码，原生读取量小于 1 MiB；这不是完整进程性能验收。
-- 2 项真实后端测试覆盖 PDF snapshot、修订授权、范围、越界、取消、失效 token、密码重试、最后请求获胜、关闭与连续 20 次租约释放。
-- 2 项生产视图 UI integration tests 覆盖连续下一页、键盘到末页、输入跳页、连续帧稳定性、适宽/缩放、按需缩略图、关闭时迟到结果、错误密码及 DocumentEditor 入口；另 4 项既有图片后端/视图测试通过。
-- 完整工作区 313 passed / 0 failed，3 个 ignored 是既有显式调用的子进程 fixture。首次遇默认临时目录 SUN_LEN，改短目录后遇沙箱 socket EPERM；允许本机 IPC 后整套通过。fmt、全 features Clippy、无 media Clippy 和依赖边界通过（5 工程 / 844 包）。最终适配层小改后另复跑上述 PDF/图片 12 项与 Clippy。
-- 原生 `pdf_probe` 使用临时 SQLite/CAS 和真实子进程，实际 macOS 窗口检查了首屏、中文/混合字体、五页缩略图与第 2 页旋转显示；AX 可见页码、页面和各按钮。截图在 `tmp/rm25/window-rotated.png`。裸二进制最初在沙箱中因系统剪贴板服务不可用退出，隔离 `.app` 正常运行。该 probe 不是签名发行包或三平台验收。
-
-语料：`tests/fixtures/pdf/geometry.pdf` / `encrypted.pdf` 由 `scripts/pdf-fixtures.py` 使用 reportlab 4.4.5、pypdf 6.1.1 生成；解锁测试密码为 `rm25-test`。保留 RM01 的 `three-pages.pdf`，并加入 [W3C 公开 Dummy PDF](https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf)，断言实际文字 `Dummy PDF file`。生成器只用于测试，不进入产品依赖。临时日志、安装产物、截图和大 PDF 均放 `tmp/rm25/`。
-
-## RM26 验证增量
-
-2026-11-09：macOS 26.2 arm64、Rust 1.99.1、`95353f7` 工作树。沿用上述命令与 native 库，新增 8 项测试：core 2 项预算/UTF-16/回链，storage 2 项替换/历史/重锚定/搜索/复制闭包，native 1 项真实几何选区与搜索提取，backend 1 项完成/取消/失败任务，UI 1 项生产控件全流程，archive 1 项完整/当前/开放导出。既有测试同时回归，完整 workspace **321 passed / 0 failed / 3 ignored**（既有子进程 fixture）。首次沙箱本机 socket EPERM，短 TMPDIR 并允许本机 IPC 后整套通过。
-
-全 features Clippy、无 media Clippy、fmt 和依赖边界通过。最终选区颜色与放大搜索滚动调整后再次运行 PDF UI 3 项及全 features Clippy，通过；没有将模拟 UI 断言当成三平台验收。日志在 `tmp/rm26/`。真实隔离 `.app` 验证 8 处搜索、8 页索引、保存批注、生成持久阅读笔记并点击回链返回 PDF。最终构建确认白色页面上的青色选区与原生文字对齐，截图为 `tmp/rm26/selection.png`。
-
-RM25/26 本地实现完成；Windows/Linux 原生能力、读屏/设备和签名发行继续归 RM32/36，OCR/带批注 PDF 文件导出继续归 F017/F018。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

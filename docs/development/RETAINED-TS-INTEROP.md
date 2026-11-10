@@ -41,11 +41,3 @@ pnpm run test:retained --workerd
 `test:retained` 自行构建两套 TS 产物和 Rust `cloud_probe` / `maintenance_probe`，复用 RM10/RM11/RM12 驱动，不依赖 TS 桌面后端。默认使用现有 Worker 加内存 D1/R2 适配器；`--workerd` 使用官方本地 workerd、持久化 D1/R2，覆盖 pin 续租、multipart 和实际 MV3 扩展。维护驱动两种模式均读取独立 Worker `dist`，覆盖清理预览/确认、丢响应恢复、tombstone、writer 接管和取消协调。`CAPTURE_CHROMIUM` 可指定本机 Chromium 可执行文件。测试只使用临时资料和回环地址；需要本机端口与 Chromium 启动权限，不访问真实云账户。
 
 独立 CI 见 `.github/workflows/retained.yml`：浏览器/Worker 分开执行隔离构建；Rust job 不安装 Node，阻断预装 JS 工具；互通 job 运行本地 workerd 和 Chromium。CI 定义已接线，尚未取得 hosted runner 执行证据。
-
-## 2026-11-10 本地结果与边界
-
-macOS arm64、Node 24.22.0、Rust 1.99.1：浏览器与 Worker 隔离构建通过；Rust 从空 target 编译通过，阻断 JS 工具后的真实 backend **10/10**，依赖 guard 为五个工程、944 个锁定包。首次隔离清单漏带静态 JSON 后失败，补齐后重新创建空目录，三套均通过。
-
-协议降级/黄金样本 **5 组**、RM10 云互通 **16 组**（包含两个 30 秒 pin 续租场景）、RM12 采集/扩展互通 **9 组**通过官方本地 workerd；内存 D1/R2 模式对应 **5/14/9 组**通过。服务 cloud/cloud_capture 单测 **10/10**、Clippy `-D warnings`、相关 ESLint/格式及 workspace 边界检查通过。临时构建/报告位于 `tmp/rm30/`、`tmp/rm10/`、`tmp/rm12/`，删除不影响本文结论或重新执行。
-
-本组不代表真实 Cloudflare、三平台设备、签名发行、整机故障或性能验收；RM31–38 及 V/A/F 状态保持原验收边界。

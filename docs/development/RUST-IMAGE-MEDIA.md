@@ -1,6 +1,6 @@
 # Rust 图片阅读、文档图片与版本（RM21）
 
-2026-11-09：RM21.1–.3 的应用内实现与本地矩阵完成，状态见 [TODO](TODO.md#rm21)。本页记录实现边界；三平台原生选择器、真实照片、DPI、峰值内存及反复开关后的资源回收仍由 RM31/32 验收，不关闭 M6/INV-07 的整体验收。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 入口与复用
 
@@ -37,7 +37,7 @@ SaveController 除正文 generation 外记录媒体 generation；仅旋转而正
 
 关闭阅读器、切换笔记或淘汰缩略图取消任务、丢弃晚到回调、释放 CPU 缓冲区和 GPUI 纹理；无法在第三方解码器的一条同步调用内部强制中断，返回后检查取消标记。原图复制/导出直接使用该修订原字节，导出通过同目录临时文件与 rename 发布；不会导出显示旋转后的预览冒充原图。
 
-## 本地验证
+## 验证方法
 
 ```sh
 cargo test -p anynote-core -p anynote-editor -p anynote-storage --locked --offline
@@ -46,6 +46,4 @@ cargo clippy -p anynote-desktop -p anynote-editor -p anynote-core -p anynote-sto
 python3 scripts/check-rust-workspace.py
 ```
 
-本次 core/editor/storage **127 项通过，2 个既有子进程辅助夹具 ignored**；desktop **41 项通过**，其中生产控件 GPUI 矩阵 2 项使用真实隔离后端。新增专项覆盖：格式/EXIF/恶意 SVG/预算/取消、DPI 与四种旋转的矩形往返；无损宽度事务；上传、CAS、旧版本字节、过期 hash/修订拒绝、句柄释放；跨库完整资源与批注闭包、完整快照、当前 Markdown 导出；粘贴/文件选择/外部拖入、宽度、缩放、选区与批注提交、原图复制/导出、旋转新版本、历史往返、冲突另存和关闭后的迟到结果。另有 archive/transfer **18 项通过**，五工程全目标 Clippy、定向 rustfmt、diff 空白及依赖边界（5 工程 / 844 包）检查通过。无损 JSON 模式下批注浮点坐标的 tagged-enum 反序列化已用 `serde_json::Number` 修复，并以真实协议往返验证。
-
-临时日志在 `tmp/rm21-*.log`，原生隔离状态和合成图片在 `tmp/rm21/`。实际 macOS 构建打开了持久笔记、插入菜单与图片文件选择器；工具在路径确认时反复回到根目录，未完成原生图片画面/导出选择器/DPI/照片/内存验收。GPUI 平台模拟的文件选择、剪贴板及拖放不等于上述设备证据。没有接管个人资料，也未关闭 RM18/19 的系统退出、组合输入及平台限制。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

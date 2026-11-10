@@ -1,107 +1,37 @@
-# 开发工具与 GitHub CI/CD
+# 开发工具与 CI
 
-## 当前 Rust 与保留 TS 入口
+## Rust 桌面
 
-Rust 桌面使用 `cargo build/run/test --locked`；平台依赖和 Pdfium 配置见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。浏览器扩展和 Worker 分别运行 `pnpm run build:browser` / `build:worker`，`pnpm run test:retained` 验证 Rust 与保留 TS 的 capability、备份、采集及维护协议。Node 要求 >=24。
+使用锁定依赖运行 `cargo build/run/test --locked`。平台依赖、Pdfium、工程边界和专项验证见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。按改动范围运行 fmt、clippy、单元/集成及必要原生交互检查。
 
-候选打包运行 `python3 scripts/rust-release.py build` 或根 `package` / `package:release`，以 [原生发行说明](RUST-NATIVE-RELEASE.md) 和 [发行矩阵](RELEASE-MATRIX.md) 为准。`rust.yml`、`retained.yml`、`release.yml` 对应原生检查、独立 TS/互通和候选包；未执行的 hosted CI 不算通过。
+候选打包使用 `python3 scripts/rust-release.py build`，资源、签名与安装方法见 [原生发行](RUST-NATIVE-RELEASE.md)。运行 `python3 scripts/test-rust-release.py` 验证发行失败路径；`python3 scripts/test-rust-release-acceptance.py` 验证证据检查器。正式候选使用 [发行复核](RUST-RELEASE-ACCEPTANCE.md)，本地构建不替代真实 CI、签名或设备验收。
 
-以下保留旧 Electron 开发基线供迁移差分使用。根 `dev`、`desktop`、`build`、`test`、SDK/插件相关命令尚未删除；它们的成功不能证明 Rust 完成。旧 Electron Builder 打包说明已被上述原生打包入口替代。删除顺序和消费者见 [RM37 接续](RUST-LEGACY-RETIREMENT.md)。
+## 浏览器扩展与 Cloudflare
 
-## 旧桌面参考工作流
-
-仓库使用 Node.js 24+、固定的 pnpm 12.14.0 和 `pnpm-lock.yaml`。安装 pnpm 后运行：
+Node >=24，pnpm 版本以根 `packageManager` 和锁文件为准。
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm run desktop
-pnpm run check
-pnpm test
-pnpm run build
+pnpm run build:browser
+pnpm run build:worker
+pnpm run test:retained
 ```
 
-`packageManager` 固定 pnpm 版本。`pnpm-workspace.yaml` 包含 `apps/*`、`extensions/*`、`packages/*`，使用 `nodeLinker: isolated`、`hoist: false`、`autoInstallPeers: false`。根项目只声明编排、测试和工具依赖；应用、官方扩展与共享包各有自己的 package.json、依赖、导出与构建/类型检查命令。内部依赖使用 `workspace:*`，源码通过包名引用。共享包采用 `src/` 源码、`dist/` 产物的结构，示例及运行时 JSON 与源码放在一起；package.json、tsconfig.json 和 README.md 留在包根目录。公开导入路径沿用 `@anynote/包名/...`，types 条件指向 `src/`，运行时指向 `dist/`。静态检查拒绝未声明的运行时依赖、跨包相对 imports 与包根目录散落的源码。
+独立构建与跨语言协议见 [保留 TS 互通](RETAINED-TS-INTEROP.md)。尚需旧程序生成语料或回读的工具仅用于隔离参考环境，消费者及清理顺序见 [退役契约](RUST-LEGACY-RETIREMENT.md)。
 
-桌面 HTML 入口已移至 `apps/desktop/index.html`，Vite 从桌面 workspace 解析 React 等依赖。需要执行安装脚本的依赖有显式清单；Electron 构建工具的 Git 子依赖改用固定的注册表发行版。
+## 质量与工作流
 
-```sh
-pnpm -r list --depth -1
-pnpm --filter @anynote/protocol build
-pnpm --filter @anynote/desktop typecheck
-pnpm --filter @anynote/cloudflare-backup build
-pnpm run workspace:check
-```
+保留 TS 使用现有 ESLint、Prettier、严格 TypeScript 及相关回归；提交钩子只处理暂存文件，不能替代 CI。生成目录和凭据不得作为源文件提交。
 
-共享包与官方扩展以 `pnpm -r list --depth -1` 和各包清单为准，不在此复制易漂移的包数量。首方进程生命周期和授权代理见 [EXTENSION-HOST.md](../features/extensions/EXTENSION-HOST.md)。
+| 工作流                    | 用途                                          |
+| ------------------------- | --------------------------------------------- |
+| `rust.yml`                | Rust 工程及原生检查                           |
+| `retained.yml`            | 浏览器/Worker 独立构建与互通                  |
+| `release.yml`             | 原生候选构建、可选签名/公证及工件，不直接发布 |
+| `release-credentials.yml` | 发行凭据字段预检，不替代真实身份验证          |
 
-G17 已拆解扩展与备份两组包循环，`workspace:check` 检查所有 workspace 的依赖和显式 TypeScript references。Electron、预览 API 和备份验收工具从 `@anynote/backend` 创建完整 Storage；基础 `@anynote/storage-sqlite` 不依赖备份包，可独立使用。服务装配与队列约束见 [ADR-012](../design/adr/012-backup-service-composition.md)。
+真实云验收使用 [云方法](RUST-CLOUD-ACCEPTANCE.md)，部署方法见 [Cloudflare 验收准备](validation/CLOUD-ACCEPTANCE.md)。普通回归不使用日常 Notebook 或生产云资料。
 
-整仓后端继续使用统一 TypeScript 编译，再把产物放到各包 `dist/`；`.build` 为测试与 Electron 入口保留镜像，共享包镜像指向同一产物，避免加载两份模块。按包构建编译 `apps/*`、`packages/*`、`extensions/*` 中的源依赖闭包。构建会写共享输出，使用根 `pnpm run build` 编排，不并行运行多个构建命令；没有另建 composite/project references 编译流水线。
+## 文档与临时产物
 
-桌面打包在 `artifacts/desktop` 克隆锁定的 workspace 依赖图与编译产物，采用 isolated、冻结锁文件、离线且禁用生命周期脚本的生产安装，再由 Electron Builder 打包。生产组装项目显式声明所需依赖，不将开发目录的 node_modules 符号链接直接打包。SDK 与独立开发工具有便携构建入口；独立消费通过 `pnpm run test:sdk:package` 验证；最终发行矩阵仍需 [V011](TODO.md#v011) 验收。
-
-各发布单元的独立版本、兼容窗口、许可证与变更日志集中在 [公共包发布矩阵](RELEASE-MATRIX.md) 与 `packages/protocol/src/release.ts`；`pnpm run build:release` 生成 `artifacts/release/` 与发布清单，`pnpm run test:release:matrix` 校验兼容窗口与旧消费者。
-
-## Vitest 测试
-
-回归测试使用 Vitest 4.1.11，配置位于根目录 `vitest.config.ts`，与桌面 Vite 配置独立。`pnpm test` 先编译后端、检查类型合约，再执行 `tests/**/*.test.{mjs,js,ts}`。
-
-```sh
-pnpm test
-pnpm test tests/asset-range.test.mjs
-pnpm run test:watch
-# 后端已编译时，可直接筛选测试或测试名称
-pnpm exec vitest run tests/extension-host.test.mjs
-pnpm exec vitest run -t 'background import'
-```
-
-测试运行在 Node 环境，每个文件使用隔离子进程，文件按顺序执行，保证原生 SQLite、Worker、内置网络模块 Mock 和执行时间预算的稳定性。后端编译产物交由 Node 原生加载，保留 `import.meta.resolve` 和跨包模块身份。断言继续使用 `node:assert/strict`；Mock 使用 `vi.spyOn`，时钟使用 `vi.useFakeTimers`，资源清理由 `onTestFinished` 执行，全局钩子恢复 Mock、计时器和内置 ESM 导出。
-
-`test:watch` 启动时编译一次后端，随后监听测试文件。修改后端源码后，退出监听并重新运行 `pnpm run test:watch`，以重新编译产物。UI、Electron、真实云验收脚本继续使用各自的 `test:*` 命令。CI 的 `pnpm test` 自动执行 Vitest。
-
-## ESLint、Prettier 和提交钩子
-
-```sh
-pnpm run lint
-pnpm run lint:fix
-pnpm run format:check
-pnpm run format
-pnpm run typecheck
-```
-
-ESLint 使用 Flat Config、JavaScript/TypeScript 推荐规则；Prettier 负责格式，`eslint-config-prettier` 关闭冲突规则。当前动态 SQLite/IPC 数据边界允许显式 `any`，严格 TypeScript 编译继续独立执行。保留现有短路调用写法；空 catch、字符清洗正则及测试适配器的 `this` 别名有明确兼容配置。
-
-安装时 `prepare` 启用 Husky；提交前 `lint-staged` 只对已暂存的源文件运行 ESLint 自动修复和 Prettier，对已暂存的文档/配置运行 Prettier。完整检查由 CI 执行。生成目录、凭据文件和用户提供的原始设计文档（`docs/design/*-Design.md`）排除在格式化范围外。CI 设置 `HUSKY=0`。
-
-## 文档与本地产物
-
-长期文档只分设计、开发、功能说明三类，入口见 [文档导航](../README.md)。Agent 开始工作先读 [TODO](TODO.md) 和 [实施记录](IMPLEMENTATION.md)，完成后更新交付范围、剩余事项和实际验证边界。
-
-所有一次性验证结果、基准报告和截图写入项目 `tmp/`：通常为 `tmp/reports/` 与 `tmp/screenshots/`。`tmp/` 随时可能被删除，脚本会按需重建目录；不能依赖上次生成的文件继续开发。需要长期保留的结论应先写入开发记录，原始产物不用永久归档。具体规则见 [文档维护](DOCUMENTATION.md)。
-
-参考：[pnpm 配置](https://pnpm.io/settings)、[TypeScript ESLint 配置](https://typescript-eslint.io/users/configs/)、[Husky CI 设置](https://typicode.github.io/husky/how-to.html)。
-
-## GitHub 工作流
-
-| 工作流                    | 触发                                    | 行为                                                                                                                                    |
-| ------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`                  | main 推送、PR、手动运行、其他工作流调用 | 冻结安装、lint/格式/类型检查、完整测试、生产构建、Worker 离线打包、SDK/开发工具构建；保存产物 7 天                                      |
-| `release.yml`             | `v*.*.*` 标签                           | 先执行 CI，标签必须匹配 package.json 版本；Linux AppImage、macOS DMG、Windows NSIS 安装包全部成功后发布 GitHub Release，附 SHA-256 清单 |
-| `release-credentials.yml` | 手动运行                                | 检查签名与公证凭据配置，上传预检报告；不签名、不发布                                                                                    |
-
-工作流配置位于 `.github/workflows/`。Cloudflare 没有启用部署工作流，手动部署使用 `pnpm run cloud:deploy`，步骤见 [真实云验收](validation/CLOUD-ACCEPTANCE.md)。
-
-桌面发布仅发布 GitHub Release，不发布 npm 包。当前没有代码签名与 macOS 公证配置，产物为未签名版本；后续正式分发可单独接入签名。版本标签可按以下方式创建，需先更新根 package.json 的版本并提交：
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-发行凭据配置见 [凭据准备与验收](RELEASE-CREDENTIALS.md)。CI 不接触 `.env.cloud`、真实 Notebook、生产云资源或真实云验收。普通 PR 仅有仓库读取权限；写 Release 的权限仅在发布 job 中开放。
-
-历史 CI 配置批次（2026-10-04）只交付配置与本地工具检查，按要求不触发 GitHub 工作流、不发布版本、不部署云端，也不执行桌面/云端验收。配置 GitHub 环境及推送代码后，工作流按触发条件运行。
-
-历史本地验证（2026-10-04）：冻结安装、ESLint、Prettier、严格 TypeScript 和生产构建通过；233 项既有回归测试通过。SDK 与扩展开发工具的 pnpm 离线消费脚本通过。当时三份工作流 YAML 已完成静态解析；未在 GitHub 执行工作流。
-
-文档、ADR 与专项 TODO 的单一状态来源及收尾规则见 [文档维护](DOCUMENTATION.md)。
+开始时核对 [TODO](TODO.md) 与现有契约，结束后只保留剩余任务和稳定设计。单次报告、截图和日志放 `tmp/`，文档规则见 [文档维护](DOCUMENTATION.md)。

@@ -9,54 +9,13 @@ RM36 已将活跃入口改为 `python3 scripts/rust-release.py credentials`；`p
 
 CI P12 采用 base64 编码；仅导入 runner 临时钥匙串/证书库，always 步骤清理，不存储在工件或仓库。`release-credentials.yml` 为 presence/格式预检；`release.yml` 手动 `sign=true` 才调用实签/公证，仍不发布。缺失任何预期身份或验证失败都停止构建，不降级为“已签名”。Linux 发布者签名尚未启用。
 
-A011、F006、V011/RM38 仍未验收。下面是原 Electron 发行链的历史接续记录，原 `CSC_LINK` 等字段不再驱动原生打包。
-
-## 历史 Electron 凭据记录
-
-本流程服务于 [A011](TODO.md#a011)。凭据配置检查、真实签名/公证、更新身份验证分别记录；预检成功不能作为发行验收通过。
-
-## 本地预检
+## 预检与真实身份验证
 
 ```sh
-pnpm run test:release:credentials
-pnpm run test:release:credentials --target win
-pnpm run test:release:credentials --target mac
-# 可选：从已被 Git 忽略的本地文件加载；不要把凭据作为 CLI 参数。
-node --env-file=.env.release scripts/release-credentials.mjs
+python3 scripts/rust-release.py credentials
 ```
 
-预检无需构建、安装依赖或联网，仅检查当前进程是否提供完整、非空的环境变量组。每次写入独立 `tmp/reports/release-credentials/<UUID>.json`，包含源码 HEAD、应用版本、执行平台、变量名、缺项及检查边界；HEAD 不代表工作区无修改，真实 CI 证据应对应干净 checkout。
-
-| 状态         | 退出码 | 含义                                           |
-| ------------ | ------ | ---------------------------------------------- |
-| `configured` | 0      | 所选平台的变量组完整；未验证值是否正确         |
-| `blocked`    | 2      | 缺少变量、只有空白值或同时配置两种公证认证方式 |
-| 执行失败     | 1      | 参数、源码清单或报告写入错误；不保证生成报告   |
-
-所有报告的 `acceptance` 均为 `not-run`。脚本不读取证书内容、不验证密码或权限、不调用签名/公证服务；报告不包含环境变量的值、证书路径或原始异常。没有证书身份验证结果时，不能声称身份有效。
-
-## 凭据约定
-
-以下约定与仓库锁定的 electron-builder 26.0.12 环境变量接口对应。当前准备流程采用有密码的证书文件；硬件签名、云签名或系统钥匙串身份需要另行接入 F006，不能用虚构值让预检变绿。
-
-| 平台 / 用途          | 环境变量                                                   | 准备内容                                                                           |
-| -------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Windows 签名         | `WIN_CSC_LINK`、`WIN_CSC_KEY_PASSWORD`                     | 有效的代码签名证书及私钥容器、对应密码；使用 Windows 专用变量，避免误用 macOS 身份 |
-| macOS 签名           | `CSC_LINK`、`CSC_KEY_PASSWORD`                             | Developer ID Application 身份、私钥及证书链的导出容器、对应密码                    |
-| macOS 公证：Apple ID | `APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` | 可访问所属开发者团队的账号、应用专用密码和团队 ID                                  |
-| macOS 公证：API key  | `APPLE_API_KEY`、`APPLE_API_KEY_ID`、`APPLE_API_ISSUER`    | 真实 runner 上可读的私钥文件路径、key ID 和 issuer                                 |
-
-公证认证方式二选一，删除另一组变量，避免打包器的优先级隐式选中另一身份。`APPLE_API_KEY` 是文件路径，预检只检查存在非空值；实际 CI 必须先从受保护的 secret 安全写出私钥文件并在结束后清理。证书链接可按打包器支持的路径、HTTPS 或 base64 形式提供；完整性、可读性、有效期、信任链与私钥可用性留待真实签名验证。
-
-账号所有者负责申请/授权开发者身份并配置凭据。密码、token、私钥和证书容器放入 CI Secrets 或未跟踪的本地环境文件；任务文档仅记录非敏感标识。
-
-## 手动 CI 预检
-
-[Release credential preflight](../../.github/workflows/release-credentials.yml) 只由 `workflow_dispatch` 触发，使用 GitHub `release` environment 和只读仓库权限。管理员按仓库发行权限约定配置该 environment、允许执行的分支及上述同名 secrets，然后从可信源码运行此 workflow。
-
-该作业在 Linux 上检查两平台变量组，不安装依赖、不构建产物、不发布 Release。凭据仅注入预检 step；即使缺项失败，也上传脱敏 JSON，artifact 名包含 run ID 和 attempt，保存 14 天。需要长期证据时下载归档。没有实际运行记录时，提交 workflow 文件只表示入口已准备。
-
-现有 [发行 workflow](../../.github/workflows/release.yml) 仍未接入这些 secrets、签名或公证。这是独立的准备入口；不能用预检成功替代 [F006](TODO.md#f006) 的实现，也不改变当前发行流程。
+预检只检查配置，不能证明证书有效、私钥可用或公证权限正确。凭据使用系统安全存储、CI Secrets 或未跟踪环境文件，不进入文档和日志。
 
 ## 真实验收与证据
 

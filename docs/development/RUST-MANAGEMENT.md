@@ -1,6 +1,6 @@
 # Rust 任务、诊断、备份与恢复管理
 
-对应 [RM29](TODO.md#rm29)。入口为原生菜单 **Anynote → 备份与管理**，快捷键 macOS `Cmd+Shift+B`、其他平台 `Ctrl+Shift+B`。独立管理窗口包含任务、诊断、本地备份、云备份和恢复页；复用 GPUI Kit 控件、动态 Dialog、目录/文件选择器与焦点恢复。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 接入与所有权
 
@@ -32,9 +32,7 @@
 
 电量与计费网络原生订阅仍使用未知状态，不伪造平台观测；当前界面使用既有调度默认策略（不要求这些条件）。后续接入策略开关时必须同时接平台观测，不能将未知值当作已接电或非计费网络。真实睡眠/唤醒、拔盘、凭据库锁定和各平台系统行为继续 RM32/33 验证。
 
-## 验证与边界
-
-可复现命令：
+## 验证方法
 
 ```sh
 cargo test -p anynote-desktop --test management --test management_ui --features ui-tests --locked --offline
@@ -43,8 +41,4 @@ cargo clippy -p anynote-services -p anynote-desktop --lib --test management --te
 python3 scripts/check-rust-workspace.py
 ```
 
-专项覆盖真实后端子进程、实际 SQLite/CAS、本地备份/验证/恢复/登记、调度暂停与间隔、磁盘路径离线重试、进程重启历史、清理确认/计划变化/恢复、诊断导出/清空；云适配器使用隔离本机 HTTP fixture 和注入凭据库，覆盖无本地源的发现、目标/保留配置、撤销确认、权限变化与取消。GPUI 测试点击生产控件并调用真实后端，检查表单校验、完整性结果、诊断级别、令牌遮罩、Escape 关闭和焦点恢复。
-
-macOS 原生隔离测试包已实际打开管理窗口，检查任务/诊断/云页面、云连接对话框、令牌字段的 secure role 及 Escape 关闭；未提交真实凭据。原生 AX 按钮激活没有触发页面切换，改用截图坐标点击后成功，因此不据此宣称读屏操作验收通过。
-
-首次 HTTP fixture 在沙箱内监听返回 `EPERM`；允许本机监听后重跑。日志位于可删除的 `tmp/rm29-*.log`。本机合成资料、fixture 和无头原生控件证据不代表真实 Cloudflare、系统凭据可用性、三平台设备、独立物理盘、断电恢复或性能验收；RM32–35、V/A/F 状态不变。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

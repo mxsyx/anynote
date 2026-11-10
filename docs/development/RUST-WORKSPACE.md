@@ -1,6 +1,6 @@
 # Rust 工作区与阅读接续
 
-对应 [RM28](TODO.md#rm28)。默认原生窗口进入工作区；平台探针仍使用独立检查壳。书橱、目录、搜索、阅读、设置由 `apps/desktop-rust/src/workspace/` 持有，管理页继续由 RM29 独立窗口持有，两者共用 BackendSession、菜单与现有保存会话。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 业务与所有权
 
@@ -28,9 +28,7 @@
 
 偏好保存为 `workspace.preferences`，包含系统/浅色/深色主题、75%–200% 字号缩放、标签页开关、最近记录和阅读位置；纸张颜色集中在 theme 模块。设置使用动态 Dialog，树/按钮/输入/状态区有 Kit 可访问性语义；后端断开后刷新可重连。
 
-## 验证与边界
-
-本机 macOS arm64，临时合成资料库：
+## 验证方法
 
 ```sh
 cargo test -p anynote-desktop --locked --features ui-tests --test workspace --test workspace_ui
@@ -41,6 +39,4 @@ cargo clippy -p anynote-desktop -p anynote-storage -p anynote-services -p anynot
 python3 scripts/check-rust-workspace.py
 ```
 
-RM28 专项 14 项：6 项真实后端、3 项生产控件与真实后端 UI、5 项导航/阅读/长树测试。覆盖创建、标签/收藏、排序/循环拒绝、复制回执重放、搜索分页/取消/离线标记、反链重命名、历史恢复、文件导入、外部库失联/恢复、偏好重启、草稿保存、动态弹窗、万节点虚拟化和 200% 缩放，以及长文档锚点和阅读位置。长树测试证明可导航与按视口展示，不等于帧率/低配性能验收。
-
-macOS 隔离测试应用实际通过原生菜单新建笔记本、创建笔记、进入目录/阅读页并返回有封面的书橱。AX 控件激活存在未触发的情况，原生菜单与输入值操作可完成上述流程；不能据此关闭读屏或真实键盘/IME 验收。三平台、跨屏 DPI、实际设备/用户库、强制退出和性能预算仍交 RM31/32；V/A/F 不变。完整回归中的既有/并行失败与重跑结果记录在 [实施记录](IMPLEMENTATION.md#rm28)。原始日志及隔离应用均位于可删除的 `tmp/rm28-*`。
+结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

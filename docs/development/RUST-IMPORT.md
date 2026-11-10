@@ -1,6 +1,6 @@
 # Rust 导入、下载与媒体重试
 
-RM07 的服务接续契约。设计依据为 [数据兼容方案](../design/RUST-DATA-COMPATIBILITY.md#41-导入任务)，任务状态以 [TODO](TODO.md#rm07) 为准；本轮执行证据见 [实施记录](IMPLEMENTATION.md#rm07)。不新增 schema，也不接管真实资料。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
 
 ## 所有权与接入
 
