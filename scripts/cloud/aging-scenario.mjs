@@ -150,7 +150,13 @@ export async function seedAging({ client, save = () => {} }) {
   }
 }
 
-export async function verifyAging({ client, state, phase, save = () => {} }) {
+export async function verifyAging({
+  client,
+  state,
+  phase,
+  save = () => {},
+  verifySnapshot,
+}) {
   assert.equal(state.format, "anynote.cloud-aging.v1");
   assert.equal(state.endpoint, client.url, "样本绑定的 endpoint 不匹配");
   assert.ok(["24h", "7d"].includes(phase), "未知老化阶段");
@@ -230,6 +236,7 @@ export async function verifyAging({ client, state, phase, save = () => {} }) {
           await restoreSnapshot(client, target, sample.manifest.generationId)
         ).toString("base64"),
       });
+      if (verifySnapshot) await verifySnapshot({ state, sample, name, phase });
       assert.equal(
         (
           await storage.run("getNote", {

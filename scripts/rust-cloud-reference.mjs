@@ -10,21 +10,107 @@ import {
   readFileSync,
   writeFileSync,
   readdirSync,
+  existsSync,
+  renameSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { D1, R2 } from "../tests/helpers/cloud-adapters.mjs";
-import worker from "../apps/cloudflare-backup/dist/src/index.js";
+import { readCloudConfig, redact } from "./cloud/config.mjs";
+import { managedCloudConfig, privateJson } from "./cloud/deploy.mjs";
+const realCloud = process.argv.includes("--real-cloud");
+const rm34 = realCloud || process.argv.includes("--rm34");
+const browser = process.argv.includes("--browser");
+if (
+  realCloud &&
+  (process.argv.includes("--workerd") ||
+    process.argv.includes("--capture") ||
+    process.argv.includes("--capabilities"))
+)
+  throw Error("--real-cloud cannot be combined with local reference suites");
+let settings;
+if (realCloud) {
+  const explicit =
+    process.env.ANYNOTE_CF_ENDPOINT?.trim() ||
+    process.env.ANYNOTE_CF_TOKEN?.trim();
+  const managed = explicit ? null : managedCloudConfig();
+  settings = readCloudConfig(
+    explicit
+      ? process.env
+      : {
+          ANYNOTE_CF_ENDPOINT: managed?.endpoint,
+          ANYNOTE_CF_TOKEN: managed?.token,
+        },
+  );
+  if (settings.missing)
+    throw Error("Missing cloud configuration: " + settings.missing.join(", "));
+}
+const worker = realCloud
+  ? null
+  : (await import("../apps/cloudflare-backup/dist/src/index.js")).default;
 const workerd = process.argv.includes("--workerd");
 const capture = process.argv.includes("--capture");
 const capabilities = process.argv.includes("--capabilities");
-const output = capabilities ? "tmp/rm30" : capture ? "tmp/rm12" : "tmp/rm10";
+const output = rm34
+  ? "tmp/rm34"
+  : capabilities
+    ? "tmp/rm30"
+    : capture
+      ? "tmp/rm12"
+      : "tmp/rm10";
 mkdirSync(output, { recursive: true });
 const root = mkdtempSync(resolve(output, "cloud-"));
 const executable = resolve("target/debug/examples/cloud_probe");
-const token = "synthetic-rm10-token",
-  env = { DB: new D1(), BUCKET: new R2(), APP_TOKEN: token };
+const token = realCloud ? settings.secrets.token : "synthetic-rm10-token",
+  env = realCloud ? null : { DB: new D1(), BUCKET: new R2(), APP_TOKEN: token };
+const report = {
+  format: "anynote.rust-cloud-batch.v1",
+  mode: realCloud
+    ? "real-cloud"
+    : workerd
+      ? "local-workerd"
+      : "TS Worker with synthetic D1/R2",
+  startedAt: new Date().toISOString(),
+  runtime: {
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+  },
+  sources: Object.fromEntries(
+    [
+      "scripts/rust-cloud-reference.mjs",
+      "scripts/cloud/rust-scenario.mjs",
+      "crates/anynote-services/examples/cloud_probe.rs",
+    ].map((path) => [
+      path,
+      createHash("sha256").update(readFileSync(path)).digest("hex"),
+    ]),
+  ),
+  endpoint: realCloud ? settings.config.endpoint : null,
+  executableSha256: createHash("sha256")
+    .update(readFileSync(executable))
+    .digest("hex"),
+  status: "running",
+  limitations: rm34
+    ? [
+        "No native desktop GUI acceptance",
+        "Proxy faults are client-side injection, not provider outages",
+        "No long-running schedule, 24h/7d aging, physical R2 deletion or A009 acceptance",
+      ]
+    : [],
+};
+let lease, stateFile;
+const safe = (value) =>
+  redact(value, { ...process.env, ANYNOTE_CF_TOKEN: token });
+function saveReport() {
+  const value = safe({ ...report, checks, requests });
+  privateJson(join(root, "report.json"), value);
+  if (stateFile) {
+    privateJson(stateFile + ".tmp", value);
+    renameSync(stateFile + ".tmp", stateFile);
+  }
+}
 const checks = [],
   requests = [];
 let seq = 0,
@@ -46,6 +132,7 @@ const procEnv = {
 };
 function record(name) {
   checks.push(name);
+  if (rm34) saveReport();
   console.log(`PASS ${name}`);
 }
 async function run(command, args, options = {}) {
@@ -66,7 +153,7 @@ async function run(command, args, options = {}) {
 }
 async function raw(input) {
   const path = join(root, `request-${seq++}.json`);
-  writeFileSync(path, JSON.stringify(input));
+  writeFileSync(path, JSON.stringify(input), { mode: 0o600 });
   return JSON.parse(await run(executable, [path]));
 }
 async function rust(input) {
@@ -161,12 +248,19 @@ async function startWorker() {
   throw Error("workerd did not start: " + logs);
 }
 async function forward(path, method, body, headers) {
-  if (workerd)
+  if (workerd || realCloud) {
+    const outgoing = new Headers(headers);
+    outgoing.delete("host");
+    outgoing.delete("connection");
+    outgoing.delete("content-length");
     return fetch(origin + path, {
       method,
-      headers,
+      headers: outgoing,
       body: body.length ? body : undefined,
+      redirect: "error",
+      signal: AbortSignal.timeout(60000),
     });
+  }
   return worker.fetch(
     new Request("http://fixture" + path, {
       method,
@@ -177,6 +271,33 @@ async function forward(path, method, body, headers) {
   );
 }
 try {
+  if (realCloud) {
+    origin = settings.config.endpoint;
+    const directory = resolve(".cloudflare-acceptance/rm34");
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const namespace = process.argv[process.argv.indexOf("--namespace") + 1];
+    assert.ok(
+      process.argv.includes("--namespace") &&
+        /^[a-zA-Z0-9][a-zA-Z0-9.-]{0,63}$/.test(namespace),
+      "--namespace requires a fresh batch label",
+    );
+    const candidate = join(directory, namespace + ".json");
+    const key = createHash("sha256").update(origin).digest("hex");
+    lease = new DatabaseSync(join(directory, key + ".lock.sqlite"));
+    lease.exec("BEGIN EXCLUSIVE");
+    assert.ok(
+      !existsSync(candidate),
+      "Batch identity already exists; do not overwrite remote evidence",
+    );
+    report.namespace = namespace;
+    writeFileSync(candidate, JSON.stringify(safe(report)), {
+      flag: "wx",
+      mode: 0o600,
+      flush: true,
+    });
+    stateFile = candidate;
+    saveReport();
+  }
   if (workerd) await startWorker();
   server = createServer(async (req, res) => {
     try {
@@ -184,7 +305,14 @@ try {
       for await (const chunk of req) chunks.push(chunk);
       const body = Buffer.concat(chunks);
       const path = req.url;
-      requests.push({ path, method: req.method });
+      const request = { path, method: req.method, sentBytes: body.length };
+      requests.push(request);
+      if (fail?.kind === "offline") {
+        fail = null;
+        request.injected = "disconnect-before-forward";
+        req.socket.destroy();
+        return;
+      }
       if (dropStatus && /^\/v1\/notebooks\/[^/]+\/backup\/[^/]+$/.test(path)) {
         dropStatus--;
         req.socket.destroy();
@@ -226,6 +354,8 @@ try {
         response = Response.json(value);
       }
       const bytes = Buffer.from(await response.arrayBuffer());
+      request.status = response.status;
+      request.receivedBytes = bytes.length;
       if (
         fail?.kind === "capture-object" &&
         path.includes("/captures/") &&
@@ -253,7 +383,7 @@ try {
       res.end(bytes);
     } catch (e) {
       res.writeHead(500);
-      res.end(JSON.stringify({ error: String(e) }));
+      res.end(JSON.stringify({ error: "UPSTREAM_FAILURE" }));
     }
   });
   server.listen(0, "127.0.0.1");
@@ -274,7 +404,32 @@ try {
     writer: { deviceId: randomUUID(), epoch: 1 },
   };
   const base = { root: join(root, "transfers"), connection, identity };
-  if (capabilities) {
+  if (rm34) {
+    report.identity = identity;
+    report.localRoot = root;
+    saveReport();
+    const { runRustCloudChecks } = await import("./cloud/rust-scenario.mjs");
+    await runRustCloudChecks({
+      root,
+      base,
+      data,
+      notebook: fixture.sourceNotebookId,
+      rust,
+      raw,
+      record,
+      endpoint,
+      token,
+      requests,
+      browser,
+      setFailure: (value) => {
+        fail = value;
+      },
+      evidence: (value) => {
+        Object.assign(report, value);
+        saveReport();
+      },
+    });
+  } else if (capabilities) {
     const { runCapabilityChecks } = await import("./retained-capabilities.mjs");
     await runCapabilityChecks({
       base,
@@ -729,20 +884,20 @@ try {
       "cold-device pagination spans notebooks and lineages without duplicates",
     );
   }
-  writeFileSync(
-    join(root, "report.json"),
-    JSON.stringify(
-      {
-        mode: workerd ? "local-workerd" : "TS Worker with synthetic D1/R2",
-        checks,
-        status: "passed",
-      },
-      null,
-      2,
-    ),
-  );
+  report.status = "passed";
+  report.finishedAt = new Date().toISOString();
+  saveReport();
   console.log("Report: " + join(root, "report.json"));
+} catch (error) {
+  report.status = "failed";
+  // Keep assertion payloads and pairing/device tokens out of durable reports.
+  report.error = { name: error.name, code: error.code || "BATCH_FAILED" };
+  saveReport();
+  if (!realCloud) console.error(error);
+  console.error("Cloud batch failed; report: " + join(root, "report.json"));
+  process.exitCode = 1;
 } finally {
+  lease?.close();
   server?.closeAllConnections();
   if (server) await new Promise((r) => server.close(r));
   if (workerProcess?.pid) {
@@ -751,6 +906,6 @@ try {
     } catch {}
     await Promise.race([once(workerProcess, "exit"), delay(3000)]);
   }
-  env.DB.db.close();
+  env?.DB.db.close();
   writeFileSync(join(root, "worker.log"), logs);
 }

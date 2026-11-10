@@ -1,5 +1,7 @@
 # 受限异步宿主搜索
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 受限第三方脚本现在可以等待宿主执行当前 Notebook 的声明式搜索。接口为 `await host.search(queryId)`，只有清单中明确列出的查询可以执行。每次请求和最终提交都复核安装、来源信任、Notebook 授权、启用状态、当前笔记版本及当前库知识变更序号。
 
 ## 使用

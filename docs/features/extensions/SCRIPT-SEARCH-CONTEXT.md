@@ -1,5 +1,7 @@
 # 受限脚本搜索上下文
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 第三方正文转换命令现在可以声明当前 Notebook 的只读搜索上下文。宿主在执行前查询现有全文索引，向 QuickJS 传入数据快照；guest 不获得宿主函数、SQL、文件句柄或其他 Notebook 的访问能力。此项补齐受限宿主能力的一部分，后续已加入[受限异步宿主查询](SCRIPT-ASYNC-HOST.md)，固定 HTTPS 网络代理见 [SCRIPT-NETWORK-PROXY.md](SCRIPT-NETWORK-PROXY.md)。
 
 ## 使用与授权

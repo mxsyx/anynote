@@ -1,5 +1,7 @@
 # 受限脚本的 Notebook 状态
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 `quickjs-transform` 增加 `transformMarkdownWithState` 命令。扩展必须同时声明 `notes:read`、`notes:write`、`settings:read`、`settings:write`，并在每个 Notebook 明确授权全部声明权限。原有 `transformMarkdown` 仍只接收当前笔记并返回正文字符串；即使同一个扩展同时贡献两种命令，普通命令也不接收状态。
 
 示例见 [阅读整理记录](../../../packages/plugin-sdk/src/examples/reading-session.json)。在扩展页选择 JSON、审阅源码与四项权限、确认安装并授权当前 Notebook，再从命令面板执行“记录一次阅读整理”。计数在同一 Notebook 的多篇笔记之间共享，不跨 Notebook 或扩展命名空间共享。

@@ -24,7 +24,8 @@ if (
   process.exit(child.status ?? 1);
 }
 
-const args = process.argv.slice(2);
+const rust = process.argv.includes("--rust");
+const args = process.argv.slice(2).filter((arg) => arg !== "--rust");
 let action,
   phase,
   file = resolve(".cloudflare-acceptance/aging.json");
@@ -45,7 +46,7 @@ for (let i = 0; i < args.length; i++) {
     file = resolve(args[++i]);
   else
     throw Error(
-      "用法：test:cloud:aging (--seed | --verify 24h | --verify 7d) [--state 路径]",
+      "用法：test:cloud:aging (--seed | --verify 24h | --verify 7d) [--state 路径] [--rust]",
     );
 }
 if (!action) throw Error("需要 --seed 或 --verify 24h/7d");
@@ -68,6 +69,7 @@ let state;
 function save(value) {
   state = value;
   state.mode = "real-cloud";
+  if (action === "seed" && rust) state.rustRequired = true;
   state.limitations = [
     "只覆盖小规模 24h 孤立对象、7d staging、保留版本/其他分支/有效恢复 pin 和墓碑重放。",
     "对象 API 404 不单独证明 R2 物理删除；需结合管理端检查。未覆盖孤立 manifest/临时对象、归档写失败或 multipart 桶生命周期。",
@@ -88,7 +90,14 @@ try {
     const candidate = JSON.parse(readFileSync(file, "utf8"));
     if (candidate.mode !== "real-cloud") throw Error("不能复用非真实云样本");
     state = candidate;
-    await verifyAging({ client, state, phase, save });
+    if (Boolean(state.rustRequired) !== rust)
+      throw Error(
+        "Rust aging samples require --rust for every phase; do not reuse a different validation mode",
+      );
+    const verifySnapshot = rust
+      ? (await import("./cloud/rust-aging.mjs")).rustAgingVerifier(settings)
+      : undefined;
+    await verifyAging({ client, state, phase, save, verifySnapshot });
   }
   delete state.lastError;
   save(state);

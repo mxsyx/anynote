@@ -5,6 +5,7 @@ pub mod board;
 pub mod document_editor;
 pub mod instance;
 pub mod probe;
+pub mod release;
 pub mod shell;
 pub mod wire;
 

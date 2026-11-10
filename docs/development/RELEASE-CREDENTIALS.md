@@ -1,4 +1,17 @@
-# 发行凭据准备与验收
+# 原生发行凭据
+
+RM36 已将活跃入口改为 `python3 scripts/rust-release.py credentials`；`pnpm run test:release:credentials` 转发到该入口。它只检查字段格式/存在性，真实证书与权限必须用原生签名流程验证。完整调用与验收边界见 [Rust 原生发行](RUST-NATIVE-RELEASE.md)。
+
+| 平台    | 本机签名环境                                                                                              | CI 额外配置                                                                                                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS   | `ANYNOTE_MAC_SIGN_IDENTITY`、`ANYNOTE_MAC_TEAM_ID`、`ANYNOTE_NOTARY_PROFILE`；可选 `ANYNOTE_MAC_KEYCHAIN` | secrets：`ANYNOTE_MAC_CERTIFICATE_B64`、`ANYNOTE_MAC_CERTIFICATE_PASSWORD`、`ANYNOTE_MAC_SIGN_IDENTITY`、`APPLE_TEAM_ID`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD` |
+| Windows | CurrentUser/My 中的证书、`ANYNOTE_WIN_CERT_SHA1`、`ANYNOTE_WIN_TIMESTAMP_URL`                             | secrets：`ANYNOTE_WIN_CERTIFICATE_B64`、`ANYNOTE_WIN_CERTIFICATE_PASSWORD`、`ANYNOTE_WIN_CERT_SHA1`；variable：`ANYNOTE_WIN_TIMESTAMP_URL`（HTTPS RFC3161 服务）    |
+
+CI P12 采用 base64 编码；仅导入 runner 临时钥匙串/证书库，always 步骤清理，不存储在工件或仓库。`release-credentials.yml` 为 presence/格式预检；`release.yml` 手动 `sign=true` 才调用实签/公证，仍不发布。缺失任何预期身份或验证失败都停止构建，不降级为“已签名”。Linux 发布者签名尚未启用。
+
+A011、F006、V011/RM38 仍未验收。下面是原 Electron 发行链的历史接续记录，原 `CSC_LINK` 等字段不再驱动原生打包。
+
+## 历史 Electron 凭据记录
 
 本流程服务于 [A011](TODO.md#a011)。凭据配置检查、真实签名/公证、更新身份验证分别记录；预检成功不能作为发行验收通过。
 

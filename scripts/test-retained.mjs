@@ -22,6 +22,8 @@ await run("cargo", [
   "anynote-services",
   "--example",
   "cloud_probe",
+  "--example",
+  "maintenance_probe",
 ]);
 for (const args of [["--capabilities"], [], ["--capture"]])
   await run(process.execPath, [
@@ -29,3 +31,7 @@ for (const args of [["--capabilities"], [], ["--capture"]])
     ...args,
     ...(process.argv.includes("--workerd") ? ["--workerd"] : []),
   ]);
+await run(process.execPath, [
+  "scripts/rust-maintenance-reference.mjs",
+  ...(process.argv.includes("--workerd") ? ["--workerd"] : []),
+]);

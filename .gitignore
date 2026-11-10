@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+!scripts/release/
+scripts/release/__pycache__/
 .anynote-dev/
 .codebase-memory/
 .pnpm-store/

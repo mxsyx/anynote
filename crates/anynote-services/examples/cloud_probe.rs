@@ -1,4 +1,4 @@
-//! Isolated RM10 protocol driver. Synthetic paths and endpoint supplied by the harness.
+//! Isolated cloud protocol driver. Test paths and endpoint supplied by the harness.
 use anynote_services::cloud::*;
 use anynote_storage::notebook::*;
 use serde_json::{Value, json};
@@ -130,7 +130,9 @@ async fn run(input: Value) -> CloudResult<Value> {
             &mut session,
             &mut frozen,
             input["head"].as_str().unwrap_or(""),
-            "2026-11-08T12:00:00.000Z",
+            input["createdAt"]
+                .as_str()
+                .unwrap_or("2026-11-08T12:00:00.000Z"),
             UploadProjection {
                 browse: caps.has("browse-snapshot-v1"),
                 captures: caps.has("capture-v1").then_some(&pending),

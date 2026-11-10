@@ -167,7 +167,13 @@ pub async fn public_text(url: &str, cancel: &CancellationToken) -> ServiceResult
     let mut bytes = Vec::new();
     let download = crate::network::download(url, 128 * 1024, 10_000, cancel, &mut bytes)
         .await
-        .map_err(|_| invalid())?;
+        .map_err(|error| {
+            ServiceError::new(if error.cancelled {
+                ErrorCode::Cancelled
+            } else {
+                ErrorCode::InvalidRequest
+            })
+        })?;
     let mime = download.content_type.split(';').next().unwrap_or("").trim();
     if !matches!(mime, "text/plain" | "text/markdown" | "application/json") {
         return Err(invalid());

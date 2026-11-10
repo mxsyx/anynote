@@ -15,6 +15,17 @@ impl Observer for ExitAt {
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let input: Value =
         serde_json::from_slice(&std::fs::read(std::env::args().nth(1).ok_or("input")?)?)?;
+    if input["operation"] == "inspect-volume" {
+        let path = Path::new(input["path"].as_str().ok_or("path")?);
+        println!(
+            "{}",
+            match NativeVolumes.inspect(path) {
+                Ok(volume) => json!({"ok": volume}),
+                Err(error) => json!({"error": error.to_string(), "code": error.code}),
+            }
+        );
+        return Ok(());
+    }
     let root = Path::new(input["root"].as_str().ok_or("root")?);
     let disk = Path::new(input["disk"].as_str().ok_or("disk")?);
     let temp = Path::new(input["temporary"].as_str().ok_or("temporary")?);

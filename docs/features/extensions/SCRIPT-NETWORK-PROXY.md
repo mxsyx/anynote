@@ -1,5 +1,7 @@
 # 受限插件网络代理
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 2026-10-04 实现。正文转换脚本可通过 `await host.request(requestId)` 取得安装时声明的固定 HTTPS 文本或 JSON。宿主不自动附带笔记正文、设置或凭据；guest 没有 fetch、Node、文件、DOM 或通用 HTTP 客户端。
 
 ## 声明与授权

@@ -1,5 +1,7 @@
 # 编辑器与扩展生态
 
+> 本文保留旧 Electron/Tiptap 客户端的交互和插件基线。Rust 桌面已有独立的 [连续编辑视图](../development/RUST-EDITOR-VIEW.md)、[源码与保存会话](../development/RUST-DOCUMENT-SESSION.md) 和 [静态内置业务](../development/RUST-BUILTIN-BUSINESS.md)；以下插件安装流程与“不提供源码模式”不适用于 Rust。
+
 Markdown 仍是唯一正文格式。笔记打开后直接进入连续文档编辑，阅读与编辑使用同一界面，不再展示阅读、块编辑、源码模式切换。
 
 ## 编辑器

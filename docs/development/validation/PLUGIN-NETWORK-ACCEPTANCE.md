@@ -1,4 +1,6 @@
-# 插件公网端点验收
+# 插件公网端点验收（历史）
+
+2026-11-10：活跃入口已迁移到 [Rust 内置下载服务公网验收](../RUST-NETWORK-ACCEPTANCE.md)。以下 Electron/QuickJS 命令及授权撤销用例仅保留历史，不再作为 RM35/A010 执行入口。DNS/TLS、凭据、预算和业务取消断言由新批次继续覆盖。
 
 A010 使用真实 Electron Storage 进程执行已安装 QuickJS 插件，经过桌面 IPC、Notebook 授权、脚本执行器和生产 `safeDownload`。首方 `utilityProcess` 扩展宿主是另一条链路，`test:extension-host` 不替代本项。
 

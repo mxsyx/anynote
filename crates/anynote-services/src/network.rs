@@ -1,4 +1,7 @@
 use crate::importer::{ImportError, ImportResult, check};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+use std::{future::Future, sync::Arc};
 use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
@@ -6,6 +9,52 @@ use std::{
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 use url::Url;
+
+/// Request-local observation only: callbacks cannot replace DNS, trust, or transport.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum NetworkEvent {
+    Start {
+        url: String,
+        max_bytes: u64,
+        response_ms: u64,
+    },
+    Dns {
+        url: String,
+        addresses: Vec<SocketAddr>,
+        public: Vec<bool>,
+        error: Option<String>,
+    },
+    Connect {
+        url: String,
+        pinned: SocketAddr,
+    },
+    Response {
+        url: String,
+        peer: Option<SocketAddr>,
+        status: u16,
+        certificate_sha256: Option<String>,
+        content_length: Option<u64>,
+    },
+    Chunk {
+        bytes: u64,
+    },
+    TransportError {
+        message: String,
+    },
+    Finish {
+        error: Option<String>,
+        cancelled: bool,
+    },
+}
+type Observer = Arc<dyn Fn(NetworkEvent) + Send + Sync>;
+tokio::task_local! { static OBSERVER: Observer; }
+pub async fn observe<T>(observer: Observer, future: impl Future<Output = T>) -> T {
+    OBSERVER.scope(observer, future).await
+}
+fn emit(event: impl FnOnce() -> NetworkEvent) {
+    let _ = OBSERVER.try_with(|observer| observer(event()));
+}
 
 pub fn is_public_address(address: IpAddr) -> bool {
     match address {
@@ -72,7 +121,17 @@ pub async fn download<W: AsyncWrite + Unpin>(
         max_bytes > 0 && max_bytes <= 50 * 1024 * 1024 && response_ms > 0 && response_ms <= 30_000,
         "下载预算无效",
     )?;
-    bounded(cancel, response_ms, download_inner(raw, max_bytes, sink)).await
+    emit(|| NetworkEvent::Start {
+        url: raw.into(),
+        max_bytes,
+        response_ms,
+    });
+    let result = bounded(cancel, response_ms, download_inner(raw, max_bytes, sink)).await;
+    emit(|| NetworkEvent::Finish {
+        error: result.as_ref().err().map(|e| e.message.clone()),
+        cancelled: result.as_ref().err().is_some_and(|e| e.cancelled),
+    });
+    result
 }
 async fn bounded<T>(
     cancel: &CancellationToken,
@@ -97,10 +156,28 @@ async fn download_inner<W: AsyncWrite + Unpin>(
         let addresses = if let Ok(ip) = host.parse::<IpAddr>() {
             vec![SocketAddr::new(ip, port)]
         } else {
-            tokio::net::lookup_host((host, port))
-                .await?
-                .collect::<Vec<_>>()
+            match tokio::net::lookup_host((host, port)).await {
+                Ok(records) => records.collect::<Vec<_>>(),
+                Err(error) => {
+                    emit(|| NetworkEvent::Dns {
+                        url: u.to_string(),
+                        addresses: vec![],
+                        public: vec![],
+                        error: Some(error.to_string()),
+                    });
+                    return Err(error.into());
+                }
+            }
         };
+        emit(|| NetworkEvent::Dns {
+            url: u.to_string(),
+            public: addresses
+                .iter()
+                .map(|a| is_public_address(a.ip()))
+                .collect(),
+            addresses: addresses.clone(),
+            error: None,
+        });
         validate_addresses(&addresses)?;
         let pinned = addresses[0];
         let response = request(&u, pinned).await?;
@@ -128,13 +205,43 @@ async fn request(u: &Url, pinned: SocketAddr) -> ImportResult<reqwest::Response>
     let host = u.host_str().unwrap().trim_matches(['[', ']']);
     let client = reqwest::Client::builder()
         .no_proxy()
+        .tls_info(OBSERVER.try_with(|_| ()).is_ok())
         .redirect(reqwest::redirect::Policy::none())
         .resolve(host, pinned)
         .referer(false)
         .user_agent("Anynote/0.2")
         .timeout(Duration::from_secs(30))
         .build()?;
-    Ok(client.get(u.clone()).send().await?)
+    emit(|| NetworkEvent::Connect {
+        url: u.to_string(),
+        pinned,
+    });
+    let response = client.get(u.clone()).send().await.map_err(|error| {
+        emit(|| {
+            use std::error::Error;
+            let mut message = error.to_string();
+            let mut source = error.source();
+            while let Some(error) = source {
+                message.push_str(": ");
+                message.push_str(&error.to_string());
+                source = error.source();
+            }
+            NetworkEvent::TransportError { message }
+        });
+        ImportError::from(error)
+    })?;
+    emit(|| NetworkEvent::Response {
+        url: u.to_string(),
+        peer: response.remote_addr(),
+        status: response.status().as_u16(),
+        certificate_sha256: response
+            .extensions()
+            .get::<reqwest::tls::TlsInfo>()
+            .and_then(|info| info.peer_certificate())
+            .map(|cert| format!("{:x}", Sha256::digest(cert))),
+        content_length: response.content_length(),
+    });
+    Ok(response)
 }
 async fn consume<W: AsyncWrite + Unpin>(
     mut response: reqwest::Response,
@@ -158,6 +265,9 @@ async fn consume<W: AsyncWrite + Unpin>(
         .to_owned();
     let mut size = 0;
     while let Some(bytes) = response.chunk().await? {
+        emit(|| NetworkEvent::Chunk {
+            bytes: bytes.len() as u64,
+        });
         size += bytes.len() as u64;
         check(size <= max_bytes, "响应大小超过上限")?;
         sink.write_all(&bytes).await?;
@@ -173,6 +283,47 @@ async fn consume<W: AsyncWrite + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn observation_is_scoped_and_preserves_policy_and_cancellation() {
+        use std::sync::Mutex;
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let record = events.clone();
+        let cancel = CancellationToken::new();
+        let result = observe(
+            Arc::new(move |event| record.lock().unwrap().push(event)),
+            async { download("https://127.0.0.1/", 10, 1000, &cancel, &mut Vec::new()).await },
+        )
+        .await;
+        assert!(result.is_err());
+        let captured = events.lock().unwrap().clone();
+        assert!(matches!(
+            captured.as_slice(),
+            [
+                NetworkEvent::Start { .. },
+                NetworkEvent::Dns { .. },
+                NetworkEvent::Finish { .. }
+            ]
+        ));
+        assert!(matches!(&captured[1], NetworkEvent::Dns { public, .. } if public == &[false]));
+        let _ = download("https://127.0.0.1/", 10, 1000, &cancel, &mut Vec::new()).await;
+        assert_eq!(events.lock().unwrap().len(), captured.len());
+        cancel.cancel();
+        let record = events.clone();
+        let result = observe(
+            Arc::new(move |event| record.lock().unwrap().push(event)),
+            async { download("https://8.8.8.8/", 10, 1000, &cancel, &mut Vec::new()).await },
+        )
+        .await;
+        assert!(result.unwrap_err().cancelled);
+        assert!(matches!(
+            events.lock().unwrap().last(),
+            Some(NetworkEvent::Finish {
+                cancelled: true,
+                ..
+            })
+        ));
+    }
+
     #[test]
     fn policy_checks_all_dns_answers_and_exact_peer() {
         for ip in [
@@ -366,7 +517,20 @@ mod tests {
             let _ = tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
         });
         let url = Url::parse(&format!("https://fixture.invalid:{}/", address.port())).unwrap();
-        assert!(request(&url, address).await.is_err());
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let record = events.clone();
+        assert!(
+            observe(
+                Arc::new(move |event| record.lock().unwrap().push(event)),
+                request(&url, address)
+            )
+            .await
+            .is_err()
+        );
+        let captured = events.lock().unwrap().clone();
+        assert!(captured.iter().any(|event| matches!(event,
+            NetworkEvent::TransportError { message } if message.contains("invalid peer certificate") && message.contains("CaUsedAsEndEntity")
+        )), "{captured:?}");
         thread.join().unwrap();
     }
 }

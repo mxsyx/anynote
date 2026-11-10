@@ -152,4 +152,44 @@ test("aging CLI preserves samples, refuses local evidence and reports waiting wi
   assert.ok(!saved.includes("cli-private-token"));
   assert.equal(JSON.parse(saved).due24h, state.due24h);
   assert.deepEqual(JSON.parse(saved).phases, {});
+  state.rustRequired = true;
+  writeFileSync(file, JSON.stringify(state));
+  assert.equal(
+    run("--verify", "24h").status,
+    1,
+    "Rust samples cannot silently fall back to TS validation",
+  );
+  assert.equal(
+    run("--verify", "24h", "--rust").status,
+    2,
+    "Waiting Rust samples do not launch the restore probe",
+  );
+});
+
+test("additional Rust restore evidence must pass before an aging phase completes", async (t) => {
+  const { client } = fixture(t);
+  const state = await seedAging({ client });
+  let calls = 0;
+  const verifySnapshot = async ({ sample, name }) => {
+    calls++;
+    assert.equal(sample, state.samples[name]);
+    throw Error("Rust restore failed");
+  };
+  await verifyAging({ client, state, phase: "24h", verifySnapshot });
+  assert.equal(calls, 0, "waiting phase must not contact Rust or the cloud");
+  vi.setSystemTime(new Date(state.due24h));
+  await assert.rejects(
+    verifyAging({ client, state, phase: "24h", verifySnapshot }),
+    /Rust restore failed/,
+  );
+  assert.notEqual(state.phases["24h"].status, "passed");
+  const names = [];
+  await verifyAging({
+    client,
+    state,
+    phase: "24h",
+    verifySnapshot: async ({ name }) => names.push(name),
+  });
+  assert.deepEqual(names, ["pinned", "head", "branch"]);
+  assert.equal(state.phases["24h"].status, "passed");
 });

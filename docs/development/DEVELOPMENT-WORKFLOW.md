@@ -1,5 +1,15 @@
 # 开发工具与 GitHub CI/CD
 
+## 当前 Rust 与保留 TS 入口
+
+Rust 桌面使用 `cargo build/run/test --locked`；平台依赖和 Pdfium 配置见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。浏览器扩展和 Worker 分别运行 `pnpm run build:browser` / `build:worker`，`pnpm run test:retained` 验证 Rust 与保留 TS 的 capability、备份、采集及维护协议。Node 要求 >=24。
+
+候选打包运行 `python3 scripts/rust-release.py build` 或根 `package` / `package:release`，以 [原生发行说明](RUST-NATIVE-RELEASE.md) 和 [发行矩阵](RELEASE-MATRIX.md) 为准。`rust.yml`、`retained.yml`、`release.yml` 对应原生检查、独立 TS/互通和候选包；未执行的 hosted CI 不算通过。
+
+以下保留旧 Electron 开发基线供迁移差分使用。根 `dev`、`desktop`、`build`、`test`、SDK/插件相关命令尚未删除；它们的成功不能证明 Rust 完成。旧 Electron Builder 打包说明已被上述原生打包入口替代。删除顺序和消费者见 [RM37 接续](RUST-LEGACY-RETIREMENT.md)。
+
+## 旧桌面参考工作流
+
 仓库使用 Node.js 24+、固定的 pnpm 12.14.0 和 `pnpm-lock.yaml`。安装 pnpm 后运行：
 
 ```sh

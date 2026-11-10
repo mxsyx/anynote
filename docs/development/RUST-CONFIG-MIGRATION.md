@@ -28,12 +28,12 @@ Chromium 的字符串标记 0 按 UTF-16LE 解码，标记 1 按 Latin-1 解码�
 
 `credentials::decrypt_legacy` 为锁定版本的一次性只读原型；不调用 Electron/Node，也不创建或替换旧平台主密钥。旧应用身份必须由预检提供，不能猜测其他应用的 keyring 条目。
 
-| 平台                                                          | 原生只读路径                                                                                                   | 当前证据                                                                    |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Linux Secret Service                                          | 按 application + `chrome_libsecret_os_crypt_password_v2` 查询唯一未锁定条目；`v11`、PBKDF2-SHA1/1、AES-128-CBC | 独立 D-Bus、私有 GNOME Keyring、Electron 41.9.1 → Rust → 新 OS 条目回读通过 |
-| macOS                                                         | Security.framework 查询指定 service/account；`v10`、PBKDF2-SHA1/1003、AES-128-CBC                              | 独立 Node 加密向量通过；原生分支尚未编译或真机验证                          |
-| Windows                                                       | 从副本 Local State 读取 `os_crypt.encrypted_key`，DPAPI 只读解包，`v10` AES-256-GCM                            | 独立 Node 加密向量通过；DPAPI/Credential Manager 分支尚未编译或真机验证     |
-| basic_text、KWallet、未知版本/封装、跨平台复制、锁定/拒绝访问 | 明确失败，不使用默认密码或明文回退                                                                             | 自动化失败路径与保全测试                                                    |
+| 平台                                                          | 原生只读路径                                                                                                   | 当前证据                                                                                                                        |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Linux Secret Service                                          | 按 application + `chrome_libsecret_os_crypt_password_v2` 查询唯一未锁定条目；`v11`、PBKDF2-SHA1/1、AES-128-CBC | 独立 D-Bus、私有 GNOME Keyring、Electron 41.9.1 → Rust → 新 OS 条目回读通过                                                     |
+| macOS                                                         | Security.framework 查询指定 service/account；`v10`、PBKDF2-SHA1/1003、AES-128-CBC                              | RM32 macOS arm64 原生编译及配置 fixture/向量通过；真实 Keychain 读写、锁定与重启仍未测，见[设备报告](RUST-DEVICE-ACCEPTANCE.md) |
+| Windows                                                       | 从副本 Local State 读取 `os_crypt.encrypted_key`，DPAPI 只读解包，`v10` AES-256-GCM                            | 独立 Node 加密向量通过；DPAPI/Credential Manager 分支尚未编译或真机验证                                                         |
+| basic_text、KWallet、未知版本/封装、跨平台复制、锁定/拒绝访问 | 明确失败，不使用默认密码或明文回退                                                                             | 自动化失败路径与保全测试                                                                                                        |
 
 新 OS 条目使用 service `app.anynote.credentials`、account `secret.<原 secret UUID>`。`OsSecretStore` 仅启用各平台真实后端：Linux Secret Service / macOS Keychain / Windows Credential Manager；不使用 keyring 的默认 mock 后端。阻塞调用应在专用凭据线程运行，不能放入 UI 或 Tokio runtime 线程。
 

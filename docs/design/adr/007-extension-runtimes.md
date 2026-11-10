@@ -1,5 +1,7 @@
 # ADR-007 · 扩展信任等级与公共 SDK
 
+> 2026-11-10：本决定仅保留为旧 Electron/插件实现的历史依据。Rust 目标由 [迁移设计](../RUST-DESKTOP-MIGRATION.md) 替代，已知业务改为 [静态内置](../../development/RUST-BUILTIN-BUSINESS.md)。源码删除尚待 [RM37](../../development/TODO.md#rm37) 前置闭环；不再据此新增插件机制或发布 SDK。
+
 状态：已采纳（当前实现追认）。核对：2026-10-21，源码基线 `e975c1c`。
 
 [返回 ADR 索引](README.md)

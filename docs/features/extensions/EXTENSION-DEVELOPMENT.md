@@ -1,5 +1,7 @@
 # 扩展开发工具
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 `@anynote/extension-tools` 提供本地 `anynote-extension` 命令，用于创建 TypeScript 工程、校验 JSON 清单或签名包，以及在隔离 QuickJS 中试运行示例。校验、设置、迁移声明、签名验证、正文预算与扩展块保留规则与桌面共用源码。工具包只依赖 Zod 和 QuickJS，不包含 Electron、Storage、SQLite、设备授权或云配置。
 
 ## 本地安装

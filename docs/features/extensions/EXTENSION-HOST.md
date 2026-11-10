@@ -1,5 +1,7 @@
 # 首方扩展宿主
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 `packages/extension-host` 提供独立进程宿主。桌面通过 Electron `utilityProcess` 启动，浏览器开发服务通过 Node 子进程启动；两者复用同一消息协议和授权代理。扩展不与存储进程共享数据库实例，也不向主编辑器加载 React 代码。
 
 ## 使用

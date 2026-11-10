@@ -222,7 +222,7 @@ def main():
                 run(f"format-{name}", ["node", f"scripts/rust-{name}-reference.mjs"])
             run("format-import", ["node", "scripts/rust-import-interop.mjs"])
     if "recovery" in stages:
-        if run("recovery-build", ["cargo", "build", "--locked", "--offline", "-p", "anynote-services", "--example", "local_backup_probe"]):
+        if run("recovery-build", ["cargo", "build", "--locked", "--offline", "-p", "anynote-services", "--example", "local_backup_probe", "--example", "archive_probe"]):
             bundle=output / "portable-bundle"
             if run("recovery-prepare", [sys.executable, "scripts/rust-recovery.py", "prepare", str(bundle)]):
                 run("recovery-verify", [sys.executable, "scripts/rust-recovery.py", "verify", str(bundle), "--output", str(output / "portable-restored")])

@@ -1,5 +1,7 @@
 # Anynote 产品与技术设计文档
 
+> Rust 桌面的目标架构由 [迁移方案](RUST-DESKTOP-MIGRATION.md) 与 [schema v5 数据兼容契约](RUST-DATA-COMPATIBILITY.md) 接续。本文保留旧 Electron/插件设计背景，不再作为新桌面的插件、SDK 或技术栈要求。
+
 > 存储与备份格式已改为SQLite v4 + 不可变附件文件，数据库按 1MiB 分块、附件按整文件增量，当前契约见 [存储设计](SQLITE-STORAGE.md)。本文旧布局/旧格式验收记录不适用于新实现，性能和平台结论需要重新验证。
 > 当前决策核对：2026-10-21，见 [ADR-001–010](adr/README.md)。下文未更新的建议不作为功能状态或发布验收依据；当前状态见 [实施记录](../development/IMPLEMENTATION.md)，任务唯一状态见 [TODO](../development/TODO.md)。
 > 版本：0.1 · 日期：2026-10-01 · 状态：建议设计基线，供产品、设计与研发评审。

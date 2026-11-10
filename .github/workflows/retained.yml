@@ -4,6 +4,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -71,6 +72,9 @@ jobs:
           path: |
             tmp/rm30/cloud-*/report.json
             tmp/rm10/cloud-*/report.json
+            tmp/rm11/maintenance-*/report.json
+            tmp/rm11/maintenance-*/wrangler.log
+            tmp/rm11/maintenance-*/worker.log
             tmp/rm12/cloud-*/report.json
             tmp/rm12/cloud-*/extension.png
             tmp/rm*/cloud-*/worker.log

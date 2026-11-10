@@ -315,3 +315,24 @@ fn legacy_goal_versions_convert_without_overwriting_native_preferences() {
             .unwrap();
     }
 }
+
+#[tokio::test]
+async fn cancelled_public_network_businesses_keep_cancelled_error() {
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    assert_eq!(
+        anynote_services::builtin::public_text("https://example.com/", &cancel)
+            .await
+            .unwrap_err()
+            .code(),
+        ErrorCode::Cancelled
+    );
+    let card = anynote_core::video::VideoCard::parse("https://example.com/").unwrap();
+    assert_eq!(
+        anynote_services::video::fetch(&card, &cancel)
+            .await
+            .unwrap_err()
+            .code(),
+        ErrorCode::Cancelled
+    );
+}

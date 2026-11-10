@@ -6,7 +6,7 @@
 
 ## 场景
 
-Rust 本地便携恢复使用 `python3 scripts/rust-recovery.py prepare <新bundle目录>` 与 `verify <bundle> --output <新输出目录>`，详见 [RM31 便携恢复](../RUST-NATIVE-REGRESSION.md#便携恢复复现)。驱动删除准备阶段的原始合成库，并在恢复后核对历史、附件、未知状态和搜索；同机通过不关闭独立物理设备验收。下表云端故障场景继续由 RM34/35 验证。
+Rust 便携恢复使用 `python3 scripts/rust-recovery.py prepare <新bundle目录>` 与 `verify <bundle> --output <新输出目录>`，先构建 `local_backup_probe` 和 `archive_probe`。RM33 包含本地 v3 与完整 `.anynote` 两条恢复、传输清单和源端摘要固定，详见 [RM33 设备与实物步骤](../RUST-DISASTER-ACCEPTANCE.md)。驱动删除准备阶段的原始合成库，并在恢复后核对历史、附件、未知状态和搜索；同机通过不关闭独立物理设备验收。下表云端故障场景继续由 RM34/35 验证。
 
 | 检查点                                                    | 验证结果                                                                           |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |

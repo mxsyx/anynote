@@ -38,7 +38,7 @@ pnpm run test:retained --workerd
 
 `test:retained:builds` 对三个目标分别创建源码副本，可用 `python3 scripts/check-retained-builds.py --target browser|worker|rust` 单独执行。TS 副本不含桌面、Rust、SDK、宿主源码、`.build` 或任何旧 `dist`；只复用已安装的第三方依赖，并将 workspace 链接重新指向副本。Rust 副本没有 TS 工程/node_modules，使用空 `target`、阻断 PATH 中的 JS 工具，再执行原生编译、真实 backend 集成测试和五工程依赖检查。编译使用的三份静态 JSON 迁移资料显式列入复制清单。这是源码/产物隔离构建，未声称重新安装操作系统或重新下载全部依赖。
 
-`test:retained` 自行构建两套 TS 产物和 Rust `cloud_probe`，复用 RM10/RM12 驱动，不依赖 TS 桌面后端。默认使用现有 Worker 加内存 D1/R2 适配器；`--workerd` 使用官方本地 workerd、持久化 D1/R2，覆盖 pin 续租、multipart 和实际 MV3 扩展。`CAPTURE_CHROMIUM` 可指定本机 Chromium 可执行文件。测试只使用临时资料和回环地址；需要本机端口与 Chromium 启动权限，不访问真实云账户。
+`test:retained` 自行构建两套 TS 产物和 Rust `cloud_probe` / `maintenance_probe`，复用 RM10/RM11/RM12 驱动，不依赖 TS 桌面后端。默认使用现有 Worker 加内存 D1/R2 适配器；`--workerd` 使用官方本地 workerd、持久化 D1/R2，覆盖 pin 续租、multipart 和实际 MV3 扩展。维护驱动两种模式均读取独立 Worker `dist`，覆盖清理预览/确认、丢响应恢复、tombstone、writer 接管和取消协调。`CAPTURE_CHROMIUM` 可指定本机 Chromium 可执行文件。测试只使用临时资料和回环地址；需要本机端口与 Chromium 启动权限，不访问真实云账户。
 
 独立 CI 见 `.github/workflows/retained.yml`：浏览器/Worker 分开执行隔离构建；Rust job 不安装 Node，阻断预装 JS 工具；互通 job 运行本地 workerd 和 Chromium。CI 定义已接线，尚未取得 hosted runner 执行证据。
 

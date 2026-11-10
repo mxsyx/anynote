@@ -71,7 +71,11 @@ fn native() -> Result<&'static Pdfium, PdfError> {
             }
             digest.update(&buffer[..length]);
         }
-        if asset["library_sha256"].as_str() != Some(format!("{:x}", digest.finalize()).as_str()) {
+        // Signing changes the library bytes. Release builds pin the already signed
+        // library at compile time, after the packager checks the upstream pin.
+        let expected = option_env!("ANYNOTE_PACKAGED_PDFIUM_SHA256")
+            .or_else(|| asset["library_sha256"].as_str());
+        if expected != Some(format!("{:x}", digest.finalize()).as_str()) {
             return Err(PdfError::Unavailable);
         }
         Pdfium::bind_to_library(path)

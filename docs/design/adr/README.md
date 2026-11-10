@@ -1,6 +1,6 @@
 # 架构决策记录
 
-本目录记录已在当前源码中实现的选择，补齐 [设计 §25](../Anynote-Design.md#25-架构决策记录adr)。2026-10-21 核对基线为 `e975c1c`。ADR-001–010 是对既有实现的追认；后续实施决策按各项记录的日期与基线核对，不新增产品批准或发布验收结论。
+本目录保留各阶段的架构选择；Rust 目标架构见 [迁移设计](../RUST-DESKTOP-MIGRATION.md)。ADR-007/011 已由静态内置业务方向替代，旧实现仍待 RM37 退役。以下旧记录补齐 [设计 §25](../Anynote-Design.md#25-架构决策记录adr)。2026-10-21 核对基线为 `e975c1c`。ADR-001–010 是对既有实现的追认；后续实施决策按各项记录的日期与基线核对，不新增产品批准或发布验收结论。
 
 | ADR                                            | 当前决定                                     |
 | ---------------------------------------------- | -------------------------------------------- |
@@ -10,11 +10,11 @@
 | [ADR-004](004-backup-not-sync.md)              | 备份与同步分离及远端写入身份                 |
 | [ADR-005](005-generation-publication.md)       | Cloudflare staging 与原子发布                |
 | [ADR-006](006-complete-checkpoints.md)         | 每代完整 checkpoint 与物理分块增量           |
-| [ADR-007](007-extension-runtimes.md)           | 扩展信任等级与公共 SDK                       |
+| [ADR-007](007-extension-runtimes.md)           | 扩展信任等级与公共 SDK（历史）               |
 | [ADR-008](008-archive-compatibility.md)        | 完整归档、安全导入与版本拒绝                 |
 | [ADR-009](009-ai-proposals.md)                 | AI 提案、显式应用与条件撤销                  |
 | [ADR-010](010-native-reading-layout.md)        | 原生阅读布局、设计 token 与辅助面板          |
-| [ADR-011](011-extension-module-boundaries.md)  | 扩展契约、工具与存储实现的依赖方向           |
+| [ADR-011](011-extension-module-boundaries.md)  | 扩展契约、工具与存储实现的依赖方向（历史）   |
 | [ADR-012](012-backup-service-composition.md)   | 备份服务装配、Storage 单向依赖与快照边界     |
 | [ADR-013](013-remote-maintenance-lifecycle.md) | 远端维护生命周期、永久重放证据与手动保留配置 |
 | [ADR-014](014-cloudflare-transfer-resume.md)   | Cloudflare 持久上传、范围下载与遗留会话回收  |

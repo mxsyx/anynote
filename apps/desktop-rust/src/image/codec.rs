@@ -16,6 +16,7 @@ pub const EDIT_PIXELS: u64 = 24_000_000;
 static DECODER: Mutex<()> = Mutex::new(());
 static SVG_FONTS: LazyLock<Arc<resvg::usvg::fontdb::Database>> = LazyLock::new(|| {
     let mut fonts = resvg::usvg::fontdb::Database::new();
+    fonts.load_font_data(crate::release::FONT.to_vec());
     fonts.load_system_fonts();
     Arc::new(fonts)
 });

@@ -43,7 +43,13 @@ pub async fn fetch(card: &VideoCard, cancel: &CancellationToken) -> ServiceResul
     let mut bytes = Vec::new();
     crate::network::download(&url, 1024 * 1024, 6_000, cancel, &mut bytes)
         .await
-        .map_err(|_| ServiceError::new(ErrorCode::InvalidRequest))?;
+        .map_err(|error| {
+            ServiceError::new(if error.cancelled {
+                ErrorCode::Cancelled
+            } else {
+                ErrorCode::InvalidRequest
+            })
+        })?;
     let (title, image) = parse_metadata(card, &String::from_utf8_lossy(&bytes));
     let mut thumbnail = None;
     if let Some(url) = image {
@@ -61,6 +67,9 @@ pub async fn fetch(card: &VideoCard, cancel: &CancellationToken) -> ServiceResul
         {
             thumbnail = Some(bytes);
         }
+    }
+    if cancel.is_cancelled() {
+        return Err(ServiceError::new(ErrorCode::Cancelled));
     }
     Ok(Metadata::new(title, thumbnail))
 }

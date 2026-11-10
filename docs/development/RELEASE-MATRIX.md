@@ -1,6 +1,10 @@
 # 公共包发布矩阵
 
-本文说明 Anynote 各组成部分的独立版本、兼容窗口、发布产物与旧消费者测试。
+Rust 桌面候选已使用 [原生发行配置](../../apps/desktop-rust/native/release.json)：macOS arm64/x64 `.app/DMG`、Windows x64 NSIS、Linux x64 AppImage。版本来源为根 Cargo workspace，并强制与根 package.json 一致；运行包仅包含 Rust/原生资源。构建、校验和签名方法见 [RM36 原生发行](RUST-NATIVE-RELEASE.md)。真实支持范围仍须 RM32/38 验证。
+
+浏览器扩展与 Cloudflare Worker 沿用 [RM30 独立构建与互通](RETAINED-TS-INTEROP.md)。`release.yml` 当前只上传候选，不发布 Release。
+
+以下公共包矩阵是 RM37 清理前保留的旧 TS 参考，不再是 Rust 桌面发行定义：
 矩阵的单一来源是 [`packages/protocol/src/release.ts`](../../packages/protocol/src/release.ts)：
 该模块运行时中立，桌面主进程、Worker 与发布工具读取同一份定义，避免文档、
 脚本与代码三处漂移。

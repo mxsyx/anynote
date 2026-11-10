@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { D1, R2 } from "../tests/helpers/cloud-adapters.mjs";
-import worker from "../.build/apps/cloudflare-backup/src/index.js";
+import worker from "../apps/cloudflare-backup/dist/src/index.js";
 
 const workerd = process.argv.includes("--workerd");
 mkdirSync("tmp/rm11", { recursive: true });
@@ -71,7 +71,7 @@ async function startWorker() {
     config,
     JSON.stringify({
       name: "rm11-local",
-      main: resolve(".build/apps/cloudflare-backup/src/index.js"),
+      main: resolve("apps/cloudflare-backup/dist/src/index.js"),
       compatibility_date: "2026-10-02",
       vars: { APP_TOKEN: token },
       durable_objects: {

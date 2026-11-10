@@ -1,5 +1,7 @@
 # 受限正文转换脚本
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 桌面扩展安装支持 `quickjs-transform` 运行方式。普通转换命令接收当前 Markdown 笔记的 `{ id, title, body, revision }` 快照，同步返回完整正文字符串，需显式授权 `notes:read` 与 `notes:write`。[有状态命令](SCRIPT-STATE.md) 另需状态读写权限，并原子提交正文和自身状态。宿主将结果写回原笔记，可声明[当前库搜索上下文](SCRIPT-SEARCH-CONTEXT.md)并另行授权 `search:read`，宿主提供标题和短片段快照；不允许脚本指定其他 Notebook、目标笔记、资源、SQL、路径或调用宿主 SDK。
 
 ## 使用

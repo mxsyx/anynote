@@ -1,84 +1,115 @@
-name: Desktop release
+name: Native desktop candidates
 
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: "Sign and notarize candidates using the release environment (does not publish)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-env:
-  HUSKY: "0"
-  CSC_IDENTITY_AUTO_DISCOVERY: "false"
-
 concurrency:
-  group: release-${{ github.ref }}
+  group: native-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  check:
-    uses: ./.github/workflows/ci.yml
+  rust:
+    uses: ./.github/workflows/rust.yml
+  retained:
+    uses: ./.github/workflows/retained.yml
 
   package:
-    needs: check
+    needs: [rust, retained]
+    environment: ${{ inputs.sign && 'release' || 'candidate' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            target: linux
-          - os: macos-14
-            target: mac
+          - os: macos-15
+            target: mac-arm64
+            signing: mac
+          - os: macos-15-intel
+            target: mac-x64
+            signing: mac
           - os: windows-2025
-            target: win
+            target: win-x64
+            signing: win
+          - os: ubuntu-24.04
+            target: linux-x64
+            signing: none
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-python@v6
         with:
-          node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Verify tag matches package version
+          python-version: "3.12"
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libvulkan-dev libgtk-3-dev libwebkit2gtk-4.1-dev libfuse2t64
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: NSIS
+        if: runner.os == 'Windows'
+        run: choco install nsis --yes --no-progress
+      - run: rustup show
+      - run: cargo fetch --locked
+      - run: python scripts/test-rust-release.py
+      - run: python scripts/test-rust-release-acceptance.py
+      - name: Import temporary signing identity
+        if: inputs.sign && matrix.signing != 'none'
+        run: python scripts/release/identity.py prepare --target ${{ matrix.signing }}
+        env:
+          ANYNOTE_MAC_CERTIFICATE_B64: ${{ secrets.ANYNOTE_MAC_CERTIFICATE_B64 }}
+          ANYNOTE_MAC_CERTIFICATE_PASSWORD: ${{ secrets.ANYNOTE_MAC_CERTIFICATE_PASSWORD }}
+          ANYNOTE_MAC_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          ANYNOTE_WIN_CERTIFICATE_B64: ${{ secrets.ANYNOTE_WIN_CERTIFICATE_B64 }}
+          ANYNOTE_WIN_CERTIFICATE_PASSWORD: ${{ secrets.ANYNOTE_WIN_CERTIFICATE_PASSWORD }}
+          ANYNOTE_WIN_CERT_SHA1: ${{ secrets.ANYNOTE_WIN_CERT_SHA1 }}
+      - name: Build and scan native candidate
         shell: bash
-        run: node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json","utf8")); if(process.env.GITHUB_REF_NAME!==`v${p.version}`) throw Error("Tag must match package.json version");'
-      - run: pnpm install --frozen-lockfile
-      - name: Build application and installer
-        run: pnpm run package:release --${{ matrix.target }}
+        env:
+          ANYNOTE_MAC_SIGN_IDENTITY: ${{ secrets.ANYNOTE_MAC_SIGN_IDENTITY }}
+          ANYNOTE_MAC_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ANYNOTE_WIN_CERT_SHA1: ${{ secrets.ANYNOTE_WIN_CERT_SHA1 }}
+          ANYNOTE_WIN_TIMESTAMP_URL: ${{ vars.ANYNOTE_WIN_TIMESTAMP_URL }}
+          SIGN: ${{ inputs.sign && matrix.signing != 'none' && 'true' || 'false' }}
+        run: |
+          args=()
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then args+=(--tag "$GITHUB_REF_NAME"); fi
+          if [[ "$SIGN" == true ]]; then args+=(--sign); fi
+          python scripts/rust-release.py build --target '${{ matrix.target }}' --output 'tmp/rm36/${{ matrix.target }}' "${args[@]}"
+      - name: Packaged resource and installation regressions
+        shell: bash
+        run: |
+          case '${{ matrix.signing }}' in
+            mac) payload=Anynote.app ;;
+            win) payload=Anynote ;;
+            *) payload=Anynote.AppDir ;;
+          esac
+          python scripts/test-native-payload.py "tmp/rm36/${{ matrix.target }}/$payload"
+      - name: Remove temporary signing identity
+        if: always() && inputs.sign && matrix.signing != 'none'
+        run: python scripts/release/identity.py cleanup --target ${{ matrix.signing }}
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ matrix.target }}
+          name: native-${{ matrix.target }}
           path: |
-            release/*.AppImage
-            release/*.dmg
-            release/*.exe
+            tmp/rm36/${{ matrix.target }}/*.dmg
+            tmp/rm36/${{ matrix.target }}/*.exe
+            tmp/rm36/${{ matrix.target }}/*.AppImage
+            tmp/rm36/${{ matrix.target }}/*.manifest.json
+            tmp/rm36/${{ matrix.target }}/candidate.json
+            tmp/rm36/${{ matrix.target }}/payload-tests.json
+            tmp/rm36/${{ matrix.target }}/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
-
-  publish:
-    needs: package
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: desktop-*
-          merge-multiple: true
-          path: release
-      - name: Generate checksums
-        working-directory: release
-        run: sha256sum *.AppImage *.dmg *.exe > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v3
-        with:
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            release/*.AppImage
-            release/*.dmg
-            release/*.exe
-            release/SHA256SUMS.txt

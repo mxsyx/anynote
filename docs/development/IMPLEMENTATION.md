@@ -4,6 +4,24 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm33"></a>
+
+## 2026-11-10 · RM33 本机预验证与便携恢复（实物验收未闭合）
+
+新增 `scripts/rust-disaster-batch.py`，复用 RM32 源码摘要和 RM31 进程/测试报告，串行执行只读设备采集、存储/备份/迁移回归与恢复包准备/校验。`local_backup_probe` 增加复用 NativeVolumes 的只读操作；不另写卷适配或推断物理独立性。扩展 `rust-recovery.py` 同时准备本地 v3 和完整 `.anynote`，固定源端逻辑预期、流式资源 hash、全文件传输清单和两端驱动摘要，分别核对新库身份、12 张业务表及 FTS；损坏证据即使在 Python 优化模式也不能通过。RM31 recovery 构建调用同步补齐 archive_probe。
+
+本机 M4 / 32 GiB / macOS 26.2 / APFS：43 项 Rust 回归、5 项证据测试、两条同机隔离恢复通过，相关 examples Clippy 与 fmt 通过。设备批次 `20261110T040604Z-57928` 源码稳定，strict 退出 2 表示 acceptance=incomplete。无外接盘、独立设备、真实磁盘满/拔盘/断电、远端 committed、最新数据回退或最终包证据，RM33.1–.3、V004–V009 均未关闭。保留已有 RM32 工作树改动；后续实物清单、恢复包摘要和复现见 [RM33 验收记录](RUST-DISASTER-ACCEPTANCE.md)。
+
+<a id="rm32"></a>
+
+## 2026-11-10 · RM32 Mac 早期设备批次（部分完成）
+
+新增 `scripts/rust-device-batch.py`，复用 RM31 进程/测试报告解析，按设备串行运行平台、SQLite/写入、配置 fixture、备份/迁移、编辑/白板/PDF/视频原型与可选真实 WebView。报告记录源码文件摘要和批次稳定性、原生二进制/宿主 Pdfium pin、硬件/显示/卷及实际结果；自动检查通过仍返回独立的 incomplete 验收状态，strict 退出 2。两个新增证据校验测试和五个既有报告测试通过。
+
+当前 Mac M4 / 32 GiB / macOS 26.2 / APFS 的自动化 72 passed / 0 failed / 1 ignored，本地 WKWebView 100/100。原生隔离调试包装通过系统菜单创建笔记本，Cmd+Q 退出后只读数据库核对名称；AX click 未触发、路径绑定 noWindowsAvailable、截图与 AX 状态不同步，完整 GUI 证据未闭合。最初沙箱 sysctl 被拒及 diskutil 目录参数问题均保留失败报告，修正卷定位后完整重跑通过。
+
+用户明确本轮仅当前 Mac；未操作日常库或登录钥匙串，未执行真人 IME/读屏/跨屏/真实 provider 播放、低配/冷缓存/小时负载。既有 RM31 故障与 RM14/37 前置仍有效，RM32.1–.3 和 V/A/F 状态不关闭。详见 [三平台设备验收](RUST-DEVICE-ACCEPTANCE.md)。
+
 <a id="rm31"></a>
 
 ## 2026-11-10 · RM31 原生回归驱动（验收未闭合）
@@ -569,3 +587,32 @@ ChatGPT 组件补充（适配器 `web-experimental-3`）：按消息 ID 提取�
 临时扩展安装包：`tmp/browser-capture/anynote-browser-extension.zip`；解压后加载目录，或直接加载 `apps/browser-extension/dist`。2026-10-25 已连接用户 Chrome 并点击指定对话的采集按钮；用户回传的 Markdown 证实真实历史接口返回正文、表格和代码块。首次结果包含空消息、内部特殊消息及原始 Cite 标记，且导出因未确认缺失而受阻，提示位于侧栏末尾不可见。随后过滤已知 thoughts/reasoning_recap、工具定向消息与空文本；保留真正未知媒体缺失提示；正文引用标记替换为“引用来源见原对话”（代码示例保持原样，不虚构来源 URL）；导出操作旁显示状态并聚焦缺失确认框。切换草稿重置确认，冻结包也重新检查确认。修正后聚焦采集回归 10 项通过，隔离 Chromium smoke 覆盖缺失确认阻止导出、就地提示、确认后下载及冻结包取消确认后再次阻止导出；扩展构建通过。用户随后确认新版真实对话采集与 `.anyclip` 导出正常；这是用户操作回报，扩展侧栏未由工具直接读取。专有媒体与分支切换不计为通过。按用户最新要求，扩展侧栏与 ChatGPT 注入按钮改为白色背景、扁平化样式：移除渐变与阴影，统一浅灰边框、蓝色主操作、两列采集操作及键盘焦点状态。样式更新后扩展构建、相关 ESLint 和隔离 Chromium smoke 通过；440px 与 320px 侧栏截图已人工检查，320px 无横向溢出，导出与草稿恢复通过。没有部署或改变现有真实 Cloudflare 数据。
 
 `node scripts/capture-benchmark.mjs` 对 4×20 MiB 合成附件实测：Node 流式导出约 194 ms、导入约 118 ms、RSS 基线 73 MiB / 峰值 98 MiB。该测量不代表浏览器最终 Blob 内存或真实云性能。临时报告与截图在 `tmp/browser-capture`、`tmp/capture-benchmark`。后续状态统一见 [F025](TODO.md#f025)。
+
+<a id="rm34"></a>
+
+## RM34 · 真实云批次与老化 Rust 复验准备（2026-11-10）
+
+复用 RM10 HTTP/子进程探针及 RM12 Chromium 扩展，新增只走公开 API 的小型场景；真实模式拒绝混用本地测试、缺失成对凭据与覆盖既有标签，按端点串行并在远端写前固定身份。记录 capabilities/schema、冻结 pending/丢回包、实际传输字节、旧版本/含媒体采集恢复、同代 browse、设备撤销及 head/writer 冲突。新增老化 `--rust` 模式，在 TS 兼容样本的 24h/7d 复验中追加 Rust 固定版本恢复；恢复失败不能标阶段通过，等待期不联网。
+
+本地适配器 9 项、local-workerd + 实际 Chromium 扩展 10 项、Rust 12 项、老化状态机/CLI 4 项和批次保护 3 项通过；二次相同 DB/附件复用 228,070 字节、对象 PUT 为 0。详见 [RM34 契约与复现](RUST-CLOUD-ACCEPTANCE.md)。用户随后指定 `.env.cloud`，在既有验收 Worker 上完成真实云 10 项检查，批次 `rm34-20261110-01` 于北京时间 14:12:45–14:15:19 通过；配对设备已撤销。RM34.1 闭合，原生管理 GUI、最终发行候选包、长期调度、真实老化与 R2 物理删除不由该报告替代；RM34.2/.3 与 A007/A008/F025 继续保留，A009 未执行。
+
+随后创建全新老化样本 `rm34-20261110-01-aging.json`（Notebook `d5c567a7-e326-4e69-8b7e-b046822e1d16`）。三种受保护版本经 Rust 直接 HTTPS 恢复并核对正文通过，记为 baseline；真实 24h/7d 仍为 waiting，最早复验分别为北京时间 2026-11-11/17 14:18。立即 24h 复验返回退出码 2，不联网且不刷新 staging。持久样本与后续命令见 [RM34 接续](RUST-CLOUD-ACCEPTANCE.md#本批真实老化样本与接续时间)，没有设置自动定时任务；尚缺 R2 管理端物理删除及长期调度证据。
+
+<a id="rm37"></a>
+
+## 2026-11-10 · RM37 消费者核对与独立维护回归
+
+维护协议驱动的内存适配器/local-workerd 入口改读独立 Worker `dist`，移除其旧 `.build` 依赖；`test:retained` 编译并执行 `maintenance_probe`，CI 收集 RM11 维护报告和日志。README、开发入口、设计/功能索引与旧插件文档区分 Rust 当前路径和历史机制，保留旧记录的业务与迁移证据。
+
+Mac arm64 / Node 24.22.0：两套 TS 源码隔离构建、local-workerd 5/16/9/9 组（协议/备份/实际 Chromium 采集/维护）、维护故障适配器 12 组、发行失败路径 13 项通过；RM36 已有候选扫描/资源自检通过。首次沙箱监听拒绝和默认浏览器缺失后，使用允许本地端口的运行环境及已安装 Chromium 156 重跑通过。相关 ESLint 与 diff 空白检查通过。
+
+本次没有删除旧桌面/插件源码或依赖，没有生成 RM37 最终候选，也未发布或接管用户数据。删除前置和后续任务唯一状态见 [TODO RM37](TODO.md#rm37)；具体参考消费者、验证方式和包证据边界见 [退役接续](RUST-LEGACY-RETIREMENT.md)。
+
+## 2026-11-10 · RM36 原生候选与发行接线
+
+- `rust-release.py` 按 Rust/native 资源白名单构建四架构候选配置；开发与正式 profile 区分，版本/架构/动态依赖/文件 hash/许可证及原始 crate 校验。macOS arm64 优化 `.app` 和 DMG 已在本机生成。
+- Pdfium 签名先于主程序编译，运行时固定签后库 hash；`--release-check` 无窗口/无用户资料验证字体与 PDF ABI，`--check-notebook` 复用存储层 schema 拒绝。安装事务保留 previous、失败回退且不接管用户数据。
+- 签名、公证、NSIS 卸载程序签名和 CI 临时身份清理已接线；真实凭据未用。发行 workflow 依赖 Rust/原生窗口与保留 TS 互通检查，只上传候选，不自动发布。
+- 13 项脚本失败路径、110 项桌面回归、fmt/clippy、本机候选目录安装升级与篡改/schema 拒绝验证通过；最初 PDF 测试缺库路径导致失败，显式锁定库后复跑通过。其他平台/hosted CI、正式签名安装及 RM37/38 放行未执行。
+
+接续命令和证据边界见 [RM36 原生发行](RUST-NATIVE-RELEASE.md)。

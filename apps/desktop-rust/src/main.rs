@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 use anynote_desktop::{
     instance::{self, Instance},
     probe::{self, Probe},
@@ -21,6 +23,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut probe = Probe::default();
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--release-check") => {
+                if args.next().is_some() {
+                    return Err("--release-check accepts no further arguments".into());
+                }
+                println!("{}", anynote_desktop::release::check()?);
+                return Ok(());
+            }
+            Some("--check-notebook") => {
+                let path = PathBuf::from(args.next().ok_or("missing notebook directory")?);
+                if args.next().is_some() {
+                    return Err("--check-notebook accepts one directory".into());
+                }
+                anynote_storage::notebook::ReadonlyNotebook::open(&path, None)?;
+                println!("anynote.notebook-check.v1: passed");
+                return Ok(());
+            }
             Some("--board-window") => {
                 let scene = if let Some(path) = args.next() {
                     use std::io::Read;
@@ -46,6 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .run(move |cx| {
                         use gpui_kit::AppContext;
                         gpui_kit::init(cx);
+                        anynote_desktop::release::register_fonts(cx).expect("bundled font");
                         anynote_desktop::board::install_actions(cx);
                         Theme::sync_system_appearance(None, cx);
                         gpui_kit::open_window(
@@ -110,6 +129,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => return Err(format!("unknown argument: {}", arg.to_string_lossy()).into()),
         }
     }
+    // The WebView host requires this GPUI backend. Relaunch with a child-only
+    // environment instead of mutating process environment after threads may exist.
+    #[cfg(target_os = "windows")]
+    if std::env::var("GPUI_DISABLE_DIRECT_COMPOSITION").as_deref() != Ok("1") {
+        let status = std::process::Command::new(std::env::current_exe()?)
+            .args(std::env::args_os().skip(1))
+            .env("GPUI_DISABLE_DIRECT_COMPOSITION", "1")
+            .status()?;
+        return if status.success() {
+            Ok(())
+        } else {
+            Err("native child failed".into())
+        };
+    }
     let directory = state_directory()?;
     let Instance::Primary(_instance, activations) = instance::acquire(&directory)? else {
         return Ok(());
@@ -132,6 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     application.run(move |cx| {
         gpui_kit::init(cx);
+        anynote_desktop::release::register_fonts(cx).expect("bundled font");
         anynote_desktop::backend_session::BackendSession::install(backend, cx);
         cx.set_app_identity("app.anynote.desktop", "Anynote");
         Theme::sync_system_appearance(None, cx);

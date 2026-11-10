@@ -314,7 +314,13 @@ export async function runCaptureChecks({
 }
 
 /* global chrome */
-async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
+export async function extensionRoundTrip({
+  root,
+  endpoint,
+  pairing,
+  apply,
+  onDevice,
+}) {
   const { chromium } = await import("playwright");
   const { expect } = await import("@playwright/test");
   const extension = join(root, "extension");
@@ -357,6 +363,8 @@ async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
       delete headers["content-encoding"];
       delete headers["content-length"];
       let body = Buffer.from(await response.arrayBuffer());
+      if (url.pathname === "/v1/pairings/redeem" && response.ok)
+        onDevice?.(JSON.parse(body).deviceId);
       if (omitCapture && url.pathname === "/v1/capabilities") {
         const value = JSON.parse(body);
         value.capabilities = value.capabilities.filter(

@@ -2,6 +2,11 @@
 
 供 Agent 接续实施使用。先核对当前源码和任务范围，实施后更新已交付范围、剩余事项与已知失败；不把历史测试结果当作当前通过结论。
 
+- [最终候选证据与发行复核](RUST-RELEASE-ACCEPTANCE.md)：RM38 的 292 项证据汇总、源码/CI/候选绑定、实签安装步骤、接管回退记录要求和当前阻塞。
+- [旧桌面退役与消费者接续](RUST-LEGACY-RETIREMENT.md)：RM37 运行/参考闭包、旧端回读和白板差分消费者、维护协议独立入口及验证边界。
+- [Rust 原生打包与发行接线](RUST-NATIVE-RELEASE.md)：RM36 候选构建、资源/许可证校验、签名公证、安装回退和 CI 边界。
+- [Rust 物理盘与灾难恢复验收](RUST-DISASTER-ACCEPTANCE.md)：RM33 本机预验证、双格式便携恢复包、Mac 证据及真实盘/故障/独立设备剩余清单。
+- [Rust 三平台设备验收](RUST-DEVICE-ACCEPTANCE.md)：RM32 设备批次入口、Mac 早期实测、三阶段证据边界及后续真人/其他平台操作清单。
 - [Rust 原生回归与性能证据](RUST-NATIVE-REGRESSION.md)：RM31 无头/真实窗口驱动、INV 覆盖、100 次媒体循环、性能预算、便携恢复及当前失败归属。
 
 - [Rust 工作区与阅读接续](RUST-WORKSPACE.md)：RM28 组织服务、导航、搜索分页、修订资源、原生入口及验证边界。
@@ -24,6 +29,8 @@
 - [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：RM07 的 HTML 差分、预览租约、目录授权、下载边界、采集回执和 TS/Rust 互通复现。
 - [Rust 快照、归档、开放导出与清理](RUST-SNAPSHOT-ARCHIVE.md)：RM08 的冻结切面、ZIP/ZIP64 双向互通、开放导出、完整性保全、清理恢复及复现。
 - [Rust 本地备份 v3](RUST-LOCAL-BACKUP.md)：RM09 的卷预检、增量发布、任务回执、全量验证、新库恢复及 TS 互通复现。
+- [Rust 下载服务公网验收](RUST-NETWORK-ACCEPTANCE.md)：RM35 的 Rust 业务驱动、75 场景、DNS 变更证据、mxsyx.site 部署要求及公网资源缺口。
+- [Rust 真实云验收批次](RUST-CLOUD-ACCEPTANCE.md)：RM34 真实端点接入、公开 API 故障闭环、字节/身份证据、Rust 老化恢复和未验收边界。
 - [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)：RM12 的配对/claim/事务回执、同切面投影、RM10 接续顺序和保留扩展本地闭环。
 - [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：RM13 的 LevelDB 副本、平台凭据原型、插件状态保全、逆映射与复现方法。
 - [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)：RM14 的完整保全、可重入 journal、原路径租约、最新数据回退、故障演练及正式激活缺口。

@@ -1,5 +1,7 @@
 # 声明式扩展设置
 
+> 旧 Electron 客户端参考。本文的插件安装、授权、运行或分发流程不适用于 Rust 桌面；已知业务由 [静态内置能力](../../development/RUST-BUILTIN-BUSINESS.md) 承接，退役状态见 [RM37](../../development/TODO.md#rm37)。保留本文用于迁移核对。
+
 扩展可以在 `contributes.settings` 声明当前 Notebook 的设置表单。界面由应用渲染，不加载扩展 UI 代码。支持文本、数字和开关；最多 12 个字段，标签与描述按文本显示。示例 [reading-preferences.json](../../../packages/plugin-sdk/src/examples/reading-preferences.json) 可配置摘要标题、目标篇数和是否追加摘要。
 
 安装审阅显示完整设置定义和权限。扩展必须声明 `settings:read` 与 `settings:write`，并在当前 Notebook 获得全部声明权限；未授权、停用或来源信任被撤销时不展示可操作表单，后端也拒绝读写。声明式扩展只声明设置时可以不申请笔记权限；脚本命令仍需笔记读写权限。

@@ -1,0 +1,16 @@
+{
+  "format": "anynote.rust-network-config.v1",
+  "serviceId": "replace-with-controlled-service-id",
+  "serviceVersion": "anynote-public-network-v2",
+  "deploymentEvidence": "/absolute/path/deployment-record.json",
+  "endpoints": {
+    "public": "https://network.example.com/",
+    "untrustedCertificate": "https://untrusted.example.com/",
+    "hostnameMismatch": "https://mismatch.example.com/",
+    "privateDns": "https://private.example.com/",
+    "mixedDns": "https://mixed.example.com/",
+    "missingDns": "https://missing.example.com/",
+    "multipleDns": "https://multiple.example.com/",
+    "changingDns": "https://changing.example.com/"
+  }
+}

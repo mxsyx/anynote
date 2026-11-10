@@ -74,10 +74,10 @@ python3 scripts/rust-regression.py --stages tests,boundary,formats,interop,recov
 ## 便携恢复复现
 
 ```sh
-cargo build --locked --offline -p anynote-services --example local_backup_probe
+cargo build --locked --offline -p anynote-services --example local_backup_probe --example archive_probe
 python3 scripts/rust-recovery.py prepare tmp/rm31-portable-bundle
 # 将 bundle 整体复制到待验收设备，再使用该设备构建的 Rust 驱动
 python3 scripts/rust-recovery.py verify tmp/rm31-portable-bundle --output tmp/rm31-portable-restored
 ```
 
-准备阶段使用仓库匿名黄金库，生成 Rust v3 本地备份，记录标准 SQL 行、历史/回收站、资源 SHA-256、批注、`extension_data`、内部链接和 FTS 命中后删除原始副本。验证阶段使用一个全新的输出目录，复制备份后调用 Rust verify/restore，恢复身份必须变化，正文自链接和 note_links 按新库身份归一后比较；其他未知 JSON 不被归一或丢弃。记录两端主机/平台，但主机名不同不自动证明物理设备独立。目录已存在时拒绝覆盖。真实用户资料、Cloudflare 和物理故障不在此驱动的默认行为中。
+准备阶段使用仓库匿名黄金库，生成 Rust v3 本地备份和完整 `.anynote`，记录标准 SQL 行、历史/回收站、资源 SHA-256、批注、`extension_data`、内部链接和 FTS 命中后删除原始副本。RM33 增加全文件传输清单与两端驱动摘要；旧测试包须重新生成。验证阶段使用全新输出目录，分别执行本地 verify/restore 和 archive import，恢复身份必须变化，正文自链接和 note_links 按新库身份归一后比较；其他未知 JSON 不被归一或丢弃。完整归档按 Full 契约仅裁剪无引用资产。记录两端主机/平台，但主机名不同不自动证明物理设备独立。目录已存在时拒绝覆盖。真实用户资料、Cloudflare 和物理故障不在此驱动的默认行为中。跨设备使用 `--expected-manifest-sha256` 固定源端单独记录的摘要，详见 [RM33 便携恢复与实物步骤](RUST-DISASTER-ACCEPTANCE.md)。
