@@ -4,11 +4,11 @@ import { readFileSync, cpSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { unzipSync } from "fflate";
-import { captureDigest } from "../.build/packages/capture/format.js";
+import { captureDigest } from "../packages/capture/dist/format.js";
 import {
   libraryNoteSchema,
   libraryNodeSchema,
-} from "../.build/packages/protocol/cloud-capture.js";
+} from "../packages/protocol/dist/cloud-capture.js";
 
 export async function runCaptureChecks({
   root,
@@ -275,7 +275,7 @@ export async function runCaptureChecks({
     },
   });
   record(
-    "real Chromium MV3 panel pairs, uploads selection, reads Rust-published tree/body and backedUp inbox",
+    "real Chromium MV3 panel pairs, uploads selection, reads Rust-published data and explicitly degrades without capture capability",
   );
   const bad = await capture(),
     badId = bad.manifest.captureId;
@@ -337,6 +337,8 @@ async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
       ],
     },
   );
+  let omitCapture = false,
+    capturePlans = 0;
   try {
     const worker =
       browser.serviceWorkers()[0] ||
@@ -345,6 +347,7 @@ async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
     await page.route("https://rm12.example/**", async (route) => {
       const request = route.request(),
         url = new URL(request.url());
+      if (url.pathname === "/v1/captures/plan") capturePlans++;
       const response = await fetch(endpoint + url.pathname + url.search, {
         method: request.method(),
         headers: await request.allHeaders(),
@@ -353,10 +356,18 @@ async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
       const headers = Object.fromEntries(response.headers);
       delete headers["content-encoding"];
       delete headers["content-length"];
+      let body = Buffer.from(await response.arrayBuffer());
+      if (omitCapture && url.pathname === "/v1/capabilities") {
+        const value = JSON.parse(body);
+        value.capabilities = value.capabilities.filter(
+          (c) => c !== "capture-v1",
+        );
+        body = Buffer.from(JSON.stringify(value));
+      }
       await route.fulfill({
         status: response.status,
         headers,
-        body: Buffer.from(await response.arrayBuffer()),
+        body,
       });
     });
     await page.goto(
@@ -400,6 +411,25 @@ async function extensionRoundTrip({ root, endpoint, pairing, apply }) {
     await expect(page.locator("#cloud-note")).toContainText(
       "Browser selection through Rust",
     );
+    omitCapture = true;
+    await page.locator("#cloud-refresh").click();
+    await expect(page.locator("#cloud-inbox")).toContainText(
+      "当前服务不支持采集",
+    );
+    await expect(page.locator("#cloud-tree")).toContainText(
+      "RM12 extension selection",
+    );
+    const plansBefore = capturePlans;
+    await page.locator("#close-settings").click();
+    await page.locator("#cloud-upload").click();
+    await expect(page.locator("#capture-status")).toContainText(
+      "云端不支持 capture-v1",
+    );
+    assert.equal(capturePlans, plansBefore);
+    omitCapture = false;
+    await page.locator("#open-settings").click();
+    await page.locator("#cloud-refresh").click();
+    await expect(page.locator("#cloud-inbox")).toContainText("已备份");
     await page.screenshot({
       path: join(root, "extension.png"),
       fullPage: true,

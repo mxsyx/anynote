@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 anynote-core.workspace = true
 serde.workspace = true
+uuid.workspace = true
 serde_json.workspace = true
 dom_query = "=0.27.0"
 markdown = "=1.0.0"

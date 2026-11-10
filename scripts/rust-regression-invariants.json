@@ -1,0 +1,201 @@
+[
+  {
+    "id": "INV-01",
+    "tests": [
+      "bookshelf_create_read_search_history_theme_and_dialog_focus",
+      "external_detach_retains_files_and_preferences_survive_reconnect"
+    ],
+    "legacy_entry": "test:bookshelf",
+    "remaining": "真实三平台重启/失联卷"
+  },
+  {
+    "id": "INV-02",
+    "tests": [
+      "organization_history_search_and_transfer_use_real_backend",
+      "directory_drag_updates_real_parent_and_keyboard_remains_operable"
+    ],
+    "legacy_entry": "test:organization / test:transfer",
+    "remaining": "完整万节点与实际拖放轨迹"
+  },
+  {
+    "id": "INV-03",
+    "tests": [
+      "switching_library_waits_for_real_editor_save",
+      "document_cas_lost_ack_restart_and_large_source"
+    ],
+    "legacy_entry": "test:document",
+    "remaining": "RM19 OS 退出屏障/真实 IME"
+  },
+  {
+    "id": "INV-04",
+    "tests": [
+      "document_editor::tests::ui::switching_waits_for_original_ack_and_rejects_late_response"
+    ],
+    "legacy_entry": "test:document",
+    "remaining": "RM18 复杂选择、BiDi、IME、a11y"
+  },
+  {
+    "id": "INV-05",
+    "tests": ["backlinks_survive_rename_and_external_offline_state_recovers"],
+    "legacy_entry": "test:document",
+    "remaining": "真实阅读导航/布局"
+  },
+  {
+    "id": "INV-06",
+    "tests": [
+      "paged_search_does_not_repeat_equal_timestamp_results_and_import_is_real",
+      "search_cancellation_and_invalid_settings_do_not_break_session"
+    ],
+    "legacy_entry": "benchmark:search",
+    "remaining": "相同旧搜索语料与实际界面预算"
+  },
+  {
+    "id": "INV-07",
+    "tests": [
+      "paste_width_reader_rotate_version_and_close_use_production_controls"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "真实照片/峰值显存/所有动画"
+  },
+  {
+    "id": "INV-08",
+    "tests": [
+      "selection_search_annotation_note_index_and_anchor_controls",
+      "worker_latest_request_close_and_password_retry"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "复杂字体/100MiB PDF/跨平台"
+  },
+  {
+    "id": "INV-09",
+    "tests": [
+      "real_backend_atomic_board_history_retry_transfer_archive_and_export"
+    ],
+    "legacy_entry": "test:editor",
+    "remaining": "RM22/23 冻结动作尚未全部交付"
+  },
+  {
+    "id": "INV-10",
+    "tests": [
+      "video_insert_save_reopen_and_consent_use_production_controls",
+      "video_thumbnail_uses_revision_resource_and_normal_save"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "provider 播放/系统焦点"
+  },
+  {
+    "id": "INV-11",
+    "tests": [
+      "html_readability_turndown_golden",
+      "adjacent_capability_rejects_traversal_symlink_escape_fifo_and_replacement"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "真实网络与本机授权"
+  },
+  {
+    "id": "INV-12",
+    "tests": [
+      "full_and_current_zip64_roundtrip_and_current_erases_old_pages",
+      "cancelled_or_existing_output_never_publishes_partial_archive"
+    ],
+    "legacy_entry": "test:archive",
+    "remaining": "真实文件选择器/20GiB"
+  },
+  {
+    "id": "INV-13",
+    "tests": ["durable_snapshot_pending_exclusive_lease_and_identity"],
+    "legacy_entry": "test:desktop:cloud",
+    "remaining": "真实 Cloudflare/长时老化"
+  },
+  {
+    "id": "INV-14",
+    "tests": [
+      "real_backend_group_backup_verify_restore_and_restart_history",
+      "precommit_failures_keep_previous_and_recover_only_journal_files"
+    ],
+    "legacy_entry": "test:desktop:local-backup / benchmark:local-backup",
+    "remaining": "物理盘/断电"
+  },
+  {
+    "id": "INV-15",
+    "tests": [
+      "cleanup_is_preview_bound_and_has_recovery_after_failure",
+      "backup_restores_to_new_library_when_source_database_is_corrupt"
+    ],
+    "legacy_entry": "test:recovery:portable verify",
+    "remaining": "独立设备恢复"
+  },
+  {
+    "id": "INV-16",
+    "tests": [
+      "crash_reconnect_marks_interrupted_and_invalidates_resource_tokens",
+      "diagnostics_export_binary_restart_and_clear"
+    ],
+    "legacy_entry": "test:desktop",
+    "remaining": "跨平台进程故障"
+  },
+  {
+    "id": "INV-17",
+    "tests": [
+      "browse_tree_pages_are_bounded_and_deleted_ancestors_are_excluded"
+    ],
+    "legacy_entry": "test:browser",
+    "remaining": "保留端互通单独阶段"
+  },
+  {
+    "id": "INV-18",
+    "tests": [
+      "proposals_are_conditional_atomic_idempotent_and_validate_persisted_state"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "完整提案幂等与撤销 UI"
+  },
+  {
+    "id": "INV-19",
+    "tests": ["input_clipboard_dialog_focus_theme_and_zoom"],
+    "legacy_entry": "test:native-menu",
+    "remaining": "真实系统菜单/WebView 路由"
+  },
+  {
+    "id": "INV-20",
+    "tests": [
+      "activation_and_crash_recovery",
+      "binary_process_probe_does_not_initialize_window_system"
+    ],
+    "legacy_entry": "test:desktop",
+    "remaining": "三平台生命周期/唤醒/设备"
+  },
+  {
+    "id": "INV-21",
+    "tests": [
+      "concurrent_requests_cancel_timeout_and_exit_drain",
+      "connection_secret_separation_and_retry_after"
+    ],
+    "legacy_entry": "test:desktop",
+    "remaining": "三平台凭据锁定/恢复"
+  },
+  {
+    "id": "INV-22",
+    "tests": [
+      "connection_form_validation_masking_and_cancel_preserve_focus",
+      "bookshelf_create_read_search_history_theme_and_dialog_focus"
+    ],
+    "legacy_entry": "test:management",
+    "remaining": "真实 DPI/读屏/动画偏好"
+  },
+  {
+    "id": "INV-23",
+    "tests": [
+      "known_business_requires_exact_manifest_and_checksum",
+      "trusted_examples_need_source_checksums_too"
+    ],
+    "legacy_entry": "test:features",
+    "remaining": "用户未知必需插件清点"
+  },
+  {
+    "id": "INV-24",
+    "tests": ["binary_process_probe_does_not_initialize_window_system"],
+    "legacy_entry": "test:retained",
+    "remaining": "RM36/37 最终发行闭包"
+  }
+]

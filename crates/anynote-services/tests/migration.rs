@@ -321,7 +321,7 @@ fn insufficient_space_and_outside_registrations_fail_closed() {
             .exists()
     );
     let outside = tempfile::tempdir().unwrap();
-    let registration = serde_json::json!([{"id":uuid::Uuid::new_v4().to_string(),"path":outside.path(),"name":"outside"}]);
+    let registration = serde_json::json!([{"id":uuid::Uuid::new_v4().to_string(),"path":outside.path().canonicalize().unwrap(),"name":"outside"}]);
     fs::write(
         root.path()
             .join("userData/notebooks/_local/notebook-directories.json"),

@@ -92,6 +92,14 @@ pub struct Note {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
+pub struct RevisionSummary {
+    pub id: String,
+    pub created_at: i64,
+    pub actor: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Revision {
     pub id: String,
     pub note_id: String,

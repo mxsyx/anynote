@@ -107,13 +107,18 @@ async fn run(input: Value) -> CloudResult<Value> {
         return Ok(json!({"generationId":m.data().generation_id}));
     }
     if op == "prepare" {
-        let pending = client
-            .pending_capture_acks(
-                &session.identity().notebook_id,
-                &session.identity().lineage_id,
-                &cancel,
-            )
-            .await?;
+        let caps = client.test(&cancel).await?;
+        let pending = if caps.has("capture-v1") {
+            client
+                .pending_capture_acks(
+                    &session.identity().notebook_id,
+                    &session.identity().lineage_id,
+                    &cancel,
+                )
+                .await?
+        } else {
+            Vec::new()
+        };
         let notebook = string("notebook")?.to_owned();
         let data_root = Path::new(string("dataRoot")?).to_owned();
         let queue = WriteQueue::open(&data_root, 2)?;
@@ -121,12 +126,15 @@ async fn run(input: Value) -> CloudResult<Value> {
         let mut frozen = queue
             .submit(move |s| s.capture_snapshot(&notebook, &temp, &Cancellation::default()))?
             .wait()?;
-        let manifest = prepare_upload_with_captures(
+        let manifest = prepare_upload_with_projection(
             &mut session,
             &mut frozen,
             input["head"].as_str().unwrap_or(""),
             "2026-11-08T12:00:00.000Z",
-            &pending,
+            UploadProjection {
+                browse: caps.has("browse-snapshot-v1"),
+                captures: caps.has("capture-v1").then_some(&pending),
+            },
             &Cancellation::default(),
         )?;
         return Ok(

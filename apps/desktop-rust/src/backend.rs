@@ -10,13 +10,18 @@ use std::{
 };
 use uuid::Uuid;
 
+mod management;
 mod pdf_index;
+mod workspace;
 
 enum Input {
     Frame(Frame),
     Closed,
     Invalid(ServiceError),
     Finished(Uuid),
+    ManagementTick,
+    ManagementProgress(Uuid, anynote_core::management::Report),
+    ManagementFinished(Uuid, anynote_services::management::Outcome),
     ReadingFinished(u64, ServiceResult<Reply>),
 }
 struct Backend {
@@ -24,6 +29,9 @@ struct Backend {
     directory: std::path::PathBuf,
     documents: Option<crate::document_store::DocumentStore>,
     pdf_indexes: HashMap<Uuid, pdf_index::IndexSession>,
+    searches: HashMap<u64, (Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>)>,
+    management_jobs: Vec<anynote_core::management::JobDetails>,
+    management_active: HashMap<Uuid, management::ActiveJob>,
     last_request: u64,
     store: RuntimeState,
     tasks: TaskHistory,
@@ -31,6 +39,7 @@ struct Backend {
     resources: Resources,
     workers: HashMap<Uuid, tokio::task::JoinHandle<()>>,
     reading_workers: HashMap<u64, tokio::task::JoinHandle<()>>,
+    video_requests: std::collections::HashSet<u64>,
     waits: HashMap<u64, Uuid>,
     input: async_channel::Sender<Input>,
     output: async_channel::Sender<Frame>,
@@ -71,7 +80,30 @@ impl Backend {
     }
     async fn command(&mut self, request: &Request) -> ServiceResult<Option<Reply>> {
         Ok(Some(match request.command() {
+            Command::Management(command) => self.management_command(command.clone())?,
+            Command::Workspace(command) => {
+                return self.workspace_command(request.id(), command.clone()).await;
+            }
             Command::Pdf(command) => self.pdf_command(command.clone()).await?,
+            Command::VideoMetadata { card } => {
+                if self.reading_workers.len() >= MAX_ACTIVE_TASKS {
+                    return Err(ServiceError::new(ErrorCode::Busy));
+                }
+                self.video_requests.insert(request.id());
+                let card = card.clone();
+                let id = request.id();
+                let input = self.input.clone();
+                self.reading_workers.insert(
+                    id,
+                    tokio::spawn(async move {
+                        let result = anynote_services::video::fetch(&card, &Default::default())
+                            .await
+                            .map(Reply::VideoMetadata);
+                        let _ = input.send(Input::ReadingFinished(id, result)).await;
+                    }),
+                );
+                return Ok(None);
+            }
             Command::RunReading(reading) => {
                 if self.reading_workers.len() >= MAX_ACTIVE_TASKS {
                     return Err(ServiceError::new(ErrorCode::Busy));
@@ -133,6 +165,9 @@ impl Backend {
                 Reply::Task(task)
             }
             Command::CancelTask { task_id } => {
+                if let Some(task) = self.cancel_management(*task_id)? {
+                    return Ok(Some(Reply::Task(task)));
+                }
                 let task = self
                     .tasks
                     .transition(&self.store, *task_id, TaskStatus::Cancelled)?;
@@ -161,6 +196,15 @@ impl Backend {
                 Reply::Task(task)
             }
             Command::CancelWait { request_id } => {
+                if let Some((_, cancel)) = self.searches.get(request_id) {
+                    cancel.store(true, std::sync::atomic::Ordering::Release);
+                }
+                if self.video_requests.remove(request_id)
+                    && let Some(worker) = self.reading_workers.remove(request_id)
+                {
+                    worker.abort();
+                }
+
                 if self.waits.remove(request_id).is_some() {
                     self.respond(*request_id, Err(ServiceError::new(ErrorCode::Cancelled)))
                         .await?;
@@ -204,6 +248,15 @@ impl Backend {
                 Reply::Ack
             }
             Command::Shutdown => {
+                if !self.reading_workers.is_empty() {
+                    return Err(ServiceError::new(ErrorCode::Busy));
+                }
+                if !self.management_active.is_empty() {
+                    for job in self.management_active.values() {
+                        job.cancel();
+                    }
+                    return Err(ServiceError::new(ErrorCode::Busy));
+                }
                 if self
                     .tasks
                     .list()
@@ -240,8 +293,41 @@ impl Backend {
             epoch: self.epoch,
         })
         .await?;
+        let timer_input = self.input.clone();
+        let timer = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if timer_input.send(Input::ManagementTick).await.is_err() {
+                    break;
+                }
+            }
+        });
         while let Ok(input) = incoming.recv().await {
             match input {
+                Input::ManagementTick => {
+                    if self.management_active.is_empty()
+                        && anynote_services::management::has_enabled_targets(&self.directory)
+                    {
+                        let _ = self.management_command(
+                            anynote_core::management::ManagementCommand::Start {
+                                operation: anynote_core::management::Operation::RunScheduled,
+                                confirmed: false,
+                            },
+                        );
+                    }
+                }
+                Input::ManagementProgress(id, report) => {
+                    if let Some(job) = self
+                        .management_jobs
+                        .iter_mut()
+                        .find(|j| j.task().id() == id && j.task().status().is_active())
+                    {
+                        job.progress(report);
+                    }
+                }
+                Input::ManagementFinished(id, outcome) => {
+                    self.finish_management(id, outcome).await?
+                }
                 Input::Closed => break,
                 Input::Invalid(error) => {
                     self.send(ServerMessage::ProtocolError { error }).await?;
@@ -257,6 +343,8 @@ impl Backend {
                 }
                 Input::ReadingFinished(id, result) => {
                     self.reading_workers.remove(&id);
+                    self.searches.remove(&id);
+                    self.video_requests.remove(&id);
                     self.respond(id, result).await?;
                 }
                 Input::Frame(frame) => {
@@ -311,6 +399,7 @@ impl Backend {
                 }
             }
         }
+        timer.abort();
         // EOF is not successful completion. Recovery preserves the original recovery policy.
         for task in self
             .tasks
@@ -365,11 +454,15 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         .enable_all()
         .build()
         .map_err(|_| ServiceError::new(ErrorCode::Storage))?;
+    let management_jobs = management::load(&store, &tasks)?;
     let mut backend = Backend {
         epoch: Uuid::new_v4(),
         directory: directory.to_owned(),
         documents: None,
+        searches: HashMap::new(),
         pdf_indexes: HashMap::new(),
+        management_jobs,
+        management_active: HashMap::new(),
         last_request: 0,
         store,
         tasks,
@@ -377,6 +470,7 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         resources: Resources::default(),
         workers: HashMap::new(),
         reading_workers: HashMap::new(),
+        video_requests: Default::default(),
         waits: HashMap::new(),
         input,
         output,
@@ -389,6 +483,7 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         worker.abort();
     }
     backend.input.close();
+    runtime.block_on(backend.drain_management());
     backend.output.close();
     let written = writer
         .join()

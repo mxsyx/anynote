@@ -799,3 +799,31 @@ fn verify_staged(
     .into();
     Ok(report)
 }
+
+/// Discover validated manifests on an explicitly connected backup root, including
+/// notebooks no longer present in the local workspace.
+pub fn list_backups(
+    target: &Target,
+    probe: &dyn VolumeProbe,
+) -> Result<Vec<(String, String, String)>> {
+    let session = Session::open(target, &[], probe)?;
+    let directory = checked_local_path(&target.path, "notebooks")?;
+    if !directory.exists() {
+        return Ok(Vec::new());
+    }
+    let mut books = Vec::new();
+    for entry in fs::read_dir(directory)? {
+        let id = entry?.file_name().to_string_lossy().into_owned();
+        if uuid::Uuid::parse_str(&id).is_err() {
+            continue;
+        }
+        require(books.len() < 1000, "BACKUP_LIMIT", "备份笔记本数量超限")?;
+        let book = session.book(&id, false)?;
+        if let Some(manifest) = book.json::<Manifest>(".backup/manifest.json")? {
+            manifest.validate(&target.id, &id)?;
+            books.push((id, manifest.name, manifest.completed_at));
+        }
+    }
+    books.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+    Ok(books)
+}

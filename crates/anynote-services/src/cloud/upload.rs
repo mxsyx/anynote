@@ -31,6 +31,34 @@ pub fn prepare_upload_with_captures(
     pending_captures: &[String],
     cancel: &Cancellation,
 ) -> CloudResult<Manifest> {
+    prepare_upload_with_projection(
+        session,
+        frozen,
+        expected_head,
+        created_at,
+        UploadProjection {
+            browse: true,
+            captures: Some(pending_captures),
+        },
+        cancel,
+    )
+}
+
+pub struct UploadProjection<'a> {
+    pub browse: bool,
+    pub captures: Option<&'a [String]>,
+}
+
+/// Negotiate optional objects before freezing. A pending generation is never rewritten.
+pub fn prepare_upload_with_projection(
+    session: &mut TransferSession,
+    frozen: &mut FrozenSnapshot,
+    expected_head: &str,
+    created_at: &str,
+    projection: UploadProjection<'_>,
+    cancel: &Cancellation,
+) -> CloudResult<Manifest> {
+    let pending_captures = projection.captures.unwrap_or_default();
     ensure(
         pending_captures.len() <= 20 && pending_captures.iter().all(|id| valid_uuid(id)),
         "CAPTURE_ACK_IDS",
@@ -113,12 +141,14 @@ pub fn prepare_upload_with_captures(
         expected_head: expected_head.into(),
         writer_epoch: writer.epoch,
     };
-    let (browse, acks) = super::browse::project(session, &book, pending_captures, cancel)?;
+    let (browse, acks) = super::browse::project(session, &book, &projection, cancel)?;
     let mut value = serde_json::to_value(&data)?;
     if let Some(browse) = browse {
         value["browse"] = browse;
     }
-    value["captureAcks"] = acks;
+    if let Some(acks) = acks {
+        value["captureAcks"] = acks;
+    }
     let manifest = Manifest::parse(&serde_json::to_vec(&value)?)?;
     cancel.check()?;
     session.begin(&manifest)?;
@@ -252,6 +282,15 @@ pub async fn resume_upload(
         .ok_or_else(|| CloudError::new("NO_PENDING_GENERATION"))?;
     let caps = client.test(cancel).await?;
     ensure(caps.has("transfer-resume-v1"), "RESUME_UNSUPPORTED")?;
+    let value: serde_json::Value = serde_json::from_slice(manifest.bytes())?;
+    ensure(
+        value.get("browse").is_none() || caps.has("browse-snapshot-v1"),
+        "BROWSE_UNSUPPORTED",
+    )?;
+    ensure(
+        value.get("captureAcks").is_none() || caps.has("capture-v1"),
+        "CAPTURE_UNSUPPORTED",
+    )?;
     if confirmed(client, &manifest, cancel).await? {
         return finish(session, &manifest);
     }

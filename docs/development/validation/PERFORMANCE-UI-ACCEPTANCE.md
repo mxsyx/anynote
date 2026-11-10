@@ -6,6 +6,8 @@
 
 ## 运行
 
+Rust 入口改用 `python3 scripts/rust-regression.py --stages native,webview`，优化构建加 `--release`；环境、预算与未测项见 [RM31 原生回归](../RUST-NATIVE-REGRESSION.md)。以下 Electron/CDP 命令保留为旧版对照，不能计作 Rust 通过。当前 Rust draw 采样不等于 compositor present，未提供真实冷缓存或旧版总 RSS 基线时保持未完成。
+
 ```sh
 # Node >= 24；包含生产构建、首屏体积预算、真实 Electron 性能验收
 pnpm run test:performance

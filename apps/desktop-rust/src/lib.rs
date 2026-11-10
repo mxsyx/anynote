@@ -15,3 +15,9 @@ pub mod image;
 
 mod asset_reader;
 pub mod pdf;
+
+pub mod webview;
+
+pub mod workspace;
+
+pub mod management;

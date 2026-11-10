@@ -10,7 +10,8 @@ mod projection;
 mod saving;
 mod session;
 mod state;
-pub use saving::{FlushState, flush_all, open_document, open_document_at};
+mod videos;
+pub use saving::{FlushState, flush_all, flush_for_navigation, open_document, open_document_at};
 mod source_mode;
 #[cfg(test)]
 mod tests;
@@ -70,6 +71,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("rule", "分隔线"),
     ("image", "图片…"),
     ("board", "白板…"),
+    ("video", "视频…"),
 ];
 
 pub fn insert_menu() -> Menu {
@@ -145,6 +147,7 @@ pub struct DocumentEditor {
     images: images::Images,
     pdf: Option<Entity<crate::pdf::PdfView>>,
     board: Option<Entity<crate::board::BoardSession>>,
+    videos: videos::Videos,
     board_pending: Option<anynote_editor::model::BlockId>,
     board_subscription: Option<Subscription>,
     builtin_pending: Option<anynote_core::builtin::ReadingCommand>,
@@ -202,6 +205,7 @@ impl DocumentEditor {
             images: Default::default(),
             pdf: None,
             board: None,
+            videos: Default::default(),
             board_pending: None,
             board_subscription: None,
             builtin_pending: None,
@@ -266,6 +270,9 @@ impl DocumentEditor {
         self.error = result.err();
         self.view_revision += 1;
         let generation = self.state.editor.document().generation();
+        if generation != self.projected_generation {
+            self.stop_video(cx);
+        }
         if generation != self.projected_generation
             || self.keys.len() != self.state.projection.leaves.len()
         {
@@ -348,6 +355,11 @@ impl DocumentEditor {
     }
     fn run(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
         if self.board.is_some() {
+            return;
+        }
+        self.stop_video(cx);
+        if action.name == "video" {
+            self.insert_video(window, cx);
             return;
         }
         if action.name == "board" {
@@ -636,6 +648,9 @@ impl DocumentEditor {
         let first = row.leaves.start;
         let leaf = self.state.projection.leaves[first].clone();
         let key = self.keys[first];
+        if let Some(video) = self.render_video(first, key, window, cx) {
+            return video;
+        }
         if let Some(board) = self.render_board_block(first, key, window, cx) {
             return board;
         }
@@ -885,6 +900,9 @@ impl Focusable for DocumentEditor {
 }
 impl Render for DocumentEditor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(video) = self.video_view(cx) {
+            return video;
+        }
         if let Some(pdf) = &self.pdf {
             return div()
                 .id("document-pdf-reader")

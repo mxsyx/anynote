@@ -7,6 +7,7 @@ import {
 import { readAsset } from "./store.js";
 import { icon } from "./icons.js";
 import { sha256, validateCapture } from "@anynote/capture/format.js";
+import { requireCloudCapabilities } from "@anynote/protocol/cloud-capabilities.js";
 
 const $ = (id) => document.getElementById(id);
 let session,
@@ -290,6 +291,10 @@ export function cloudPanel({ freeze, status, setBusy, openSettings }) {
   }
   async function refresh() {
     if (!session) return;
+    const capabilities = requireCloudCapabilities(
+      await json("/v1/capabilities"),
+      ["browse-snapshot-v1"],
+    );
     const books = await json("/v1/library/notebooks");
     book = books[0];
     if (!book) throw Error("云端尚无可浏览的备份");
@@ -299,7 +304,9 @@ export function cloudPanel({ freeze, status, setBusy, openSettings }) {
       `最近备份：${new Date(book.publishedAt).toLocaleString()}；采集箱在桌面备份时归入。`;
     $("cloud-tree").replaceChildren();
     await tree($("cloud-tree"));
-    await inbox();
+    if (capabilities.capabilities.includes("capture-v1")) await inbox();
+    else
+      $("cloud-inbox").textContent = "当前服务不支持采集；仍可浏览已有备份。";
     $("cloud-library").hidden = false;
     $("cloud-login").hidden = true;
   }
@@ -362,6 +369,9 @@ export function cloudPanel({ freeze, status, setBusy, openSettings }) {
       }
       if (!setBusy(true)) return;
       try {
+        requireCloudCapabilities(await json("/v1/capabilities"), [
+          "capture-v1",
+        ]);
         const capture = await freeze();
         await validateCapture(capture);
         const path = `/v1/captures/${capture.manifest.captureId}`;

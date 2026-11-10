@@ -26,7 +26,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "pnpm --dir ../.. run build:backend && wrangler deploy --dry-run --outdir ../../artifacts/cloudflare-worker",
+    "build": "node ../../scripts/build-worker.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "deploy": "pnpm --dir ../.. run cloud:deploy"
   },

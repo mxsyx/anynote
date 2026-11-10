@@ -14,3 +14,5 @@ pub mod inline;
 pub mod selection;
 pub mod structure;
 pub mod transaction;
+
+pub mod video;

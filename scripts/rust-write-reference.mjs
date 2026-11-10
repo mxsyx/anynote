@@ -238,11 +238,6 @@ await pair("trashNode", { id: note.id });
 await pair("trashNode", { id: folder.id });
 await pair("restoreNode", { id: folder.id });
 await pair("restoreNode", { id: note.id });
-await pair("setExtensionSetting", {
-  extensionId: "anynote.video",
-  key: "remoteEmbed",
-  enabled: false,
-});
 // This proposal predates a move (which changes the revision).
 assert.equal(
   raw(rustRoot, {

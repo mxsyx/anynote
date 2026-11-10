@@ -252,62 +252,10 @@ fn attachment(raw: &str) -> bool {
     )
 }
 fn video_card(raw: &str, base: &str) -> Option<serde_json::Value> {
-    let u = Url::parse(base).ok()?.join(raw).ok()?;
-    if u.scheme() != "https" || !u.username().is_empty() || u.password().is_some() {
-        return None;
-    }
-    let host = u.host_str()?;
-    let path = u.path();
-    let (provider, id) = if [
-        "youtube.com",
-        "www.youtube.com",
-        "m.youtube.com",
-        "youtu.be",
-    ]
-    .contains(&host)
-    {
-        let id = if host == "youtu.be" {
-            path.trim_start_matches('/').to_owned()
-        } else if ["/embed/", "/shorts/", "/v/"]
-            .iter()
-            .any(|p| path.starts_with(p))
-        {
-            path.split('/').nth(2)?.to_owned()
-        } else {
-            u.query_pairs().find(|(k, _)| k == "v")?.1.into_owned()
-        };
-        if id.len() != 11
-            || !id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
-        {
-            return None;
-        }
-        ("youtube", id)
-    } else if ["vimeo.com", "www.vimeo.com", "player.vimeo.com"].contains(&host) {
-        let id = path
-            .trim_start_matches('/')
-            .strip_prefix("video/")
-            .unwrap_or(path.trim_start_matches('/'))
-            .split('/')
-            .next()?;
-        if !(6..=12).contains(&id.len()) || !id.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        ("vimeo", id.to_owned())
-    } else if ["bilibili.com", "www.bilibili.com", "m.bilibili.com"].contains(&host) {
-        let id = path.strip_prefix("/video/")?.split('/').next()?;
-        if id.len() != 12 || !id.starts_with("BV") || !id.bytes().all(|b| b.is_ascii_alphanumeric())
-        {
-            return None;
-        }
-        ("bilibili", id.to_owned())
-    } else {
-        return None;
-    };
-    Some(
-        serde_json::json!({"provider":provider,"videoId":id,"url":if provider=="youtube"{format!("https://www.youtube.com/watch?v={id}")}else{u.to_string()}}),
-    )
+    let url = Url::parse(base).ok()?.join(raw).ok()?;
+    let card = anynote_core::video::VideoCard::parse(url.as_str())?;
+    card.embed()?;
+    serde_json::to_value(card).ok()
 }
 fn tidy(s: &str) -> String {
     static BLANK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\n{3,}").unwrap());

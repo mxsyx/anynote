@@ -22,6 +22,8 @@ pub struct SearchRequest {
     pub folder_id: Option<String>,
     pub tag: Option<String>,
     pub updated_after: Option<i64>,
+    #[serde(default)]
+    pub after: Option<anynote_core::workspace::SearchCursor>,
     #[serde(default = "default_limit")]
     pub limit: usize,
     #[serde(default = "default_budget")]
@@ -43,6 +45,7 @@ impl SearchRequest {
             folder_id: None,
             tag: None,
             updated_after: None,
+            after: None,
             limit: 100,
             budget_ms: 2000,
         }
@@ -54,6 +57,7 @@ impl SearchRequest {
             || !(50..=10000).contains(&self.budget_ms)
             || self.query.encode_utf16().count() > 300
             || self.updated_after.is_some_and(|n| n < 0)
+            || self.after.as_ref().is_some_and(|cursor| cursor.updated < 0)
         {
             return Err(invalid());
         }
@@ -151,119 +155,177 @@ impl ReadonlyCatalog {
         cancelled: Arc<AtomicBool>,
         elapsed: impl Fn() -> Duration,
     ) -> ReadResult<SearchResponse> {
-        request.validate()?;
-        let ids = request
-            .notebook_ids
-            .clone()
-            .unwrap_or_else(|| self.entries().iter().map(|e| e.id.clone()).collect());
-        let registered: HashSet<_> = self.entries().iter().map(|e| e.id.as_str()).collect();
-        if ids.iter().any(|id| !registered.contains(id.as_str())) {
-            return Err(ReadError::new(
-                ReadErrorKind::NotFound,
-                "搜索 Notebook 尚未登记",
-            ));
+        search_catalog(self, request, cancelled, elapsed)
+    }
+    pub fn backlinks(&mut self, notebook_id: &str, note_id: &str) -> ReadResult<Vec<Backlink>> {
+        backlinks_catalog(self, notebook_id, note_id)
+    }
+}
+trait SearchCatalog {
+    fn entries(&self) -> &[CatalogEntry];
+    fn reader(&mut self, id: &str) -> ReadResult<&ReadonlyNotebook>;
+}
+impl SearchCatalog for ReadonlyCatalog {
+    fn entries(&self) -> &[CatalogEntry] {
+        self.entries()
+    }
+    fn reader(&mut self, id: &str) -> ReadResult<&ReadonlyNotebook> {
+        self.read(id)
+    }
+}
+impl SearchCatalog for WriteCatalog {
+    fn entries(&self) -> &[CatalogEntry] {
+        self.entries()
+    }
+    fn reader(&mut self, id: &str) -> ReadResult<&ReadonlyNotebook> {
+        self.notebook(id).map(|book| book.read())
+    }
+}
+impl WriteCatalog {
+    pub fn search(
+        &mut self,
+        request: &SearchRequest,
+        cancelled: Arc<AtomicBool>,
+    ) -> ReadResult<SearchResponse> {
+        self.refresh_catalog()?;
+        let started = Instant::now();
+        search_catalog(self, request, cancelled, || started.elapsed())
+    }
+    pub fn backlinks(&mut self, notebook_id: &str, note_id: &str) -> ReadResult<Vec<Backlink>> {
+        self.refresh_catalog()?;
+        backlinks_catalog(self, notebook_id, note_id)
+    }
+}
+fn search_catalog(
+    catalog: &mut impl SearchCatalog,
+    request: &SearchRequest,
+    cancelled: Arc<AtomicBool>,
+    elapsed: impl Fn() -> Duration,
+) -> ReadResult<SearchResponse> {
+    request.validate()?;
+    let ids = request
+        .notebook_ids
+        .clone()
+        .unwrap_or_else(|| catalog.entries().iter().map(|e| e.id.clone()).collect());
+    let registered: HashSet<_> = catalog.entries().iter().map(|e| e.id.as_str()).collect();
+    if ids.iter().any(|id| !registered.contains(id.as_str())) {
+        return Err(ReadError::new(
+            ReadErrorKind::NotFound,
+            "搜索 Notebook 尚未登记",
+        ));
+    }
+    let mut response = SearchResponse {
+        request_id: request.request_id.clone(),
+        results: Vec::new(),
+        warnings: Vec::new(),
+        cancelled: false,
+        truncated: ids.len() > 1000,
+        searched: 0,
+    };
+    for id in ids.iter().take(1000) {
+        if cancelled.load(Ordering::Acquire) {
+            return Ok(cancel_response(response));
         }
-        let mut response = SearchResponse {
-            request_id: request.request_id.clone(),
-            results: Vec::new(),
-            warnings: Vec::new(),
-            cancelled: false,
-            truncated: ids.len() > 1000,
-            searched: 0,
-        };
-        for id in ids.iter().take(1000) {
+        if elapsed().as_millis() > request.budget_ms as u128 {
+            response.truncated = true;
+            break;
+        }
+        match catalog.reader(id).and_then(|book| book.query(request)) {
+            Ok(hits) => {
+                response.truncated |= hits.len() > request.limit;
+                response.results.extend(hits);
+                response.searched += 1;
+            }
+            Err(error) => response.warnings.push(SearchWarning {
+                notebook_id: id.clone(),
+                message: error.message().into(),
+                code: error.kind(),
+            }),
+        }
+    }
+    response.results.sort_by(|a, b| {
+        b.node
+            .updated_at
+            .cmp(&a.node.updated_at)
+            .then_with(|| uuid_order(&a.notebook_id, &b.notebook_id))
+            .then_with(|| uuid_order(&a.node.id, &b.node.id))
+    });
+    response.truncated |= response.results.len() > request.limit;
+    response.results.truncate(request.limit);
+    if !js_trim(&request.query).is_empty() {
+        // Group final hits so alternating libraries cannot thrash the LRU.
+        let mut books = Vec::new();
+        for hit in &response.results {
+            if !books.contains(&hit.notebook_id) {
+                books.push(hit.notebook_id.clone());
+            }
+        }
+        for id in books {
             if cancelled.load(Ordering::Acquire) {
                 return Ok(cancel_response(response));
             }
-            if elapsed().as_millis() > request.budget_ms as u128 {
-                response.truncated = true;
-                break;
-            }
-            match self.read(id).and_then(|book| book.query(request)) {
-                Ok(hits) => {
-                    response.truncated |= hits.len() > request.limit;
-                    response.results.extend(hits);
-                    response.searched += 1;
+            match catalog.reader(&id) {
+                Ok(book) => {
+                    for hit in response.results.iter_mut().filter(|h| h.notebook_id == id) {
+                        match book.locate_hit(hit, &request.query) {
+                            Ok(location) => hit.location = Some(location),
+                            Err(error) => {
+                                response.warnings.push(SearchWarning {
+                                    notebook_id: id.clone(),
+                                    message: error.message().into(),
+                                    code: error.kind(),
+                                });
+                                break;
+                            }
+                        }
+                    }
                 }
                 Err(error) => response.warnings.push(SearchWarning {
-                    notebook_id: id.clone(),
+                    notebook_id: id,
                     message: error.message().into(),
                     code: error.kind(),
                 }),
             }
         }
-        response.results.sort_by(|a, b| {
-            b.node
-                .updated_at
-                .cmp(&a.node.updated_at)
-                .then_with(|| uuid_order(&a.notebook_id, &b.notebook_id))
-                .then_with(|| uuid_order(&a.node.id, &b.node.id))
-        });
-        response.truncated |= response.results.len() > request.limit;
-        response.results.truncate(request.limit);
-        if !js_trim(&request.query).is_empty() {
-            // Group final hits so alternating libraries cannot thrash the LRU.
-            let mut books = Vec::new();
-            for hit in &response.results {
-                if !books.contains(&hit.notebook_id) {
-                    books.push(hit.notebook_id.clone());
-                }
-            }
-            for id in books {
-                if cancelled.load(Ordering::Acquire) {
-                    return Ok(cancel_response(response));
-                }
-                match self.read(&id) {
-                    Ok(book) => {
-                        for hit in response.results.iter_mut().filter(|h| h.notebook_id == id) {
-                            match book.locate_hit(hit, &request.query) {
-                                Ok(location) => hit.location = Some(location),
-                                Err(error) => {
-                                    response.warnings.push(SearchWarning {
-                                        notebook_id: id.clone(),
-                                        message: error.message().into(),
-                                        code: error.kind(),
-                                    });
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Err(error) => response.warnings.push(SearchWarning {
-                        notebook_id: id,
-                        message: error.message().into(),
-                        code: error.kind(),
-                    }),
-                }
-            }
-        }
-        if cancelled.load(Ordering::Acquire) {
-            return Ok(cancel_response(response));
-        }
-        Ok(response)
     }
-    pub fn backlinks(&mut self, notebook_id: &str, note_id: &str) -> ReadResult<Vec<Backlink>> {
-        let target = self.read(notebook_id)?.note(note_id)?;
-        if target.node.deleted_at.is_some() {
-            return Err(ReadError::new(ReadErrorKind::NotFound, "笔记已删除"));
-        }
-        let mut result = Vec::new();
-        for entry in self.diagnose().into_iter().filter(|e| !e.unavailable) {
-            let book = self.read(&entry.id)?;
-            for mut row in model::rows(
-                &book.db,
-                "SELECT n.id,n.title,n.updated_at FROM note_links l JOIN nodes n ON n.id=l.source_note_id WHERE l.target_notebook_id=? AND l.target_note_id=? AND n.deleted_at IS NULL",
-                [notebook_id, note_id],
-            )? {
-                row["notebookId"] = entry.id.clone().into();
-                row["notebookName"] = entry.name.clone().into();
-                result.push(serde_json::from_value::<Backlink>(row)?);
-            }
-        }
-        result.sort_by_key(|a| std::cmp::Reverse(a.updated_at));
-        Ok(result)
+    if cancelled.load(Ordering::Acquire) {
+        return Ok(cancel_response(response));
     }
+    Ok(response)
 }
+fn backlinks_catalog(
+    catalog: &mut impl SearchCatalog,
+    notebook_id: &str,
+    note_id: &str,
+) -> ReadResult<Vec<Backlink>> {
+    let target = catalog.reader(notebook_id)?.note(note_id)?;
+    if target.node.deleted_at.is_some() {
+        return Err(ReadError::new(ReadErrorKind::NotFound, "笔记已删除"));
+    }
+    let mut result = Vec::new();
+    for id in catalog
+        .entries()
+        .iter()
+        .map(|e| e.id.clone())
+        .collect::<Vec<_>>()
+    {
+        let Ok(book) = catalog.reader(&id) else {
+            continue;
+        };
+        for mut row in model::rows(
+            &book.db,
+            "SELECT n.id,n.title,n.updated_at FROM note_links l JOIN nodes n ON n.id=l.source_note_id WHERE l.target_notebook_id=? AND l.target_note_id=? AND n.deleted_at IS NULL",
+            [notebook_id, note_id],
+        )? {
+            row["notebookId"] = id.clone().into();
+            row["notebookName"] = book.metadata().name.clone().into();
+            result.push(serde_json::from_value::<Backlink>(row)?);
+        }
+    }
+    result.sort_by_key(|a| std::cmp::Reverse(a.updated_at));
+    Ok(result)
+}
+
 fn cancel_response(mut response: SearchResponse) -> SearchResponse {
     response.cancelled = true;
     response.truncated = false;
@@ -349,6 +411,20 @@ impl ReadonlyNotebook {
         if let Some(after) = request.updated_after {
             where_parts.push("n.updated_at>=?");
             params.push(after.into());
+        }
+        if let Some(cursor) = &request.after {
+            where_parts.push(
+                "(n.updated_at < ? OR (n.updated_at = ? AND (? > ? OR (? = ? AND n.id > ?))))",
+            );
+            params.extend([
+                cursor.updated.into(),
+                cursor.updated.into(),
+                self.metadata().id.clone().into(),
+                cursor.book.to_string().into(),
+                self.metadata().id.clone().into(),
+                cursor.book.to_string().into(),
+                cursor.note.to_string().into(),
+            ]);
         }
         params.push((request.limit as i64 + 1).into());
         let alias = if full_text { "fts_notes" } else { "f" };

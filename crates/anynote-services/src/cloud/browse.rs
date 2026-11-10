@@ -5,18 +5,23 @@ use serde_json::{Value, json};
 pub(super) fn project(
     session: &TransferSession,
     book: &ReadonlyNotebook,
-    pending: &[String],
+    projection: &UploadProjection<'_>,
     cancel: &Cancellation,
-) -> CloudResult<(Option<Value>, Value)> {
+) -> CloudResult<(Option<Value>, Option<Value>)> {
+    let pending = projection.captures.unwrap_or_default();
     ensure(
         pending.len() <= 20 && pending.iter().all(|id| valid_uuid(id)),
         "CAPTURE_ACK_IDS",
     )?;
     // Browse is optional in v1; receipt evidence must survive a projection failure.
-    let browse = match project_browse(session, book, cancel) {
-        Ok(value) => Some(value),
-        Err(error) if error.cancelled() => return Err(error),
-        Err(_) => None,
+    let browse = if projection.browse {
+        match project_browse(session, book, cancel) {
+            Ok(value) => Some(value),
+            Err(error) if error.cancelled() => return Err(error),
+            Err(_) => None,
+        }
+    } else {
+        None
     };
     let mut acks = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
@@ -31,7 +36,11 @@ pub(super) fn project(
     acks.sort_by_key(|r| r.applied_seq);
     Ok((
         browse,
-        put(session, &serde_json::to_value(acks)?, 256 * 1024)?,
+        if projection.captures.is_some() {
+            Some(put(session, &serde_json::to_value(acks)?, 256 * 1024)?)
+        } else {
+            None
+        },
     ))
 }
 fn project_browse(

@@ -17,6 +17,12 @@ pub enum FlushState {
 }
 
 pub fn flush_all(cx: &mut App) -> FlushState {
+    flush_documents(cx, true)
+}
+pub fn flush_for_navigation(cx: &mut App) -> FlushState {
+    flush_documents(cx, false)
+}
+fn flush_documents(cx: &mut App, close: bool) -> FlushState {
     let Some(windows) = cx.try_global::<DocumentWindows>() else {
         return FlushState::Ready;
     };
@@ -25,7 +31,14 @@ pub fn flush_all(cx: &mut App) -> FlushState {
     for (window, editor) in windows {
         let state = window.update(cx, |_, window, cx| {
             editor.update(cx, |editor, cx| {
-                editor.request_close(window, cx);
+                if close {
+                    editor.request_close(window, cx);
+                } else {
+                    if let Some(board) = editor.board.clone() {
+                        board.update(cx, |board, cx| board.close(cx));
+                    }
+                    editor.flush(window, cx);
+                }
                 if editor
                     .board
                     .as_ref()
@@ -275,7 +288,10 @@ impl DocumentEditor {
     }
     pub(super) fn install_lifecycle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.lifecycle
-            .push(cx.on_release_in(window, |this, window, cx| this.reset_images(window, cx)));
+            .push(cx.on_release_in(window, |this, window, cx| {
+                this.stop_video(cx);
+                this.reset_images(window, cx);
+            }));
         if cx.try_global::<DocumentWindows>().is_none() {
             cx.set_global(DocumentWindows::default());
         }
@@ -317,6 +333,7 @@ impl DocumentEditor {
         self.pump_save(true, window, cx);
     }
     pub(super) fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop_video(cx);
         self.closing = true;
         if let Some(board) = self.board.clone() {
             board.update(cx, |b, cx| b.close(cx));
@@ -332,6 +349,7 @@ impl DocumentEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.stop_video(cx);
         self.switching = Some(snapshot);
         if let Some(board) = self.board.clone() {
             board.update(cx, |b, cx| b.close(cx));
@@ -352,6 +370,10 @@ impl DocumentEditor {
             return;
         }
         self.flush_requested = false;
+        if self.video_pending() {
+            self.start_video(window, cx);
+            return;
+        }
         if self.board_pending.is_some() {
             self.start_board(window, cx);
             return;

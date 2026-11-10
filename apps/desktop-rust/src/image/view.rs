@@ -62,7 +62,7 @@ impl Focusable for ImageView {
         self.focus.clone()
     }
 }
-fn texture(mut pixels: image::RgbaImage) -> Arc<RenderImage> {
+pub(crate) fn texture(mut pixels: image::RgbaImage) -> Arc<RenderImage> {
     for pixel in pixels.pixels_mut() {
         pixel.0.swap(0, 2);
     }

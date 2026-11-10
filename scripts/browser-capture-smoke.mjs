@@ -1,7 +1,7 @@
 import { readSelection } from "../apps/browser-extension/src/selection.js";
 import { readChatGPT } from "../apps/browser-extension/src/chatgpt-page.js";
-import { conversationMarkdown } from "../.build/packages/capture/chatgpt.js";
-import { convertComponents } from "../.build/packages/capture/chatgpt-components.js";
+import { conversationMarkdown } from "../packages/capture/dist/chatgpt.js";
+import { convertComponents } from "../packages/capture/dist/chatgpt-components.js";
 import { flow, group } from "../tests/fixtures/chatgpt-components.mjs";
 import { unzipSync } from "fflate";
 /* global chrome */

@@ -19,6 +19,8 @@ anynote-storage.workspace = true
 anynote-services.workspace = true
 anynote-editor.workspace = true
 gpui-kit = { workspace = true, features = ["tree-sitter-markdown", "tree-sitter-markdown-inline"] }
+gpui-webview = "=0.9.0"
+wry = { package = "lb-wry", version = "=0.53.3" }
 serde.workspace = true
 serde_json.workspace = true
 interprocess.workspace = true
@@ -34,3 +36,7 @@ pdfium-render = { workspace = true, optional = true }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "regression_probe"
+required-features = ["ui-tests"]

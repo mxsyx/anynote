@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 6;
 // A storage body allows two million UTF-16 units; JSON escapes can use six bytes each.
 pub const MAX_CONTROL_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_CHUNK_BYTES: usize = 256 * 1024;
@@ -240,6 +240,11 @@ impl TaskRecord {
     deny_unknown_fields
 )]
 pub enum Command {
+    Management(crate::management::ManagementCommand),
+    Workspace(crate::workspace::WorkspaceCommand),
+    VideoMetadata {
+        card: crate::video::VideoCard,
+    },
     Pdf(crate::pdf::PdfCommand),
     Asset(crate::asset::AssetCommand),
     Image(crate::image::ImageCommand),
@@ -334,6 +339,9 @@ impl Request {
     deny_unknown_fields
 )]
 pub enum Reply {
+    Management(crate::management::ManagementReply),
+    Workspace(crate::workspace::WorkspaceReply),
+    VideoMetadata(crate::video::Metadata),
     Pdf(crate::pdf::PdfReply),
     Asset(crate::asset::AssetReply),
     Image(crate::image::ImageReply),

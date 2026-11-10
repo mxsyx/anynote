@@ -1,8 +1,10 @@
 import { build } from "vite";
 import { copyFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { buildRetained, root as repository } from "./build-retained.mjs";
 
-const root = resolve("apps/browser-extension");
+buildRetained("browser");
+const root = resolve(repository, "apps/browser-extension");
 await build({
   configFile: false,
   root,

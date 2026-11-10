@@ -7,7 +7,9 @@ use std::{
 };
 
 fn directory() -> PathBuf {
-    std::env::temp_dir().join(format!(
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
+    std::fs::create_dir_all(&root).unwrap();
+    root.canonicalize().unwrap().join(format!(
         "anynote.rm02.{}.{}",
         std::process::id(),
         std::time::SystemTime::now()

@@ -17,3 +17,9 @@ pub mod open_export;
 
 pub mod builtin;
 pub mod local_backup;
+
+pub mod video;
+
+pub mod workspace;
+
+pub mod management;

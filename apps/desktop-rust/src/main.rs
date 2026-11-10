@@ -118,7 +118,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         anynote_desktop::backend_client::BackendClient::launch(std::env::current_exe()?, directory)
             .recv_blocking()??;
     let reopen_probe = probe.clone();
-    let application = gpui_kit::application()
+    #[cfg(target_os = "linux")]
+    let application = gpui_kit::platform::linux(gpui_kit::WindowingModes::X11);
+    #[cfg(not(target_os = "linux"))]
+    let application = gpui_kit::application();
+    let application = application
         .with_assets(gpui_kit::assets::Assets)
         .with_quit_mode(gpui_kit::QuitMode::Explicit);
     application.on_reopen(move |cx| {

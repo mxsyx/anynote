@@ -119,6 +119,37 @@ impl ReadonlyNotebook {
         self.check_path()?;
         model::rows(&self.db, "SELECT n.*,t.note_type FROM nodes n LEFT JOIN notes t ON t.node_id=n.id ORDER BY n.sort_key,n.id", [])?.into_iter().map(|v| Ok(serde_json::from_value(model::node_value(v)?)?)).collect()
     }
+    pub fn node_page(&self, trash: bool, offset: usize) -> ReadResult<Vec<Node>> {
+        self.check_path()?;
+        require(offset <= 1_000_000, "目录分页超出范围")?;
+        let sql = format!(
+            "SELECT n.*,t.note_type FROM nodes n LEFT JOIN notes t ON t.node_id=n.id WHERE n.deleted_at IS {}NULL ORDER BY n.sort_key,n.id LIMIT 201 OFFSET ?",
+            if trash { "NOT " } else { "" }
+        );
+        model::rows(&self.db, &sql, [offset as i64])?
+            .into_iter()
+            .map(|value| Ok(serde_json::from_value(model::node_value(value)?)?))
+            .collect()
+    }
+    pub fn revision_body(&self, id: &str, revision: &str) -> ReadResult<String> {
+        self.check_path()?;
+        uuid(id)?;
+        uuid(revision)?;
+        self.db
+            .query_row(
+                "SELECT body FROM note_revisions WHERE note_id=? AND id=?",
+                [id, revision],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| ReadError::new(ReadErrorKind::NotFound, "历史版本不存在"))
+    }
+    pub fn revision_page(&self, id: &str, offset: usize) -> ReadResult<Vec<RevisionSummary>> {
+        self.check_path()?;
+        uuid(id)?;
+        require(offset <= 1_000_000, "历史分页超出范围")?;
+        model::rows(&self.db, "SELECT id,created_at,actor FROM note_revisions WHERE note_id=? ORDER BY created_at DESC,rowid DESC LIMIT 101 OFFSET ?", rusqlite::params![id,offset as i64])?.into_iter().map(|value| Ok(serde_json::from_value(value)?)).collect()
+    }
     pub fn trash(&self) -> ReadResult<Vec<Node>> {
         Ok(self
             .nodes()?

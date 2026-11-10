@@ -2,15 +2,21 @@
 
 供 Agent 接续实施使用。先核对当前源码和任务范围，实施后更新已交付范围、剩余事项与已知失败；不把历史测试结果当作当前通过结论。
 
+- [Rust 原生回归与性能证据](RUST-NATIVE-REGRESSION.md)：RM31 无头/真实窗口驱动、INV 覆盖、100 次媒体循环、性能预算、便携恢复及当前失败归属。
+
+- [Rust 工作区与阅读接续](RUST-WORKSPACE.md)：RM28 组织服务、导航、搜索分页、修订资源、原生入口及验证边界。
 - [TODO：唯一未完成任务清单](TODO.md)，含 [Rust 桌面迁移 RM01–RM38 执行组](TODO.md#rust-migration)、依赖、并行范围与验收条件。
 - [实施记录与接续入口](IMPLEMENTATION.md)，含 [RM10 云传输、恢复与统一调度契约](IMPLEMENTATION.md#rm10)、[RM11 writer、保留与维护恢复契约](IMPLEMENTATION.md#rm11)。
 - [Rust 迁移基线与语料使用](RUST-MIGRATION-BASELINE.md)：固定旧提交、操作/功能归属、黄金文件、生成和自校验方法及实测边界。
+- [保留 TS 构建与 Rust 互通](RETAINED-TS-INTEROP.md)：RM30 浏览器/Worker 独立构建闭包、capability 降级、黄金语料互通、源码隔离验证和 CI 入口。
 - [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：五个工程、固定依赖/native 许可证、平台探针，以及 RM03 后端通信、任务/资源/调度与诊断接入契约。
+- [Rust 任务、备份与恢复管理](RUST-MANAGEMENT.md)：RM29 管理页、任务回执、清理恢复、云维护和本地验证。
 - [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：RM16 的坐标/选区、原子 patch、marks/link、增量历史、composition 和后续视图/保存接入契约。
 - [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：RM17 的列表/表格/块命令、复杂粘贴、atom 与跨块选区、序列化边界及 RM18 接续契约。
 - [Rust 连续编辑视图](RUST-EDITOR-VIEW.md)：RM18 的原生草稿、Kit 几何/输入、共享历史、可访问性原型、测试证据及未完成验收项。
 - [Rust 静态内置业务](RUST-BUILTIN-BUSINESS.md)：RM20 声明块、阅读命令、原子回执、静态偏好与已知样例/未知脚本验收边界。
 - [Rust 源码模式与保存会话](RUST-DOCUMENT-SESSION.md)：RM19 的源码工具、共享历史、串行 CAS、断线核对、资源版本绑定和窗口生命周期边界。
+- [Rust WebView 与视频](RUST-WEBVIEW-VIDEO.md)：RM27 的宿主生命周期、受限 bridge/Range、provider 隔离、视频缓存与保存、平台限制及原生探针。
 - [Rust PDF 引擎与阅读视图](RUST-PDF-READER.md)：RM25/26 的锁定 Pdfium、页面/文字几何、选择/批注/回链、索引预算与任务、资源闭包和 native 复现。
 - [Rust 图片阅读与版本](RUST-IMAGE-MEDIA.md)：RM21 的有界解码、图片块、上传与修订绑定、矩形批注、复制/导出和设备验收边界。
 - [Rust schema v5 只读存储](RUST-READONLY-STORAGE.md)：RM04 的 schema/catalog/read/search、历史资源范围读取、WAL/路径拒绝边界和 TS 差分复现。

@@ -30,12 +30,18 @@ actions!(
         ZoomOut,
         ResetZoom,
         OpenDocumentEditor,
-        OpenLastDocument
+        OpenLastDocument,
+        Hide,
+        HideOthers,
+        ShowAll,
+        About
     ]
 );
 
 pub fn install_actions(cx: &mut App) {
+    crate::management::install_actions(cx);
     crate::document_editor::install_actions(cx);
+    crate::workspace::install_actions(cx);
     fn key(mac: &'static str, other: &'static str) -> &'static str {
         if cfg!(target_os = "macos") {
             mac
@@ -57,20 +63,24 @@ pub fn install_actions(cx: &mut App) {
             ToggleTheme,
             Some("AnyNote"),
         ),
-        KeyBinding::new(key("cmd-=", "ctrl-="), ZoomIn, Some("AnyNote")),
-        KeyBinding::new(key("cmd--", "ctrl--"), ZoomOut, Some("AnyNote")),
-        KeyBinding::new(key("cmd-0", "ctrl-0"), ResetZoom, Some("AnyNote")),
+        KeyBinding::new(key("cmd-=", "ctrl-="), ZoomIn, None),
+        KeyBinding::new(key("cmd--", "ctrl--"), ZoomOut, None),
+        KeyBinding::new(key("cmd-0", "ctrl-0"), ResetZoom, None),
     ]);
     let menus = vec![
         Menu::new("Anynote").items([
-            MenuItem::action("新建笔记…", OpenDocumentEditor),
-            MenuItem::action("继续编辑…", OpenLastDocument),
-            MenuItem::action("选择文件…", ChooseFile),
-            MenuItem::action("编辑测试文本…", EditText),
+            MenuItem::action("备份与管理…", crate::management::OpenManagement),
+            MenuItem::action("关于 Anynote…", About),
+            MenuItem::action("设置…", crate::workspace::Settings),
+            MenuItem::os_submenu("服务", gpui_kit::SystemMenuType::Services),
+            MenuItem::action("隐藏 Anynote", Hide),
+            MenuItem::action("隐藏其他应用", HideOthers),
+            MenuItem::action("显示全部", ShowAll),
             MenuItem::separator(),
             MenuItem::action("关闭窗口", CloseWindow),
             MenuItem::action("退出 Anynote", Quit),
         ]),
+        crate::workspace::menu(),
         Menu::new("编辑").items([
             MenuItem::action("撤销", input::Undo),
             MenuItem::action("重做", input::Redo),
@@ -96,11 +106,30 @@ pub fn install_actions(cx: &mut App) {
         gpui_kit::base::GlobalState::global_mut(cx)
             .set_app_menus(menus.into_iter().map(Menu::owned).collect());
     }
+    cx.on_action(|_: &Hide, cx| cx.hide());
+    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+    cx.on_action(|_: &About, cx| {
+        if let Some(window) = cx.windows().first().copied() {
+            let _ = window.update(cx, |_, window, cx| {
+                window.open_dialog(cx, |dialog, _, _| {
+                    dialog
+                        .title("关于 Anynote")
+                        .child("Anynote · 本地优先的笔记工作区")
+                })
+            });
+        }
+    });
     cx.on_action(|_: &Quit, cx| crate::backend_session::request_quit(cx));
 }
 
 pub fn open_or_activate(cx: &mut App, probe: Probe) -> gpui_kit::Result<()> {
-    if let Some(window) = cx.windows().first() {
+    if !probe.is_active() && crate::workspace::activate(cx) {
+        return Ok(());
+    }
+    if probe.is_active()
+        && let Some(window) = cx.windows().first()
+    {
         window.update(cx, |_, window, cx| {
             window.activate_window();
             cx.activate(true);
@@ -112,20 +141,26 @@ pub fn open_or_activate(cx: &mut App, probe: Probe) -> gpui_kit::Result<()> {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
             None,
-            size(px(800.), px(560.)),
+            size(px(1200.), px(800.)),
             cx,
         ))),
-        window_min_size: Some(size(px(560.), px(420.))),
+        window_min_size: Some(size(px(800.), px(560.))),
         titlebar: Some(TitlebarOptions {
-            title: Some("Anynote · 平台检查".into()),
+            title: Some("Anynote".into()),
             ..Default::default()
         }),
         app_id: Some("app.anynote.desktop".into()),
         ..Default::default()
     };
-    gpui_kit::open_window(options, cx, move |window, cx| {
-        cx.new(|cx| Shell::new(window, cx, probe))
-    })?;
+    if probe.is_active() {
+        gpui_kit::open_window(options, cx, move |window, cx| {
+            cx.new(|cx| Shell::new(window, cx, probe))
+        })?;
+    } else {
+        gpui_kit::open_window(options, cx, |window, cx| {
+            cx.new(|cx| crate::workspace::Workspace::new(window, cx))
+        })?;
+    }
     cx.activate(true);
     Ok(())
 }

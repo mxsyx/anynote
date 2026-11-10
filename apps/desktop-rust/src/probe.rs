@@ -11,6 +11,9 @@ use std::{
 pub struct Probe(Option<Arc<Mutex<File>>>);
 
 impl Probe {
+    pub fn is_active(&self) -> bool {
+        self.0.is_some()
+    }
     pub fn create(path: &Path) -> io::Result<Self> {
         Ok(Self(Some(Arc::new(Mutex::new(File::create(path)?)))))
     }

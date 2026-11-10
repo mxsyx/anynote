@@ -146,6 +146,67 @@ impl WriteCatalog {
             .iter()
             .any(|c| c.id == id && c.pins.load(Ordering::Acquire) > 0)
     }
+    pub fn entries(&self) -> &[CatalogEntry] {
+        self.catalog.entries()
+    }
+    pub fn catalog_entries(&mut self) -> ReadResult<Vec<CatalogEntry>> {
+        self.catalog.refresh()?;
+        let mut entries = self.catalog.entries().to_vec();
+        for entry in &mut entries {
+            match self.notebook(&entry.id) {
+                Ok(book) => {
+                    entry.metadata = Some(book.read().metadata().clone());
+                    entry.name = book.read().metadata().name.clone();
+                }
+                Err(error) => {
+                    entry.unavailable = true;
+                    entry.error = Some(error.kind());
+                }
+            }
+        }
+        Ok(entries)
+    }
+    pub fn attach_directory(&mut self, selected: &Path) -> ReadResult<NotebookMeta> {
+        let selected = fs::canonicalize(selected)?;
+        let book = ReadonlyNotebook::open(&selected, None)?;
+        let meta = book.metadata().clone();
+        drop(book);
+        self.catalog.refresh()?;
+        if let Some(entry) = self
+            .catalog
+            .entries()
+            .iter()
+            .find(|entry| entry.id == meta.id)
+        {
+            input(
+                fs::canonicalize(&entry.path)? == selected,
+                "Notebook 身份已在另一目录登记",
+            )?;
+            return Ok(meta);
+        }
+        let mut entries = self.directories()?;
+        input(entries.len() < 1000, "外部 Notebook 数量超限")?;
+        entries.push(Directory {
+            id: meta.id.clone(),
+            path: selected,
+            name: meta.name.clone(),
+        });
+        self.persist_directories(&entries)?;
+        self.catalog.refresh()?;
+        Ok(meta)
+    }
+    pub fn detach_directory(&mut self, id: &str) -> ReadResult<()> {
+        uuid(id)?;
+        let mut entries = self.directories()?;
+        input(
+            entries.iter().any(|entry| entry.id == id),
+            "只能移出外部 Notebook",
+        )?;
+        self.close_notebook(id)?;
+        entries.retain(|entry| entry.id != id);
+        self.persist_directories(&entries)?;
+        self.catalog.refresh()
+    }
     pub fn connection_count(&self) -> usize {
         self.connections.len()
     }

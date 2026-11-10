@@ -4,6 +4,62 @@
 
 历史摘要核对：2026-10-21，源码基线 `e975c1c`。实际决策见 [ADR](../design/adr/README.md)，本轮核对与验证见 [G18 报告](history/todo-2026-10-24.md#g18)。原始执行记录和数值报告已移到可删除的 `tmp/reports/documentation/`；本文件与阶段交接只保留长期开发所需摘要。任务状态只在 [分组清单](TODO.md) 维护，规则见 [文档维护](DOCUMENTATION.md)。
 
+<a id="rm31"></a>
+
+## 2026-11-10 · RM31 原生回归驱动（验收未闭合）
+
+统一入口 `python3 scripts/rust-regression.py` 复用模块级测试、稳定 GPUI ID/Actions、Rust 子进程和 RM27 本地 WebView 探针；输出实际命令、测试结果、INV 映射、性能原值与缺口。新建隔离 4 库/11,064 节点语料并区分首开/连续和 OS 缓存；保存以持久化正文重读为终点，draw 不冒充 GPU present。新增便携恢复 prepare/verify，原始库删除后恢复到新身份并核对业务行、资源和搜索；CI 在失败时保留报告。
+
+笔记/白板/图片各 100 次、WebView 100 次、恢复同机隔离和保留端互通通过。新增 PDF 取消/重开回归复现原生 SIGTRAP；跨语言移动回执互读仍返回 `copied-target-changed`；debug 100 KiB 输入 draw p95/p99 136.75/146.02 ms 超过预算。两处 macOS 测试路径问题已在 fixture 修正，退役插件设置的物理存储相等断言已移出写差分（内置偏好继续独立测试）。未更改生产模块或放宽阈值。具体复现、数值、证据层级和剩余验收见 [RM31 契约](RUST-NATIVE-REGRESSION.md)。RM31.2/.3、真实设备、全部资源与性能门槛保留未完成。
+
+<a id="rm30"></a>
+
+## 2026-11-10 · RM30 保留 TS 构建隔离与跨语言互通（本地完成）
+
+浏览器与 Worker 构建改为从各自入口编译可达共享源码，固定 capture/importer/protocol/types 允许闭包，使用独立 TS 配置，不再前置完整桌面 `build:backend`。两端根命令与包内命令均可独立执行。独立互通入口复用 RM10/RM12 黄金语料和 Rust 驱动，增加能力缺失、未知能力、非法响应和实际请求拒绝检查；Worker 外部协议保持 v1/schema v5。Rust 新备份按能力生成可选投影，冻结任务拒绝不支持的请求且不改写版本；扩展缺采集能力时明确降级并保留备份浏览。详见[构建与互通契约](RETAINED-TS-INTEROP.md)。
+
+验证：三套源码/产物隔离构建通过（第三方依赖缓存复用）；Rust 从空 target 构建、阻断 JS 工具后的真实后端 **10/10** 与五工程依赖 guard 通过。官方本地 workerd 上能力/黄金语料 **5 组**、备份恢复 **16 组**、采集/真实 Chromium 扩展 **9 组**通过；Rust cloud/cloud_capture **10/10**、专项 Clippy、ESLint/格式和 workspace 检查通过。独立 CI workflow 已接线；未执行 hosted CI。
+
+边界：首次隔离副本漏带编译内嵌 JSON，补齐后从空目录重跑通过；本机 HTTP/Chromium 测试在允许本机监听的执行环境通过。这里只关闭 RM30 本地实现，不关闭三平台、真实云、签名发行、性能或 V/A/F；旧 Electron/SDK/全量后端和旧云部署入口的退役继续 RM37。
+
+<a id="rm28"></a>
+
+## 2026-11-10 · RM28 工作区、导航、阅读与原生交互（本地完成）
+
+默认 GPUI 窗口进入书橱/目录/阅读；Kit 纸张主题、封面图标/颜色、外部库登记/离线/移出、拖放及键盘排序、最近/收藏/标签/回收站、标签页与前进后退、搜索片段/过滤/取消/游标、反链/历史恢复和阅读位置均连接真实服务。菜单、设置、文件选择/拖入与 RM29 管理入口合入同一根动作安装点；系统窗口重开优先工作区。所有组织命令经 WriteQueue，UI 无 SQL；跨库继续使用稳定 operation ID，保存失败保留编辑器草稿并阻止切换。
+
+补齐写连接占有独占 WAL 时的搜索/反链复用，避免另开只读连接的 SHM 错误；目录和历史分页，历史列表不加载正文。搜索有完整性标记，未完成扫描不生成下一页游标。阅读投影复用内置块解析、Kit Markdown/Collapsible；图片按修订懒加载，长正文等待解析后定位锚点/阅读位置，未知块保留源码。协议与 RM29 共用当前私有 v6，存储/云协议不变。详见 [工作区接续契约](RUST-WORKSPACE.md)。
+
+验证：RM28 **14/14**（后端 6、真实服务 UI 3、导航/阅读/万节点 5），原平台输入/选择器、管理 UI、白板保存 UI **6/6**；storage **41 passed / 2 ignored**（既有崩溃子进程 fixtures），core **6/6**、editor **87/87**。服务导入 15、跨库 transfer 4、runtime 5 及已有其他专项通过；本机 HTTP fixture 在允许监听后运行，整包中的云管理 fixture 首次 NETWORK，单独精确重跑通过。Clippy all-targets/ui-tests `-D warnings`、本组文件 rustfmt、五工程依赖 guard（944 locked packages）通过。macOS 原生隔离应用实际创建笔记本和笔记、展示目录/阅读与封面书橱；AX 操作有未触发情况，原生菜单及输入值操作可完成上述流程，不宣称读屏验收。
+
+完整回归未全绿：services migration 的 `insufficient_space_and_outside_registrations_fail_closed` 在本机返回 `PATH_REDIRECT`，断言预期 `EXTERNAL_OUTSIDE_REHEARSAL`；未改该组。全 workspace fmt 检查遇到并行 `crates/anynote-services/examples/cloud_probe.rs` 等文件格式差异，未覆盖其变更。首轮网络 fixture 监听 EPERM 属沙箱边界，放开本机监听后相关测试通过。测试命令、失败输出和临时原生包保留在 `tmp/rm28-*`，结论以本节为准。
+
+边界：本轮只认定本地实现与测试；不把万节点可导航当作性能预算，不把合成 IME/AX 语义当作真实输入法/读屏，不关闭三平台、真实用户库/设备、跨屏 DPI、强制退出、物理盘或云端验收。RM31/32 与 RM19 系统退出限制继续有效，V/A/F 不变。保留工作树中的 RM27/RM29 及后续并行改动。
+
+<a id="rm29"></a>
+
+## 2026-11-10 · RM29 任务、诊断、备份与恢复管理（本地完成）
+
+原生菜单“备份与管理”及 Cmd/Ctrl+Shift+B 打开 GPUI 管理窗口，覆盖任务、诊断、本地备份、云管理与恢复。复用 RM03 TaskHistory、RM05 WriteQueue、RM08–12 服务与 BackupScheduler；业务命令在后端阻塞工作线程执行，取消等待服务边界，结果先于终态持久化。私有协议 v6，存储及云协议不变。
+
+本地目标支持分组/间隔、校验、离线重试与连接已有磁盘；分组取消保留已提交结果并标注未执行项。恢复创建新库并登记，登记失败可单独继续。清理预览绑定计划，隔离恢复和永久删除分开确认。云连接使用系统凭据库，目标默认暂停；发现、pending、writer、retention、维护和采集设备入口调用现有服务，权限变化在服务执行前复查。动态表单校验、令牌遮罩、Escape 与触发控件焦点恢复已接入。实现、调度观测限制及接续见 [管理页契约](RUST-MANAGEMENT.md)。
+
+验证：相关服务测试 **50 passed**（包含 3 项管理适配器测试），桌面后端/管理/UI **15 passed**；专项 Clippy `-D warnings`、新增文件 rustfmt 与五工程依赖边界检查通过。新增真实后端/UI 覆盖备份→校验→恢复→登记、重启、离线、清理恢复和诊断；本机 HTTP fixture 覆盖云发现及权限撤销。macOS 隔离原生包已打开任务/诊断/云页面，核对连接弹窗 secure role 与 Escape；未提交真实凭据。
+
+边界：HTTP fixture 首次在沙箱内监听 EPERM，允许本机监听后通过。原生 AX 按钮激活未触发页面切换，坐标点击可用，不认定读屏验收通过。无真实 Cloudflare、系统凭据锁定、三平台、物理磁盘/断电或性能证据；RM32–35、V/A/F 状态不变。保留同工作树 RM27/RM28 并行变更。
+
+<a id="rm27"></a>
+
+## 2026-11-10 · RM27 系统 WebView 与视频（本地完成）
+
+锁定 `gpui-webview 0.9.0` / `lb-wry 0.53.3`；原生 child 由单一宿主持有，按需创建、显式隐藏和销毁。本地 bridge 校验完整文档/修订/epoch/来源/token/消息 schema、限额与重放，提供受限 Range 和撤销；外部播放器独立 builder，不注册业务 bridge。Linux 桌面入口选 X11，Windows 对 DirectComposition 配置门控，不声明未测平台支持。
+
+视频 provider 规则抽到 core，HTML 导入复用；GPUI 插入/卡片/刷新/显式播放接静态偏好和 remote embed 同意。标题/缩略图/fetchedAt 复用原始字段序列化、唯一 undo、RM19 flush/CAS 和 RM21 资源 staging；迟到结果拒绝，切笔记/关闭取消只读网络工作并销毁播放器。私有协议升 v5，存储 schema 不变。完整契约、逐 provider CSP 缺口与复现入口见 [WebView 与视频](RUST-WEBVIEW-VIDEO.md)。
+
+验证：core/editor/storage **134 passed / 2 ignored**（既有 fixture），services **34 passed**，desktop lib + backend + video UI/真实后端 **52 passed**。新增原生控件测试覆盖 URL 拒绝、插入→保存→重开、remote embed 默认拦截；缩略图测试验证修订资源与过期 CAS 拒绝。macOS arm64 真实 WKWebView **100/100** 生命周期循环、ready/rendered IPC、能力 Range、原生 bounds/显隐/focus API 与撤销通过。Clippy/fmt/五工程依赖检查通过（all-target/features 944 包）。
+
+边界：沙箱首次 AppKit 初始化失败；services 本机 socket 首次 EPERM；授权本机能力后重跑通过。循环测试不证明实际用户键盘/遮挡、物理 DPI、WebContent RSS 或外站成功播放；Linux/Windows 设备与三家 provider 的真实播放继续 RM32，发行继续 RM36。未更改旧 Electron CSP、V/A/F、原路径接管状态。
+
 <a id="rm26"></a>
 
 ## 2026-11-09 · RM26 PDF 选择、批注、索引与回链

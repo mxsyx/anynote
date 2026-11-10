@@ -1,0 +1,76 @@
+name: Retained builds and Rust interop
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: "0"
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  typescript:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        target: [browser, worker]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: python3 scripts/check-retained-builds.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: retained-${{ matrix.target }}
+          path: |
+            tmp/rm30/isolated-*/report.json
+            tmp/rm30/isolated-*/*.log
+            tmp/rm30/isolated-*/${{ matrix.target }}/tmp/retained/*/closure.json
+
+  rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: sudo apt-get update && sudo apt-get install -y clang cmake libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libvulkan-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+      - run: rustup show && cargo fetch --locked
+      - run: python3 scripts/check-retained-builds.py --target rust
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: retained-rust
+          path: |
+            tmp/rm30/isolated-*/report.json
+            tmp/rm30/isolated-*/*.log
+
+  interop:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: rustup show
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:retained --workerd
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: retained-interop
+          path: |
+            tmp/rm30/cloud-*/report.json
+            tmp/rm10/cloud-*/report.json
+            tmp/rm12/cloud-*/report.json
+            tmp/rm12/cloud-*/extension.png
+            tmp/rm*/cloud-*/worker.log

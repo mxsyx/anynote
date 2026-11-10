@@ -15,10 +15,11 @@ import { resolve, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { D1, R2 } from "../tests/helpers/cloud-adapters.mjs";
-import worker from "../.build/apps/cloudflare-backup/src/index.js";
+import worker from "../apps/cloudflare-backup/dist/src/index.js";
 const workerd = process.argv.includes("--workerd");
 const capture = process.argv.includes("--capture");
-const output = capture ? "tmp/rm12" : "tmp/rm10";
+const capabilities = process.argv.includes("--capabilities");
+const output = capabilities ? "tmp/rm30" : capture ? "tmp/rm12" : "tmp/rm10";
 mkdirSync(output, { recursive: true });
 const root = mkdtempSync(resolve(output, "cloud-"));
 const executable = resolve("target/debug/examples/cloud_probe");
@@ -34,6 +35,7 @@ let seq = 0,
   dropStatus = 0,
   logs = "",
   slow = 0;
+let capabilityOverride;
 const procEnv = {
   ...process.env,
   ANYNOTE_TEST_CLOUD_TOKEN: token,
@@ -86,7 +88,7 @@ async function startWorker() {
     config,
     JSON.stringify({
       name: "rm10-local",
-      main: resolve(".build/apps/cloudflare-backup/src/index.js"),
+      main: resolve("apps/cloudflare-backup/dist/src/index.js"),
       compatibility_date: "2026-10-02",
       vars: { APP_TOKEN: token },
       d1_databases: [
@@ -213,7 +215,16 @@ try {
           return;
         }
       }
-      const response = await forward(path, req.method, body, req.headers);
+      let response = await forward(path, req.method, body, req.headers);
+      if (path === "/v1/capabilities" && response.ok && capabilityOverride) {
+        const value = await response.json();
+        value.capabilities = value.capabilities.filter(
+          (c) => !(capabilityOverride.omit || []).includes(c),
+        );
+        value.capabilities.push(...(capabilityOverride.add || []));
+        Object.assign(value, capabilityOverride.patch);
+        response = Response.json(value);
+      }
       const bytes = Buffer.from(await response.arrayBuffer());
       if (
         fail?.kind === "capture-object" &&
@@ -263,7 +274,23 @@ try {
     writer: { deviceId: randomUUID(), epoch: 1 },
   };
   const base = { root: join(root, "transfers"), connection, identity };
-  if (capture) {
+  if (capabilities) {
+    const { runCapabilityChecks } = await import("./retained-capabilities.mjs");
+    await runCapabilityChecks({
+      base,
+      data,
+      notebook: fixture.sourceNotebookId,
+      rust,
+      raw,
+      record,
+      requests,
+      setCapabilities: (value) => {
+        capabilityOverride = value;
+      },
+      forward,
+      token,
+    });
+  } else if (capture) {
     const { runCaptureChecks } = await import("./rust-capture-reference.mjs");
     await runCaptureChecks({
       root,

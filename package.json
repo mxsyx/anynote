@@ -34,7 +34,7 @@
     "test:cloud:local": "node scripts/cloud-worker-local.mjs",
     "test:cloud:aging": "node --env-file-if-exists=.env.cloud scripts/cloud-aging-acceptance.mjs",
     "pretest:cloud:aging": "pnpm run build:backend",
-    "cloud:check": "WRANGLER_SEND_METRICS=false wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc --dry-run --outdir /tmp/anynote-worker-dry-run",
+    "cloud:check": "pnpm run build:worker",
     "test:cloud:stream": "node --env-file-if-exists=.env.cloud scripts/cloud-stream-acceptance.mjs",
     "pretest:cloud:stream": "pnpm run build:backend",
     "cloud:deploy": "node scripts/cloud-deploy.mjs",
@@ -96,8 +96,11 @@
     "test:document": "pnpm run build && node scripts/document-editor-smoke.mjs",
     "pretest:ui": "pnpm run build",
     "test:visual": "node scripts/visual-ui-smoke.mjs",
-    "build:browser": "pnpm run build:backend && node scripts/build-browser-extension.mjs",
-    "test:browser": "pnpm run build:browser && node scripts/browser-capture-smoke.mjs"
+    "build:browser": "node scripts/build-browser-extension.mjs",
+    "test:browser": "pnpm run build:browser && node scripts/browser-capture-smoke.mjs",
+    "build:worker": "node scripts/build-worker.mjs",
+    "test:retained": "node scripts/test-retained.mjs",
+    "test:retained:builds": "python3 scripts/check-retained-builds.py"
   },
   "devDependencies": {
     "@anynote/extension-host": "workspace:*",
