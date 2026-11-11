@@ -39,7 +39,7 @@ pub(super) struct DocumentSession {
 impl DocumentSession {
     pub fn new(source: String) -> Self {
         let editor = Editor::new(Document::new(source), HistoryBudget::default());
-        let projection = Projection::new(editor.document(), 0);
+        let projection = Projection::new(editor.document(), 0, 0);
         Self {
             save: None,
             editor,
@@ -95,6 +95,7 @@ impl DocumentSession {
     pub fn refresh(&mut self) {
         self.projection = Projection::new(
             self.editor.document(),
+            self.editor.selection().anchor().offset(),
             self.editor.selection().head().offset(),
         );
         self.anchor = self
@@ -144,25 +145,19 @@ impl DocumentSession {
             .map_err(error);
         }
         if matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule) {
-            if range == (0..leaf.text.len()) && text.is_empty() {
-                let source = self.editor.document().source();
-                return Ok(Transaction::new(
-                    self.editor.document().generation(),
-                    vec![Patch::new(
-                        leaf.span.clone(),
-                        &source[leaf.span.clone()],
-                        "",
-                    )],
-                    EditKind::Format,
+            let id = leaf.id.block.ok_or("没有原子块")?;
+            return Structure::for_blocks(self.editor.document(), id, id)
+                .map_err(error)?
+                .replace_between(
+                    (&leaf.id.path, range.start),
+                    (&leaf.id.path, range.end),
+                    text,
+                    self.marks.clone(),
                     self.millis(),
                 )
-                .with_selection(Selection::caret(
-                    self.editor.document().generation(),
-                    leaf.span.start,
-                )));
-            }
-            return Err("请在块前后输入，或通过原文编辑此块".into());
+                .map_err(error);
         }
+
         if matches!(leaf.kind, NodeKind::Code { .. }) {
             return self
                 .structure(leaf)?
@@ -299,24 +294,53 @@ impl DocumentSession {
                 .map_err(error)?;
             return Ok(tx);
         }
-        let first = a.id.block.ok_or("没有起始块")?;
-        let last = b.id.block.ok_or("没有结束块")?;
-        let blocks = doc.blocks();
-        let first_ix = blocks.iter().position(|block| block.id() == first).unwrap();
-        let last_ix = blocks.iter().position(|block| block.id() == last).unwrap();
-        let mut end_path = b.id.path.clone();
-        end_path[0] = last_ix - first_ix;
-        let tx = Structure::for_blocks(doc, first, last)
-            .map_err(error)?
+        let (structure, start_path, end_path) = self.range_structure(first, last)?;
+        structure
             .replace_between(
-                (&a.id.path, start),
+                (&start_path, start),
                 (&end_path, end),
                 text,
                 self.marks.clone(),
                 self.millis(),
             )
+            .map_err(error)
+    }
+    fn range_structure(
+        &self,
+        first: usize,
+        last: usize,
+    ) -> Result<(Structure<'_>, Vec<usize>, Vec<usize>)> {
+        let leaves = &self.projection.leaves[first..=last];
+        let first_block = leaves
+            .iter()
+            .find_map(|leaf| leaf.id.block)
+            .ok_or("没有起始块")?;
+        let last_block = leaves
+            .iter()
+            .rev()
+            .find_map(|leaf| leaf.id.block)
+            .ok_or("没有结束块")?;
+        let mut structure = Structure::for_blocks(self.editor.document(), first_block, last_block)
             .map_err(error)?;
-        Ok(tx)
+        let a = &leaves[0];
+        let b = leaves.last().unwrap();
+        let mut start_path = a.id.path.clone();
+        let mut end_path = b.id.path.clone();
+        let trailing = structure.root().children().len() - 1;
+        if a.id.block.is_none() {
+            structure = structure
+                .with_blank_boundary(a.span.start, true)
+                .map_err(error)?;
+        }
+        start_path[0] = 0;
+        end_path[0] = trailing + usize::from(a.id.block.is_none());
+        if b.id.block.is_none() {
+            end_path[0] = structure.root().children().len();
+            structure = structure
+                .with_blank_boundary(b.span.end, false)
+                .map_err(error)?;
+        }
+        Ok((structure, start_path, end_path))
     }
     pub fn paste(&mut self, text: &str, markdown: bool) -> Result<()> {
         if self.pending_task.is_some() {
@@ -325,11 +349,18 @@ impl DocumentSession {
         let range = self.range();
         let (ix, start) = self.projection.at(range.start);
         let (last, end) = self.projection.at(range.end);
-        if ix != last {
+        let leaf = &self.projection.leaves[ix];
+        if ix != last || matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule) {
+            if markdown {
+                let (structure, start_path, end_path) = self.range_structure(ix, last)?;
+                let tx = structure
+                    .paste_between((&start_path, start), (&end_path, end), text, self.millis())
+                    .map_err(error)?;
+                return self.apply(tx);
+            }
             return self.replace(text);
         }
-        let leaf = &self.projection.leaves[ix];
-        if leaf.kind == NodeKind::Cell && text.contains(['\t', '\n']) {
+        if !markdown && leaf.kind == NodeKind::Cell && text.contains(['\t', '\n']) {
             let path = &leaf.id.path[..leaf.id.path.len() - 2];
             let cell = CellAddress::new(
                 leaf.id.path[leaf.id.path.len() - 2],
@@ -347,7 +378,8 @@ impl DocumentSession {
                 .map_err(error)?;
             return self.apply(tx);
         }
-        if matches!(leaf.kind, NodeKind::Code { .. } | NodeKind::Cell) {
+        if matches!(leaf.kind, NodeKind::Code { .. }) || (!markdown && leaf.kind == NodeKind::Cell)
+        {
             return self.replace(text);
         }
         let structure = self.structure(leaf)?;
@@ -696,7 +728,7 @@ impl DocumentSession {
         )
         .map_err(error)?;
         let preview = Document::new(tx.source_after(self.editor.document()).map_err(error)?);
-        let projection = Projection::new(&preview, 0);
+        let projection = Projection::new(&preview, 0, 0);
         self.apply(tx.with_selection(Selection::new(
             self.editor.document().generation(),
             Position::new(projection.source_at(anchor), Affinity::Before),
@@ -785,16 +817,10 @@ impl DocumentSession {
             .map_err(error)?;
             let (ix, start) = self.projection.at(range.start);
             let (last, end) = self.projection.at(range.end);
-            if [ix, last].into_iter().any(|ix| {
-                matches!(
-                    self.projection.leaves[ix].kind,
-                    NodeKind::Atom | NodeKind::Rule
-                )
-            }) {
-                return Err("请在文字范围内开始组合输入".into());
-            }
             if ix != last {
                 self.prepare_replace_across(ix, start, last, end, text)?;
+            } else {
+                self.prepare_replace(ix, start..end, text)?;
             }
             if range != self.range() {
                 self.select(range.start, range.end)?;
@@ -935,7 +961,10 @@ impl DocumentSession {
         let (ix, start) = self.projection.at(range.start);
         let (last, end) = self.projection.at(range.end);
         if ix != last {
-            return None;
+            let (structure, start_path, end_path) = self.range_structure(ix, last).ok()?;
+            return structure
+                .copy_between((&start_path, start), (&end_path, end))
+                .ok();
         }
         let leaf = &self.projection.leaves[ix];
         let id = leaf.id.block?;

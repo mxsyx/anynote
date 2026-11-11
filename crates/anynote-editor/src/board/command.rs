@@ -46,6 +46,11 @@ pub enum Alignment {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Command {
+    Paste {
+        clipboard: super::Clipboard,
+        ids: super::TransferIds,
+        delta: Point,
+    },
     Insert {
         elements: Vec<Value>,
         files: Map<String, Value>,
@@ -84,6 +89,14 @@ pub enum Command {
         id: String,
         updates: Vec<(usize, Point)>,
     },
+    AddPoints {
+        id: String,
+        points: Vec<Point>,
+    },
+    DeletePoints {
+        id: String,
+        indices: Vec<usize>,
+    },
     Geometry {
         id: String,
         geometry: Geometry,
@@ -113,6 +126,7 @@ pub enum Command {
     Duplicate {
         ids: BTreeMap<String, String>,
         groups: BTreeMap<String, String>,
+        seeds: BTreeMap<String, u32>,
         delta: Point,
     },
     Lock {

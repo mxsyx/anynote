@@ -18,7 +18,7 @@
 
 每次 `InputEditsEvent` 使用该批次不可变最终快照，计算合法 UTF-8 边界上的最小共同前后缀，一笔事务提交变化范围；替换全部和多光标批次不会拆成多个撤销步骤。切换退出前先提交仍在排队的控件快照，再按控件 entity 身份拒绝迟到事件。程序化 `set_value` 不回发编辑事件，所有用户 Undo/Redo 路由到 RM16。工具条格式包裹同样走 core patch。
 
-opaque 块入口定位其源范围，全文原文入口保留源选区方向。无内容变化时恢复各模式自己的滚动位置；内容变化后按当前映射选区滚入。预编辑活跃时拒绝切换、格式或共享撤销，关闭/flush 等待组合提交或取消，预编辑不写数据库。源码视图填满文档剩余高度。
+opaque 块入口定位其源范围，全文原文入口保留源选区方向。无内容变化时恢复各模式自己的滚动位置；内容变化后按当前映射选区滚入。预编辑活跃时拒绝切换、格式或共享撤销，macOS 关窗/退出主动请求结束当前组合输入，普通 flush 仍等待提交或取消；预编辑不写数据库。源码视图填满文档剩余高度。
 
 ## 保存与恢复
 
@@ -30,7 +30,32 @@ opaque 块入口定位其源范围，全文原文入口保留源选区方向。�
 
 `resource_request` 在发起读取时冻结原 note/head revision；后端通过 `ResourceScope::note(...).with_revision(...)` 读取有界资源字节。回调不得重新取当前选中的笔记；RM21 已接入图片媒体 generation、资源批量提交与 hash ack，见[图片契约](RUST-IMAGE-MEDIA.md)；其他媒体仍由对应组接线。
 
-草稿保留指**当前进程内存**，没有跨进程崩溃草稿日志。保存失败或冲突时正常窗口关闭和应用内退出不会继续完成。不可取消的系统终止入口仍有下述缺口。
+草稿保留指**当前进程内存**，没有跨进程崩溃草稿日志。保存失败或冲突时正常窗口关闭、应用内退出及 macOS 可取消的系统退出不会继续完成。强制退出、崩溃或断电不在此保存保证内。
+
+## F002 系统退出与输入结束
+
+macOS 上 `BackendSession` 注册 `App::on_quit_requested`（其他适配仍在不可取消阶段通知退出，暂不挂接该拦截器，以免阻断既有清理）。首次系统请求返回拒绝并启动原有 flush；重复请求不启动第二条保存/排空链路。只有所有文档完成保存且后端排空结束，`quit_ready` 才允许下一次平台退出。保存失败、冲突或后端 Busy 取消本次退出，同时清除仍存活文档的 `closing` 意图，用户可以继续编辑、复制草稿或重连重试。
+
+macOS 的适配从 `applicationWillTerminate:` 移到 `applicationShouldTerminate:`，返回 `NSTerminateCancel` 或 `NSTerminateNow`。可取消检查发生在 GPUI 清除窗口和调用不可取消的 `on_app_quit` 之前；应用菜单、Dock 和系统终止请求共享此原生入口。异步保存期间不阻塞 AppKit 主线程。
+
+`Window::finish_composition` / `PlatformWindow::finish_composition` 是异步请求：macOS 在前台执行器释放 App/实体借用后，调用当前输入 owner 的 `unmark_text` 提交显示中的预编辑，再通知原生 `NSTextInputContext` 丢弃候选会话。关闭的原生窗口不再访问。保存仍以 marked range 实际消失为屏障。源码控件结束组合时可能没有新的 `InputEditsEvent`，因此保存前同步其最终快照；失败时标为保存错误并保留控件内容。
+
+当前原生实现及设备验证范围为 **macOS**。测试平台提供合成的结束输入适配；其他平台默认返回不支持并保留组合输入，不伪造原生提交。Windows/Linux 的可取消系统预退出和原生组合输入结束适配仍是 F002 实现缺口；完成后再进入 F025 的三平台实际 IME、候选窗、注销/关机交互验收，不能把本次 macOS 结果扩展为三平台功能完成或验收。
+
+### 锁定依赖补丁
+
+Kit 保持 0.9.0，GPUI 原生系列保持 0.3.11。根 `Cargo.toml` 通过 `[patch.crates-io]` 使用仓库 `vendor/gpui-pre-0.3.11` 和 `vendor/gpui-pre-macos-0.3.11`；没有修改机器的 Cargo registry。两份原始发布包及 Apache-2.0 许可证随源码保留，源包 checksum 分别为 `9303c771abf2acff2a96d706f69d9a82088c4770173a07cce88f0002431d887d`、`d7410cfdaa1fa55a414346cc492d18ce340e3a8b6d0ac3213b984ed690c82b92`。
+
+相对发布包只修改六个文件：核心 `src/app.rs`、`src/window.rs`、`src/platform.rs`、`src/platform/test/window.rs`，以及 macOS `src/platform.rs`、`src/window.rs`。分别提供可取消预退出、异步结束组合输入、合成适配及 AppKit 接线；其余依赖源码保持发布包原样。后续升级 Kit 时必须重放这些接口和生命周期回归，不能直接删除路径补丁。
+
+### 本轮验收（2026-11-11）
+
+- 自动化：4 项 `document_lifecycle` 回归覆盖重复预退出、保存完成后才停后端、跨进程重开、CAS 冲突留窗留草稿留连接；新增源码组合输入关闭测试通过。编辑器相关筛选共 52 项通过（含新增源码测试）。
+- macOS 26.2 原生窗口：使用独立 `tmp/f002-native/state`，实际键盘输入 `F002 native close reopen 7319` 后点关窗，重开快照包含该文本；再输入 `native quit 8421` 并经 `cx.quit` 进入 AppKit 系统退出，重开快照包含新增文本。
+- 原生故障恢复：探针在打开快照后断开测试后端，输入 `fault9532`，系统退出被取消且窗口保留；继续输入 `after-cancel` 可进入同一会话。Cmd+S 重连保存后再次退出，重开持久化快照包含两段草稿。探针的系统退出入口不调用应用 `request_quit`，故实际经过平台预退出钩子。
+- 设备输入是已提交的键盘文本；合成 marked-text 测试不等于真实中日韩 IME 候选窗通过。Dock 的独立菜单操作、真实 OS 注销/关机和跨平台设备矩阵仍归 F025。
+
+原生复现使用 `apps/desktop-rust/examples/document_lifecycle_probe.rs`，需显式传入 `ANYNOTE_LIFECYCLE_STATE_DIR`（隔离目录）和 `ANYNOTE_LIFECYCLE_BACKEND`（桌面后端可执行文件）。设置 `ANYNOTE_LIFECYCLE_DISCONNECT=1` 可验证断线留窗；`opened.md`、`observed.md` 只用于该探针检查，不是产品草稿日志。临时日志和原生验证副本位于 `tmp/f002-*`，以上结论不依赖这些文件长期保存。
 
 ## 私有协议及依赖
 

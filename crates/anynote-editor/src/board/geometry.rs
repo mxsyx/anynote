@@ -155,9 +155,6 @@ pub(super) fn element_bounds(element: &Element) -> Result<[f64; 4], BoardError> 
         }
         ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw => {
             let points = element.world_points()?;
-            if points.len() > 2 && element.field("roundness").is_some_and(|v| !v.is_null()) {
-                return Err(invalid("curved path transform requires curve bounds"));
-            }
             if matches!(element.kind(), ElementKind::Line | ElementKind::Arrow)
                 && element.field("elbowed") != Some(&json!(true))
             {

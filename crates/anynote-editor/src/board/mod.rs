@@ -7,13 +7,18 @@ mod command;
 mod crop;
 mod frame;
 mod geometry;
+mod library;
 mod operation;
 mod order;
 mod path;
 mod rough_path;
 mod scene;
+mod transfer;
 
 pub use command::{Alignment, Axis, Board, Command, EditStamp, Layer};
 pub use crop::CropHandle;
 pub use geometry::{Geometry, Point};
+pub use library::Library;
+pub use rough_path::linear_strokes;
 pub use scene::{BoardError, Element, ElementKind, Scene};
+pub use transfer::{Clipboard, TransferIds};

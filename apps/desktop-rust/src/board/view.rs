@@ -1,7 +1,6 @@
 use super::{
     assets::Assets,
     clipboard,
-    geometry::Viewport,
     input::{BoardInput, Tool, drawing},
     paint, text,
 };
@@ -27,6 +26,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use uuid::Uuid;
+
+mod tools;
 
 #[derive(Clone, PartialEq, Deserialize, Action)]
 #[action(no_json)]
@@ -58,6 +59,9 @@ pub fn install_actions(cx: &mut App) {
         ("=", "zoom-in"),
         ("-", "zoom-out"),
         ("0", "reset-view"),
+        ("f", "search"),
+        ("shift-c", "copy-styles"),
+        ("shift-v", "paste-styles"),
     ] {
         cx.bind_keys([KeyBinding::load(
             &format!("{primary}-{key}"),
@@ -108,6 +112,11 @@ pub struct BoardView {
     space: bool,
     release: Option<Subscription>,
     blur: Option<Subscription>,
+    library: anynote_editor::board::Library,
+    copied_style: Option<serde_json::Map<String, Value>>,
+    file_task: Option<Task<()>>,
+    file_busy: bool,
+    dialog_subscription: Option<Subscription>,
 }
 impl Focusable for BoardView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -133,6 +142,11 @@ impl BoardView {
             space: false,
             release: None,
             blur: None,
+            library: Default::default(),
+            copied_style: None,
+            file_task: None,
+            file_busy: false,
+            dialog_subscription: None,
         };
         view.blur = Some(cx.on_blur(&view.focus, window, |this, _, cx| {
             this.space = false;
@@ -160,6 +174,22 @@ impl BoardView {
     fn enabled(&self, name: &str) -> bool {
         let selected = self.input.board().selected_ids();
         match name {
+            "properties" | "copy-styles" | "add-library" | "fit-selection" | "copy-text" => {
+                !selected.is_empty()
+            }
+            "paste-styles" => !selected.is_empty() && self.copied_style.is_some(),
+            "crop" => {
+                selected.len() == 1
+                    && self
+                        .scene()
+                        .element(selected.first().unwrap())
+                        .is_some_and(|e| e.kind() == ElementKind::Image && !e.is_locked())
+                    && !self.is_loading()
+            }
+            "export-png" | "copy-png" | "save-scene" | "save-library" | "import-library" => {
+                !self.file_busy
+            }
+            "exit-group" => self.input.board().editing_group().is_some(),
             "group" => selected.len() > 1,
             "ungroup" => self.scene().elements().any(|e| {
                 selected.contains(e.id())
@@ -172,8 +202,9 @@ impl BoardView {
                 .elements()
                 .any(|e| !e.is_deleted() && e.is_locked()),
             "copy" | "cut" | "duplicate" | "delete" | "front" | "back" | "forward" | "backward"
-            | "align-left" | "align-center" | "align-top" | "distribute-x" | "flip-x"
-            | "flip-y" | "lock" | "solid" | "hachure" | "transparent" => !selected.is_empty(),
+            | "align-left" | "align-center" | "align-top" | "align-right" | "align-bottom"
+            | "align-middle" | "distribute-x" | "distribute-y" | "flip-x" | "flip-y" | "lock"
+            | "solid" | "hachure" | "transparent" => !selected.is_empty(),
             _ => true,
         }
     }
@@ -232,6 +263,9 @@ impl BoardView {
         if !self.enabled(name) {
             return;
         }
+        if self.tool_command(name, window, cx) {
+            return;
+        }
         let selected = self.input.board().selected_ids();
         let command = match name {
             "undo" => {
@@ -247,6 +281,10 @@ impl BoardView {
             "cancel" => {
                 if self.input.is_dragging() {
                     self.input.cancel();
+                } else if self.input.is_cropping() {
+                    self.input.end_crop();
+                } else if self.input.board().editing_group().is_some() {
+                    self.input.edit_group(None);
                 } else {
                     self.input.select([]);
                     self.input.set_tool(Tool::Select);
@@ -350,7 +388,20 @@ impl BoardView {
                 axis: Axis::Y,
                 alignment: Alignment::Start,
             }),
+            "align-right" => Some(Command::Align {
+                axis: Axis::X,
+                alignment: Alignment::End,
+            }),
+            "align-bottom" => Some(Command::Align {
+                axis: Axis::Y,
+                alignment: Alignment::End,
+            }),
+            "align-middle" => Some(Command::Align {
+                axis: Axis::Y,
+                alignment: Alignment::Center,
+            }),
             "distribute-x" => Some(Command::Distribute { axis: Axis::X }),
+            "distribute-y" => Some(Command::Distribute { axis: Axis::Y }),
             "flip-x" => Some(Command::Flip { axis: Axis::X }),
             "flip-y" => Some(Command::Flip { axis: Axis::Y }),
             "lock" => Some(Command::Lock { locked: true }),
@@ -384,7 +435,9 @@ impl BoardView {
                 None
             }
             "reset-view" => {
-                *self.input.viewport_mut() = Viewport::default();
+                let zoom = self.input.viewport().zoom();
+                let center = self.center();
+                self.input.viewport_mut().zoom_at(1. / zoom, center);
                 None
             }
             "theme" => {
@@ -628,6 +681,7 @@ impl BoardView {
                     .scene()
                     .element(&id)
                     .is_some_and(|e| e.kind() == ElementKind::Text);
+                self.input.enter_group(&id);
                 self.input.select([id]);
                 if text {
                     self.edit_text(self.input.viewport().to_world(local), window, cx);
@@ -732,6 +786,9 @@ impl Render for BoardView {
             ("undo", "撤销", !self.input.board().has_undo()),
             ("redo", "重做", !self.input.board().has_redo()),
             ("image", "图片…", self.importing),
+            ("properties", "属性…", !self.enabled("properties")),
+            ("search", "搜索…", false),
+            ("library", "图库…", false),
         ] {
             toolbar = toolbar.child(
                 Button::new(SharedString::from(format!("board-{name}")))
@@ -740,7 +797,9 @@ impl Render for BoardView {
                     .disabled(disabled)
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.command(name, window, cx);
-                        this.focus.focus(window, cx);
+                        if matches!(name, "undo" | "redo") {
+                            this.focus.focus(window, cx);
+                        }
                     })),
             )
         }
@@ -748,7 +807,7 @@ impl Render for BoardView {
             Button::new("board-more")
                 .small()
                 .label("更多")
-                .dropdown_menu(move |menu, _, cx| {
+                .dropdown_menu(move |menu, window, cx| {
                     let mut menu = menu.action_context(focus.clone());
                     for (name, label) in [
                         ("copy", "复制"),
@@ -758,26 +817,8 @@ impl Render for BoardView {
                         ("delete", "删除"),
                         ("group", "组合"),
                         ("ungroup", "取消组合"),
-                        ("front", "置于顶层"),
-                        ("back", "置于底层"),
-                        ("forward", "上移一层"),
-                        ("backward", "下移一层"),
-                        ("align-left", "左对齐"),
-                        ("align-center", "水平居中"),
-                        ("align-top", "顶端对齐"),
-                        ("distribute-x", "水平分布"),
-                        ("flip-x", "水平翻转"),
-                        ("flip-y", "垂直翻转"),
-                        ("lock", "锁定"),
-                        ("unlock", "解锁所有图形"),
-                        ("solid", "纯色填充"),
-                        ("hachure", "排线填充"),
-                        ("transparent", "无填充"),
-                        ("edit-text", "编辑文字…"),
-                        ("zoom-in", "放大"),
-                        ("zoom-out", "缩小"),
-                        ("reset-view", "重置视图"),
-                        ("theme", "切换主题"),
+                        ("exit-group", "退出组内编辑"),
+                        ("add-library", "将选中图形加入图库"),
                     ] {
                         let disabled = menu_owner
                             .upgrade()
@@ -788,11 +829,35 @@ impl Render for BoardView {
                             disabled,
                         );
                     }
+                    for (label, actions) in tools::MENUS {
+                        let owner = menu_owner.clone();
+                        let focus = focus.clone();
+                        menu = menu.submenu(*label, window, cx, move |menu, _, cx| {
+                            let mut menu = menu.action_context(focus.clone());
+                            for (name, label) in *actions {
+                                let disabled = owner
+                                    .upgrade()
+                                    .is_none_or(|owner| !owner.read(cx).enabled(name));
+                                menu = menu.menu_with_disabled(
+                                    *label,
+                                    Box::new(BoardCommand::new(name)),
+                                    disabled,
+                                );
+                            }
+                            menu
+                        });
+                    }
                     menu
                 }),
         );
         let status = if let Some(error) = self.input.error() {
             error.to_owned()
+        } else if self.file_busy {
+            "正在读写白板文件".into()
+        } else if self.input.is_cropping() {
+            "拖动图片角点裁剪 · Shift 保持比例 · Escape 退出".into()
+        } else if self.input.board().editing_group().is_some() {
+            "组内编辑 · Escape 返回整组".into()
         } else if self.loading {
             "正在加载字体和图片".into()
         } else if let Some(error) = self.assets.errors.first() {

@@ -12,6 +12,9 @@ mod session;
 mod state;
 mod videos;
 pub use saving::{FlushState, flush_all, flush_for_navigation, open_document, open_document_at};
+#[cfg(all(test, feature = "ui-tests"))]
+mod lifecycle_tests;
+pub(crate) use saving::cancel_quit;
 mod source_mode;
 #[cfg(test)]
 mod tests;
@@ -712,7 +715,12 @@ impl DocumentEditor {
         let key = self.keys[first];
         if self.state.composing_leaf(first) && matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule)
         {
-            return div().w_full().into_any_element();
+            return div()
+                .w_full()
+                .px_6()
+                .py_2()
+                .child(self.render_leaf(first, window, cx))
+                .into_any_element();
         }
         if let Some(video) = self.render_video(first, key, window, cx) {
             return video;

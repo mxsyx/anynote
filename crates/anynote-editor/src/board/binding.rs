@@ -1,5 +1,5 @@
 //! Connector geometry follows the pinned Excalidraw focus/intersection rules.
-//! See EXCALIDRAW-LICENSE. Unsupported curves/elbows fail the entire transaction.
+//! See EXCALIDRAW-LICENSE. Unsupported labels/elbows fail the entire transaction.
 use super::{BoardError, Element, ElementKind, Point, Scene, path, scene::invalid};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};

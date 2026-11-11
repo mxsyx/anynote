@@ -303,9 +303,16 @@ fn cross_structure_composition_covers_code_and_interior_atoms_without_rewriting_
     assert_eq!(state.editor.document().source(), source);
     let atom_start = state.projection.text.find('\u{fffc}').unwrap();
     state.select(atom_start, end).unwrap();
-    assert!(state.begin_or_update_composition(None, "中", 3..3).is_err());
-    assert!(state.editor.composition().is_none());
+    state.begin_or_update_composition(None, "中", 3..3).unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    state.cancel_composition().unwrap();
     assert_eq!(state.editor.redo_steps(), 1);
+    state.begin_or_update_composition(None, "中", 3..3).unwrap();
+    state.commit_composition(None).unwrap();
+    assert!(!state.editor.document().source().contains("future.node"));
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
 }
 
 #[core::prelude::v1::test]
@@ -344,8 +351,11 @@ fn cross_structure_composition_rejects_invalid_ranges_without_starting() {
     let mut blank = DocumentSession::new("- alpha\n\ntrailer".into());
     let end = blank.projection.text.find("trailer").unwrap() + 2;
     blank.select(0, end).unwrap();
-    assert!(blank.begin_or_update_composition(None, "中", 3..3).is_err());
-    assert!(blank.editor.composition().is_none());
+    blank.begin_or_update_composition(None, "中", 3..3).unwrap();
+    assert_eq!(blank.editor.document().source(), "- alpha\n\ntrailer");
+    blank.commit_composition(None).unwrap();
+    assert_eq!(blank.projection.text, "中ailer");
+    blank.command("undo").unwrap();
     assert_eq!(blank.editor.document().source(), "- alpha\n\ntrailer");
 }
 
@@ -641,6 +651,39 @@ mod ui {
             .unwrap()
         })
     }
+    #[gpui_kit::test]
+    fn atom_endpoint_preedit_has_native_geometry_and_cancels(cx: &mut TestAppContext) {
+        let source = "before\n\n<div>opaque</div>\n\n- alpha\n\nafter";
+        let (handle, editor) = open(cx, source);
+        cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            editor.update(cx, |view, cx| {
+                let start = view.text().find('\u{fffc}').unwrap();
+                let end = view.text().find("alpha").unwrap() + 2;
+                let result = view.state.select(end, start);
+                view.changed(result, window, cx);
+                view.replace_and_mark_text_in_range(None, "中文🦀", None, window, cx);
+                assert!(view.is_composing());
+            });
+            window.render_frame(cx);
+            editor.update(cx, |view, cx| {
+                let marked = view.marked_text_range(window, cx).unwrap();
+                let bounds = view
+                    .bounds_for_range(marked.clone(), Bounds::default(), window, cx)
+                    .unwrap();
+                assert!(bounds.size.height > px(0.));
+                assert!(view.caret_bounds(window).is_some());
+                assert_eq!(view.source(), source);
+                let result = view.state.cancel_composition();
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            assert_eq!(editor.read(cx).source(), source);
+            assert_eq!(editor.read(cx).undo_steps(), 0);
+        })
+        .unwrap();
+    }
+
     #[gpui_kit::test]
     fn code_scroll_keeps_document_fixed_and_reveals_keyboard_caret(cx: &mut TestAppContext) {
         let code = (0..60).map(|ix| format!("line {ix}\n")).collect::<String>();
@@ -1249,5 +1292,310 @@ mod ui {
             assert_eq!(editor.read(cx).undo_steps(), 1);
         })
         .unwrap();
+    }
+}
+
+#[core::prelude::v1::test]
+fn atom_endpoints_preserve_only_unselected_atoms_and_one_history() {
+    let atom = ":::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
+    let source = format!("before\n\n{atom}\n\n- **alpha**\n\n{atom}\n\nafter");
+    for (from_atom, atom_offset, retain) in
+        [(true, 0, 1), (true, 3, 2), (false, 0, 2), (false, 3, 1)]
+    {
+        for compose in [false, true] {
+            let mut state = DocumentSession::new(source.clone());
+            let first = state.projection.text.find('\u{fffc}').unwrap();
+            let last = state.projection.text.rfind('\u{fffc}').unwrap();
+            let word = state.projection.text.find("alpha").unwrap();
+            let (a, b) = if from_atom {
+                (first + atom_offset, word + 2)
+            } else {
+                (word + 2, last + atom_offset)
+            };
+            state.select(b, a).unwrap();
+            if compose {
+                state
+                    .begin_or_update_composition(None, "中文🦀", 10..10)
+                    .unwrap();
+                assert_eq!(state.editor.document().source(), source);
+                assert_eq!(state.editor.undo_steps(), 0);
+                state.cancel_composition().unwrap();
+                assert_eq!((state.anchor, state.head), (b, a));
+                state
+                    .begin_or_update_composition(None, "中文🦀", 10..10)
+                    .unwrap();
+                state.commit_composition(None).unwrap();
+            } else {
+                state.replace("中文🦀").unwrap();
+            }
+            assert_eq!(
+                state.editor.document().source().matches(atom).count(),
+                retain
+            );
+            assert!(state.projection.text.contains("中文🦀"));
+            assert!(state.projection.text.starts_with("before"));
+            assert!(state.projection.text.ends_with("after"));
+            assert_eq!(state.editor.undo_steps(), 1);
+            let edited = state.editor.document().source().to_owned();
+            state.command("undo").unwrap();
+            assert_eq!(state.editor.document().source(), source);
+            assert_eq!((state.anchor, state.head), (b, a));
+            state.command("redo").unwrap();
+            assert_eq!(state.editor.document().source(), edited);
+        }
+    }
+}
+
+#[core::prelude::v1::test]
+fn atom_single_range_and_boundary_composition() {
+    let source = "before\n\n<div>opaque</div>\n\nafter";
+    for (a, b, retained) in [(0, 0, true), (3, 3, true), (0, 3, false)] {
+        let mut state = DocumentSession::new(source.into());
+        let at = state.projection.text.find('\u{fffc}').unwrap();
+        state.select(at + a, at + b).unwrap();
+        state.begin_or_update_composition(None, "新", 3..3).unwrap();
+        state.commit_composition(None).unwrap();
+        assert_eq!(
+            state
+                .editor
+                .document()
+                .source()
+                .contains("<div>opaque</div>"),
+            retained
+        );
+        assert!(state.projection.text.contains('新'));
+        assert_eq!(state.editor.undo_steps(), 1);
+        state.command("undo").unwrap();
+        assert_eq!(state.editor.document().source(), source);
+    }
+}
+
+#[core::prelude::v1::test]
+fn blank_boundary_cross_structure_composition_and_rich_paste() {
+    for trailing in [false, true] {
+        for compose in [false, true] {
+            let source = "\n\n- **alpha**\n\n> beta\n\n";
+            let mut state = DocumentSession::new(source.into());
+            if trailing {
+                state
+                    .editor
+                    .set_selection(anynote_editor::selection::Selection::caret(
+                        state.editor.document().generation(),
+                        source.len(),
+                    ))
+                    .unwrap();
+                state.refresh();
+            }
+            let blank = state
+                .projection
+                .leaves
+                .iter()
+                .find(|leaf| leaf.id.block.is_none())
+                .unwrap()
+                .logical
+                .start;
+            let middle = state
+                .projection
+                .text
+                .find(if trailing { "alpha" } else { "beta" })
+                .unwrap()
+                + 2;
+            let (a, b) = (blank.min(middle), blank.max(middle));
+            state.select(b, a).unwrap();
+            if compose {
+                state.begin_or_update_composition(None, "新", 3..3).unwrap();
+                state.cancel_composition().unwrap();
+                assert_eq!((state.anchor, state.head), (b, a));
+                state.begin_or_update_composition(None, "新", 3..3).unwrap();
+                state.commit_composition(None).unwrap();
+            } else {
+                state.paste("**新**\n\n- rich", true).unwrap();
+                assert!(state.projection.leaves.iter().any(|leaf| {
+                    leaf.runs.iter().any(|run| {
+                        run.text().contains('新')
+                            && run.marks().has(anynote_editor::inline::Mark::Strong)
+                    })
+                }));
+                assert!(state.projection.text.contains("rich"));
+            }
+            assert_eq!(state.editor.undo_steps(), 1);
+            state.command("undo").unwrap();
+            assert_eq!(state.editor.document().source(), source);
+            assert_eq!((state.anchor, state.head), (b, a));
+        }
+    }
+}
+
+#[core::prelude::v1::test]
+fn cross_structure_rich_copy_paste_preserves_marks_atoms_and_table_privacy() {
+    let source =
+        "before\n\n- **alpha**\n  - nested\n\n<div>opaque</div>\n\n> *quoted tail*\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let a = state.projection.text.find("alpha").unwrap() + 2;
+    let b = state.projection.text.find("quoted").unwrap() + 3;
+    state.select(b, a).unwrap();
+    let copied = state.selected_markdown().unwrap();
+    let fragment = DocumentSession::new(copied.clone());
+    assert!(
+        fragment
+            .projection
+            .leaves
+            .iter()
+            .any(|leaf| leaf
+                .runs
+                .iter()
+                .any(|run| run.text() == "pha"
+                    && run.marks().has(anynote_editor::inline::Mark::Strong))),
+        "{copied}"
+    );
+    assert!(
+        fragment.projection.leaves.iter().any(|leaf| leaf
+            .runs
+            .iter()
+            .any(|run| run.text() == "quo"
+                && run.marks().has(anynote_editor::inline::Mark::Emphasis))),
+        "{copied}"
+    );
+    assert!(copied.contains("<div>opaque</div>"));
+    assert!(!copied.contains("before") && !copied.contains("after") && !copied.contains("tail"));
+    state.paste(&copied, true).unwrap();
+    assert_eq!(state.editor.undo_steps(), 1);
+    assert!(
+        state
+            .editor
+            .document()
+            .source()
+            .contains("<div>opaque</div>")
+    );
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+
+    let mut table = DocumentSession::new(
+        "before\n\n| secret | header |\n|---|---|\n| **cat** | dog |\n| eel | fox |\n\nafter"
+            .into(),
+    );
+    let a = table.projection.text.find("cat").unwrap() + 1;
+    let b = table.projection.text.find("fox").unwrap() + 1;
+    table.select(a, b).unwrap();
+    let copied = table.selected_markdown().unwrap();
+    let copied_state = DocumentSession::new(copied.clone());
+    let cells: Vec<_> = copied_state
+        .projection
+        .leaves
+        .iter()
+        .filter(|l| l.kind == NodeKind::Cell)
+        .map(|l| l.text.as_str())
+        .collect();
+    assert_eq!(cells, ["", "", "at", "dog", "eel", "f"], "{copied}");
+    assert!(!copied.contains("secret") && !copied.contains("header"));
+}
+
+#[core::prelude::v1::test]
+fn rich_text_across_cells_preserves_marks_rectangle_and_atomic_failure() {
+    let source = "before\n\n| a | b |\n|---|---|\n| cat | dog |\n| eel | fox |\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let a = state.projection.text.find("cat").unwrap() + 1;
+    let b = state.projection.text.find("fox").unwrap() + 1;
+    state.select(a, b).unwrap();
+    state.paste("**新**", true).unwrap();
+    let cells: Vec<_> = state
+        .projection
+        .leaves
+        .iter()
+        .filter(|leaf| leaf.kind == NodeKind::Cell)
+        .collect();
+    assert_eq!(
+        cells
+            .iter()
+            .map(|leaf| leaf.text.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b", "c新", "", "", "ox"]
+    );
+    assert!(
+        cells[2]
+            .runs
+            .iter()
+            .any(|run| run.text() == "新" && run.marks().has(anynote_editor::inline::Mark::Strong))
+    );
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    let selection = state.editor.selection();
+    assert!(state.paste("<div>opaque</div>", true).is_err());
+    assert_eq!(state.editor.document().source(), source);
+    assert_eq!(state.editor.selection(), selection);
+    assert_eq!(state.editor.redo_steps(), 1);
+}
+
+#[core::prelude::v1::test]
+fn rich_table_fragment_pastes_into_cells_with_one_history_entry() {
+    let mut state =
+        DocumentSession::new("before\n\n| a | b |\n|---|---|\n| cat | dog |\n\nafter".into());
+    let original = state.editor.document().source().to_owned();
+    let a = state.projection.text.find("cat").unwrap() + 1;
+    let b = state.projection.text.find("dog").unwrap() + 1;
+    state.select(a, b).unwrap();
+    state
+        .paste("| **new** | *other* |\n|---|---|\n| third | fourth |", true)
+        .unwrap();
+    let cells: Vec<_> = state
+        .projection
+        .leaves
+        .iter()
+        .filter(|leaf| leaf.kind == NodeKind::Cell)
+        .collect();
+    assert_eq!(
+        cells
+            .iter()
+            .map(|leaf| leaf.text.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b", "cnew", "other", "third", "fourthog"]
+    );
+    assert!(cells[2].runs.iter().any(|run| run.text() == "new" && run.marks().has(anynote_editor::inline::Mark::Strong)));
+    assert!(cells[3].runs.iter().any(
+        |run| run.text() == "other" && run.marks().has(anynote_editor::inline::Mark::Emphasis)
+    ));
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), original);
+    state.command("redo").unwrap();
+    assert!(state.projection.text.contains("fourth"));
+}
+
+#[core::prelude::v1::test]
+fn mixed_endpoint_replay_preserves_source_and_reverse_selection() {
+    let source = "\n\n# heading\n\n- **alpha**\n  - nested\n\n<div>opaque</div>\n\n> quoted\n\n```text\ncode\n```\n\n| a | b |\n|---|---|\n| cat | dog |\n\n---\n\ntrailer\n\n";
+    let base = DocumentSession::new(source.into());
+    for first in 0..base.projection.leaves.len() {
+        for last in first + 1..base.projection.leaves.len() {
+            let a = &base.projection.leaves[first];
+            let b = &base.projection.leaves[last];
+            for start in [a.logical.start, a.logical.end] {
+                for end in [b.logical.start, b.logical.end] {
+                    let mut state = DocumentSession::new(source.into());
+                    state.select(end, start).unwrap();
+                    let original_selection = state.editor.selection();
+                    let selected_text = state.projection.text[state.range()].to_owned();
+                    state
+                        .begin_or_update_composition(None, "新🦀", 7..7)
+                        .unwrap_or_else(|error| panic!("{first}..{last}, {start}..{end}: {error}"));
+                    assert_eq!(state.editor.document().source(), source);
+                    state.commit_composition(None).unwrap();
+                    assert_eq!(state.editor.undo_steps(), 1);
+                    let edited = state.editor.document().source().to_owned();
+                    state.command("undo").unwrap();
+                    assert_eq!(state.editor.document().source(), source);
+                    assert_eq!(
+                        state.editor.selection().anchor(),
+                        original_selection.anchor()
+                    );
+                    assert_eq!(state.editor.selection().head(), original_selection.head());
+                    assert!(state.anchor >= state.head);
+                    assert_eq!(&state.projection.text[state.range()], selected_text);
+                    state.command("redo").unwrap();
+                    assert_eq!(state.editor.document().source(), edited);
+                }
+            }
+        }
     }
 }

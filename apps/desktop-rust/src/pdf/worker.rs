@@ -50,7 +50,6 @@ impl PdfWorker {
                         }
                         let reader = ResourceReader::open(client, scope)?;
                         let hash = reader.hash().to_owned();
-                        let failed = reader.failure_flag();
                         if closed.load(Ordering::Acquire) {
                             return Err(PdfError::Cancelled);
                         }
@@ -58,10 +57,7 @@ impl PdfWorker {
                             reader,
                             (!password.is_empty()).then_some(password.as_str()),
                         )?;
-                        if failed.load(Ordering::Acquire) {
-                            return Err(PdfError::Resource);
-                        }
-                        let count = document.page_count();
+                        let count = document.page_count()?;
                         if count == 0 {
                             return Err(PdfError::Invalid);
                         }
@@ -80,11 +76,6 @@ impl PdfWorker {
                             let result = super::engine::render(
                                 &document, job.page, job.edge, job.text, cancelled,
                             );
-                            let result = if failed.load(Ordering::Acquire) {
-                                Err(PdfError::Resource)
-                            } else {
-                                result
-                            };
                             let _ = job.reply.try_send(result);
                         }
                         Ok(())

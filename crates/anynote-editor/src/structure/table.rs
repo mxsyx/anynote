@@ -53,41 +53,23 @@ impl Structure<'_> {
         values: &[Vec<String>],
         millis: u64,
     ) -> StructureResult<Transaction> {
-        let (rows, columns) = self.table_size(path)?;
-        validate_cell(rows, columns, origin)?;
-        let width = values.first().map_or(0, Vec::len);
-        if width == 0 || values.iter().any(|r| r.len() != width) {
-            return Err(StructureError::InvalidTable);
-        }
-        let next_rows = rows.max(
-            origin
-                .row
-                .checked_add(values.len())
-                .ok_or(StructureError::Budget)?,
-        );
-        let next_columns = columns.max(
-            origin
-                .column
-                .checked_add(width)
-                .ok_or(StructureError::Budget)?,
-        );
-        table_budget(next_rows, next_columns)?;
+        let cells = values
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|value| {
+                        let mut node = StructureNode::new(NodeKind::Cell, vec![]);
+                        node.runs = crate::inline::normalize(vec![crate::inline::Run::literal(
+                            value.clone(),
+                            crate::inline::Marks::default(),
+                        )]);
+                        node
+                    })
+                    .collect()
+            })
+            .collect::<Vec<Vec<_>>>();
         let mut root = self.root.clone();
-        let table = root.node_mut(path)?;
-        for r in &mut table.children {
-            r.children
-                .resize_with(next_columns, || StructureNode::new(NodeKind::Cell, vec![]));
-        }
-        table.children.resize_with(next_rows, || row(next_columns));
-        for (r, values) in values.iter().enumerate() {
-            for (c, value) in values.iter().enumerate() {
-                let cell = &mut table.children[origin.row + r].children[origin.column + c];
-                cell.runs = crate::inline::normalize(vec![crate::inline::Run::literal(
-                    value.clone(),
-                    crate::inline::Marks::default(),
-                )]);
-            }
-        }
+        write_matrix(root.node_mut(path)?, origin, &cells)?;
         self.finish(
             root,
             Some(Caret {
@@ -354,6 +336,51 @@ fn table_budget(rows: usize, columns: usize) -> StructureResult<()> {
         .is_none_or(|n| n >= anynote_core::protocol::rich::MAX_BLOCK_NODES)
     {
         return Err(StructureError::Budget);
+    }
+    Ok(())
+}
+
+pub(super) fn write_matrix(
+    table: &mut StructureNode,
+    origin: CellAddress,
+    values: &[Vec<StructureNode>],
+) -> StructureResult<()> {
+    if table.kind != NodeKind::Table {
+        return Err(StructureError::InvalidTable);
+    }
+    let rows = table.children.len();
+    let columns = table.children.first().map_or(0, |row| row.children.len());
+    validate_cell(rows, columns, origin)?;
+    let width = values.first().map_or(0, Vec::len);
+    if width == 0
+        || values
+            .iter()
+            .any(|row| row.len() != width || row.iter().any(|cell| cell.kind != NodeKind::Cell))
+    {
+        return Err(StructureError::InvalidTable);
+    }
+    let next_rows = rows.max(
+        origin
+            .row
+            .checked_add(values.len())
+            .ok_or(StructureError::Budget)?,
+    );
+    let next_columns = columns.max(
+        origin
+            .column
+            .checked_add(width)
+            .ok_or(StructureError::Budget)?,
+    );
+    table_budget(next_rows, next_columns)?;
+    for row in &mut table.children {
+        row.children
+            .resize_with(next_columns, || StructureNode::new(NodeKind::Cell, vec![]));
+    }
+    table.children.resize_with(next_rows, || row(next_columns));
+    for (r, row) in values.iter().enumerate() {
+        for (c, value) in row.iter().enumerate() {
+            table.children[origin.row + r].children[origin.column + c].runs = value.runs.clone();
+        }
     }
     Ok(())
 }

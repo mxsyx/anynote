@@ -23,7 +23,7 @@
 
 标题/引用/列表前缀、slash、插入菜单、工具条、选区浮条和快捷键共用 `RunCommand`。支持 marks/link、任务勾选、表格行列/Tab/TSV、段落替换、块移动、撤销/重做、搜索和原文入口。正文跨普通顶层段落替换为一笔事务；opaque 保留原始字节，可整块复制、移动、删除或进入原文。块拖放携带宿主 entity 与 generation，拒绝跨文档及过期拖动；块菜单提供键盘可用的上移/下移。
 
-跨嵌套列表/引用的文字端点通过 `Structure::replace_between` 裁剪选中子树，保留未选中的前后文字与 marks，将后端点的段落文字接到前端点容器。涉及表格端点时保留矩形单元格边界，清空选中内容而不删除行列；完全位于选区内部的块可以删除。结构重渲染继续经过语义回读校验。普通替换与组合提交共用预备事务；atom 端点仍须单独补齐，不能退回任意源字节删除。
+跨嵌套列表/引用的文字端点通过 `Structure::replace_between` 裁剪选中子树，保留未选中的前后文字与 marks，将后端点的段落文字接到前端点容器。涉及表格端点时保留矩形单元格边界，清空选中内容而不删除行列；完全位于选区内部的块可以删除。结构重渲染继续经过语义回读校验。普通替换与组合提交共用预备事务。atom 端点只接受 U+FFFC 的前后边界：选中的 atom 整块替换，未选中的 atom 保留原文；在其外侧物化段落落点，不拆分 atom 的源字节。虚拟空段落通过 `with_blank_boundary` 进入同一结构范围，投影同时恢复 anchor/head 所需的空端点，避免反向选区撤销后丢失落点。
 
 跨段落、列表、引用及单元格格式操作按同一 generation 准备所有 inline transaction，再合成一笔提交；代码与 atom 不接受行内格式。任何片段准备失败均不提交。最终逻辑选区在提交前映射到生成的源文本，保证反向选区及 redo 保持原位置。
 
@@ -35,11 +35,11 @@ GFM 没有可重解析为 task 的空 `- [ ] `。空任务意图只存在视图�
 
 原生 UTF-16 非空范围遇到代理对时向外取整，光标取前一标量边界，超尾范围截至结尾；RM16 对源范围的严格验证不变。组合开始冻结逻辑/源位置，preedit 不改文档或历史；支持 marked 区域内局部替换及选区更新，commit 一笔、cancel 保留 source/redo。越出冻结范围的组合更新明确拒绝。源码 preedit 活跃时阻止模式切换和共享 undo，避免程序化更新丢失未提交文字。
 
-组合输入可以从跨段落、嵌套列表/引用、代码和单元格的文字选区开始。预编辑期间保留冻结的结构容器与单元格分隔，将文字放到起始叶节点，遮去其他选中文字；只在提交时裁剪结构。surrounding text、可访问性文字、命中、选区着色和候选窗落点使用同一显示偏移，容器分隔不计入 marked range。取消时重新测量受影响行并恢复原反向选区；非法范围在启动组合前拒绝。范围内部的 atom 可随提交删除并随撤销恢复，atom 作为端点仍拒绝启动组合。这里的冻结布局与自动化接口测试不代表真实输入法候选窗或平台范围矩形验收。
+组合输入可以从跨段落、嵌套列表/引用、代码和单元格的文字选区开始。预编辑期间保留冻结的结构容器与单元格分隔，将文字放到起始叶节点，遮去其他选中文字；只在提交时裁剪结构。surrounding text、可访问性文字、命中、选区着色和候选窗落点使用同一显示偏移，容器分隔不计入 marked range。取消时重新测量受影响行并恢复原反向选区；非法范围在启动组合前拒绝。范围内部及端点选中的 atom 可随提交删除并随撤销恢复，未选中的端点 atom 保留。atom 端点预编辑使用同一个显示叶节点提供候选窗与光标几何；提交前原始源文档和历史均不变化。这里的冻结布局与自动化接口测试不代表真实输入法候选窗或平台范围矩形验收。
 
 源码二级入口使用 Kit `EditorState`，RM19 将每个 `InputEditsEvent` 的不可变最终 snapshot 映射为一次 core patch，不读取可能已超前的当前值来解释旧范围。程序化 `set_value` 不回发 edits；源码 undo/redo 被路由到同一 RM16 owner。本节记录 RM18 的共享历史与回声抑制证据；完整源码与保存进展见 [RM19](RUST-DOCUMENT-SESSION.md)。
 
-原生剪贴板支持纯文本、应用自身 Markdown 元数据和表格 TSV。复制单一富文本范围会生成平衡的 marks，opaque 复制保留原文；图片和文件导入走 [RM21 资源暂存与保存路径](RUST-IMAGE-MEDIA.md)。跨结构富片段复制/粘贴与原生 HTML MIME 不应按现有纯文本回退宣称完成。
+原生剪贴板支持纯文本、应用自身 Markdown 元数据和表格 TSV。复制单一富文本范围会生成平衡的 marks，opaque 复制保留原文；图片和文件导入走 [RM21 资源暂存与保存路径](RUST-IMAGE-MEDIA.md)。跨结构复制通过 `copy_between` 裁剪平衡子树，保留列表/引用、marks、代码及 atom 原文；部分表格保持矩形，范围外的单元格清空，避免复制未选中文字。富片段经 `paste_between` 与范围删除共用一次语义回读和事务，不能退回 Markdown 字面量输入。包含 opaque 块的片段粘入嵌套列表/引用时，拆开周围容器并把 opaque 块保留为顶层原文。单元格接受带 marks 的文本及表格矩阵，表格矩阵复用已有扩容/预算规则；代码目标按字面源码插入，不支持的单元格块类型原子拒绝。原生 HTML MIME 仍属于 Kit 接口待办，应用 Markdown 元数据不代表系统 HTML 剪贴板。
 
 可访问性快照从完整投影构造，包括屏幕外内容、嵌套 list/item、blockquote、table/row/header/cell、link 和按 marks 分段的 TextRun。文本位置以 grapheme 的字节长度映射回同一个逻辑选区；视图变更立即清空旧映射，避免旧树操作命中新正文。marked text 的选择经 UTF-16 原生适配处理。语义树测试不证明平台文字范围几何或真实读屏行为。
 
@@ -59,7 +59,9 @@ python3 scripts/check-rust-workspace.py
 
 结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。
 
-`document_editor::tests` 覆盖跨结构/跨单元格事务、组合提交/取消、原子失败、反向选区 redo、语义树文字顺序、共享横向滚动、代码滚动和光标滚入、真实事件分发路径中的块拖动，以及无进一步鼠标移动的跨帧拖选。`image_ui::nested_range_paste_save_reopen_preserves_media_resource` 和 `nested_range_composition_save_reopen_preserves_media_resource` 使用生产后端与隔离 SQLite 库验证跨结构粘贴/组合输入、组合期间延后保存、单次 undo/redo、保存/重开及资源集合保留。GPUI 测试事件不等同于操作系统鼠标、输入法或读屏验收。
+`document_editor::tests` 覆盖跨结构/跨单元格事务、组合提交/取消、原子失败、反向选区 redo、语义树文字顺序、共享横向滚动、代码滚动和光标滚入、真实事件分发路径中的块拖动，以及无进一步鼠标移动的跨帧拖选。`image_ui` 的 nested/atom/blank endpoint 和 rich fragment 用例使用生产后端与隔离 SQLite 库验证跨结构粘贴/组合输入、组合期间延后保存、单次 undo/redo、保存/重开及资源集合保留。GPUI 测试事件不等同于操作系统鼠标、输入法或读屏验收。
+
+实际窗口入口：`cargo run -p anynote-desktop --example editor_input_probe --offline --locked`。该入口只创建临时生产编辑视图，含嵌套列表、atom、引用、混合方向文本、宽表格及长代码；不连接日常 Notebook。可选 `ANYNOTE_INPUT_PROBE_OUTPUT` 指向 `tmp/` 下的文件，用于核对实际窗口操作后的源文本。验证跨结构输入/撤销、单独滚动表格与代码、块把手拖放时，同时核对画面与源文档；工具报 `noWindowsAvailable` 或原生操作未改变状态时不得计为通过。IME preedit/候选窗仍需实际输入法，直接插入 Unicode 或调用 `EntityInputHandler` 不替代这一证据。
 
 ## 验收约束
 

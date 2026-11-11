@@ -72,6 +72,8 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             | Command::CropImage { .. }
             | Command::ResizePath { .. }
             | Command::MovePoints { .. }
+            | Command::AddPoints { .. }
+            | Command::DeletePoints { .. }
             | Command::Points { .. }
     )
     .then(|| state.scene.clone());
@@ -81,12 +83,15 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
         Command::Lock { .. }
             | Command::View { .. }
             | Command::Insert { .. }
+            | Command::Paste { .. }
             | Command::Geometry { .. }
             | Command::ResizePath { .. }
             | Command::CropImage { .. }
             | Command::Text { .. }
             | Command::Points { .. }
             | Command::MovePoints { .. }
+            | Command::AddPoints { .. }
+            | Command::DeletePoints { .. }
             | Command::ResizeFrame { .. }
             | Command::BindText { .. }
             | Command::BindArrow { .. }
@@ -96,6 +101,16 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
         }
     }
     match command {
+        Command::Paste {
+            clipboard,
+            ids,
+            delta,
+        } => {
+            let insert = clipboard.insert(scene, ids, *delta)?;
+            execute(state, &insert)?;
+            state.editing_group = None;
+            return Ok(());
+        }
         Command::Insert { elements, files } => {
             let mut new_ids = BTreeSet::new();
             for value in elements {
@@ -575,6 +590,14 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             }
             super::path::move_points(scene.edit(id)?, &points)?;
         }
+        Command::AddPoints { id, points } => {
+            require_no_text_layout(editable(scene, id)?)?;
+            super::path::add_points(scene.edit(id)?, points)?;
+        }
+        Command::DeletePoints { id, indices } => {
+            require_no_text_layout(editable(scene, id)?)?;
+            super::path::delete_points(scene.edit(id)?, indices)?;
+        }
         Command::Group { id } => {
             if selected.len() < 2 {
                 return Ok(());
@@ -667,11 +690,18 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             detach_references(scene, &selected)?;
             state.selected.clear();
         }
-        Command::Duplicate { ids, groups, delta } => {
+        Command::Duplicate {
+            ids,
+            groups,
+            seeds,
+            delta,
+        } => {
             delta.validate()?;
-            if ids.keys().cloned().collect::<BTreeSet<_>>() != selected {
+            if ids.keys().cloned().collect::<BTreeSet<_>>() != selected
+                || seeds.keys().cloned().collect::<BTreeSet<_>>() != selected
+            {
                 return Err(invalid(
-                    "duplicate requires an ID mapping for the expanded selection",
+                    "duplicate requires IDs and seeds for the expanded selection",
                 ));
             }
             let mut fresh = BTreeSet::new();
@@ -731,53 +761,10 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 .collect();
             let mut copies: BTreeMap<usize, Vec<Arc<Element>>> = BTreeMap::new();
             for element in &scene.elements {
-                if let Some(new_id) = ids.get(element.id()) {
-                    let mut copy = element.as_ref().clone();
-                    copy.fields.insert("id".into(), json!(new_id));
-                    copy.geometry()?.translated(*delta)?.write(&mut copy);
-                    for name in ["containerId", "frameId"] {
-                        if let Some(old) = copy.reference(name) {
-                            let next = ids.get(old).map(|id| json!(id)).unwrap_or(Value::Null);
-                            copy.fields.insert(name.into(), next);
-                        }
-                    }
-                    for name in ["startBinding", "endBinding"] {
-                        if let Some(binding) = copy.fields.get_mut(name).filter(|v| !v.is_null()) {
-                            if let Some(new) = binding
-                                .get("elementId")
-                                .and_then(Value::as_str)
-                                .and_then(|id| ids.get(id))
-                            {
-                                binding["elementId"] = json!(new);
-                            } else {
-                                *binding = Value::Null;
-                            }
-                        }
-                    }
-                    if let Some(bound) = copy
-                        .fields
-                        .get_mut("boundElements")
-                        .and_then(Value::as_array_mut)
-                    {
-                        bound.retain_mut(|binding| {
-                            if let Some(id) = binding
-                                .get("id")
-                                .and_then(Value::as_str)
-                                .and_then(|id| ids.get(id))
-                            {
-                                binding["id"] = json!(id);
-                                true
-                            } else {
-                                false
-                            }
-                        });
-                    }
-                    let new_groups: Vec<_> = element
-                        .group_ids()
-                        .iter()
-                        .map(|id| groups.get(*id).map(String::as_str).unwrap_or(id))
-                        .collect();
-                    copy.fields.insert("groupIds".into(), json!(new_groups));
+                if ids.contains_key(element.id()) {
+                    let mut copy = super::transfer::remap(element, ids, groups, *delta, true)?;
+                    copy.fields
+                        .insert("seed".into(), json!(seeds[element.id()]));
                     copies
                         .entry(slots[&cluster(element)])
                         .or_default()

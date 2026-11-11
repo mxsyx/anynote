@@ -351,7 +351,7 @@ export function editingCases() {
   });
 }
 
-export function frameCases() {
+export function frameCases(curved = false) {
   const {
     restoreElements,
     Scene,
@@ -376,7 +376,10 @@ export function frameCases() {
     ...extra,
   });
   return [0, 0.6].flatMap((angle) =>
-    ["rectangle", "ellipse", "diamond", "line"].map((type) => {
+    (curved
+      ? ["line", "arrow"]
+      : ["rectangle", "ellipse", "diamond", "line"]
+    ).map((type) => {
       let elements = restoreElements(
         [
           shape("frame", 0, 0, {
@@ -388,10 +391,17 @@ export function frameCases() {
           shape("inside", 40, 40, {
             type,
             angle,
-            points: [
-              [0, 0],
-              [40, 30],
-            ],
+            ...(curved ? { roundness: { type: 2 } } : {}),
+            points: curved
+              ? [
+                  [0, 0],
+                  [-60, 80],
+                  [40, 30],
+                ]
+              : [
+                  [0, 0],
+                  [40, 30],
+                ],
             frameId: "frame",
           }),
           shape("edge", 185, 185, { angle, frameId: "frame" }),
@@ -454,7 +464,11 @@ export function frameCases() {
         });
       }
       scene.destroy();
-      return { name: `frame/${type}/${angle}`, initial, steps };
+      return {
+        name: `${curved ? "curve-frame" : "frame"}/${type}/${angle}`,
+        initial,
+        steps,
+      };
     }),
   );
 }

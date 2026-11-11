@@ -29,14 +29,13 @@ pub(crate) fn run(
                 return Err(PdfError::Cancelled);
             }
             let reader = super::ResourceReader::open(client, scope)?;
-            let failure = reader.failure_flag();
             if check() {
                 return Err(PdfError::Cancelled);
             }
             let doc =
                 super::engine::open(reader, (!password.is_empty()).then_some(password.as_str()))?;
             let mut remaining = anynote_core::pdf::MAX_INDEX_UTF16;
-            let total = doc.page_count();
+            let total = doc.page_count()?;
             let pages = total.min(anynote_core::pdf::MAX_INDEX_PAGES as u16);
             let mut hits = vec![];
             let mut partial = pages < total;
@@ -44,9 +43,6 @@ pub(crate) fn run(
                 let (text, truncated) = super::engine::extract(&doc, page, remaining, check)?;
                 remaining -= text.encode_utf16().count();
                 hits.extend(super::selection::find(&text, &query, page));
-                if failure.load(Ordering::Acquire) {
-                    return Err(PdfError::Resource);
-                }
                 if truncated || hits.len() >= 1000 {
                     hits.truncate(1000);
                     partial = true;

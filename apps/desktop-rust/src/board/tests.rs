@@ -119,3 +119,30 @@ fn moving_media_does_not_reload_but_text_changes_do() {
         .unwrap();
     assert!(!assets::same_inputs(&scene, board.scene()));
 }
+
+#[test]
+fn clipboard_duplicate_in_editing_group_remaps_only_child_groups() {
+    let mut board = Board::new(Scene::from_json(json!({"elements":[
+        {"id":"a","type":"rectangle","x":0,"y":0,"width":10,"height":10,"angle":0,"groupIds":["child","parent"]},
+        {"id":"b","type":"rectangle","x":20,"y":0,"width":10,"height":10,"angle":0,"groupIds":["child","parent"]},
+        {"id":"c","type":"rectangle","x":40,"y":0,"width":10,"height":10,"angle":0,"groupIds":["parent"]}
+    ]})).unwrap(), 8);
+    board.edit_group(Some("parent".into())).unwrap();
+    board.select(["a".into()]).unwrap();
+    let before = board.scene().serialize().unwrap();
+    let command = clipboard::duplicate(&board, Point::new(10.0, 10.0));
+    board.apply(command, stamp()).unwrap();
+    assert_eq!(board.selected_ids().len(), 2);
+    for id in board.selected_ids() {
+        let groups = board
+            .scene()
+            .element(id)
+            .unwrap()
+            .field("groupIds")
+            .unwrap();
+        assert_ne!(groups[0], "child");
+        assert_eq!(groups[1], "parent");
+    }
+    assert!(board.undo());
+    assert_eq!(board.scene().serialize().unwrap(), before);
+}

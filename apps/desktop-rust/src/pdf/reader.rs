@@ -3,10 +3,6 @@ use crate::backend_client::{BackendClient, Response};
 use anynote_core::{asset::*, backend::*};
 use std::{
     io::{self, Read, Seek, SeekFrom},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
     time::Duration,
 };
 use uuid::Uuid;
@@ -17,7 +13,6 @@ pub struct ResourceReader {
     hash: String,
     length: u64,
     position: u64,
-    failed: Arc<AtomicBool>,
 }
 fn request(client: &BackendClient, command: AssetCommand) -> Result<AssetReply, PdfError> {
     match client
@@ -39,7 +34,6 @@ impl ResourceReader {
             hash: String::new(),
             length: 0,
             position: 0,
-            failed: Arc::new(AtomicBool::new(false)),
         };
         let AssetReply::Opened { hash, length, mime } =
             request(&reader.client, AssetCommand::Open { scope, token })?
@@ -53,10 +47,6 @@ impl ResourceReader {
         reader.length = length;
         Ok(reader)
     }
-    #[cfg(feature = "media")]
-    pub(crate) fn failure_flag(&self) -> Arc<AtomicBool> {
-        self.failed.clone()
-    }
     pub fn hash(&self) -> &str {
         &self.hash
     }
@@ -67,8 +57,8 @@ impl ResourceReader {
 impl ResourceReader {
     fn read_range_into(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let total = (self.length - self.position).min(buf.len() as u64) as usize;
-        // Pdfium 7350 can CHECK-fail on an interrupted custom-file read. Cancellation
-        // belongs between native calls; an in-flight callback must finish its range.
+        // Cancellation belongs between native calls so an in-flight callback finishes
+        // its range before the worker releases the resource lease.
         for part in buf[..total].chunks_mut(MAX_CHUNK_BYTES) {
             let reply = request(
                 &self.client,
@@ -93,11 +83,7 @@ impl ResourceReader {
 }
 impl Read for ResourceReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let result = self.read_range_into(buf);
-        if result.is_err() {
-            self.failed.store(true, Ordering::Release);
-        }
-        result
+        self.read_range_into(buf)
     }
 }
 impl Seek for ResourceReader {

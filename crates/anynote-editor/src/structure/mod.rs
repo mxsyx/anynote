@@ -123,6 +123,33 @@ impl<'a> Structure<'a> {
     pub fn root(&self) -> &StructureNode {
         &self.root
     }
+    /// Include a view-only empty paragraph at a source boundary outside the selected blocks.
+    pub fn with_blank_boundary(mut self, at: usize, before: bool) -> StructureResult<Self> {
+        if !self.document.source().is_char_boundary(at)
+            || (before && at > self.span.start)
+            || (!before && at < self.span.end)
+        {
+            return Err(StructureError::InvalidPath);
+        }
+        let gap = if before {
+            at..self.span.start
+        } else {
+            self.span.end..at
+        };
+        if !self.document.source()[gap].trim().is_empty() {
+            return Err(StructureError::InvalidPath);
+        }
+        if before {
+            self.span.start = at;
+            self.root
+                .children
+                .insert(0, StructureNode::paragraph(vec![]));
+        } else {
+            self.span.end = at;
+            self.root.children.push(StructureNode::paragraph(vec![]));
+        }
+        Ok(self)
+    }
     pub fn insert_task_text(
         &self,
         path: &[usize],
@@ -709,44 +736,7 @@ impl<'a> Structure<'a> {
         markdown: &str,
         millis: u64,
     ) -> StructureResult<Transaction> {
-        let node = self.get(path)?;
-        if !matches!(node.kind, NodeKind::Paragraph | NodeKind::Heading(_)) {
-            return Err(StructureError::Unsupported);
-        }
-        let range = byte_range(&node.text(), range, unit)?;
-        let fragment = Document::new(markdown.into());
-        let mut inserted = Vec::new();
-        for block in fragment.blocks() {
-            inserted.push(StructureNode::from_block(&fragment, block)?);
-        }
-        let (left, _) = cut_runs(&node.runs, range.start);
-        let (_, right) = cut_runs(&node.runs, range.end);
-        if inserted
-            .first()
-            .is_none_or(|n| n.kind != NodeKind::Paragraph)
-        {
-            inserted.insert(0, StructureNode::paragraph(vec![]));
-        }
-        let first = &mut inserted[0];
-        first.runs = normalize([left, first.runs.clone()].concat());
-        first.kind = node.kind.clone();
-        if inserted.last().is_none_or(|n| {
-            n.kind != NodeKind::Paragraph && !matches!(n.kind, NodeKind::Heading(_))
-        }) {
-            inserted.push(StructureNode::paragraph(vec![]));
-        }
-        let last = inserted.last_mut().unwrap();
-        let offset = last.text().len();
-        last.runs = normalize([last.runs.clone(), right].concat());
-        let mut root = self.root.clone();
-        let (ix, parent) = path.split_last().ok_or(StructureError::InvalidPath)?;
-        let caret = Caret {
-            path: [parent, &[ix + inserted.len() - 1]].concat(),
-            offset,
-        };
-        root.node_mut(parent)?
-            .children
-            .splice(*ix..ix + 1, inserted);
+        let (root, caret) = paste_into(self.root.clone(), path, range, unit, markdown, None)?;
         self.finish(root, Some(caret), millis)
     }
     /// Plain clipboard text cannot introduce Markdown syntax or resource directives.
@@ -758,26 +748,8 @@ impl<'a> Structure<'a> {
         text: &str,
         millis: u64,
     ) -> StructureResult<Transaction> {
-        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-        let fragments = normalized
-            .split("\n\n")
-            .map(|text| {
-                crate::inline::encode_fragment(
-                    &[Run::literal(text.into(), Marks::default())],
-                    false,
-                    self.newline,
-                    None,
-                )
-                .map(|(text, _)| text)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.paste(
-            path,
-            range,
-            unit,
-            &fragments.join(&self.newline.repeat(2)),
-            millis,
-        )
+        let markdown = plain_markdown(text, self.newline)?;
+        self.paste(path, range, unit, &markdown, millis)
     }
     pub fn replace_text(
         &self,
@@ -806,6 +778,173 @@ impl<'a> Structure<'a> {
             millis,
         )
     }
+}
+
+fn paste_into(
+    mut root: StructureNode,
+    path: &[usize],
+    range: Range<usize>,
+    unit: TextUnit,
+    markdown: &str,
+    selected_end: Option<&[usize]>,
+) -> StructureResult<(StructureNode, Caret)> {
+    let node = root.node(path).ok_or(StructureError::InvalidPath)?;
+    if !matches!(
+        node.kind,
+        NodeKind::Paragraph | NodeKind::Heading(_) | NodeKind::Cell | NodeKind::Code { .. }
+    ) {
+        return Err(StructureError::Unsupported);
+    }
+    let range = byte_range(&node.text(), range, unit)?;
+    if matches!(node.kind, NodeKind::Code { .. }) {
+        root.node_mut(path)?
+            .code
+            .replace_range(range.clone(), markdown);
+        return Ok((
+            root,
+            Caret {
+                path: path.into(),
+                offset: range.start + markdown.len(),
+            },
+        ));
+    }
+    let fragment = Document::new(markdown.into());
+    let mut inserted = Vec::new();
+    for block in fragment.blocks() {
+        inserted.push(StructureNode::from_block(&fragment, block)?);
+    }
+    if node.kind == NodeKind::Cell {
+        if inserted.len() == 1 && inserted[0].kind == NodeKind::Table {
+            let mut rows = inserted[0]
+                .children
+                .iter()
+                .map(|row| row.children.clone())
+                .collect::<Vec<_>>();
+            let left = cut_runs(&node.runs, range.start).0;
+            let mut right = cut_runs(&node.runs, range.end).1;
+            // A matrix can cover the last selected cell. Move its unselected
+            // suffix to the end of the pasted fragment instead of overwriting it.
+            if let Some(end) = selected_end.filter(|end| {
+                end.len() == path.len()
+                    && *end != path
+                    && end[..end.len() - 2] == path[..path.len() - 2]
+                    && end[end.len() - 2] < path[path.len() - 2] + rows.len()
+                    && end[end.len() - 1] >= path[path.len() - 1]
+                    && end[end.len() - 1] < path[path.len() - 1] + rows[0].len()
+            }) {
+                right.extend(
+                    root.node(end)
+                        .ok_or(StructureError::InvalidPath)?
+                        .runs
+                        .clone(),
+                );
+            }
+            let first = &mut rows[0][0];
+            first.runs = normalize([left, first.runs.clone()].concat());
+            let last_row = rows.len() - 1;
+            let last_column = rows[last_row].len() - 1;
+            let last = &mut rows[last_row][last_column];
+            let offset = last.text().len();
+            last.runs = normalize([last.runs.clone(), right].concat());
+            let table_path = &path[..path.len() - 2];
+            let row = path[path.len() - 2];
+            let column = path[path.len() - 1];
+            table::write_matrix(
+                root.node_mut(table_path)?,
+                CellAddress::new(row, column),
+                &rows,
+            )?;
+            return Ok((
+                root,
+                Caret {
+                    path: [table_path, &[row + last_row, column + last_column]].concat(),
+                    offset,
+                },
+            ));
+        }
+        let mut runs = Vec::new();
+        for (ix, block) in inserted.iter().enumerate() {
+            if !matches!(block.kind, NodeKind::Paragraph | NodeKind::Heading(_)) {
+                return Err(StructureError::Unsupported);
+            }
+            if ix > 0 {
+                runs.push(Run::literal("\n".into(), Marks::default()));
+            }
+            runs.extend(block.runs.clone());
+        }
+        let offset = range.start + runs.iter().map(|run| run.text().len()).sum::<usize>();
+        let left = cut_runs(&node.runs, range.start).0;
+        let right = cut_runs(&node.runs, range.end).1;
+        root.node_mut(path)?.runs = normalize([left, runs, right].concat());
+        return Ok((
+            root,
+            Caret {
+                path: path.into(),
+                offset,
+            },
+        ));
+    }
+    if path.len() > 1 && inserted.iter().any(|node| node.kind == NodeKind::Atom) {
+        // Opaque blocks have only a top-level lossless spelling. Split the
+        // surrounding containers instead of indenting and reparsing their bytes.
+        let mut before = root.clone();
+        let mut after = root.clone();
+        range::retain_side(&mut before, path, range.start, true)?;
+        range::retain_side(&mut after, path, range.end, false)?;
+        let fragment = StructureNode::new(NodeKind::Root, vec![StructureNode::paragraph(vec![])]);
+        let (mut fragment, mut caret) =
+            paste_into(fragment, &[0], 0..0, TextUnit::Utf8, markdown, None)?;
+        caret.path[0] += before.children.len();
+        before.children.append(&mut fragment.children);
+        before.children.append(&mut after.children);
+        return Ok((before, caret));
+    }
+    let (left, _) = cut_runs(&node.runs, range.start);
+    let (_, right) = cut_runs(&node.runs, range.end);
+    if inserted
+        .first()
+        .is_none_or(|n| n.kind != NodeKind::Paragraph)
+    {
+        inserted.insert(0, StructureNode::paragraph(vec![]));
+    }
+    let first = &mut inserted[0];
+    first.runs = normalize([left, first.runs.clone()].concat());
+    first.kind = node.kind.clone();
+    if inserted
+        .last()
+        .is_none_or(|n| n.kind != NodeKind::Paragraph && !matches!(n.kind, NodeKind::Heading(_)))
+    {
+        inserted.push(StructureNode::paragraph(vec![]));
+    }
+    let last = inserted.last_mut().unwrap();
+    let offset = last.text().len();
+    last.runs = normalize([last.runs.clone(), right].concat());
+    let (ix, parent) = path.split_last().ok_or(StructureError::InvalidPath)?;
+    let caret = Caret {
+        path: [parent, &[ix + inserted.len() - 1]].concat(),
+        offset,
+    };
+    root.node_mut(parent)?
+        .children
+        .splice(*ix..ix + 1, inserted);
+    Ok((root, caret))
+}
+
+fn plain_markdown(text: &str, newline: &'static str) -> StructureResult<String> {
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let fragments = normalized
+        .split("\n\n")
+        .map(|text| {
+            crate::inline::encode_fragment(
+                &[Run::literal(text.into(), Marks::default())],
+                false,
+                newline,
+                None,
+            )
+            .map(|(text, _)| text)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(fragments.join(&newline.repeat(2)))
 }
 
 fn cut_runs(runs: &[Run], at: usize) -> (Vec<Run>, Vec<Run>) {

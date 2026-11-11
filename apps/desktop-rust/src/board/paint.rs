@@ -74,7 +74,7 @@ pub(super) fn paint(
     let dark = cx.theme().mode.is_dark();
     for e in input.scene().elements().filter(|e| !e.is_deleted()) {
         let points = outline(e);
-        let Some(b) = bounds(&points) else {
+        let Some(b) = super::geometry::visible_bounds(e) else {
             continue;
         };
         let origin = screen(BoardPoint::new(b[0], b[1]));
@@ -98,95 +98,118 @@ pub(super) fn paint(
         )
         .opacity(opacity);
         let screen_points: Vec<_> = points.iter().copied().map(screen).collect();
-        if e.kind() == ElementKind::Text {
-            if let Some(layout) = assets.texts.get(e.id()) {
-                let g = e.geometry().unwrap();
-                let alignment = match e.field("textAlign").and_then(Value::as_str) {
-                    Some("center") => 0.5,
-                    Some("right") => 1.,
-                    _ => 0.,
-                };
-                let offset = (g.width() - layout.width) * alignment;
-                let convert = |p: resvg::tiny_skia::Point| {
-                    screen(g.local_to_world(BoardPoint::new(p.x as f64 + offset, p.y as f64)))
-                };
-                for glyph in &layout.paths {
-                    let mut builder = PathBuilder::fill();
-                    for segment in glyph.segments() {
-                        use resvg::tiny_skia::PathSegment;
-                        match segment {
-                            PathSegment::MoveTo(p) => builder.move_to(convert(p)),
-                            PathSegment::LineTo(p) => builder.line_to(convert(p)),
-                            PathSegment::QuadTo(a, b) => builder.curve_to(convert(b), convert(a)),
-                            PathSegment::CubicTo(a, b, c) => {
-                                builder.cubic_bezier_to(convert(c), convert(a), convert(b))
+        let clip = super::geometry::frame_clip(input.scene(), e).map(|b| {
+            let origin = screen(BoardPoint::new(b[0], b[1]));
+            let end = screen(BoardPoint::new(b[2], b[3]));
+            ContentMask {
+                bounds: Bounds::new(origin, size(end.x - origin.x, end.y - origin.y)),
+            }
+        });
+        window.with_content_mask(clip, |window| {
+            if e.kind() == ElementKind::Text {
+                if let Some(layout) = assets.texts.get(e.id()) {
+                    let g = e.geometry().unwrap();
+                    let alignment = match e.field("textAlign").and_then(Value::as_str) {
+                        Some("center") => 0.5,
+                        Some("right") => 1.,
+                        _ => 0.,
+                    };
+                    let offset = (g.width() - layout.width) * alignment;
+                    let convert = |p: resvg::tiny_skia::Point| {
+                        screen(g.local_to_world(BoardPoint::new(p.x as f64 + offset, p.y as f64)))
+                    };
+                    for glyph in &layout.paths {
+                        let mut builder = PathBuilder::fill();
+                        for segment in glyph.segments() {
+                            use resvg::tiny_skia::PathSegment;
+                            match segment {
+                                PathSegment::MoveTo(p) => builder.move_to(convert(p)),
+                                PathSegment::LineTo(p) => builder.line_to(convert(p)),
+                                PathSegment::QuadTo(a, b) => {
+                                    builder.curve_to(convert(b), convert(a))
+                                }
+                                PathSegment::CubicTo(a, b, c) => {
+                                    builder.cubic_bezier_to(convert(c), convert(a), convert(b))
+                                }
+                                PathSegment::Close => builder.close(),
                             }
-                            PathSegment::Close => builder.close(),
+                        }
+                        if let Ok(path) = builder.build() {
+                            window.paint_path(path, stroke);
                         }
                     }
-                    if let Ok(path) = builder.build() {
-                        window.paint_path(path, stroke);
-                    }
                 }
-            }
-        } else if e.kind() == ElementKind::Image {
-            if let Some(image) = assets.images.get(e.id()) {
-                let _ =
-                    window.paint_image(canvas, extent, Corners::default(), image.clone(), 0, false);
-            } else {
-                path(
-                    &screen_points,
-                    1.,
-                    false,
-                    &[px(4.), px(4.)],
-                    window,
-                    cx.theme().muted_foreground,
-                );
-                path(
-                    &[screen_points[0], screen_points[2]],
-                    1.,
-                    false,
-                    &[],
-                    window,
-                    cx.theme().muted_foreground,
-                );
-            }
-        } else {
-            if !is_path(e) && fill_color.a > 0. {
-                if e.field("fillStyle")
-                    .and_then(Value::as_str)
-                    .unwrap_or("solid")
-                    == "solid"
-                {
-                    path(&screen_points, 0., true, &[], window, fill_color);
+            } else if e.kind() == ElementKind::Image {
+                if let Some(image) = assets.images.get(e.id()) {
+                    let _ = window.paint_image(
+                        canvas,
+                        extent,
+                        Corners::default(),
+                        image.clone(),
+                        0,
+                        false,
+                    );
                 } else {
-                    hatch(&points, zoom, &screen, window, fill_color, false);
-                    if e.field("fillStyle").and_then(Value::as_str) == Some("cross-hatch") {
-                        hatch(&points, zoom, &screen, window, fill_color, true);
+                    path(
+                        &screen_points,
+                        1.,
+                        false,
+                        &[px(4.), px(4.)],
+                        window,
+                        cx.theme().muted_foreground,
+                    );
+                    path(
+                        &[screen_points[0], screen_points[2]],
+                        1.,
+                        false,
+                        &[],
+                        window,
+                        cx.theme().muted_foreground,
+                    );
+                }
+            } else {
+                if !is_path(e) && fill_color.a > 0. {
+                    if e.field("fillStyle")
+                        .and_then(Value::as_str)
+                        .unwrap_or("solid")
+                        == "solid"
+                    {
+                        path(&screen_points, 0., true, &[], window, fill_color);
+                    } else {
+                        hatch(&points, zoom, &screen, window, fill_color, false);
+                        if e.field("fillStyle").and_then(Value::as_str) == Some("cross-hatch") {
+                            hatch(&points, zoom, &screen, window, fill_color, true);
+                        }
                     }
                 }
+                let width = number(e, "strokeWidth", 1.).clamp(0., 100.) as f32 * zoom as f32;
+                let dash = match e.field("strokeStyle").and_then(Value::as_str) {
+                    Some("dashed") => vec![px(width * 5.), px(width * 3.)],
+                    Some("dotted") => vec![px(width), px(width * 3.)],
+                    _ => vec![],
+                };
+                for points in super::geometry::strokes(e) {
+                    path(
+                        &points.into_iter().map(screen).collect::<Vec<_>>(),
+                        width,
+                        false,
+                        &dash,
+                        window,
+                        stroke,
+                    );
+                }
+                for head in super::geometry::arrowheads(e, &points) {
+                    path(
+                        &head.points.into_iter().map(screen).collect::<Vec<_>>(),
+                        width,
+                        head.filled,
+                        &[],
+                        window,
+                        stroke,
+                    );
+                }
             }
-            let width = number(e, "strokeWidth", 1.).clamp(0., 100.) as f32 * zoom as f32;
-            let dash = match e.field("strokeStyle").and_then(Value::as_str) {
-                Some("dashed") => vec![px(width * 5.), px(width * 3.)],
-                Some("dotted") => vec![px(width), px(width * 3.)],
-                _ => vec![],
-            };
-            path(&screen_points, width, false, &dash, window, stroke);
-            if let Some(points) = super::geometry::rough_outline(e, &points) {
-                path(
-                    &points.into_iter().map(screen).collect::<Vec<_>>(),
-                    width * 0.65,
-                    false,
-                    &dash,
-                    window,
-                    stroke.opacity(0.65),
-                );
-            }
-            for head in super::geometry::arrowheads(e, &points) {
-                path(&head.map(screen), width, false, &[], window, stroke);
-            }
-        }
+        });
         if input.board().selected_ids().contains(e.id()) {
             let mut selection = if is_path(e) {
                 points.clone()

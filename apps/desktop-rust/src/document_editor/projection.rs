@@ -94,7 +94,7 @@ impl Projection {
         }
         self.leaves[ix + 1].logical.start
     }
-    pub fn new(document: &Document, caret: usize) -> Self {
+    pub fn new(document: &Document, anchor: usize, head: usize) -> Self {
         let mut result = Self {
             leaves: vec![],
             rows: vec![],
@@ -161,57 +161,59 @@ impl Projection {
         }
         // Markdown has no node for a new empty paragraph. Keep its source caret as
         // a view-only leaf, including the landing place following the final atom.
-        let needs_blank = result.leaves.is_empty()
-            || !result
-                .leaves
-                .iter()
-                .any(|l| l.kind != NodeKind::Atom && l.span.start <= caret && caret <= l.span.end);
-        if needs_blank
-            && !document
-                .blocks()
-                .iter()
-                .any(|b| b.span().start < caret && caret < b.span().end)
-        {
-            let row_ix = result
-                .rows
-                .iter()
-                .position(|r| result.leaves[r.leaves.start].span.start >= caret)
-                .unwrap_or(result.rows.len());
-            let leaf_ix = result
-                .rows
-                .get(row_ix)
-                .map_or(result.leaves.len(), |r| r.leaves.start);
-            result.leaves.insert(
-                leaf_ix,
-                Leaf {
-                    id: LeafId {
-                        block: None,
-                        path: vec![0],
-                        blank: caret,
+        for caret in [head, anchor] {
+            let needs_blank = result.leaves.is_empty()
+                || !result
+                    .leaves
+                    .iter()
+                    .any(|l| l.span.start <= caret && caret <= l.span.end);
+            if needs_blank
+                && !document
+                    .blocks()
+                    .iter()
+                    .any(|b| b.span().start < caret && caret < b.span().end)
+            {
+                let row_ix = result
+                    .rows
+                    .iter()
+                    .position(|r| result.leaves[r.leaves.start].span.start >= caret)
+                    .unwrap_or(result.rows.len());
+                let leaf_ix = result
+                    .rows
+                    .get(row_ix)
+                    .map_or(result.leaves.len(), |r| r.leaves.start);
+                result.leaves.insert(
+                    leaf_ix,
+                    Leaf {
+                        id: LeafId {
+                            block: None,
+                            path: vec![0],
+                            blank: caret,
+                        },
+                        kind: NodeKind::Paragraph,
+                        text: String::new(),
+                        runs: vec![],
+                        span: caret..caret,
+                        logical: 0..0,
+                        scalars: vec![],
+                        indent: 0,
+                        quote: false,
+                        marker: None,
+                        task: None,
                     },
-                    kind: NodeKind::Paragraph,
-                    text: String::new(),
-                    runs: vec![],
-                    span: caret..caret,
-                    logical: 0..0,
-                    scalars: vec![],
-                    indent: 0,
-                    quote: false,
-                    marker: None,
-                    task: None,
-                },
-            );
-            for row in result.rows.iter_mut().skip(row_ix) {
-                row.leaves.start += 1;
-                row.leaves.end += 1;
+                );
+                for row in result.rows.iter_mut().skip(row_ix) {
+                    row.leaves.start += 1;
+                    row.leaves.end += 1;
+                }
+                result.rows.insert(
+                    row_ix,
+                    Row {
+                        leaves: leaf_ix..leaf_ix + 1,
+                        table: None,
+                    },
+                );
             }
-            result.rows.insert(
-                row_ix,
-                Row {
-                    leaves: leaf_ix..leaf_ix + 1,
-                    table: None,
-                },
-            );
         }
         for (ix, leaf) in result.leaves.iter_mut().enumerate() {
             if ix > 0 {

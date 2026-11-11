@@ -467,7 +467,7 @@ fn duplicate_remaps_internal_ids_and_keeps_file_identity() {
     );
     select(&mut board, &["element-0", "element-7"]);
     apply(&mut board, Command::Group { id: "g".into() });
-    let ids = BTreeMap::from([
+    let ids: BTreeMap<String, String> = BTreeMap::from([
         ("element-0".into(), "copy-shape".into()),
         ("element-3".into(), "copy-text".into()),
         ("element-7".into(), "copy-image".into()),
@@ -475,6 +475,7 @@ fn duplicate_remaps_internal_ids_and_keeps_file_identity() {
     apply(
         &mut board,
         Command::Duplicate {
+            seeds: ids.keys().map(|id| (id.clone(), 137)).collect(),
             ids,
             groups: BTreeMap::from([("g".into(), "copy-group".into())]),
             delta: Point::new(20.0, 20.0),
@@ -704,6 +705,21 @@ fn assert_json_matches(actual: &Value, expected: &Value, path: &str) {
     }
 }
 
+fn is_geometry_number(path: &str) -> bool {
+    let Some((_, field)) = path.rsplit_once("/elements/") else {
+        return false;
+    };
+    let Some((_, field)) = field.split_once('/') else {
+        return false;
+    };
+    matches!(field, "x" | "y" | "width" | "height" | "angle")
+        || field.starts_with("points/")
+        || matches!(
+            field.strip_prefix("crop/"),
+            Some("x" | "y" | "width" | "height" | "naturalWidth" | "naturalHeight")
+        )
+}
+
 #[test]
 fn negative_path_points_rotate_about_their_actual_center() {
     let mut scene: Value = serde_json::from_str(INPUT).unwrap();
@@ -794,7 +810,7 @@ fn upstream_crop_and_path_geometry_matches_and_roundtrips_history() {
         assert_geometry_matches(
             &normalized(board.scene())["elements"][0],
             &expected,
-            case["name"].as_str().unwrap(),
+            &format!("{}/elements/0", case["name"].as_str().unwrap()),
         );
         let after = board.scene().serialize().unwrap();
         if changed {
@@ -824,12 +840,15 @@ fn assert_geometry_matches(actual: &Value, expected: &Value, path: &str) {
                 assert_geometry_matches(a, b, &format!("{path}/{i}"));
             }
         }
-        (Value::Number(a), Value::Number(b)) => {
+        (Value::Number(a), Value::Number(b)) if is_geometry_number(path) => {
             let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
             assert!(
                 (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0),
                 "number at {path}: {a} != {b}"
             );
+        }
+        (Value::Number(a), Value::Number(b)) if a.is_f64() || b.is_f64() => {
+            assert_eq!(a.as_f64(), b.as_f64(), "number at {path}");
         }
         _ => assert_eq!(actual, expected, "value at {path}"),
     }
@@ -926,10 +945,20 @@ fn repeated_crop_accepts_boundary_roundoff_and_preserves_unknown_crop_data() {
 
 #[test]
 fn upstream_open_bindings_and_control_points_roundtrip() {
-    let traces: Vec<Value> = serde_json::from_str(include_str!(
+    assert_geometry_traces(include_str!(
         "../../../tests/fixtures/rust-board/bindings.json"
-    ))
-    .unwrap();
+    ));
+}
+
+#[test]
+fn upstream_curves_and_control_point_topology_roundtrip() {
+    assert_geometry_traces(include_str!(
+        "../../../tests/fixtures/rust-board/curves.json"
+    ));
+}
+
+fn assert_geometry_traces(source: &str) {
+    let traces: Vec<Value> = serde_json::from_str(source).unwrap();
     for trace in traces {
         let original = serde_json::to_string(&trace["initial"]).unwrap();
         let mut board = Board::new(Scene::parse(&original).unwrap(), 128);
@@ -947,10 +976,26 @@ fn upstream_open_bindings_and_control_points_roundtrip() {
                         .map(|id| id.as_str().unwrap().to_owned()),
                 )
                 .unwrap();
-            let command = serde_json::from_value(step["command"].clone()).unwrap();
+            let command: Command = serde_json::from_value(step["command"].clone()).unwrap();
+            let saved = board.scene().serialize().unwrap();
+            let mut reopened = Board::new(Scene::parse(&saved).unwrap(), 128);
+            reopened
+                .edit_group(board.editing_group().map(str::to_owned))
+                .unwrap();
+            reopened
+                .select(board.selected_ids().iter().cloned())
+                .unwrap();
+            reopened.apply(command.clone(), stamp()).unwrap();
             let changed = board
                 .apply(command, stamp())
                 .unwrap_or_else(|e| panic!("{} / {}: {e}", trace["name"], step["action"]));
+            assert_eq!(
+                reopened.scene().serialize().unwrap(),
+                board.scene().serialize().unwrap(),
+                "continued editing after reopen: {} / {}",
+                trace["name"],
+                step["action"]
+            );
             assert_geometry_matches(
                 &normalized(board.scene()),
                 &step["expected"],
@@ -988,6 +1033,7 @@ fn editing_group_limits_selection_and_duplicate_preserves_ancestors() {
         Command::Duplicate {
             ids: BTreeMap::from([("element-0".into(), "copy".into())]),
             groups: BTreeMap::new(),
+            seeds: BTreeMap::from([("element-0".into(), 137)]),
             delta: Point::new(10.0, 10.0),
         },
     );
@@ -1030,7 +1076,6 @@ fn dependent_layout_failure_preserves_original_selection_and_redo() {
     .unwrap();
     for patch in [
         json!({"elbowed":true}),
-        json!({"roundness":{"type":2},"points":[[0,0],[80,-30],[180,120]]}),
         json!({"boundElements":[{"id":"label","type":"text"}]}),
     ] {
         let mut initial = traces[0]["initial"].clone();
@@ -1155,4 +1200,228 @@ fn frame_resize_refreshes_expanded_selection_without_moving_children() {
     );
     assert_eq!(board.scene().serialize().unwrap(), before);
     assert!(board.has_redo());
+}
+
+#[test]
+fn clipboard_transfer_is_atomic_and_preserves_resource_and_binding_closure() {
+    use anynote_editor::board::{Clipboard, TransferIds};
+    let mut source = board();
+    select(&mut source, &["element-0", "element-7"]);
+    apply(&mut source, Command::Group { id: "group".into() });
+    let source_bytes = source.scene().serialize().unwrap();
+    let encoded = Clipboard::from_board(&source).unwrap().serialize().unwrap();
+    let fragment = Clipboard::parse(&encoded).unwrap();
+    assert_eq!(fragment.elements().len(), 2);
+    assert_eq!(fragment.files().len(), 1);
+    let old_file = fragment
+        .elements()
+        .iter()
+        .find_map(|e| e["fileId"].as_str())
+        .unwrap()
+        .to_owned();
+    let ids = TransferIds::new(
+        BTreeMap::from([
+            ("element-0".into(), "copy-shape".into()),
+            ("element-7".into(), "copy-image".into()),
+        ]),
+        BTreeMap::from([("group".into(), "copy-group".into())]),
+        BTreeMap::from([(old_file.clone(), "copy-file".into())]),
+    );
+    let command = fragment.paste(ids, Point::new(50.0, 75.0));
+    let mut target = board();
+    let original = target.scene().serialize().unwrap();
+    apply(&mut target, command.clone());
+    assert_eq!(source.scene().serialize().unwrap(), source_bytes);
+    let image = target.scene().element("copy-image").unwrap();
+    assert_eq!(image.field("fileId"), Some(&json!("copy-file")));
+    assert_eq!(image.field("groupIds"), Some(&json!(["copy-group"])));
+    let mut expected_file = source.scene().field("files").unwrap()[&old_file].clone();
+    expected_file["id"] = json!("copy-file");
+    assert_eq!(
+        target.scene().field("files").unwrap()["copy-file"],
+        expected_file
+    );
+    let pasted = target.scene().serialize().unwrap();
+    let selected = target.selected_ids().clone();
+    assert!(target.apply(command.clone(), stamp()).is_err());
+    assert_eq!(target.scene().serialize().unwrap(), pasted);
+    assert_eq!(target.selected_ids(), &selected);
+    assert!(target.undo());
+    assert_eq!(target.scene().serialize().unwrap(), original);
+    let invalid: Command = serde_json::from_value({
+        let mut value = serde_json::to_value(command).unwrap();
+        value["ids"]["files"] = json!({});
+        value
+    })
+    .unwrap();
+    assert!(
+        target
+            .apply_batch(&[style(json!({"opacity":25})), invalid], stamp())
+            .is_err()
+    );
+    assert_eq!(target.scene().serialize().unwrap(), original);
+    assert!(target.has_redo());
+    assert!(target.redo());
+    assert_eq!(target.scene().serialize().unwrap(), pasted);
+}
+
+#[test]
+fn invalid_point_topology_preserves_redo_selection_and_original_bytes() {
+    let mut board = board();
+    select(&mut board, &["element-4"]);
+    apply(&mut board, style(json!({"opacity": 30})));
+    assert!(board.undo());
+    let original = board.scene().serialize().unwrap();
+    let selected = board.selected_ids().clone();
+    for command in [
+        Command::DeletePoints {
+            id: "element-4".into(),
+            indices: vec![0],
+        },
+        Command::DeletePoints {
+            id: "element-4".into(),
+            indices: vec![1, 1],
+        },
+        Command::DeletePoints {
+            id: "element-4".into(),
+            indices: vec![99],
+        },
+        Command::AddPoints {
+            id: "element-4".into(),
+            points: vec![Point::new(f64::NAN, 1.0)],
+        },
+        Command::AddPoints {
+            id: "element-6".into(),
+            points: vec![Point::new(1.0, 1.0)],
+        },
+    ] {
+        assert!(
+            board
+                .apply_batch(&[style(json!({"strokeColor":"red"})), command], stamp())
+                .is_err()
+        );
+        assert_eq!(board.scene().serialize().unwrap(), original);
+        assert_eq!(board.selected_ids(), &selected);
+        assert!(board.has_redo());
+    }
+    assert!(
+        !board
+            .apply(
+                Command::AddPoints {
+                    id: "element-4".into(),
+                    points: vec![]
+                },
+                stamp()
+            )
+            .unwrap()
+    );
+    assert!(board.has_redo());
+}
+
+#[test]
+fn library_operations_preserve_unknown_data_and_insert_through_board_history() {
+    use anynote_editor::board::{Library, TransferIds};
+    use std::collections::BTreeSet;
+    let original = "{ \"type\":\"excalidrawlib\",\"version\":2,\"future\":{\"keep\":9007199254740993},\"libraryItems\":[] }";
+    let mut library = Library::parse(original).unwrap();
+    assert_eq!(library.serialize().unwrap(), original);
+    let mut source = board();
+    select(&mut source, &["element-0"]);
+    library.add_selection(&source, "first", 100).unwrap();
+    let first = library.serialize().unwrap();
+    assert!(library.add_selection(&source, "first", 101).is_err());
+    assert_eq!(library.serialize().unwrap(), first);
+    select(&mut source, &["element-7"]);
+    assert!(library.add_selection(&source, "image", 101).is_err());
+    assert_eq!(library.serialize().unwrap(), first);
+    select(&mut source, &["element-1"]);
+    library.add_selection(&source, "second", 101).unwrap();
+    assert!(library.reorder(&["first".into(), "second".into()]).unwrap());
+    let before_invalid = library.serialize().unwrap();
+    assert!(library.reorder(&["first".into(), "first".into()]).is_err());
+    assert!(library.remove(&BTreeSet::from(["missing".into()])).is_err());
+    assert_eq!(library.serialize().unwrap(), before_invalid);
+    let other = Library::parse(&library.serialize().unwrap()).unwrap();
+    assert!(!library.merge(&other).unwrap());
+    assert_eq!(library.serialize().unwrap(), before_invalid);
+    library.remove(&BTreeSet::from(["second".into()])).unwrap();
+    let fragment = library.clipboard("first").unwrap();
+    let mut destination = board();
+    let before = destination.scene().serialize().unwrap();
+    apply(
+        &mut destination,
+        fragment.paste(
+            TransferIds::new(
+                BTreeMap::from([("element-0".into(), "from-library".into())]),
+                BTreeMap::new(),
+                BTreeMap::new(),
+            ),
+            Point::new(20.0, 30.0),
+        ),
+    );
+    assert!(destination.scene().element("from-library").is_some());
+    assert!(destination.undo());
+    assert_eq!(destination.scene().serialize().unwrap(), before);
+    assert!(destination.redo());
+    let serialized = library.serialize().unwrap();
+    assert!(serialized.contains("9007199254740993"));
+    assert_eq!(
+        Library::parse(&serialized).unwrap().serialize().unwrap(),
+        serialized
+    );
+}
+
+#[test]
+fn upstream_library_merge_matches_element_identity_rules() {
+    use anynote_editor::board::Library;
+    let cases: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/library.json"
+    ))
+    .unwrap();
+    for case in cases {
+        let parse = |items: &Value| {
+            Library::parse(
+                &json!({"type":"excalidrawlib","version":2,"libraryItems":items}).to_string(),
+            )
+            .unwrap()
+        };
+        let mut library = parse(&case["local"]);
+        library.merge(&parse(&case["incoming"])).unwrap();
+        assert_eq!(
+            library.items(),
+            case["expected"].as_array().unwrap(),
+            "{}",
+            case["name"]
+        );
+        let encoded = library.serialize().unwrap();
+        assert_eq!(Library::parse(&encoded).unwrap().items(), library.items());
+    }
+}
+
+#[test]
+fn clipboard_rejects_malformed_references_before_transfer() {
+    use anynote_editor::board::Clipboard;
+    let base = json!({"type":"excalidraw/clipboard","elements":[{"id":"shape","type":"rectangle","x":0,"y":0,"width":10,"height":20,"angle":0}]});
+    assert!(Clipboard::parse(&base.to_string()).is_ok());
+    for (field, value) in [
+        ("frameId", json!(5)),
+        ("groupIds", json!(["ok", null])),
+        (
+            "startBinding",
+            json!({"elementId":"target","focus":2,"gap":5}),
+        ),
+        (
+            "endBinding",
+            json!({"elementId":"target","focus":0,"gap":-1}),
+        ),
+        ("boundElements", json!([{"id":"target"}])),
+        ("fileId", json!("missing")),
+    ] {
+        let mut value_to_parse = base.clone();
+        value_to_parse["elements"][0][field] = value;
+        assert!(
+            Clipboard::parse(&value_to_parse.to_string()).is_err(),
+            "{field}"
+        );
+    }
 }

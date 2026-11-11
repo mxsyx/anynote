@@ -59,6 +59,22 @@ pub fn png(scene: &Scene) -> Result<Vec<u8>, String> {
         .and_then(|v| v.get("viewBackgroundColor"));
     target.fill(color(background, "#ffffff", 1.));
     for e in scene.elements().filter(|e| !e.is_deleted()) {
+        let mask = super::geometry::frame_clip(scene, e).and_then(|b| {
+            let rect = Rect::from_xywh(
+                b[0] as f32,
+                b[1] as f32,
+                (b[2] - b[0]) as f32,
+                (b[3] - b[1]) as f32,
+            )?;
+            let mut mask = Mask::new(target.width(), target.height())?;
+            mask.fill_path(
+                &PathBuilder::from_rect(rect),
+                FillRule::Winding,
+                true,
+                transform,
+            );
+            Some(mask)
+        });
         let opacity = (number(e, "opacity", 100.) / 100.).clamp(0., 1.) as f32;
         let mut paint = Paint::default();
         paint.set_color(color(e.field("strokeColor"), "#1e1e1e", opacity));
@@ -91,7 +107,7 @@ pub fn png(scene: &Scene) -> Result<Vec<u8>, String> {
                 image.as_ref(),
                 &PixmapPaint::default(),
                 transform.pre_concat(image_transform),
-                None,
+                mask.as_ref(),
             );
         } else if e.kind() == ElementKind::Text {
             let layout = assets.texts.get(e.id()).ok_or("白板字体不可用")?;
@@ -114,7 +130,7 @@ pub fn png(scene: &Scene) -> Result<Vec<u8>, String> {
                 a.y() as f32,
             ));
             for p in &layout.paths {
-                target.fill_path(p, &paint, FillRule::Winding, t, None);
+                target.fill_path(p, &paint, FillRule::Winding, t, mask.as_ref());
             }
         } else if let Some(p) = path(&points) {
             let width = number(e, "strokeWidth", 1.).clamp(0., 100.) as f32;
@@ -135,7 +151,7 @@ pub fn png(scene: &Scene) -> Result<Vec<u8>, String> {
                     .unwrap_or("solid")
                     == "solid"
                 {
-                    target.fill_path(&p, &fill, FillRule::Winding, transform, None);
+                    target.fill_path(&p, &fill, FillRule::Winding, transform, mask.as_ref());
                 } else {
                     for cross in [false, true] {
                         if cross
@@ -145,28 +161,33 @@ pub fn png(scene: &Scene) -> Result<Vec<u8>, String> {
                         }
                         super::geometry::hatch_lines(&points, cross, |pair| {
                             if let Some(p) = path(&pair) {
-                                target.stroke_path(&p, &fill, &Stroke::default(), transform, None);
+                                target.stroke_path(
+                                    &p,
+                                    &fill,
+                                    &Stroke::default(),
+                                    transform,
+                                    mask.as_ref(),
+                                );
                             }
                         });
                     }
                 }
             }
             if width > 0. {
-                target.stroke_path(&p, &paint, &stroke, transform, None);
-            }
-            if let Some(jitter) = super::geometry::rough_outline(e, &points) {
-                paint.set_color(color(e.field("strokeColor"), "#1e1e1e", opacity * 0.65));
-                stroke.width *= 0.65;
-                if let Some(p) = path(&jitter) {
-                    target.stroke_path(&p, &paint, &stroke, transform, None);
+                for points in super::geometry::strokes(e) {
+                    if let Some(p) = path(&points) {
+                        target.stroke_path(&p, &paint, &stroke, transform, mask.as_ref());
+                    }
                 }
-                stroke.width = width;
-                paint.set_color(color(e.field("strokeColor"), "#1e1e1e", opacity));
             }
             stroke.dash = None;
             for head in super::geometry::arrowheads(e, &points) {
-                if let Some(p) = path(&head) {
-                    target.stroke_path(&p, &paint, &stroke, transform, None);
+                if let Some(p) = path(&head.points) {
+                    if head.filled {
+                        target.fill_path(&p, &paint, FillRule::Winding, transform, mask.as_ref());
+                    } else {
+                        target.stroke_path(&p, &paint, &stroke, transform, mask.as_ref());
+                    }
                 }
             }
         }

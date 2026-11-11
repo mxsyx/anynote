@@ -290,6 +290,8 @@ export async function probeReachability(page, { base, css }) {
       await page
         .locator("canvas.interactive")
         .click({ position: { x: 600, y: 400 } });
+      await page.locator("textarea.excalidraw-wysiwyg").waitFor();
+      await capture("editing-text");
       await page
         .locator("textarea.excalidraw-wysiwyg")
         .fill("RM22 actual text");
@@ -327,6 +329,18 @@ export async function probeReachability(page, { base, css }) {
       `${type} upstream history`,
     );
     creations.push({ type, created: true, undo: true, redo: true });
+    if (type === "line" || type === "arrow") {
+      await page.keyboard.press("v");
+      await page
+        .locator("canvas.interactive")
+        .click({ position: { x: 670, y: 445 } });
+      await page.keyboard.press("Meta+Enter");
+      await page.waitForFunction(
+        () => !!globalThis.rm22Api.getAppState().editingLinearElement,
+      );
+      await capture(`editing-${type}`);
+      await page.keyboard.press("Escape");
+    }
   }
   await page.evaluate(() => globalThis.rm22Root.unmount());
   return {

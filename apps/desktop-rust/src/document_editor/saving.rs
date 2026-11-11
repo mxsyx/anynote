@@ -71,6 +71,19 @@ fn flush_documents(cx: &mut App, close: bool) -> FlushState {
     }
     result
 }
+pub(crate) fn cancel_quit(cx: &mut App) {
+    let Some(windows) = cx.try_global::<DocumentWindows>() else {
+        return;
+    };
+    for (window, editor) in windows.0.clone() {
+        let _ = window.update(cx, |_, _, cx| {
+            let _ = editor.update(cx, |editor, cx| {
+                editor.closing = false;
+                cx.notify();
+            });
+        });
+    }
+}
 pub fn open_document(snapshot: DocumentSnapshot, cx: &mut App) -> gpui_kit::Result<()> {
     open_document_at(snapshot, None, cx)
 }
@@ -332,7 +345,16 @@ impl DocumentEditor {
         self.flush_requested = true;
         self.pump_save(true, window, cx);
     }
+    fn finish_pending_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if (self.is_composing() || self.source_composing(window, cx))
+            && !window.finish_composition()
+        {
+            self.error = Some("请先完成当前输入，再关闭笔记".into());
+            cx.notify();
+        }
+    }
     pub(super) fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.finish_pending_input(window, cx);
         self.stop_video(cx);
         self.closing = true;
         if let Some(board) = self.board.clone() {
@@ -429,6 +451,19 @@ impl DocumentEditor {
             }
             cx.notify();
             return;
+        }
+        // Native unmark and a queued source edit can precede the subscription callback.
+        // Drain the widget snapshot at the save barrier, after composition ended.
+        if let Some(source) = &self.source {
+            let text = source.read(cx).value().to_string();
+            if let Err(error) = self.state.source_snapshot(&text) {
+                self.error = Some(error);
+                if let Some(save) = &mut self.state.save {
+                    save.status = session::SaveStatus::Failed(ErrorCode::InvalidRequest);
+                }
+                cx.notify();
+                return;
+            }
         }
         if self.saving {
             return;

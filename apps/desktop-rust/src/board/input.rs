@@ -1,6 +1,6 @@
 use super::geometry::{Viewport, bounds, distance, hit_test, is_path, outline};
 use anynote_editor::board::{
-    Board, Command, EditStamp, Element, ElementKind, Geometry, Point, Scene,
+    Board, Command, CropHandle, EditStamp, Element, ElementKind, Geometry, Point, Scene,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -87,6 +87,12 @@ enum Gesture {
         element: Element,
         index: usize,
     },
+    Crop {
+        id: String,
+        handle: CropHandle,
+        natural: [f64; 2],
+        ratio: f64,
+    },
 }
 
 /// Gesture state is transient; only `finish` publishes one RM22 transaction.
@@ -99,6 +105,8 @@ pub struct BoardInput {
     commands: Vec<Command>,
     error: Option<String>,
     selection_before: BTreeSet<String>,
+    group_before: Option<String>,
+    crop: Option<(String, [f64; 2])>,
 }
 impl BoardInput {
     pub fn new(scene: Scene) -> Self {
@@ -111,6 +119,8 @@ impl BoardInput {
             commands: vec![],
             error: None,
             selection_before: BTreeSet::new(),
+            group_before: None,
+            crop: None,
         }
     }
     pub fn board(&self) -> &Board {
@@ -130,7 +140,46 @@ impl BoardInput {
     }
     pub fn set_tool(&mut self, tool: Tool) {
         self.cancel();
+        self.crop = None;
         self.tool = tool;
+    }
+    pub fn edit_group(&mut self, id: Option<String>) {
+        self.cancel();
+        if let Err(error) = self.board.edit_group(id) {
+            self.set_error(error.to_string());
+        }
+    }
+    pub fn enter_group(&mut self, id: &str) {
+        let group = self.board.scene().element(id).and_then(|e| {
+            let groups = e.field("groupIds")?.as_array()?;
+            groups
+                .iter()
+                .rev()
+                .filter_map(Value::as_str)
+                .skip_while(|group| {
+                    self.board
+                        .editing_group()
+                        .is_some_and(|current| *group != current)
+                })
+                .nth(usize::from(self.board.editing_group().is_some()))
+                .map(str::to_owned)
+        });
+        if let Some(group) = group {
+            self.edit_group(Some(group));
+            self.select([id.to_owned()]);
+        }
+    }
+    pub fn start_crop(&mut self, id: String, natural: [f64; 2]) {
+        self.select([id.clone()]);
+        self.tool = Tool::Select;
+        self.crop = Some((id, natural));
+    }
+    pub fn is_cropping(&self) -> bool {
+        self.crop.is_some()
+    }
+    pub fn end_crop(&mut self) {
+        self.cancel();
+        self.crop = None;
     }
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
@@ -143,6 +192,7 @@ impl BoardInput {
     }
     pub fn select(&mut self, ids: impl IntoIterator<Item = String>) {
         self.cancel();
+        self.crop = None;
         if let Err(e) = self.board.select(ids) {
             self.error = Some(e.to_string());
         }
@@ -180,6 +230,7 @@ impl BoardInput {
     }
     pub fn cancel(&mut self) {
         if self.gesture.is_some() {
+            let _ = self.board.edit_group(self.group_before.clone());
             let _ = self.board.select(self.selection_before.clone());
         }
         self.gesture = None;
@@ -196,6 +247,7 @@ impl BoardInput {
         self.cancel();
         self.error = None;
         self.selection_before = self.board.selected_ids().clone();
+        self.group_before = self.board.editing_group().map(str::to_owned);
         let world = self.viewport.to_world(screen);
         if pan || self.tool == Tool::Hand {
             self.gesture = Some(Gesture::Pan { last: screen });
@@ -219,7 +271,23 @@ impl BoardInput {
             if !e.is_locked() {
                 for (index, p) in handles(e, self.viewport.zoom()).into_iter().enumerate() {
                     if distance(p, world) * self.viewport.zoom() <= 8. {
-                        self.gesture = Some(if is_path(e) {
+                        self.gesture = Some(if let Some((id, natural)) = &self.crop {
+                            if id != e.id() || index >= 4 {
+                                return;
+                            }
+                            Gesture::Crop {
+                                id: id.clone(),
+                                natural: *natural,
+                                handle: [
+                                    CropHandle::Nw,
+                                    CropHandle::Ne,
+                                    CropHandle::Se,
+                                    CropHandle::Sw,
+                                ][index],
+                                ratio: e.geometry().unwrap().width()
+                                    / e.geometry().unwrap().height(),
+                            }
+                        } else if is_path(e) {
                             Gesture::Vertex {
                                 element: e.clone(),
                                 index,
@@ -241,6 +309,7 @@ impl BoardInput {
                 }
             }
         }
+        self.crop = None;
         if let Some(id) = hit_test(self.board.scene(), world, self.viewport.zoom()) {
             let mut selected = if additive || self.board.selected_ids().contains(&id) {
                 self.board.selected_ids().clone()
@@ -250,6 +319,7 @@ impl BoardInput {
             if additive && selected.contains(&id) {
                 // Remove the whole expanded group, not just its clicked member.
                 let mut group = Board::new(self.board.scene().clone(), 0);
+                let _ = group.edit_group(self.board.editing_group().map(str::to_owned));
                 let _ = group.select([id]);
                 selected.retain(|id| !group.selected_ids().contains(id));
             } else {
@@ -277,6 +347,19 @@ impl BoardInput {
             return;
         };
         let commands = match gesture {
+            Gesture::Crop {
+                id,
+                handle,
+                natural,
+                ratio,
+            } => vec![Command::CropImage {
+                id: id.clone(),
+                handle: *handle,
+                natural_width: natural[0],
+                natural_height: natural[1],
+                pointer: world,
+                aspect_ratio: constrain.then_some(*ratio),
+            }],
             Gesture::Pan { last } => {
                 self.viewport
                     .pan_by(Point::new(screen.x() - last.x(), screen.y() - last.y()));
@@ -394,10 +477,19 @@ impl BoardInput {
                     g.angle(),
                 )
                 .unwrap();
-                vec![Command::Geometry {
-                    id: element.id().into(),
-                    geometry,
-                }]
+                vec![
+                    if matches!(element.kind(), ElementKind::Frame | ElementKind::MagicFrame) {
+                        Command::ResizeFrame {
+                            id: element.id().into(),
+                            geometry,
+                        }
+                    } else {
+                        Command::Geometry {
+                            id: element.id().into(),
+                            geometry,
+                        }
+                    },
+                ]
             }
             Gesture::Rotate { element, start } => {
                 let g = element.geometry().unwrap();
@@ -415,30 +507,29 @@ impl BoardInput {
                 }]
             }
             Gesture::Vertex { element, index } => {
-                let Ok(mut points) = serde_json::from_value::<Vec<Point>>(
+                let Ok(points) = serde_json::from_value::<Vec<Point>>(
                     element.field("points").cloned().unwrap_or(Value::Null),
                 ) else {
                     return;
                 };
-                // Rotating a point changes the path's rotation centre. Wait for RM22's path layout.
-                if element.geometry().unwrap().angle() != 0. {
-                    self.error = Some("旋转路径的控制点编辑尚未支持".into());
-                    return;
-                }
                 let g = element.geometry().unwrap();
-                points[*index] = Point::new(world.x() - g.x(), world.y() - g.y());
-                let pressures = element
-                    .field("pressures")
-                    .cloned()
-                    .and_then(|p| serde_json::from_value(p).ok());
-                vec![Command::Points {
+                let b = bounds(&points).unwrap();
+                let center = Point::new(g.x() + (b[0] + b[2]) / 2., g.y() + (b[1] + b[3]) / 2.);
+                let (sin, cos) = (-g.angle()).sin_cos();
+                let dx = world.x() - center.x();
+                let dy = world.y() - center.y();
+                let local = Point::new(
+                    center.x() + dx * cos - dy * sin - g.x(),
+                    center.y() + dx * sin + dy * cos - g.y(),
+                );
+                vec![Command::MovePoints {
                     id: element.id().into(),
-                    points,
-                    pressures,
+                    updates: vec![(*index, local)],
                 }]
             }
         };
         let mut preview = Board::new(self.board.scene().clone(), 0);
+        let _ = preview.edit_group(self.board.editing_group().map(str::to_owned));
         let result = preview
             .select(self.board.selected_ids().iter().cloned())
             .and_then(|_| preview.apply_batch(&commands, stamp()));
@@ -477,6 +568,9 @@ pub(super) fn stamp() -> EditStamp {
 }
 pub(super) fn handles(e: &Element, zoom: f64) -> Vec<Point> {
     if is_path(e) {
+        if e.field("elbowed") == Some(&json!(true)) {
+            return vec![];
+        }
         return e
             .world_points()
             .unwrap_or_default()
@@ -486,7 +580,12 @@ pub(super) fn handles(e: &Element, zoom: f64) -> Vec<Point> {
     }
     if !matches!(
         e.kind(),
-        ElementKind::Rectangle | ElementKind::Diamond | ElementKind::Ellipse | ElementKind::Image
+        ElementKind::Rectangle
+            | ElementKind::Diamond
+            | ElementKind::Ellipse
+            | ElementKind::Image
+            | ElementKind::Frame
+            | ElementKind::MagicFrame
     ) {
         return vec![];
     }
@@ -494,7 +593,9 @@ pub(super) fn handles(e: &Element, zoom: f64) -> Vec<Point> {
         return vec![];
     };
     let mut p = g.corners().to_vec();
-    p.push(g.local_to_world(Point::new(g.width() / 2., -24. / zoom)));
+    if !matches!(e.kind(), ElementKind::Frame | ElementKind::MagicFrame) {
+        p.push(g.local_to_world(Point::new(g.width() / 2., -24. / zoom)));
+    }
     p
 }
 pub(super) fn drawing(id: &str, tool: Tool, start: Point, end: Point, points: &[Point]) -> Value {

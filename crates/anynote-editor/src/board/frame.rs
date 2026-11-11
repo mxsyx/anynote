@@ -1,5 +1,5 @@
 use super::{BoardError, Element, ElementKind, Geometry, Point, Scene, path, scene::invalid};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn frame_like(e: &Element) -> bool {
@@ -15,13 +15,8 @@ fn outline(e: &Element) -> Result<Vec<Point>, BoardError> {
         e.kind(),
         ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw
     ) {
-        if e.field("roundness").is_some_and(|v| !v.is_null())
-            && e.field("points")
-                .and_then(Value::as_array)
-                .is_some_and(|p| p.len() > 2)
-        {
-            return Err(invalid("frame membership requires curved path bounds"));
-        }
+        // Excalidraw frame intersection uses the control polygon even for curves;
+        // full containment below uses the seeded Bezier extrema instead.
         return e.world_points();
     }
     if e.kind() == ElementKind::Unknown {

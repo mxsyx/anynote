@@ -16,9 +16,13 @@ PDF 使用 `Read + Seek` 接入原生 custom-file callback，每个后端范围�
 
 当前限制：单 PDF 最大 2 GiB，单页最长边 4096 像素（RGBA 最坏 64 MiB），单页文本最多 100000 glyph；超限显式报错。主页面持有一张纹理和文本几何，打开缩略图后只加载当前五页分组，最多另持有五张 160 像素缩略图。切页/缩放/关闭释放旧纹理；没有全书解码缓存。原生 bitmap、RGBA 转换和 GPU 上传期间有临时副本，不将 64 MiB 宣称为进程峰值内存。
 
-取消会清空排队请求、拒绝旧 generation、在 glyph 遍历和原生渲染前后检查。关闭、索引取消和搜索取消不再中断 `ResourceReader` 的在途 custom-file 回调：锁定 Pdfium 7350 在读取 stream 失败时可能触发 `CPDF_SyntaxParser::ReadStream` 的 CHECK，翻页后立即关闭曾由此触发 SIGTRAP。取消检查保留在打开/解析/渲染操作边界，在途同步读取完成后再释放；不是硬超时隔离。资源读取失败仍具有 sticky 标记，原生返回部分图像也不会发布成功结果。
+取消会清空排队请求、拒绝旧 generation、在 glyph 遍历和原生渲染前后检查。关闭、索引取消和搜索取消仍在原生操作边界检查，在途同步 custom-file 读取完成后再释放资源租约；没有引入硬超时或子进程隔离。
 
-真实后台断连的 reader 错误已有独立测试，但它不证明原生解析中的真实 IO 失败安全；7350 的同一 CHECK 风险仍须升级原生库或隔离验证，上游对应修复见 [PDFium ReadStream 检查修复](https://pdfium.googlesource.com/pdfium/+/4bd20bd51662ef0ffca72ccd6d1ac41999f2d009)。本次没有改变五平台 pin。用户可重试资源/密码错误；密码只驻留当前进程，不写配置、日志或 IPC。
+原生库固定为 `chromium/8152`，包含 [ReadStream 读取失败修复](https://pdfium.googlesource.com/pdfium/+/4bd20bd51662ef0ffca72ccd6d1ac41999f2d009)。7350 在 stream 字典解析后实际截断文件可复现 SIGTRAP；8152 对同一失败返回正常错误。该修复不代表对任意原生崩溃的进程隔离。
+
+`engine.rs` 的 `CallbackReader` 是读取失败的唯一状态所有者：绑定每次回调只调用一次 `Read`，引擎用 `read_exact` 填满请求范围，避免将短读的非零长度误报为完整成功。读取、意外 EOF 或 seek 错误设置 sticky 标记；打开、页数、渲染、文字提取统一在原生调用前后检查并返回 `PdfError::Resource`，不发布部分图像、搜索结果或索引。资源恢复后旧原生文档仍不可复用，必须关闭重开；销毁继续使用完整操作锁。`ResourceReader` 仅负责受控范围读取与租约，阅读、搜索和索引不再各自维护错误标记。
+
+用户可重试资源/密码错误；密码只驻留当前进程，不写配置、日志或 IPC。
 
 ## 文本与坐标
 
@@ -46,9 +50,9 @@ PDF 使用 `Read + Seek` 接入原生 custom-file callback，每个后端范围�
 
 ## Native 安装与 ABI
 
-绑定固定 `pdfium-render 0.8.35`、`pdfium_7350,sync`（含 thread_safe），`libloading 0.8.9`；桌面默认开启 media，`--no-default-features` 保留显式不可用提示。
+绑定固定 `pdfium-render 0.8.35`、`pdfium_7350,sync`（含 thread_safe），使用 8152 保留的 7350 公共 ABI 子集，feature 名不表示运行库版本；`libloading 0.8.9` 不变；桌面默认开启 media，`--no-default-features` 保留显式不可用提示。
 
-`apps/desktop-rust/native/pdfium.json` 固定五个 no-V8 归档及各动态库 SHA-256。安装脚本校验归档大小与摘要，并保留 `LICENSE`、第三方 notices、VERSION 和来源清单；运行时再次验证 VERSION build=7350 与编译时清单的动态库摘要，然后解析绑定符号。不搜索系统 PDF 库，不从当前工作目录猜测库。
+`apps/desktop-rust/native/pdfium.json` 固定 `chromium/8152` 五个 no-V8 归档及各动态库 SHA-256。安装脚本校验归档大小与摘要，并保留 `LICENSE`、第三方 notices、VERSION 和来源清单；运行时再次验证 VERSION build 与清单 release 一致（当前 8152） 与编译时清单的动态库摘要，然后解析绑定符号。不搜索系统 PDF 库，不从当前工作目录猜测库。
 
 ```sh
 python3 scripts/install-pdfium.py --output "$PWD/tmp/pdfium"
@@ -57,7 +61,7 @@ export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 
 离线可加 `--archive /absolute/path/pdfium-mac-arm64.tgz`，仍验证相同 pin。输出目录必须不存在。开发目录必须使用绝对路径。未设置环境变量时，macOS 在可执行文件相邻的 `../Resources/pdfium` 读取，Linux/Windows 在 `pdfium` 子目录读取；Windows 归档 DLL 位于 `bin/pdfium.dll`。
 
-既有验证下载过五个平台归档并验证摘要；macOS arm64 与 RM31 的 Linux x64 均已有实际装载、解析和渲染证据。macOS x64/Windows 的 ABI 及所有平台的完整字体/设备显示仍归 RM32；签名、包内布局、更新后的漏洞版本与最终重分发清单另验。锁定 7350 是复现基线，不代表生产安全准入。没有采用 WebView 后备，也不新增 RM27 依赖。
+8152 的五个平台归档、动态库摘要与 VERSION 均已核验；macOS arm64 已实际装载、解析、渲染并运行 IO 失败回归。旧版 Linux x64 运行证据不代表新版通过；新版 Linux x64、macOS x64、Windows x64/arm64 的实际 ABI、字体和设备行为由 F022/F025 与最终候选 F030 继续验收。签名、包内布局、漏洞审查和最终重分发清单仍需绑定最终候选，当前 pin 不代表生产安全准入。没有采用 WebView 后备。
 
 ## 验证方法
 
@@ -65,11 +69,13 @@ export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo clippy -p anynote-desktop --no-default-features --lib --locked -- -D warnings
-cargo test -p anynote-desktop --all-features --test pdf --test pdf_backend --test pdf_ui --test image_backend --test image_ui --locked
+cargo test -p anynote-desktop --all-features --test pdf --test pdf_io --test pdf_backend --test pdf_ui --test image_backend --test image_ui --locked
 TMPDIR=/private/tmp cargo test --workspace --all-features --locked
 python3 scripts/check-rust-workspace.py
 cargo build -p anynote-desktop --bin anynote-desktop --example pdf_probe --locked
 cargo run -p anynote-desktop --example pdf_probe --locked
 ```
+
+`pdf_io` 在受超时监控的测试子进程中执行 stream 回调期间实际截断、渲染/提取前截断、原生打开前/后后台断连，并断言资源错误、失败状态保持、reader 释放及重复关闭重开；任何原生信号退出使父测试失败。子进程仅用于回归捕获崩溃，不是产品运行隔离。短读用例确认完整范围被填充；既有 `pdf_backend`/`pdf_ui` 继续覆盖取消、最新 generation、搜索、索引发布和视图释放。上述测试随 workspace 回归运行，设备批次显式包含 `pdf_io`/`pdf_backend`，最终候选仍须依 F010 重跑。
 
 结果按实际运行记录；设备、云端、性能及最终候选的剩余验收统一见 [TODO](TODO.md)。

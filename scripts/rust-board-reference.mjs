@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -21,6 +20,12 @@ import {
   topologyCases,
 } from "./rust-board-binding-cases.mjs";
 import { geometryCases } from "./rust-board-geometry-cases.mjs";
+import { curveCases } from "./rust-board-curve-cases.mjs";
+import {
+  duplicationCases,
+  libraryCases,
+  transferCases,
+} from "./rust-board-transfer-cases.mjs";
 import { probeReachability } from "./rust-board-reachability.mjs";
 import { orderCases } from "./rust-board-order-cases.mjs";
 
@@ -38,6 +43,43 @@ const writeFixture = async (path, value) => {
     await format(JSON.stringify(value), { ...fixtureFormat, parser: "json" }),
   );
 };
+// V8 may choose a different floating-point path after warmup. Apply the same
+// geometry tolerance as Rust, while IDs, seeds, pressure and unknown fields stay exact.
+const assertGeometryFixture = (actual, expected, path = "") => {
+  if (/\/elements\/\d+\/(?:version|versionNonce|updated|index)$/.test(path))
+    return;
+  if (
+    typeof actual === "number" &&
+    typeof expected === "number" &&
+    /\/(?:elements\/\d+|geometry)\/(?:x|y|width|height|angle)$|\/elements\/\d+\/(?:points\/\d+\/[01]|crop\/(?:x|y|width|height|naturalWidth|naturalHeight))$/.test(
+      path,
+    )
+  ) {
+    assert(
+      Math.abs(actual - expected) <=
+        1e-9 * Math.max(1, Math.abs(actual), Math.abs(expected)),
+      `geometry drift at ${path}: ${actual} != ${expected}`,
+    );
+  } else if (
+    actual &&
+    expected &&
+    typeof actual === "object" &&
+    typeof expected === "object"
+  ) {
+    assert.equal(
+      Array.isArray(actual),
+      Array.isArray(expected),
+      `type drift at ${path}`,
+    );
+    assert.deepEqual(
+      Object.keys(actual).sort(),
+      Object.keys(expected).sort(),
+      `keys drift at ${path}`,
+    );
+    for (const key of Object.keys(actual))
+      assertGeometryFixture(actual[key], expected[key], `${path}/${key}`);
+  } else assert.deepEqual(actual, expected, `value drift at ${path}`);
+};
 const entry = realpathSync(
   "apps/desktop/node_modules/@excalidraw/excalidraw/dist/dev/index.js",
 );
@@ -48,7 +90,7 @@ const version = JSON.parse(
 assert.equal(version, "0.18.0");
 const instrumented = `${source}
 import { createRoot as rm22CreateRoot } from "react-dom/client";
-globalThis.rm22 = { getElementsInResizingFrame, replaceAllElementsInFrame, LinearElementEditor, mutateElement, updateBoundElements, actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds, cropElement, rescalePointsInElement, ActionManager, DEFAULT_UI_OPTIONS, Excalidraw, React: React44, createRoot: rm22CreateRoot };`;
+globalThis.rm22 = { mergeLibraryItems, duplicateElements, getElementsInResizingFrame, replaceAllElementsInFrame, LinearElementEditor, mutateElement, updateBoundElements, actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds, cropElement, rescalePointsInElement, ActionManager, DEFAULT_UI_OPTIONS, Excalidraw, React: React44, createRoot: rm22CreateRoot };`;
 await build({
   stdin: { contents: instrumented, resolveDir: dirname(entry), loader: "js" },
   alias: {
@@ -371,6 +413,34 @@ try {
     ...(await page.evaluate(topologyCases)),
   ];
   const bindings = JSON.parse(JSON.stringify(bindingResults));
+  const curves = JSON.parse(
+    JSON.stringify([
+      ...(await page.evaluate(curveCases)),
+      ...(await page.evaluate(frameCases, true)),
+      ...(await page.evaluate(transferCases)),
+      ...(await page.evaluate(duplicationCases)),
+    ]),
+  );
+  const curvesPath = resolve(root, "curves.json");
+  if (process.argv.includes("--write")) await writeFixture(curvesPath, curves);
+  else
+    assertGeometryFixture(
+      curves,
+      JSON.parse(readFileSync(curvesPath, "utf8")),
+      "curve drift",
+    );
+  const libraries = JSON.parse(
+    JSON.stringify(await page.evaluate(libraryCases)),
+  );
+  const librariesPath = resolve(root, "library.json");
+  if (process.argv.includes("--write"))
+    await writeFixture(librariesPath, libraries);
+  else
+    assert.deepEqual(
+      libraries,
+      JSON.parse(readFileSync(librariesPath, "utf8")),
+      "library drift",
+    );
   const bindingsPath = resolve(root, "bindings.json");
   if (process.argv.includes("--write"))
     await writeFixture(bindingsPath, bindings);
@@ -378,10 +448,7 @@ try {
     const frozen = JSON.parse(readFileSync(bindingsPath, "utf8"));
     assert.equal(bindings.length, frozen.length, "binding trace count drift");
     for (let i = 0; i < bindings.length; i++) {
-      assert(
-        isDeepStrictEqual(bindings[i], frozen[i]),
-        `binding drift at ${bindings[i].name}`,
-      );
+      assertGeometryFixture(bindings[i], frozen[i], bindings[i].name);
     }
   }
   const reachabilityPath = resolve(root, "reachability.json");

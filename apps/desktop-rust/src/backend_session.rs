@@ -4,11 +4,25 @@ use gpui_kit::{App, Global};
 pub struct BackendSession {
     client: BackendClient,
     quitting: bool,
+    quit_ready: bool,
     reconnecting: bool,
 }
 impl Global for BackendSession {}
 impl BackendSession {
     pub fn install(client: BackendClient, cx: &mut App) {
+        // Other native adapters still deliver quit after the cancellable boundary.
+        #[cfg(target_os = "macos")]
+        cx.on_quit_requested(|cx| {
+            if cx
+                .try_global::<Self>()
+                .is_none_or(|session| session.quit_ready)
+            {
+                return true;
+            }
+            request_quit(cx);
+            false
+        })
+        .detach();
         let fallback = client.clone();
         cx.on_app_quit(move |cx| {
             let client = cx
@@ -28,6 +42,7 @@ impl BackendSession {
         cx.set_global(Self {
             client,
             quitting: false,
+            quit_ready: false,
             reconnecting: false,
         });
     }
@@ -68,7 +83,7 @@ pub fn request_quit(cx: &mut App) {
             match state {
                 crate::document_editor::FlushState::Ready => break,
                 crate::document_editor::FlushState::Failed => {
-                    cx.update(|cx| cx.global_mut::<BackendSession>().quitting = false);
+                    cx.update(cancel_quit);
                     return;
                 }
                 crate::document_editor::FlushState::Waiting => {
@@ -85,14 +100,20 @@ pub fn request_quit(cx: &mut App) {
                 .as_ref()
                 .is_err_and(|error| error.code() == anynote_core::backend::ErrorCode::Busy)
             {
-                cx.global_mut::<BackendSession>().quitting = false;
+                cancel_quit(cx);
                 return;
             }
             if result.is_err() {
                 eprintln!("backend exit: unconfirmed; recover task history on restart");
             }
+            cx.global_mut::<BackendSession>().quit_ready = true;
             cx.quit();
         });
     })
     .detach();
+}
+
+fn cancel_quit(cx: &mut App) {
+    cx.global_mut::<BackendSession>().quitting = false;
+    crate::document_editor::cancel_quit(cx);
 }

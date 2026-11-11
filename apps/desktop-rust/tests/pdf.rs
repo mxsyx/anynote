@@ -18,7 +18,7 @@ fn fixture(name: &str) -> Vec<u8> {
 #[test]
 fn rotated_crop_mixed_text_and_raster_share_native_geometry() {
     let doc = engine::open(Cursor::new(fixture("geometry.pdf")), None).unwrap();
-    assert_eq!(doc.page_count(), 8);
+    assert_eq!(doc.page_count().unwrap(), 8);
     for page in 0..8 {
         let rendered = engine::render(&doc, page, 960, true, || false).unwrap();
         let geo = rendered.geometry();
@@ -125,7 +125,7 @@ fn frozen_real_pdf_and_fit_modes() {
     )
     .unwrap();
     let doc = engine::open(Cursor::new(bytes), None).unwrap();
-    assert_eq!(doc.page_count(), 3);
+    assert_eq!(doc.page_count().unwrap(), 3);
     assert!(
         !engine::render(&doc, 2, 640, true, || false)
             .unwrap()

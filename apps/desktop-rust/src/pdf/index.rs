@@ -55,7 +55,6 @@ pub(crate) fn run(
             }
             let reader = super::ResourceReader::open(client.clone(), scope.clone())?;
             let hash = reader.hash().to_owned();
-            let failure = reader.failure_flag();
             if check() {
                 return Err(PdfError::Cancelled);
             }
@@ -64,7 +63,7 @@ pub(crate) fn run(
             if check() {
                 return Err(PdfError::Cancelled);
             }
-            let total = doc.page_count();
+            let total = doc.page_count()?;
             let PdfReply::IndexStarted { task: id } =
                 service::blocking(&client, PdfCommand::BeginIndex { scope, hash, total })?
             else {
@@ -81,9 +80,6 @@ pub(crate) fn run(
                 remaining -= text.encode_utf16().count();
                 if page + 1 < total && remaining < page_marker(page + 1).encode_utf16().count() {
                     truncated = true;
-                }
-                if failure.load(Ordering::Acquire) {
-                    return Err(PdfError::Resource);
                 }
                 if check() {
                     return Err(PdfError::Cancelled);

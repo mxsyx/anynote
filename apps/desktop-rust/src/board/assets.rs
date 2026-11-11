@@ -19,6 +19,7 @@ use std::{
 pub(super) struct Assets {
     pub texts: BTreeMap<String, TextLayout>,
     pub images: BTreeMap<String, Arc<RenderImage>>,
+    pub natural_sizes: BTreeMap<String, [f64; 2]>,
     pub errors: Vec<String>,
 }
 pub(super) fn same_inputs(a: &Scene, b: &Scene) -> bool {
@@ -96,6 +97,13 @@ impl Assets {
                     .ok_or("图片资源尚未加载")?;
                 let bytes = decode_data_url(data)?;
                 let preview = crate::image::codec::preview(&bytes, 1280, cancel)?;
+                result.natural_sizes.insert(
+                    e.id().into(),
+                    [
+                        preview.metadata.width as f64,
+                        preview.metadata.height as f64,
+                    ],
+                );
                 let mut source = preview.pixels;
                 if let Some(crop) = e.field("crop").filter(|c| !c.is_null()) {
                     let get = |key: &str| {

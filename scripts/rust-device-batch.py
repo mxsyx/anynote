@@ -117,7 +117,7 @@ def main():
             ("sqlite", ["-p", "anynote-storage", "--test", "sqlite_build", "--test", "writes"]),
             ("config-fixtures", ["-p", "anynote-services", "--lib", "config_migration::"]),
             ("backup-migration", ["-p", "anynote-services", "--test", "local_backup", "--test", "migration"]),
-            ("prototypes", ["-p", "anynote-desktop", "--features", "ui-tests", "--test", "ui", "--test", "board_ui", "--test", "pdf", "--test", "pdf_ui", "--test", "video_ui"]),
+            ("prototypes", ["-p", "anynote-desktop", "--features", "ui-tests", "--test", "ui", "--test", "board_ui", "--test", "pdf", "--test", "pdf_io", "--test", "pdf_backend", "--test", "pdf_ui", "--test", "video_ui"]),
         ]
         for name, options in stages:
             run(name, cargo + options + ["--", "--test-threads=1"], tests=True)

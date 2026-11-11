@@ -2,9 +2,12 @@ use super::{Glyph, PageGeometry, PageRaster, PdfError};
 use pdfium_render::prelude::*;
 use sha2::{Digest, Sha256};
 use std::{
-    io::{Read, Seek},
+    io::{self, Read, Seek, SeekFrom},
     path::PathBuf,
-    sync::{Mutex, OnceLock},
+    sync::{
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 fn error(error: PdfiumError) -> PdfError {
@@ -38,9 +41,6 @@ fn native() -> Result<&'static Pdfium, PdfError> {
         }
         let version = std::fs::read_to_string(directory.join("VERSION"))
             .map_err(|_| PdfError::Unavailable)?;
-        if !version.lines().any(|line| line == "BUILD=7350") {
-            return Err(PdfError::Unavailable);
-        }
         let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
             ("macos", "aarch64") => "pdfium-mac-arm64.tgz",
             ("macos", "x86_64") => "pdfium-mac-x64.tgz",
@@ -52,6 +52,13 @@ fn native() -> Result<&'static Pdfium, PdfError> {
         let manifest: serde_json::Value =
             serde_json::from_str(include_str!("../../native/pdfium.json"))
                 .map_err(|_| PdfError::Unavailable)?;
+        let build = manifest["release"]
+            .as_str()
+            .and_then(|release| release.strip_prefix("chromium/"))
+            .ok_or(PdfError::Unavailable)?;
+        if !version.lines().any(|line| line == format!("BUILD={build}")) {
+            return Err(PdfError::Unavailable);
+        }
         let asset = manifest["assets"]
             .as_array()
             .and_then(|assets| assets.iter().find(|asset| asset["name"] == platform))
@@ -88,13 +95,60 @@ fn native() -> Result<&'static Pdfium, PdfError> {
 // 7350's font mapper can race across complete API sequences despite binding-level locks.
 // Keep open/page/text/render/drop mutually exclusive, without locking an idle session.
 static OPERATIONS: Mutex<()> = Mutex::new(());
+
+struct CallbackReader<R> {
+    reader: R,
+    failed: Arc<AtomicBool>,
+}
+impl<R: Read> Read for CallbackReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if self.failed.load(Ordering::Acquire) {
+            return Err(io::Error::other(PdfError::Resource));
+        }
+        // The binding uses Read once and Pdfium treats any nonzero count as success.
+        // Fill the entire native range; a short read must never expose partial bytes.
+        match self.reader.read_exact(buffer) {
+            Ok(()) => Ok(buffer.len()),
+            Err(error) => {
+                self.failed.store(true, Ordering::Release);
+                Err(error)
+            }
+        }
+    }
+}
+impl<R: Seek> Seek for CallbackReader<R> {
+    fn seek(&mut self, from: SeekFrom) -> io::Result<u64> {
+        if self.failed.load(Ordering::Acquire) {
+            return Err(io::Error::other(PdfError::Resource));
+        }
+        self.reader.seek(from).inspect_err(|_| {
+            self.failed.store(true, Ordering::Release);
+        })
+    }
+}
+
 pub struct NativeDocument<'a> {
     document: Option<PdfDocument<'a>>,
+    failed: Arc<AtomicBool>,
 }
 impl NativeDocument<'_> {
-    pub fn page_count(&self) -> u16 {
+    fn with_document<T>(
+        &self,
+        operation: impl FnOnce(&PdfDocument<'_>) -> Result<T, PdfError>,
+    ) -> Result<T, PdfError> {
         let _operation = OPERATIONS.lock().unwrap_or_else(|e| e.into_inner());
-        self.document.as_ref().unwrap().pages().len()
+        if self.failed.load(Ordering::Acquire) {
+            return Err(PdfError::Resource);
+        }
+        let result = operation(self.document.as_ref().unwrap());
+        if self.failed.load(Ordering::Acquire) {
+            Err(PdfError::Resource)
+        } else {
+            result
+        }
+    }
+    pub fn page_count(&self) -> Result<u16, PdfError> {
+        self.with_document(|document| Ok(document.pages().len()))
     }
 }
 impl Drop for NativeDocument<'_> {
@@ -108,10 +162,21 @@ pub fn open<R: Read + Seek + 'static>(
     password: Option<&str>,
 ) -> Result<NativeDocument<'_>, PdfError> {
     let _operation = OPERATIONS.lock().unwrap_or_else(|e| e.into_inner());
-    native()?
-        .load_pdf_from_reader(reader, password)
+    let failed = Arc::new(AtomicBool::new(false));
+    let result = native()?.load_pdf_from_reader(
+        CallbackReader {
+            reader,
+            failed: failed.clone(),
+        },
+        password,
+    );
+    if failed.load(Ordering::Acquire) {
+        return Err(PdfError::Resource);
+    }
+    result
         .map(|document| NativeDocument {
             document: Some(document),
+            failed,
         })
         .map_err(error)
 }
@@ -131,8 +196,15 @@ pub fn render(
     text: bool,
     cancelled: impl Fn() -> bool,
 ) -> Result<PageRaster, PdfError> {
-    let _operation = OPERATIONS.lock().unwrap_or_else(|e| e.into_inner());
-    let document = document.document.as_ref().unwrap();
+    document.with_document(|document| render_page(document, page, edge, text, cancelled))
+}
+fn render_page(
+    document: &PdfDocument<'_>,
+    page: u16,
+    edge: u32,
+    text: bool,
+    cancelled: impl Fn() -> bool,
+) -> Result<PageRaster, PdfError> {
     if cancelled() {
         return Err(PdfError::Cancelled);
     }
@@ -231,17 +303,18 @@ pub fn extract(
     budget: usize,
     cancelled: impl Fn() -> bool,
 ) -> Result<(String, bool), PdfError> {
-    let _operation = OPERATIONS.lock().unwrap_or_else(|e| e.into_inner());
+    document.with_document(|document| extract_page(document, page, budget, cancelled))
+}
+fn extract_page(
+    document: &PdfDocument<'_>,
+    page: u16,
+    budget: usize,
+    cancelled: impl Fn() -> bool,
+) -> Result<(String, bool), PdfError> {
     if cancelled() {
         return Err(PdfError::Cancelled);
     }
-    let page = document
-        .document
-        .as_ref()
-        .unwrap()
-        .pages()
-        .get(page)
-        .map_err(error)?;
+    let page = document.pages().get(page).map_err(error)?;
     let text = page.text().map_err(error)?;
     let mut body = String::new();
     let mut units = 0;

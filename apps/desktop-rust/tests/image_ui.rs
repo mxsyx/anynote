@@ -17,15 +17,36 @@ use media_ui::{Backend, click_label, reply, spin};
 
 #[gpui_kit::test]
 fn nested_range_paste_save_reopen_preserves_media_resource(cx: &mut TestAppContext) {
-    nested_range_save_reopen(cx, false);
+    nested_range_save_reopen(cx, false, "nested");
 }
 
 #[gpui_kit::test]
 fn nested_range_composition_save_reopen_preserves_media_resource(cx: &mut TestAppContext) {
-    nested_range_save_reopen(cx, true);
+    nested_range_save_reopen(cx, true, "nested");
 }
 
-fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
+#[gpui_kit::test]
+fn atom_endpoint_composition_save_reopen_preserves_media(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, true, "atom");
+}
+#[gpui_kit::test]
+fn atom_endpoint_paste_save_reopen_preserves_media(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, false, "atom");
+}
+#[gpui_kit::test]
+fn blank_endpoint_composition_save_reopen_preserves_media(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, true, "blank");
+}
+#[gpui_kit::test]
+fn blank_endpoint_paste_save_reopen_preserves_media(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, false, "blank");
+}
+#[gpui_kit::test]
+fn rich_fragment_copy_paste_save_reopen_preserves_media(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, false, "rich");
+}
+
+fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool, endpoint: &str) {
     cx.background_executor.allow_parking();
     let backend = Backend::new();
     let Reply::Document(base) = reply(&backend.client, Command::CreateDocument) else {
@@ -48,7 +69,14 @@ fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
         }),
     );
     let image = anynote_editor::image::markdown(&resource.to_string(), "preserved").unwrap();
-    let body = format!("before\n\n- alpha\n  - nested\n\n> quoted tail\n\n{image}");
+    let body = match endpoint {
+        "atom" => format!(
+            "before\n\n<div>opaque</div>\n\n- alpha\n  - nested\n\n> quoted tail\n\n{image}"
+        ),
+        "blank" => format!("\n\n- alpha\n  - nested\n\n> quoted tail\n\n{image}"),
+        "rich" => format!("before\n\n- **alpha**\n\n{image}\n\n> *quoted tail*\n\nafter"),
+        _ => format!("before\n\n- alpha\n  - nested\n\n> quoted tail\n\n{image}"),
+    };
     let Reply::DocumentSaved(saved) = reply(
         &backend.client,
         Command::SaveDocument(
@@ -83,9 +111,15 @@ fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
         w.render_frame(cx);
         editor.update(cx, |editor, cx| {
             let text = editor.text();
-            let start = text[..text.find("alpha").unwrap() + 2]
-                .encode_utf16()
-                .count();
+            let start = match endpoint {
+                "atom" => text[..text.find('\u{fffc}').unwrap()]
+                    .encode_utf16()
+                    .count(),
+                "blank" => 0,
+                _ => text[..text.find("alpha").unwrap() + 2]
+                    .encode_utf16()
+                    .count(),
+            };
             let end = text[..text.find("quoted").unwrap() + 3]
                 .encode_utf16()
                 .count();
@@ -112,7 +146,21 @@ fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
             assert_eq!(stored.content().body(), body);
             editor.update(cx, |editor, cx| editor.unmark_text(w, cx));
         } else {
-            cx.write_to_clipboard(ClipboardItem::new_string("中文🦀".into()));
+            if endpoint == "rich" {
+                w.press(
+                    if cfg!(target_os = "macos") {
+                        "cmd-c"
+                    } else {
+                        "ctrl-c"
+                    },
+                    cx,
+                );
+                let item = cx.read_from_clipboard().unwrap();
+                let metadata = item.metadata().expect("balanced rich fragment");
+                assert!(metadata.contains(&resource.to_string()));
+            } else {
+                cx.write_to_clipboard(ClipboardItem::new_string("中文🦀".into()));
+            }
             w.press(
                 if cfg!(target_os = "macos") {
                     "cmd-v"
@@ -122,11 +170,16 @@ fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
                 cx,
             );
         }
+        let expected = match endpoint {
+            "atom" => "before\n中文🦀ted tail",
+            "blank" => "中文🦀ted tail",
+            "rich" => "before\nal",
+            _ => "before\nal中文🦀ted tail",
+        };
         assert!(
-            editor
-                .read(cx)
-                .text()
-                .starts_with("before\nal中文🦀ted tail")
+            editor.read(cx).text().starts_with(expected),
+            "{}",
+            editor.read(cx).text()
         );
         assert_eq!(editor.read(cx).undo_steps(), 1);
         w.press(

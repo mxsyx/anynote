@@ -1,6 +1,6 @@
 use super::{BoardError, Element, ElementKind, Geometry, Point, scene::invalid};
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn points(element: &Element) -> Result<Vec<Point>, BoardError> {
     if !matches!(
@@ -41,9 +41,6 @@ pub(super) fn move_points(
     updates: &BTreeMap<usize, Point>,
 ) -> Result<(), BoardError> {
     let old = points(element)?;
-    if old.len() > 2 && element.field("roundness").is_some_and(|v| !v.is_null()) {
-        return Err(invalid("curved path control points require curve bounds"));
-    }
     if updates.is_empty() {
         return Ok(());
     }
@@ -63,9 +60,68 @@ pub(super) fn move_points(
             Point(p.0 - offset.0, p.1 - offset.1)
         })
         .collect();
-    let a = super::rough_path::bounds(element, &old, false)?;
-    let b = super::rough_path::bounds(element, &next, false)?;
-    let size = bounds(&next);
+    update_points(element, &old, &next, offset)
+}
+
+pub(super) fn add_points(element: &mut Element, added: &[Point]) -> Result<(), BoardError> {
+    let old = linear_points(element)?;
+    if added.is_empty() {
+        return Ok(());
+    }
+    for point in added {
+        point.validate()?;
+    }
+    let mut next = old.clone();
+    next.extend_from_slice(added);
+    update_points(element, &old, &next, Point(0.0, 0.0))
+}
+
+pub(super) fn delete_points(element: &mut Element, indices: &[usize]) -> Result<(), BoardError> {
+    let old = linear_points(element)?;
+    let removed: BTreeSet<_> = indices.iter().copied().collect();
+    if removed.len() != indices.len() || removed.iter().any(|i| *i >= old.len()) {
+        return Err(invalid("invalid point indices"));
+    }
+    if removed.is_empty() {
+        return Ok(());
+    }
+    if old.len() - removed.len() < 2 {
+        return Err(invalid("path needs two points"));
+    }
+    let offset = if removed.contains(&0) {
+        *old.iter()
+            .enumerate()
+            .find(|(i, _)| !removed.contains(i))
+            .unwrap()
+            .1
+    } else {
+        Point(0.0, 0.0)
+    };
+    let next: Vec<_> = old
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !removed.contains(i))
+        .map(|(_, p)| Point(p.0 - offset.0, p.1 - offset.1))
+        .collect();
+    update_points(element, &old, &next, offset)
+}
+
+fn linear_points(element: &Element) -> Result<Vec<Point>, BoardError> {
+    if !matches!(element.kind(), ElementKind::Line | ElementKind::Arrow) {
+        return Err(invalid("requires a line or arrow"));
+    }
+    points(element)
+}
+
+fn update_points(
+    element: &mut Element,
+    old: &[Point],
+    next: &[Point],
+    offset: Point,
+) -> Result<(), BoardError> {
+    let a = super::rough_path::bounds(element, old, false)?;
+    let b = super::rough_path::bounds(element, next, false)?;
+    let size = bounds(next);
     let center_delta = Point(
         (a[0] + a[2] - b[0] - b[2]) / 2.0,
         (a[1] + a[3] - b[1] - b[3]) / 2.0,

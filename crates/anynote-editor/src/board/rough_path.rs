@@ -1,9 +1,25 @@
-//! Seeded linear-path bounds from RoughJS 4.6.4 (see ROUGHJS-LICENSE).
-//! Geometry only: this does not implement the native painter's sketch style.
+//! Seeded path bounds from RoughJS 4.6.4 (see ROUGHJS-LICENSE).
+//! Shared seeded linear strokes for bounds and native rendering.
 use super::{BoardError, Element, ElementKind, Point, path, scene::invalid};
 use serde_json::Value;
 
 struct Random(u32);
+
+/// Cubic strokes in world coordinates, using the same seed and rotation centre
+/// as the operation kernel. Elbow routes and freehand pressure use other geometry.
+pub fn linear_strokes(element: &Element) -> Result<Vec<[Point; 4]>, BoardError> {
+    if !matches!(element.kind(), ElementKind::Line | ElementKind::Arrow) {
+        return Err(invalid("requires a line or arrow"));
+    }
+    let points = path::points(element)?;
+    let b = path::bounds(&points);
+    let g = element.geometry()?;
+    let center = Point(g.x() + (b[0] + b[2]) / 2.0, g.y() + (b[1] + b[3]) / 2.0);
+    Ok(curves(element, &points)?
+        .into_iter()
+        .map(|curve| curve.map(|p| Point(g.x() + p.0, g.y() + p.1).rotate(center, g.angle())))
+        .collect())
+}
 impl Random {
     fn next(&mut self) -> f64 {
         self.0 = self.0.wrapping_mul(48271);
@@ -25,7 +41,9 @@ pub(super) fn curves(element: &Element, points: &[Point]) -> Result<Vec<[Point; 
     }
     let max = g.width().max(g.height());
     let min = g.width().min(g.height());
+    let rounded = element.field("roundness").is_some_and(|v| !v.is_null());
     let roughness = if min >= 20.0 && max >= 50.0
+        || min >= 15.0 && rounded
         || matches!(element.kind(), ElementKind::Line | ElementKind::Arrow) && max >= 50.0
     {
         original
@@ -49,6 +67,41 @@ pub(super) fn curves(element: &Element, points: &[Point]) -> Result<Vec<[Point; 
         1
     };
     let mut curves = Vec::with_capacity(points.len().saturating_sub(1) * overlays);
+    if rounded {
+        for overlay in 0..overlays {
+            let mut random = Random(seed.wrapping_add(overlay as u32));
+            let offset = if overlay == 0 {
+                1.0 + roughness * 0.2
+            } else {
+                1.5 * (1.0 + roughness * 0.22)
+            };
+            let mut jitter = |p: Point| {
+                Point(
+                    p.0 + random.offset(offset, roughness, 1.0),
+                    p.1 + random.offset(offset, roughness, 1.0),
+                )
+            };
+            let mut vertices = Vec::with_capacity(points.len() + 2);
+            vertices.push(jitter(points[0]));
+            vertices.extend(points.iter().copied().map(&mut jitter));
+            vertices.push(jitter(*points.last().unwrap()));
+            for p in vertices.windows(4) {
+                curves.push([
+                    p[1],
+                    Point(
+                        p[1].0 + (p[2].0 - p[0].0) / 6.0,
+                        p[1].1 + (p[2].1 - p[0].1) / 6.0,
+                    ),
+                    Point(
+                        p[2].0 + (p[1].0 - p[3].0) / 6.0,
+                        p[2].1 + (p[1].1 - p[3].1) / 6.0,
+                    ),
+                    p[2],
+                ]);
+            }
+        }
+        return Ok(curves);
+    }
     for segment in points.windows(2) {
         let [a, b] = [segment[0], segment[1]];
         for overlay in 0..overlays {
