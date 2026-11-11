@@ -1100,7 +1100,7 @@ impl Render for Workspace {
                 }
             }))
             .when(!cfg!(target_os = "macos"), |view| {
-                view.child(self.menu.clone())
+                view.child(div().h_8().flex_shrink_0().child(self.menu.clone()))
             })
             .child(self.toolbar(cx))
             .when(

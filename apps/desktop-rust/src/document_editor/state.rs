@@ -7,7 +7,7 @@ use anynote_editor::{
     structure::{self, CellAddress, ListStyle, NodeKind, Structure},
     transaction::{EditKind, Editor, Patch, Transaction},
 };
-use std::{ops::Range, time::Instant};
+use std::{borrow::Cow, ops::Range, time::Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub(super) type Result<T> = std::result::Result<T, String>;
@@ -19,7 +19,9 @@ pub(super) struct Composition {
     pub token: u64,
     pub range: Range<usize>,
     pub leaf: usize,
-    pub local: Range<usize>,
+    pub last_leaf: usize,
+    pub local_start: usize,
+    pub local_end: usize,
 }
 
 pub(super) struct DocumentSession {
@@ -211,7 +213,8 @@ impl DocumentSession {
         let (first, start) = self.projection.at(range.start);
         let (last, end) = self.projection.at(range.end);
         if first != last {
-            return self.replace_across(first, start, last, end, text);
+            let transaction = self.prepare_replace_across(first, start, last, end, text)?;
+            return self.apply(transaction);
         }
         let leaf = &self.projection.leaves[first];
         if text == " "
@@ -250,20 +253,19 @@ impl DocumentSession {
         let transaction = self.prepare_replace(first, start..end, text)?;
         self.apply(transaction.with_kind(EditKind::RichTyping))
     }
-    fn replace_across(
-        &mut self,
+    fn prepare_replace_across(
+        &self,
         first: usize,
         start: usize,
         last: usize,
         end: usize,
         text: &str,
-    ) -> Result<()> {
+    ) -> Result<Transaction> {
         let a = &self.projection.leaves[first];
         let b = &self.projection.leaves[last];
-        // Whole-document replacement is also the plain clipboard fallback. Structured
-        // partial ranges are handled below only when both endpoints are top-level text.
+        // A whole-document plain replacement has no surviving structural container.
         let doc = self.editor.document();
-        if self.range() == (0..self.projection.text.len()) {
+        if a.logical.start + start == 0 && b.logical.start + end == self.projection.text.len() {
             let blank = Document::new(String::new());
             let mut temporary = Editor::new(blank, HistoryBudget::default());
             let transaction = Structure::at_caret(temporary.document(), temporary.selection())
@@ -283,18 +285,19 @@ impl DocumentSession {
                 self.millis(),
             )
             .with_selection(Selection::caret(doc.generation(), source.len()));
-            return self.apply(tx);
+            return Ok(tx);
         }
         if a.id.path == [0]
             && b.id.path == [0]
             && matches!(a.kind, NodeKind::Paragraph | NodeKind::Heading(_))
             && matches!(b.kind, NodeKind::Paragraph | NodeKind::Heading(_))
+            && let (Some(first), Some(last)) = (a.id.block, b.id.block)
         {
-            let tx = Structure::for_blocks(doc, a.id.block.unwrap(), b.id.block.unwrap())
+            let tx = Structure::for_blocks(doc, first, last)
                 .map_err(error)?
                 .replace_between_blocks(start, end, text, self.marks.clone(), self.millis())
                 .map_err(error)?;
-            return self.apply(tx);
+            return Ok(tx);
         }
         let first = a.id.block.ok_or("没有起始块")?;
         let last = b.id.block.ok_or("没有结束块")?;
@@ -313,7 +316,7 @@ impl DocumentSession {
                 self.millis(),
             )
             .map_err(error)?;
-        self.apply(tx)
+        Ok(tx)
     }
     pub fn paste(&mut self, text: &str, markdown: bool) -> Result<()> {
         if self.pending_task.is_some() {
@@ -770,14 +773,32 @@ impl DocumentSession {
         text: &str,
         selected: Range<usize>,
     ) -> Result<()> {
+        anynote_editor::selection::byte_range(text, selected.clone(), TextUnit::Utf8)
+            .map_err(error)?;
         if self.composition.is_none() {
             let range = range.unwrap_or_else(|| self.range());
+            anynote_editor::selection::byte_range(
+                &self.projection.text,
+                range.clone(),
+                TextUnit::Utf8,
+            )
+            .map_err(error)?;
             let (ix, start) = self.projection.at(range.start);
             let (last, end) = self.projection.at(range.end);
-            if ix != last {
-                return Err("组合输入需在同一段落内开始".into());
+            if [ix, last].into_iter().any(|ix| {
+                matches!(
+                    self.projection.leaves[ix].kind,
+                    NodeKind::Atom | NodeKind::Rule
+                )
+            }) {
+                return Err("请在文字范围内开始组合输入".into());
             }
-            self.select(range.start, range.end)?;
+            if ix != last {
+                self.prepare_replace_across(ix, start, last, end, text)?;
+            }
+            if range != self.range() {
+                self.select(range.start, range.end)?;
+            }
             let token = self
                 .editor
                 .begin_composition(
@@ -790,7 +811,9 @@ impl DocumentSession {
                 token,
                 range,
                 leaf: ix,
-                local: start..end,
+                last_leaf: last,
+                local_start: start,
+                local_end: end,
             });
         }
         let composition = self.composition.as_ref().unwrap();
@@ -801,7 +824,11 @@ impl DocumentSession {
     pub fn commit_composition(&mut self, text: Option<&str>) -> Result<()> {
         let c = self.composition.as_ref().ok_or("没有组合输入")?;
         let text = text.unwrap_or_else(|| self.editor.composition().unwrap().text());
-        let tx = self.prepare_replace(c.leaf, c.local.clone(), text)?;
+        let tx = if c.leaf == c.last_leaf {
+            self.prepare_replace(c.leaf, c.local_start..c.local_end, text)?
+        } else {
+            self.prepare_replace_across(c.leaf, c.local_start, c.last_leaf, c.local_end, text)?
+        };
         self.editor
             .commit_composition_transaction(c.token, tx)
             .map_err(error)?;
@@ -819,11 +846,71 @@ impl DocumentSession {
         Ok(())
     }
     pub fn display_text(&self) -> String {
-        let mut text = self.projection.text.clone();
-        if let Some(c) = &self.composition {
-            text.replace_range(c.range.clone(), self.editor.composition().unwrap().text());
+        if self.composition.is_none() {
+            return self.projection.text.clone();
+        }
+        let mut text = String::new();
+        for ix in 0..self.projection.leaves.len() {
+            if ix > 0 {
+                text.push('\n');
+            }
+            text.push_str(&self.display_leaf_text(ix));
         }
         text
+    }
+    pub fn composing_leaf(&self, ix: usize) -> bool {
+        self.composition
+            .as_ref()
+            .is_some_and(|c| (c.leaf..=c.last_leaf).contains(&ix))
+    }
+    pub fn display_leaf_text(&self, ix: usize) -> Cow<'_, str> {
+        let text = &self.projection.leaves[ix].text;
+        let Some(c) = self
+            .composition
+            .as_ref()
+            .filter(|_| self.composing_leaf(ix))
+        else {
+            return Cow::Borrowed(text);
+        };
+        if ix == c.leaf {
+            let mut text = text[..c.local_start].to_owned();
+            text.push_str(self.editor.composition().unwrap().text());
+            if ix == c.last_leaf {
+                text.push_str(&self.projection.leaves[ix].text[c.local_end..]);
+            }
+            Cow::Owned(text)
+        } else if ix == c.last_leaf {
+            Cow::Borrowed(&text[c.local_end..])
+        } else {
+            Cow::Borrowed("")
+        }
+    }
+    pub fn display_leaf_start(&self, ix: usize) -> usize {
+        let start = self.projection.leaves[ix].logical.start;
+        let Some(c) = self.composition.as_ref().filter(|c| ix > c.leaf) else {
+            return start;
+        };
+        let inserted = self.editor.composition().unwrap().text().len();
+        // Keep the frozen containers (including table cells) until commit. Their
+        // separators belong to surrounding text, never to the IME marked range.
+        if ix <= c.last_leaf {
+            c.range.start + inserted + ix - c.leaf
+        } else {
+            start - c.range.len() + c.last_leaf - c.leaf + inserted
+        }
+    }
+    pub fn display_at(&self, offset: usize) -> (usize, usize) {
+        if self.composition.is_none() {
+            return self.projection.at(offset);
+        }
+        for ix in 0..self.projection.leaves.len() {
+            let start = self.display_leaf_start(ix);
+            let length = self.display_leaf_text(ix).len();
+            if offset <= start + length || ix + 1 == self.projection.leaves.len() {
+                return (ix, offset.saturating_sub(start).min(length));
+            }
+        }
+        unreachable!("projection always contains a leaf")
     }
     pub fn display_selection(&self) -> Range<usize> {
         if let Some(c) = &self.composition {
@@ -831,6 +918,13 @@ impl DocumentSession {
             c.range.start + selection.start..c.range.start + selection.end
         } else {
             self.range()
+        }
+    }
+    pub fn display_head(&self) -> usize {
+        if self.composition.is_some() {
+            self.display_selection().end
+        } else {
+            self.head
         }
     }
     pub fn selected_markdown(&self) -> Option<String> {

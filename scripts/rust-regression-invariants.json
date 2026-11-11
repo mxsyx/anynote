@@ -52,7 +52,8 @@
   {
     "id": "INV-07",
     "tests": [
-      "paste_width_reader_rotate_version_and_close_use_production_controls"
+      "paste_width_reader_rotate_version_and_close_use_production_controls",
+      "hundred_document_board_image_cycles_release_entities"
     ],
     "legacy_entry": "test:features",
     "remaining": "真实照片/峰值显存/所有动画"
@@ -61,7 +62,9 @@
     "id": "INV-08",
     "tests": [
       "selection_search_annotation_note_index_and_anchor_controls",
-      "worker_latest_request_close_and_password_retry"
+      "worker_latest_request_close_and_password_retry",
+      "hundred_pdf_cancelled_page_cycles_release_entities",
+      "reader_reports_backend_failure_without_native_work"
     ],
     "legacy_entry": "test:features",
     "remaining": "复杂字体/100MiB PDF/跨平台"
@@ -78,7 +81,8 @@
     "id": "INV-10",
     "tests": [
       "video_insert_save_reopen_and_consent_use_production_controls",
-      "video_thumbnail_uses_revision_resource_and_normal_save"
+      "video_thumbnail_uses_revision_resource_and_normal_save",
+      "hundred_video_card_cycles_release_entities"
     ],
     "legacy_entry": "test:features",
     "remaining": "provider 播放/系统焦点"

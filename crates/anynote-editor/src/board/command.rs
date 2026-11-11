@@ -80,6 +80,10 @@ pub enum Command {
         points: Vec<Point>,
         pressures: Option<Vec<f64>>,
     },
+    MovePoints {
+        id: String,
+        updates: Vec<(usize, Point)>,
+    },
     Geometry {
         id: String,
         geometry: Geometry,
@@ -117,6 +121,10 @@ pub enum Command {
     Frame {
         id: Option<String>,
     },
+    ResizeFrame {
+        id: String,
+        geometry: Geometry,
+    },
     BindText {
         text: String,
         container: Option<String>,
@@ -134,6 +142,7 @@ pub enum Command {
 pub(super) struct Snapshot {
     pub(super) scene: Scene,
     pub(super) selected: BTreeSet<String>,
+    pub(super) editing_group: Option<String>,
 }
 #[derive(Clone)]
 struct HistoryEntry {
@@ -155,6 +164,7 @@ impl Board {
             state: Snapshot {
                 scene,
                 selected: BTreeSet::new(),
+                editing_group: None,
             },
             undo: VecDeque::new(),
             redo: Vec::new(),
@@ -173,12 +183,55 @@ impl Board {
     pub fn has_redo(&self) -> bool {
         !self.redo.is_empty()
     }
+    pub fn editing_group(&self) -> Option<&str> {
+        self.state.editing_group.as_deref()
+    }
+    /// Group editing is transient selection state, never a scene/appState write.
+    pub fn edit_group(&mut self, id: Option<String>) -> Result<(), BoardError> {
+        if let Some(id) = &id
+            && !self
+                .scene()
+                .elements()
+                .any(|e| !e.is_deleted() && e.group_ids().contains(&id.as_str()))
+        {
+            return Err(invalid("missing live group"));
+        }
+        let selected = self
+            .state
+            .selected
+            .iter()
+            .filter(|selected| {
+                id.as_ref().is_none_or(|id| {
+                    self.scene()
+                        .element(selected)
+                        .is_some_and(|e| e.group_ids().contains(&id.as_str()))
+                })
+            })
+            .cloned()
+            .collect();
+        self.state.selected = expand_selection(self.scene(), selected, id.as_deref());
+        self.state.editing_group = id;
+        Ok(())
+    }
     pub fn select(&mut self, ids: impl IntoIterator<Item = String>) -> Result<(), BoardError> {
         let selected: BTreeSet<_> = ids.into_iter().collect();
         for id in &selected {
             active(self.scene(), id)?;
         }
-        self.state.selected = expand_selection(self.scene(), selected);
+        let editing_group = self
+            .state
+            .editing_group
+            .as_deref()
+            .filter(|group| {
+                selected.iter().all(|id| {
+                    self.scene()
+                        .element(id)
+                        .is_some_and(|e| e.group_ids().contains(group))
+                })
+            })
+            .map(str::to_owned);
+        self.state.selected = expand_selection(self.scene(), selected, editing_group.as_deref());
+        self.state.editing_group = editing_group;
         Ok(())
     }
     pub fn apply(&mut self, command: Command, stamp: EditStamp) -> Result<bool, BoardError> {

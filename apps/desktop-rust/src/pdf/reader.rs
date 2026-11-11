@@ -17,7 +17,6 @@ pub struct ResourceReader {
     hash: String,
     length: u64,
     position: u64,
-    cancel: Arc<AtomicBool>,
     failed: Arc<AtomicBool>,
 }
 fn request(client: &BackendClient, command: AssetCommand) -> Result<AssetReply, PdfError> {
@@ -32,11 +31,7 @@ fn request(client: &BackendClient, command: AssetCommand) -> Result<AssetReply, 
 }
 impl ResourceReader {
     /// Blocking: call only on the PDF worker, never from a GPUI event/render callback.
-    pub fn open(
-        client: BackendClient,
-        scope: AssetScope,
-        cancel: Arc<AtomicBool>,
-    ) -> Result<Self, PdfError> {
+    pub fn open(client: BackendClient, scope: AssetScope) -> Result<Self, PdfError> {
         let token = Uuid::new_v4();
         let mut reader = Self {
             client,
@@ -44,7 +39,6 @@ impl ResourceReader {
             hash: String::new(),
             length: 0,
             position: 0,
-            cancel,
             failed: Arc::new(AtomicBool::new(false)),
         };
         let AssetReply::Opened { hash, length, mime } =
@@ -73,11 +67,9 @@ impl ResourceReader {
 impl ResourceReader {
     fn read_range_into(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let total = (self.length - self.position).min(buf.len() as u64) as usize;
-        // Pdfium's custom-file callback requires the entire requested range.
+        // Pdfium 7350 can CHECK-fail on an interrupted custom-file read. Cancellation
+        // belongs between native calls; an in-flight callback must finish its range.
         for part in buf[..total].chunks_mut(MAX_CHUNK_BYTES) {
-            if self.cancel.load(Ordering::Acquire) {
-                return Err(io::ErrorKind::Interrupted.into());
-            }
             let reply = request(
                 &self.client,
                 AssetCommand::Read {

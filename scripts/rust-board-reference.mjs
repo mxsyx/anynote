@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -13,6 +14,12 @@ import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import { chromium } from "playwright";
 import { format, resolveConfig } from "prettier";
+import {
+  bindingCases,
+  editingCases,
+  frameCases,
+  topologyCases,
+} from "./rust-board-binding-cases.mjs";
 import { geometryCases } from "./rust-board-geometry-cases.mjs";
 import { probeReachability } from "./rust-board-reachability.mjs";
 import { orderCases } from "./rust-board-order-cases.mjs";
@@ -41,7 +48,7 @@ const version = JSON.parse(
 assert.equal(version, "0.18.0");
 const instrumented = `${source}
 import { createRoot as rm22CreateRoot } from "react-dom/client";
-globalThis.rm22 = { actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds, cropElement, rescalePointsInElement, ActionManager, DEFAULT_UI_OPTIONS, Excalidraw, React: React44, createRoot: rm22CreateRoot };`;
+globalThis.rm22 = { getElementsInResizingFrame, replaceAllElementsInFrame, LinearElementEditor, mutateElement, updateBoundElements, actions, getDefaultAppState, restoreElements, Scene: Scene_default, getCommonBounds, cropElement, rescalePointsInElement, ActionManager, DEFAULT_UI_OPTIONS, Excalidraw, React: React44, createRoot: rm22CreateRoot };`;
 await build({
   stdin: { contents: instrumented, resolveDir: dirname(entry), loader: "js" },
   alias: {
@@ -357,6 +364,26 @@ try {
     base,
     css: resolve(dirname(entry), "index.css"),
   });
+  const bindingResults = [
+    ...(await page.evaluate(bindingCases)),
+    ...(await page.evaluate(editingCases)),
+    ...(await page.evaluate(frameCases)),
+    ...(await page.evaluate(topologyCases)),
+  ];
+  const bindings = JSON.parse(JSON.stringify(bindingResults));
+  const bindingsPath = resolve(root, "bindings.json");
+  if (process.argv.includes("--write"))
+    await writeFixture(bindingsPath, bindings);
+  else {
+    const frozen = JSON.parse(readFileSync(bindingsPath, "utf8"));
+    assert.equal(bindings.length, frozen.length, "binding trace count drift");
+    for (let i = 0; i < bindings.length; i++) {
+      assert(
+        isDeepStrictEqual(bindings[i], frozen[i]),
+        `binding drift at ${bindings[i].name}`,
+      );
+    }
+  }
   const reachabilityPath = resolve(root, "reachability.json");
   if (process.argv.includes("--write")) {
     await writeFixture(reachabilityPath, reachability);
@@ -437,6 +464,7 @@ try {
         status: "passed",
         steps: result.steps.length,
         geometryCases: geometry.length,
+        bindingTraces: bindings.length,
         entryActions: reachability.actions.length,
         upstreamCreationHistories: reachability.creations.length,
         orderingTraces: ordering.length,

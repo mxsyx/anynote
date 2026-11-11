@@ -102,6 +102,12 @@ function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
   const reports = rows(db, "import_reports").filter((row) =>
     noteIds.has(row.note_id),
   );
+  const pdfIndexes = db
+    .prepare(
+      "SELECT * FROM extension_data WHERE extension_id='anynote.pdf.index' AND key IN (SELECT 'note.' || value FROM json_each(?)) ORDER BY key",
+    )
+    .all(JSON.stringify([...noteIds]));
+  // Field order and names are shared with the Rust transfer fingerprint.
   const result = {
     nodes,
     notes,
@@ -113,6 +119,7 @@ function snapshot(s: Storage, db: SqlDatabase, bookId: string, rootId: string) {
     assets,
     metadata,
     reports,
+    pdf_indexes: pdfIndexes,
   };
   if (
     Buffer.byteLength(JSON.stringify(result)) > entryLimits.transferRecordBytes
@@ -380,6 +387,11 @@ export function transferNode(s: Storage, raw: unknown) {
             value_json: JSON.stringify(meta),
           });
         }
+        for (const row of data.pdf_indexes)
+          insert(target, "extension_data", {
+            ...row,
+            key: `note.${nodeMap.get(row.key.slice("note.".length))}`,
+          });
         for (const row of data.notes)
           s.index(target, nodeMap.get(row.node_id)!);
         if (target.prepare("PRAGMA foreign_key_check").all().length)

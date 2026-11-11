@@ -53,7 +53,7 @@ impl EntityInputHandler for DocumentEditor {
     ) -> Option<UTF16Selection> {
         Some(UTF16Selection {
             range: utf16(&self.state.display_text(), self.state.display_selection())?,
-            reversed: self.state.anchor > self.state.head,
+            reversed: !self.is_composing() && self.state.anchor > self.state.head,
         })
     }
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
@@ -133,14 +133,7 @@ impl EntityInputHandler for DocumentEditor {
         if !self.geometry_valid(window) {
             return None;
         }
-        let (ix, byte) = if let Some(c) = &self.state.composition {
-            (
-                c.leaf,
-                c.local.start + range.start.saturating_sub(c.range.start),
-            )
-        } else {
-            self.state.projection.at(range.start)
-        };
+        let (ix, byte) = self.state.display_at(range.start);
         let frame = self.geometry.borrow();
         let g = frame.leaves.get(&self.keys[ix])?;
         let start = g.position_for_index(byte);

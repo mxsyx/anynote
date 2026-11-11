@@ -24,8 +24,15 @@ pub(crate) fn run(
     std::thread::spawn(move || {
         #[cfg(feature = "media")]
         let result = (|| {
-            let reader = super::ResourceReader::open(client, scope, cancelled.clone())?;
+            let check = || cancelled.load(Ordering::Acquire);
+            if check() {
+                return Err(PdfError::Cancelled);
+            }
+            let reader = super::ResourceReader::open(client, scope)?;
             let failure = reader.failure_flag();
+            if check() {
+                return Err(PdfError::Cancelled);
+            }
             let doc =
                 super::engine::open(reader, (!password.is_empty()).then_some(password.as_str()))?;
             let mut remaining = anynote_core::pdf::MAX_INDEX_UTF16;
@@ -34,9 +41,7 @@ pub(crate) fn run(
             let mut hits = vec![];
             let mut partial = pages < total;
             for page in 0..pages {
-                let (text, truncated) = super::engine::extract(&doc, page, remaining, || {
-                    cancelled.load(Ordering::Acquire)
-                })?;
+                let (text, truncated) = super::engine::extract(&doc, page, remaining, check)?;
                 remaining -= text.encode_utf16().count();
                 hits.extend(super::selection::find(&text, &query, page));
                 if failure.load(Ordering::Acquire) {

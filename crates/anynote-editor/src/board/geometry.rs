@@ -1,4 +1,5 @@
-use super::{BoardError, Element, scene::invalid};
+use super::path::bounds as point_bounds;
+use super::{BoardError, Element, ElementKind, scene::invalid};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -127,4 +128,44 @@ impl Geometry {
             self.angle,
         )
     }
+}
+
+pub(super) fn element_bounds(element: &Element) -> Result<[f64; 4], BoardError> {
+    let g = element.geometry()?;
+    Ok(match element.kind() {
+        ElementKind::Rectangle
+        | ElementKind::Text
+        | ElementKind::Image
+        | ElementKind::Iframe
+        | ElementKind::Embeddable
+        | ElementKind::Frame
+        | ElementKind::MagicFrame => point_bounds(&g.corners()),
+        ElementKind::Diamond => point_bounds(&[
+            g.local_to_world(Point(g.width() / 2.0, 0.0)),
+            g.local_to_world(Point(g.width(), g.height() / 2.0)),
+            g.local_to_world(Point(g.width() / 2.0, g.height())),
+            g.local_to_world(Point(0.0, g.height() / 2.0)),
+        ]),
+        ElementKind::Ellipse => {
+            let (s, c) = g.angle().sin_cos();
+            let rx = ((g.width() * c).powi(2) + (g.height() * s).powi(2)).sqrt() / 2.0;
+            let ry = ((g.width() * s).powi(2) + (g.height() * c).powi(2)).sqrt() / 2.0;
+            let center = g.center();
+            [center.0 - rx, center.1 - ry, center.0 + rx, center.1 + ry]
+        }
+        ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw => {
+            let points = element.world_points()?;
+            if points.len() > 2 && element.field("roundness").is_some_and(|v| !v.is_null()) {
+                return Err(invalid("curved path transform requires curve bounds"));
+            }
+            if matches!(element.kind(), ElementKind::Line | ElementKind::Arrow)
+                && element.field("elbowed") != Some(&json!(true))
+            {
+                super::rough_path::bounds(element, &super::path::points(element)?, true)?
+            } else {
+                point_bounds(&points)
+            }
+        }
+        _ => return Err(invalid("unknown element bounds")),
+    })
 }

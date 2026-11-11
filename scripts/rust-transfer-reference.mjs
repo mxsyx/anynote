@@ -32,7 +32,7 @@ function rust(root, p, phase) {
   assert.ok(!r.error, JSON.stringify(r));
   return r.ok;
 }
-async function fixture() {
+async function fixture(includePdfIndex = true) {
   const root = join(work, `books-${counter++}`);
   mkdirSync(root);
   const s = new Storage(root, { maxWriteConnections: 1 });
@@ -117,6 +117,18 @@ async function fixture() {
     favorite: true,
   });
   const db = s.open(a.id);
+  const pdfIndex = includePdfIndex
+    ? JSON.stringify({
+        hash: asset.hash,
+        coverage: { total: 1, pages: 1, units: 10, state: "complete" },
+      })
+    : null;
+  if (pdfIndex)
+    db.prepare("INSERT INTO extension_data VALUES(?,?,?,1,1)").run(
+      "anynote.pdf.index",
+      `note.${pdf.id}`,
+      pdfIndex,
+    );
   db.prepare("UPDATE nodes SET sort_key=? WHERE id=?").run(1e-7, n.id);
   db.prepare("INSERT INTO import_reports VALUES(?,?)").run(
     n.id,
@@ -136,7 +148,21 @@ async function fixture() {
     operationId: randomUUID(),
     expectedRevision: f.revision,
   };
-  return { root, s, a, b, f, n, deleted, p, pdf, board, payload, outside };
+  return {
+    root,
+    s,
+    a,
+    b,
+    f,
+    n,
+    deleted,
+    p,
+    pdf,
+    pdfIndex,
+    board,
+    payload,
+    outside,
+  };
 }
 function interruptTS(s) {
   const tx = s.tx;
@@ -171,6 +197,15 @@ async function verify(f, r, mode = "move") {
       id: r.nodeMap[f.pdf.id],
     });
     assert.equal(annotations.length, 1);
+    assert.equal(
+      s
+        .open(f.b.id)
+        .prepare(
+          "SELECT value_json FROM extension_data WHERE extension_id='anynote.pdf.index' AND key=?",
+        )
+        .get(`note.${r.nodeMap[f.pdf.id]}`)?.value_json ?? null,
+      f.pdfIndex,
+    );
     assert.ok(
       (await get("search", { query: "全文检索" })).some(
         (x) => x.id === r.nodeMap[f.pdf.id],
@@ -221,44 +256,138 @@ async function verify(f, r, mode = "move") {
   } finally {
     s.close();
   }
+  assert.deepEqual(rust(f.root, f.p), r);
+  const reopened = new Storage(f.root);
+  try {
+    assert.equal(
+      (await reopened.run("getNote", { notebookId: f.a.id, id: f.n.id }))
+        .deleted_at,
+      null,
+    );
+    assert.equal(
+      (await reopened.run("listNodes", { notebookId: f.b.id })).length,
+      r.count,
+    );
+    for (const [book, namespace, count] of [
+      [f.a.id, "anynote.core.transfer-source", mode === "move" ? 1 : 0],
+      [f.b.id, "anynote.core.transfer-target", 1],
+    ])
+      assert.equal(
+        reopened
+          .open(book)
+          .prepare(
+            "SELECT COUNT(*) AS count FROM extension_data WHERE extension_id=? AND key=?",
+          )
+          .get(namespace, f.p.operationId).count,
+        count,
+      );
+  } finally {
+    reopened.close();
+  }
 }
-// Rust copy and receipts are readable/replayable by the previous implementation.
-{
-  const f = await fixture();
-  f.p.mode = "copy";
-  f.s.close();
-  const r = rust(f.root, f.p);
-  await verify(f, r, "copy");
-  checks.push(
-    "Rust copy: closure, history, annotations, PDF search, old whiteboard resources, unknown JSON, TS replay",
-  );
+for (const includePdfIndex of [false, true]) {
+  const label = includePdfIndex
+    ? "PDF index metadata"
+    : "no PDF index metadata";
+  // The retained TS reference reads and replays Rust copies and receipts.
+  {
+    const f = await fixture(includePdfIndex);
+    f.p.mode = "copy";
+    f.s.close();
+    const r = rust(f.root, f.p);
+    await verify(f, r, "copy");
+    checks.push(
+      `Rust copy: closure, history, annotations, PDF search, old whiteboard resources, unknown JSON, TS/Rust replay (${label})`,
+    );
+  }
+  // A TS destination receipt resumes in Rust, including exponent-form sort keys.
+  {
+    const f = await fixture(includePdfIndex);
+    interruptTS(f.s);
+    await assert.rejects(f.s.run("transferNode", f.p), /interrupted/);
+    f.s.close();
+    const r = rust(f.root, f.p);
+    assert.equal(r.status, "completed");
+    await verify(f, r);
+    checks.push(
+      `TS target commit -> Rust move completion -> TS/Rust completion replay (${label})`,
+    );
+  }
+  // A Rust destination receipt resumes in TS.
+  {
+    const f = await fixture(includePdfIndex);
+    f.s.close();
+    const copied = rust(f.root, f.p, "copy");
+    const s = new Storage(f.root);
+    const r = await s.run("transferNode", f.p);
+    s.close();
+    assert.equal(r.id, copied.id);
+    assert.equal(r.status, "completed");
+    await verify(f, r);
+    checks.push(
+      `Rust target commit -> TS move completion -> Rust/TS completion replay (${label})`,
+    );
+  }
 }
-// An old destination receipt resumes in Rust, including exponent-form sort keys.
-{
-  const f = await fixture();
-  interruptTS(f.s);
-  await assert.rejects(f.s.run("transferNode", f.p), /interrupted/);
-  f.s.close();
-  const r = rust(f.root, f.p);
-  assert.equal(r.status, "completed");
-  await verify(f, r);
-  checks.push(
-    "TS target commit -> Rust move completion -> TS completion replay",
-  );
-}
-// A Rust destination receipt resumes in TS.
-{
-  const f = await fixture();
-  f.s.close();
-  const copied = rust(f.root, f.p, "copy");
-  const s = new Storage(f.root);
-  const r = await s.run("transferNode", f.p);
-  s.close();
-  assert.equal(r.id, copied.id);
-  assert.equal(r.status, "completed");
-  await verify(f, r);
-  checks.push("Rust target commit -> TS move completion");
-}
+for (const resume of ["rust", "ts"])
+  for (const side of ["source", "target"]) {
+    const f = await fixture();
+    let copied;
+    if (resume === "rust") {
+      interruptTS(f.s);
+      await assert.rejects(f.s.run("transferNode", f.p), /interrupted/);
+      copied = JSON.parse(
+        f.s
+          .open(f.b.id)
+          .prepare(
+            "SELECT value_json FROM extension_data WHERE extension_id='anynote.core.transfer-target' AND key=?",
+          )
+          .get(f.p.operationId).value_json,
+      ).result;
+      f.s.close();
+    } else {
+      f.s.close();
+      copied = rust(f.root, f.p, "copy");
+    }
+    const s = new Storage(f.root);
+    const book = side === "source" ? f.a.id : f.b.id;
+    const id = side === "source" ? f.pdf.id : copied.nodeMap[f.pdf.id];
+    s.open(book)
+      .prepare(
+        "UPDATE extension_data SET value_json=json_set(value_json,'$.coverage.state','partial'),revision=revision+1 WHERE extension_id='anynote.pdf.index' AND key=?",
+      )
+      .run(`note.${id}`);
+    s.close();
+    let result;
+    if (resume === "rust") result = rust(f.root, f.p);
+    else {
+      const ts = new Storage(f.root);
+      try {
+        result = await ts.run("transferNode", f.p);
+      } finally {
+        ts.close();
+      }
+    }
+    assert.equal(result.status, `copied-${side}-changed`);
+    assert.equal(result.id, copied.id);
+    const check = new Storage(f.root);
+    try {
+      assert.equal(
+        (await check.run("getNote", { notebookId: f.a.id, id: f.n.id }))
+          .deleted_at,
+        null,
+      );
+      assert.equal(
+        (await check.run("listNodes", { notebookId: f.b.id })).length,
+        copied.count,
+      );
+    } finally {
+      check.close();
+    }
+    checks.push(
+      `${resume} resume detects ${side} PDF index metadata edit and preserves source`,
+    );
+  }
 for (const side of ["source", "target"]) {
   const f = await fixture();
   f.s.close();

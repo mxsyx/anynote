@@ -1,5 +1,7 @@
 //! Offline package health check. Never acquires the user's catalog or writes data.
-use std::{borrow::Cow, io::Cursor};
+use std::borrow::Cow;
+#[cfg(feature = "media")]
+use std::io::Cursor;
 
 pub(crate) const FONT: &[u8] = include_bytes!("../assets/fonts/NotoSans-Regular.ttf");
 

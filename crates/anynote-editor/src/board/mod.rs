@@ -2,11 +2,15 @@
 //!
 //! The original JSON is returned verbatim until an effective edit. Unknown fields
 //! remain data; this module never resolves file URLs or executes embedded content.
+mod binding;
 mod command;
 mod crop;
+mod frame;
 mod geometry;
 mod operation;
 mod order;
+mod path;
+mod rough_path;
 mod scene;
 
 pub use command::{Alignment, Axis, Board, Command, EditStamp, Layer};

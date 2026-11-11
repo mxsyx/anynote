@@ -325,7 +325,7 @@ fn nested_group_selection_and_layer_order_are_reversible() {
     assert_eq!(board.scene().serialize().unwrap(), INPUT);
 }
 #[test]
-fn binding_updates_both_sides_and_open_binding_move_is_rejected() {
+fn binding_updates_both_sides_and_open_binding_move_roundtrips() {
     let mut board = board();
     apply(
         &mut board,
@@ -355,17 +355,15 @@ fn binding_updates_both_sides_and_open_binding_move_is_rejected() {
     select(&mut board, &["element-0"]);
     assert!(board.selected_ids().contains("element-3"));
     let before = board.scene().serialize().unwrap();
-    assert!(
-        board
-            .apply(
-                Command::Translate {
-                    delta: Point::new(10.0, 0.0)
-                },
-                stamp()
-            )
-            .is_err()
+    apply(
+        &mut board,
+        Command::Translate {
+            delta: Point::new(10.0, 0.0),
+        },
     );
+    assert!(board.undo());
     assert_eq!(board.scene().serialize().unwrap(), before);
+    assert!(board.redo());
     select(&mut board, &["element-0", "element-5"]);
     apply(
         &mut board,
@@ -924,4 +922,237 @@ fn repeated_crop_accepts_boundary_roundoff_and_preserves_unknown_crop_data() {
     assert_eq!(board.scene().serialize().unwrap(), original);
     assert!(board.redo());
     assert!(board.redo());
+}
+
+#[test]
+fn upstream_open_bindings_and_control_points_roundtrip() {
+    let traces: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/bindings.json"
+    ))
+    .unwrap();
+    for trace in traces {
+        let original = serde_json::to_string(&trace["initial"]).unwrap();
+        let mut board = Board::new(Scene::parse(&original).unwrap(), 128);
+        board
+            .edit_group(trace["editingGroup"].as_str().map(str::to_owned))
+            .unwrap();
+        let mut states = vec![normalized(board.scene())];
+        for step in trace["steps"].as_array().unwrap() {
+            board
+                .select(
+                    step["selected"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|id| id.as_str().unwrap().to_owned()),
+                )
+                .unwrap();
+            let command = serde_json::from_value(step["command"].clone()).unwrap();
+            let changed = board
+                .apply(command, stamp())
+                .unwrap_or_else(|e| panic!("{} / {}: {e}", trace["name"], step["action"]));
+            assert_geometry_matches(
+                &normalized(board.scene()),
+                &step["expected"],
+                &format!("{} / {}", trace["name"], step["action"]),
+            );
+            if changed {
+                states.push(normalized(board.scene()));
+            }
+        }
+        for state in states.iter().rev().skip(1) {
+            assert!(board.undo());
+            assert_eq!(&normalized(board.scene()), state);
+        }
+        assert_eq!(board.scene().serialize().unwrap(), original);
+        for state in states.iter().skip(1) {
+            assert!(board.redo());
+            assert_eq!(&normalized(board.scene()), state);
+        }
+    }
+}
+
+#[test]
+fn editing_group_limits_selection_and_duplicate_preserves_ancestors() {
+    let mut board = board();
+    select(&mut board, &["element-0", "element-1"]);
+    apply(&mut board, Command::Group { id: "inner".into() });
+    select(&mut board, &["element-0", "element-2"]);
+    apply(&mut board, Command::Group { id: "outer".into() });
+    let original = board.scene().serialize().unwrap();
+    board.edit_group(Some("inner".into())).unwrap();
+    select(&mut board, &["element-0"]);
+    assert_eq!(board.selected_ids().len(), 1);
+    apply(
+        &mut board,
+        Command::Duplicate {
+            ids: BTreeMap::from([("element-0".into(), "copy".into())]),
+            groups: BTreeMap::new(),
+            delta: Point::new(10.0, 10.0),
+        },
+    );
+    assert_eq!(
+        board.scene().element("copy").unwrap().field("groupIds"),
+        Some(&json!(["inner", "outer"]))
+    );
+    assert_eq!(board.editing_group(), Some("inner"));
+    assert!(board.undo());
+    assert_eq!(board.scene().serialize().unwrap(), original);
+    assert!(board.has_redo());
+    assert!(board.edit_group(Some("missing".into())).is_err());
+    assert_eq!(board.editing_group(), Some("inner"));
+    assert!(board.has_redo());
+    select(&mut board, &["element-0", "element-1"]);
+    apply(&mut board, Command::Group { id: "new".into() });
+    assert_eq!(
+        board
+            .scene()
+            .element("element-0")
+            .unwrap()
+            .field("groupIds"),
+        Some(&json!(["new", "inner", "outer"]))
+    );
+    board.edit_group(Some("outer".into())).unwrap();
+    select(&mut board, &["element-0"]);
+    assert_eq!(board.selected_ids().len(), 2);
+    board.edit_group(None).unwrap();
+    assert_eq!(board.selected_ids().len(), 3);
+    board.edit_group(Some("inner".into())).unwrap();
+    select(&mut board, &["element-7"]);
+    assert_eq!(board.editing_group(), None);
+}
+
+#[test]
+fn dependent_layout_failure_preserves_original_selection_and_redo() {
+    let traces: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/bindings.json"
+    ))
+    .unwrap();
+    for patch in [
+        json!({"elbowed":true}),
+        json!({"roundness":{"type":2},"points":[[0,0],[80,-30],[180,120]]}),
+        json!({"boundElements":[{"id":"label","type":"text"}]}),
+    ] {
+        let mut initial = traces[0]["initial"].clone();
+        initial["elements"][2]
+            .as_object_mut()
+            .unwrap()
+            .extend(patch.as_object().unwrap().clone());
+        let original = serde_json::to_string(&initial).unwrap();
+        let mut board = Board::new(Scene::parse(&original).unwrap(), 8);
+        select(&mut board, &["target"]);
+        apply(&mut board, style(json!({"opacity":50})));
+        assert!(board.undo());
+        let selected = board.selected_ids().clone();
+        assert!(
+            board
+                .apply_batch(
+                    &[
+                        style(json!({"strokeColor":"#ff0000"})),
+                        Command::Translate {
+                            delta: Point::new(10.0, 20.0)
+                        }
+                    ],
+                    stamp()
+                )
+                .is_err()
+        );
+        assert_eq!(board.scene().serialize().unwrap(), original);
+        assert_eq!(board.selected_ids(), &selected);
+        assert!(board.has_redo());
+        assert!(board.redo());
+    }
+}
+
+#[test]
+fn invalid_control_points_are_atomic_and_unchanged_vertices_stay_fixed() {
+    let mut value: Value = serde_json::from_str(INPUT).unwrap();
+    value["elements"][4]["points"] = json!([[0, 0], [-40, 70], [80, -20]]);
+    value["elements"][4]["width"] = json!(120);
+    value["elements"][4]["height"] = json!(90);
+    value["elements"][4]["angle"] = json!(0.7);
+    let mut board = Board::new(Scene::from_json(value).unwrap(), 8);
+    let old = board
+        .scene()
+        .element("element-4")
+        .unwrap()
+        .world_points()
+        .unwrap();
+    let original = board.scene().serialize().unwrap();
+    for updates in [
+        vec![(3, Point::new(0.0, 0.0))],
+        vec![(0, Point::new(f64::NAN, 0.0))],
+        vec![(0, Point::new(1.0, 1.0)), (0, Point::new(2.0, 2.0))],
+    ] {
+        assert!(
+            board
+                .apply(
+                    Command::MovePoints {
+                        id: "element-4".into(),
+                        updates
+                    },
+                    stamp()
+                )
+                .is_err()
+        );
+        assert_eq!(board.scene().serialize().unwrap(), original);
+    }
+    apply(
+        &mut board,
+        Command::MovePoints {
+            id: "element-4".into(),
+            updates: vec![(0, Point::new(20.0, 30.0))],
+        },
+    );
+    let next = board
+        .scene()
+        .element("element-4")
+        .unwrap()
+        .world_points()
+        .unwrap();
+    for i in 1..3 {
+        assert!((old[i].x() - next[i].x()).abs() < 1e-9);
+        assert!((old[i].y() - next[i].y()).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn frame_resize_refreshes_expanded_selection_without_moving_children() {
+    let traces: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/rust-board/bindings.json"
+    ))
+    .unwrap();
+    let fixture = traces
+        .iter()
+        .find(|t| t["name"] == "frame/rectangle/0")
+        .unwrap();
+    let mut board = Board::new(Scene::from_json(fixture["initial"].clone()).unwrap(), 8);
+    select(&mut board, &["frame"]);
+    assert!(board.selected_ids().contains("edge"));
+    let edge = board.scene().element("edge").unwrap().geometry().unwrap();
+    apply(
+        &mut board,
+        serde_json::from_value(fixture["steps"][0]["command"].clone()).unwrap(),
+    );
+    assert!(!board.selected_ids().contains("edge"));
+    assert_eq!(
+        board.scene().element("edge").unwrap().geometry().unwrap(),
+        edge
+    );
+    assert!(board.undo());
+    assert!(board.selected_ids().contains("edge"));
+    let before = board.scene().serialize().unwrap();
+    assert!(
+        board
+            .apply(
+                Command::ResizeFrame {
+                    id: "frame".into(),
+                    geometry: Geometry::new(0.0, 0.0, 100.0, 100.0, 0.4).unwrap()
+                },
+                stamp()
+            )
+            .is_err()
+    );
+    assert_eq!(board.scene().serialize().unwrap(), before);
+    assert!(board.has_redo());
 }

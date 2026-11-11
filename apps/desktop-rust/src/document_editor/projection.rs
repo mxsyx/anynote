@@ -100,13 +100,29 @@ impl Projection {
             rows: vec![],
             text: String::new(),
         };
-        for block in document.blocks() {
-            if let (Ok(structure), Content::Markdown { node, source_base }) = (
-                Structure::for_block(document, block.id()),
-                block.parsed().content(),
-            ) {
+        // Build supported blocks together: resolving each block separately scans
+        // the document for every paragraph. Preserve per-block fallback when an
+        // unsupported Markdown node prevents a shared structure.
+        let structure = document
+            .blocks()
+            .first()
+            .zip(document.blocks().last())
+            .and_then(|(first, last)| Structure::for_blocks(document, first.id(), last.id()).ok());
+        for (ix, block) in document.blocks().iter().enumerate() {
+            let fallback = structure
+                .is_none()
+                .then(|| Structure::for_block(document, block.id()).ok())
+                .flatten();
+            let projected = structure
+                .as_ref()
+                .and_then(|structure| structure.root().children().get(ix))
+                .or_else(|| fallback.as_ref()?.root().children().first())
+                .filter(|_| block.parsed().is_editable());
+            if let (Some(projected), Content::Markdown { node, source_base }) =
+                (projected, block.parsed().content())
+            {
                 result.walk(
-                    structure.root().children().first().unwrap(),
+                    projected,
                     Some(node),
                     block.id(),
                     vec![0],

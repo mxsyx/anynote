@@ -217,24 +217,56 @@ async fn exercise(
             })
             .map_err(|e| e.to_string())?;
         let start = Instant::now();
-        window
-            .update(cx, |_, w, cx| w.click("save-document", cx))
+        let status_after_click = window
+            .update(cx, |_, w, cx| {
+                assert_ne!(w.find("save-document").disabled(), Some(true));
+                w.click("save-document", cx);
+                json!({
+                    "button_disabled": w.find("save-document").disabled(),
+                    "draft_visible": w.try_find("copy-draft").is_some(),
+                })
+            })
             .map_err(|e| e.to_string())?;
+        let click_ms = start.elapsed().as_secs_f64() * 1000.;
+        let mut readback_ms = 0.;
+        let mut wait_ms = 0.;
+        let mut polls = 0;
         loop {
-            if let Reply::Document(saved) =
-                reply(client, Command::OpenDocument { id: id.clone() }).await?
-                && saved.content().body() == expected
+            let readback_start = Instant::now();
+            let saved = reply(client, Command::OpenDocument { id: id.clone() }).await?;
+            readback_ms += readback_start.elapsed().as_secs_f64() * 1000.;
+            polls += 1;
+            // Storage readback can beat the UI receipt. Starting another sample
+            // then can click a disabled save button and measure a later flush.
+            let acknowledged = window
+                .update(cx, |_, w, cx| {
+                    w.render_frame(cx);
+                    w.try_find("copy-draft").is_none()
+                        && w.find("save-document").disabled() != Some(true)
+                })
+                .map_err(|e| e.to_string())?;
+            if acknowledged
+                && matches!(saved, Reply::Document(saved) if saved.content().body() == expected)
             {
                 break;
             }
             if start.elapsed() > Duration::from_secs(20) {
                 return Err("save receipt timeout".into());
             }
+            let wait_start = Instant::now();
             cx.background_executor()
                 .timer(Duration::from_millis(5))
                 .await;
+            wait_ms += wait_start.elapsed().as_secs_f64() * 1000.;
         }
         sample(report, "save_ack_ms", start);
+        report["save_observations"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({
+                "click_ms": click_ms, "readback_ms": readback_ms, "wait_ms": wait_ms,
+                "polls": polls, "status_after_click": status_after_click,
+            }));
     }
     window
         .update(cx, |_, w, _| w.remove_window())
@@ -257,62 +289,128 @@ async fn exercise(
     for _ in 0..100 {
         let start = Instant::now();
         window
-            .update(cx, |_, w, cx| w.input("x", cx))
+            .update(cx, |_, w, cx| {
+                let before = editor.read(cx).text().len();
+                w.input("x", cx);
+                assert_eq!(editor.read(cx).text().len(), before + 1);
+            })
             .map_err(|e| e.to_string())?;
         sample(report, "input_draw_ms", start);
         let start = Instant::now();
         window
-            .update(cx, |_, w, cx| w.press("down", cx))
+            .update(cx, |_, w, cx| {
+                let before = editor.read(cx).selection();
+                w.press("down", cx);
+                assert_ne!(editor.read(cx).selection(), before);
+            })
             .map_err(|e| e.to_string())?;
         sample(report, "navigation_draw_ms", start);
     }
-    window
+    let (text_len, viewport_top) = window
         .update(cx, |_, w, cx| {
             editor.update(cx, |v, cx| v.set_selected_text_range(0..0, w, cx));
             w.render_frame(cx);
+            let bounds = editor
+                .update(cx, |v, cx| {
+                    v.bounds_for_range(0..1, Bounds::default(), w, cx)
+                })
+                .expect("first character must have visible geometry");
+            (editor.read(cx).text().encode_utf16().count(), bounds.top())
         })
         .map_err(|e| e.to_string())?;
-    for ix in 0..100 {
-        let start = Instant::now();
-        window
-            .update(cx, |_, w, cx| {
-                let before = editor.update(cx, |v, cx| {
-                    v.bounds_for_range(0..1, Bounds::default(), w, cx)
-                });
-                w.dispatch_event(
-                    ScrollEvent {
-                        position: point(px(600.), px(400.)),
-                        delta: ScrollDelta::Pixels(point(
-                            px(0.),
-                            px(if ix % 2 == 0 { -400. } else { 400. }),
-                        )),
-                        ..Default::default()
-                    }
-                    .to_platform_input(),
-                    cx,
-                );
-                w.render_frame(cx);
-                let after = editor.update(cx, |v, cx| {
-                    v.bounds_for_range(0..1, Bounds::default(), w, cx)
-                });
-                assert_ne!(
-                    before, after,
-                    "wheel event must change visible text geometry"
-                );
-            })
-            .map_err(|e| e.to_string())?;
-        sample(report, "scroll_draw_ms", start);
+    for (name, target, direction) in [("bottom", text_len - 1..text_len, -1.), ("top", 0..1, 1.)] {
+        let mut completed = false;
+        for step in 1..=4096 {
+            let start = Instant::now();
+            completed = window
+                .update(cx, |_, w, cx| {
+                    let viewport = w.viewport_size();
+                    w.dispatch_event(
+                        ScrollEvent {
+                            position: point(viewport.width / 2., viewport.height / 2.),
+                            delta: ScrollDelta::Pixels(point(
+                                px(0.),
+                                direction * viewport.height / 2.,
+                            )),
+                            ..Default::default()
+                        }
+                        .to_platform_input(),
+                        cx,
+                    );
+                    w.render_frame(cx);
+                    editor
+                        .update(cx, |v, cx| {
+                            v.bounds_for_range(target.clone(), Bounds::default(), w, cx)
+                        })
+                        .is_some_and(|bounds| {
+                            bounds.top() >= viewport_top && bounds.bottom() <= viewport.height
+                        })
+                })
+                .map_err(|e| e.to_string())?;
+            sample(report, "scroll_draw_ms", start);
+            if completed {
+                report["scroll_traversal"][name] = json!({"reached": true, "steps": step});
+                break;
+            }
+        }
+        if !completed {
+            return Err(format!("wheel traversal did not reach document {name}"));
+        }
     }
     let deadline = Instant::now() + Duration::from_secs(seconds);
     while Instant::now() < deadline {
+        let backend_start = Instant::now();
+        let search = client
+            .submit(
+                Command::Workspace(WorkspaceCommand::Search(Search::new(
+                    "searchtoken3x2499".into(),
+                ))),
+                Duration::from_secs(20),
+            )
+            .map_err(|error| format!("{error:?}"))?;
+        let backlinks = client
+            .submit(
+                Command::Workspace(WorkspaceCommand::Backlinks { id: id.clone() }),
+                Duration::from_secs(20),
+            )
+            .map_err(|error| format!("{error:?}"))?;
         let start = Instant::now();
         window
             .update(cx, |_, w, cx| {
+                let expected = editor.read(cx).source().to_owned();
                 w.input("x", cx);
                 w.press("backspace", cx);
+                assert_eq!(editor.read(cx).source(), expected);
             })
             .map_err(|e| e.to_string())?;
         sample(report, "load_draw_ms", start);
+        let Response::Reply(Reply::Workspace(WorkspaceReply::Search { hits, .. })) = search
+            .receive()
+            .await
+            .map_err(|error| format!("{error:?}"))?
+        else {
+            return Err("concurrent search failed".into());
+        };
+        if hits.len() != 1 {
+            return Err(format!(
+                "concurrent search expected one result, got {}",
+                hits.len()
+            ));
+        }
+        let Response::Reply(Reply::Workspace(WorkspaceReply::Backlinks(links))) = backlinks
+            .receive()
+            .await
+            .map_err(|error| format!("{error:?}"))?
+        else {
+            return Err("concurrent backlinks failed".into());
+        };
+        if links.len() != 64 {
+            return Err(format!(
+                "concurrent backlinks expected 64 results, got {}",
+                links.len()
+            ));
+        }
+        sample(report, "load_backend_ack_ms", backend_start);
         cx.background_executor()
             .timer(Duration::from_millis(100))
             .await;
@@ -357,12 +455,13 @@ fn main() {
     let app = gpui_kit::platform::linux(WindowingModes::X11);
     #[cfg(not(target_os = "linux"))]
     let app = gpui_kit::application();
-    app.with_assets(gpui_kit::assets::Assets).run(move |cx| {
+    // Each open sample closes the previous editor before opening the next one.
+    app.with_quit_mode(QuitMode::Explicit).with_assets(gpui_kit::assets::Assets).run(move |cx| {
         gpui_kit::init(cx);document_editor::install_actions(cx);BackendSession::install(client.clone(),cx);
         cx.activate(true);
         cx.spawn(async move |cx| {
-            let mut report=json!({"schema":1,"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"cache":"os_cache_retained","fixture":fixture,"load_seconds":seconds,"samples":{},"evidence":"real OS windows; GPUI input dispatch and synchronous draw; no compositor present fence or native IME"});
-            for name in ["startup_draw_ms","first_open_draw_ms","backlinks_ipc_ms","open_ipc_ms","open_draw_ms","search_ipc_ms","save_ack_ms","input_draw_ms","navigation_draw_ms","scroll_draw_ms","load_draw_ms"] {report["samples"][name]=json!([]);}
+            let mut report=json!({"schema":1,"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"cache":"os_cache_retained","fixture":fixture,"load_seconds":seconds,"samples":{},"scroll_traversal":{},"save_observations":[],"concurrent_load":"backend search and backlinks submitted before each editor input/delete draw; acknowledgements checked afterward","evidence":"real OS editor windows with explicit process lifetime; GPUI input dispatch and synchronous draw; no compositor present fence or native IME"});
+            for name in ["startup_draw_ms","first_open_draw_ms","backlinks_ipc_ms","open_ipc_ms","open_draw_ms","search_ipc_ms","save_ack_ms","input_draw_ms","navigation_draw_ms","scroll_draw_ms","load_draw_ms","load_backend_ack_ms"] {report["samples"][name]=json!([]);}
             let result=exercise(cx,&client,id,started,seconds,&mut report).await;
             report["failure"]=json!(result.err());
             let shutdown=reply(&client,Command::Shutdown).await;

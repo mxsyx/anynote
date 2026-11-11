@@ -49,13 +49,18 @@ pub(crate) fn run(
     let (send, receive) = async_channel::bounded(1);
     std::thread::spawn(move || {
         let result = (|| {
-            let reader =
-                super::ResourceReader::open(client.clone(), scope.clone(), cancelled.clone())?;
+            let check = || cancelled.load(Ordering::Acquire);
+            if check() {
+                return Err(PdfError::Cancelled);
+            }
+            let reader = super::ResourceReader::open(client.clone(), scope.clone())?;
             let hash = reader.hash().to_owned();
             let failure = reader.failure_flag();
+            if check() {
+                return Err(PdfError::Cancelled);
+            }
             let doc =
                 super::engine::open(reader, (!password.is_empty()).then_some(password.as_str()))?;
-            let check = || cancelled.load(Ordering::Acquire);
             if check() {
                 return Err(PdfError::Cancelled);
             }

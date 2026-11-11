@@ -130,12 +130,14 @@ fn rotated_resize_keeps_opposite_corner_and_one_history_step() {
     );
 }
 #[test]
-fn rejected_open_binding_gesture_leaves_scene_and_redo_intact() {
+fn rejected_connector_label_gesture_leaves_scene_and_redo_intact() {
     let mut rect = shape("r", "rectangle", 10., 10., 100., 80., 0.);
     rect["boundElements"] = json!([{"id":"a","type":"arrow"}]);
     let mut arrow = shape("a", "arrow", 110., 50., 100., 0., 0.);
+    arrow["seed"] = json!(1);
     arrow["points"] = json!([[0, 0], [100, 0]]);
     arrow["startBinding"] = json!({"elementId":"r","focus":0,"gap":0});
+    arrow["boundElements"] = json!([{"id":"label","type":"text"}]);
     let scene = Scene::from_json(json!({"elements":[rect,arrow]})).unwrap();
     let mut input = BoardInput::new(scene);
     input.select(["r".into()]);
@@ -147,7 +149,14 @@ fn rejected_open_binding_gesture_leaves_scene_and_redo_intact() {
     input.begin(point(10., 50.), false, false);
     input.update(point(20., 60.), false);
     input.finish();
-    assert!(input.error().unwrap().contains("binding"));
+    assert!(
+        input
+            .error()
+            .unwrap()
+            .contains("connector label requires measured text layout"),
+        "{:?}",
+        input.error()
+    );
     assert!(input.board().has_redo());
     assert_eq!(input.board().scene().serialize().unwrap(), before);
 }

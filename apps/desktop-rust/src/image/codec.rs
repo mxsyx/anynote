@@ -18,6 +18,15 @@ static SVG_FONTS: LazyLock<Arc<resvg::usvg::fontdb::Database>> = LazyLock::new(|
     let mut fonts = resvg::usvg::fontdb::Database::new();
     fonts.load_font_data(crate::release::FONT.to_vec());
     fonts.load_system_fonts();
+    if fonts
+        .query(&resvg::usvg::fontdb::Query {
+            families: &[resvg::usvg::fontdb::Family::SansSerif],
+            ..Default::default()
+        })
+        .is_none()
+    {
+        fonts.set_sans_serif_family("Noto Sans");
+    }
     Arc::new(fonts)
 });
 pub(crate) fn font_database() -> Arc<resvg::usvg::fontdb::Database> {

@@ -16,7 +16,9 @@ PDF 使用 `Read + Seek` 接入原生 custom-file callback，每个后端范围�
 
 当前限制：单 PDF 最大 2 GiB，单页最长边 4096 像素（RGBA 最坏 64 MiB），单页文本最多 100000 glyph；超限显式报错。主页面持有一张纹理和文本几何，打开缩略图后只加载当前五页分组，最多另持有五张 160 像素缩略图。切页/缩放/关闭释放旧纹理；没有全书解码缓存。原生 bitmap、RGBA 转换和 GPU 上传期间有临时副本，不将 64 MiB 宣称为进程峰值内存。
 
-取消会清空排队请求、拒绝旧 generation、在 glyph 遍历和原生渲染前后检查。当前 Pdfium 一次同步渲染不能中途抢占，关闭时正在执行的调用完成后释放；不是硬超时隔离。资源读取失败具有 sticky 标记，原生返回部分图像也不会发布成功结果。用户可重试资源/密码错误；密码只驻留当前进程，不写配置、日志或 IPC。
+取消会清空排队请求、拒绝旧 generation、在 glyph 遍历和原生渲染前后检查。关闭、索引取消和搜索取消不再中断 `ResourceReader` 的在途 custom-file 回调：锁定 Pdfium 7350 在读取 stream 失败时可能触发 `CPDF_SyntaxParser::ReadStream` 的 CHECK，翻页后立即关闭曾由此触发 SIGTRAP。取消检查保留在打开/解析/渲染操作边界，在途同步读取完成后再释放；不是硬超时隔离。资源读取失败仍具有 sticky 标记，原生返回部分图像也不会发布成功结果。
+
+真实后台断连的 reader 错误已有独立测试，但它不证明原生解析中的真实 IO 失败安全；7350 的同一 CHECK 风险仍须升级原生库或隔离验证，上游对应修复见 [PDFium ReadStream 检查修复](https://pdfium.googlesource.com/pdfium/+/4bd20bd51662ef0ffca72ccd6d1ac41999f2d009)。本次没有改变五平台 pin。用户可重试资源/密码错误；密码只驻留当前进程，不写配置、日志或 IPC。
 
 ## 文本与坐标
 
@@ -55,7 +57,7 @@ export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 
 离线可加 `--archive /absolute/path/pdfium-mac-arm64.tgz`，仍验证相同 pin。输出目录必须不存在。开发目录必须使用绝对路径。未设置环境变量时，macOS 在可执行文件相邻的 `../Resources/pdfium` 读取，Linux/Windows 在 `pdfium` 子目录读取；Windows 归档 DLL 位于 `bin/pdfium.dll`。
 
-这次五个平台归档均实际下载并验证摘要，只有 macOS arm64 实际装载、解析和渲染。Linux/macOS x64/Windows 的 ABI、字体和显示仍归 RM32；签名、包内布局、更新后的漏洞版本与最终重分发清单归 RM36。锁定 7350 是复现基线，不代表生产安全准入。没有采用 WebView 后备，也不新增 RM27 依赖。
+既有验证下载过五个平台归档并验证摘要；macOS arm64 与 RM31 的 Linux x64 均已有实际装载、解析和渲染证据。macOS x64/Windows 的 ABI 及所有平台的完整字体/设备显示仍归 RM32；签名、包内布局、更新后的漏洞版本与最终重分发清单另验。锁定 7350 是复现基线，不代表生产安全准入。没有采用 WebView 后备，也不新增 RM27 依赖。
 
 ## 验证方法
 

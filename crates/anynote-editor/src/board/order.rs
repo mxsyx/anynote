@@ -50,10 +50,15 @@ fn target_index(
     boundary: usize,
     forward: bool,
     frame: Option<&str>,
+    editing: Option<&str>,
 ) -> Option<usize> {
     let eligible = |i: &usize| {
         let e = &scene.elements[*i];
-        !e.is_deleted() && frame.is_none_or(|frame| e.reference("frameId") == Some(frame))
+        !e.is_deleted()
+            && frame.map_or_else(
+                || editing.is_none_or(|group| e.group_ids().contains(&group)),
+                |frame| e.reference("frameId") == Some(frame),
+            )
     };
     let candidate = if forward {
         (boundary + 1..scene.elements.len()).find(eligible)
@@ -69,7 +74,7 @@ fn target_index(
             scene.elements.iter().position(|e| in_frame(e, frame))
         };
     }
-    if let Some(group) = element.group_ids().last() {
+    if let Some(group) = super::operation::selectable_groups(element, editing).last() {
         if forward {
             scene
                 .elements
@@ -85,7 +90,7 @@ fn target_index(
         Some(binding_boundary(scene, candidate, forward))
     }
 }
-fn shift_one(scene: &mut Scene, selected: &BTreeSet<String>, forward: bool) {
+fn shift_one(scene: &mut Scene, selected: &BTreeSet<String>, forward: bool, editing: Option<&str>) {
     let selected_indices = indices(scene, selected);
     let selected_frames: BTreeSet<_> = selected_indices
         .iter()
@@ -115,7 +120,7 @@ fn shift_one(scene: &mut Scene, selected: &BTreeSet<String>, forward: bool) {
         } else {
             scene.elements[boundary].reference("frameId")
         };
-        let Some(target) = target_index(scene, boundary, forward, frame) else {
+        let Some(target) = target_index(scene, boundary, forward, frame, editing) else {
             continue;
         };
         if forward && target > last {
@@ -125,7 +130,13 @@ fn shift_one(scene: &mut Scene, selected: &BTreeSet<String>, forward: bool) {
         }
     }
 }
-fn shift_end(scene: &mut Scene, selected: &BTreeSet<String>, frame: Option<&str>, forward: bool) {
+fn shift_end(
+    scene: &mut Scene,
+    selected: &BTreeSet<String>,
+    frame: Option<&str>,
+    forward: bool,
+    editing: Option<&str>,
+) {
     let selected_indices = indices(scene, selected);
     let (Some(first), Some(last)) = (selected_indices.first(), selected_indices.last()) else {
         return;
@@ -135,6 +146,14 @@ fn shift_end(scene: &mut Scene, selected: &BTreeSet<String>, frame: Option<&str>
     } else {
         frame
             .and_then(|id| scene.elements.iter().position(|e| in_frame(e, id)))
+            .or_else(|| {
+                editing.and_then(|id| {
+                    scene
+                        .elements
+                        .iter()
+                        .position(|e| e.group_ids().contains(&id))
+                })
+            })
             .unwrap_or(0)
     };
     let end = if !forward {
@@ -142,6 +161,14 @@ fn shift_end(scene: &mut Scene, selected: &BTreeSet<String>, frame: Option<&str>
     } else {
         frame
             .and_then(|id| scene.elements.iter().rposition(|e| in_frame(e, id)))
+            .or_else(|| {
+                editing.and_then(|id| {
+                    scene
+                        .elements
+                        .iter()
+                        .rposition(|e| e.group_ids().contains(&id))
+                })
+            })
             .unwrap_or(scene.elements.len() - 1)
     };
     let moved: BTreeSet<_> = selected_indices
@@ -151,10 +178,15 @@ fn shift_end(scene: &mut Scene, selected: &BTreeSet<String>, frame: Option<&str>
     scene.elements[start..=end].sort_by_key(|e| moved.contains(e.id()) == forward);
 }
 
-pub(super) fn reorder(scene: &mut Scene, selected: &BTreeSet<String>, layer: Layer) {
+pub(super) fn reorder(
+    scene: &mut Scene,
+    selected: &BTreeSet<String>,
+    layer: Layer,
+    editing: Option<&str>,
+) {
     match layer {
         Layer::Backward | Layer::Forward => {
-            shift_one(scene, selected, matches!(layer, Layer::Forward))
+            shift_one(scene, selected, matches!(layer, Layer::Forward), editing)
         }
         Layer::Back | Layer::Front => {
             let forward = matches!(layer, Layer::Front);
@@ -185,9 +217,9 @@ pub(super) fn reorder(scene: &mut Scene, selected: &BTreeSet<String>, layer: Lay
             // In 0.18 each partial frame is reordered from the original array,
             // so only the final frame's permutation survives before regular items.
             if let Some(frame) = frame_order.pop() {
-                shift_end(scene, &children[&frame], Some(&frame), forward);
+                shift_end(scene, &children[&frame], Some(&frame), forward, editing);
             }
-            shift_end(scene, &regular, None, forward);
+            shift_end(scene, &regular, None, forward, editing);
         }
     }
 }

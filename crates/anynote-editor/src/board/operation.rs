@@ -25,13 +25,24 @@ fn editable<'a>(scene: &'a Scene, id: &str) -> Result<&'a Element, BoardError> {
     }
     Ok(element)
 }
-pub(super) fn expand_selection(scene: &Scene, mut selected: BTreeSet<String>) -> BTreeSet<String> {
+pub(super) fn selectable_groups<'a>(element: &'a Element, editing: Option<&str>) -> Vec<&'a str> {
+    let groups = element.group_ids();
+    let end = editing
+        .and_then(|id| groups.iter().position(|group| *group == id))
+        .unwrap_or(groups.len());
+    groups[..end].to_vec()
+}
+pub(super) fn expand_selection(
+    scene: &Scene,
+    mut selected: BTreeSet<String>,
+    editing: Option<&str>,
+) -> BTreeSet<String> {
     loop {
         let old_len = selected.len();
         let groups: BTreeSet<_> = scene
             .elements()
             .filter(|e| selected.contains(e.id()))
-            .flat_map(Element::group_ids)
+            .flat_map(|e| selectable_groups(e, editing))
             .collect();
         for e in scene.elements().filter(|e| !e.is_deleted()) {
             if e.group_ids().iter().any(|group| groups.contains(group))
@@ -53,6 +64,17 @@ fn set(scene: &mut Scene, id: &str, name: &str, value: Value) -> Result<(), Boar
 }
 pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), BoardError> {
     let selected = state.selected.clone();
+    let editing = state.editing_group.as_deref();
+    let before_geometry = matches!(
+        command,
+        Command::Translate { .. }
+            | Command::Geometry { .. }
+            | Command::CropImage { .. }
+            | Command::ResizePath { .. }
+            | Command::MovePoints { .. }
+            | Command::Points { .. }
+    )
+    .then(|| state.scene.clone());
     let scene = &mut state.scene;
     if !matches!(
         command,
@@ -64,6 +86,8 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             | Command::CropImage { .. }
             | Command::Text { .. }
             | Command::Points { .. }
+            | Command::MovePoints { .. }
+            | Command::ResizeFrame { .. }
             | Command::BindText { .. }
             | Command::BindArrow { .. }
     ) {
@@ -117,14 +141,14 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             if *delta == Point(0.0, 0.0) {
                 return Ok(());
             }
-            require_closed_bindings(scene, &selected)?;
+            require_closed_text_bindings(scene, &selected)?;
             for id in &selected {
                 let geometry = editable(scene, id)?.geometry()?.translated(*delta)?;
                 geometry.write(scene.edit(id)?);
             }
         }
         Command::Align { axis, alignment } => {
-            let bounds = transform_groups(scene, &selected)?;
+            let bounds = transform_groups(scene, &selected, editing)?;
             if bounds.len() < 2 {
                 return Ok(());
             }
@@ -151,7 +175,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             }
         }
         Command::Distribute { axis } => {
-            let mut bounds = transform_groups(scene, &selected)?;
+            let mut bounds = transform_groups(scene, &selected, editing)?;
             if bounds.len() < 2 {
                 return Ok(());
             }
@@ -205,6 +229,25 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
         }
 
         Command::Flip { axis } => {
+            if !selected.is_empty()
+                && selected.iter().all(|id| {
+                    scene.element(id).is_some_and(|e| {
+                        e.kind() == ElementKind::Arrow
+                            && ["startBinding", "endBinding"]
+                                .iter()
+                                .any(|key| e.field(key).is_some_and(|v| !v.is_null()))
+                    })
+                })
+            {
+                for id in &selected {
+                    let e = active(scene, id)?;
+                    let start = e.field("startArrowhead").cloned().unwrap_or(Value::Null);
+                    let end = e.field("endArrowhead").cloned().unwrap_or(Value::Null);
+                    set(scene, id, "startArrowhead", end)?;
+                    set(scene, id, "endArrowhead", start)?;
+                }
+                return Ok(());
+            }
             let bounds = independent_bounds(scene, &selected, false)?;
             if bounds.is_empty() {
                 return Ok(());
@@ -218,12 +261,78 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 .iter()
                 .map(|(_, b)| b[dimension + 2])
                 .fold(f64::NEG_INFINITY, f64::max);
+            let center = Point(
+                (bounds
+                    .iter()
+                    .map(|(_, b)| b[0])
+                    .fold(f64::INFINITY, f64::min)
+                    + bounds
+                        .iter()
+                        .map(|(_, b)| b[2])
+                        .fold(f64::NEG_INFINITY, f64::max))
+                    / 2.0,
+                (bounds
+                    .iter()
+                    .map(|(_, b)| b[1])
+                    .fold(f64::INFINITY, f64::min)
+                    + bounds
+                        .iter()
+                        .map(|(_, b)| b[3])
+                        .fold(f64::NEG_INFINITY, f64::max))
+                    / 2.0,
+            );
+            let mut transformed_path = false;
             for (id, _) in bounds {
                 let element = active(scene, &id)?;
                 if element.kind() == ElementKind::Text {
                     return Err(invalid("text flip requires text layout"));
                 }
                 let g = element.geometry()?;
+                if matches!(
+                    element.kind(),
+                    ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw
+                ) {
+                    let mut points = super::path::points(element)?;
+                    let extents = super::path::bounds(&points);
+                    let sx = if extents[2] == extents[0] {
+                        1.0
+                    } else {
+                        g.width() / (extents[2] - extents[0])
+                    };
+                    let sy = if extents[3] == extents[1] {
+                        1.0
+                    } else {
+                        g.height() / (extents[3] - extents[1])
+                    };
+                    transformed_path = true;
+                    for point in &mut points {
+                        point.0 *= sx;
+                        point.1 *= sy;
+                        if dimension == 0 {
+                            point.0 = -point.0;
+                        } else {
+                            point.1 = -point.1;
+                        }
+                    }
+                    Geometry::new(
+                        if dimension == 0 {
+                            min + max - g.x()
+                        } else {
+                            g.x()
+                        },
+                        if dimension == 1 {
+                            min + max - g.y()
+                        } else {
+                            g.y()
+                        },
+                        g.width(),
+                        g.height(),
+                        (-g.angle()).rem_euclid(std::f64::consts::TAU),
+                    )?
+                    .write(scene.edit(&id)?);
+                    set(scene, &id, "points", json!(points))?;
+                    continue;
+                }
                 let next = Geometry::new(
                     if dimension == 0 {
                         min + max - g.x() - g.width()
@@ -257,6 +366,29 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 }
                 next.write(scene.edit(&id)?);
             }
+            if transformed_path {
+                let next = independent_bounds(scene, &selected, false)?;
+                let dx = center.0
+                    - (next.iter().map(|(_, b)| b[0]).fold(f64::INFINITY, f64::min)
+                        + next
+                            .iter()
+                            .map(|(_, b)| b[2])
+                            .fold(f64::NEG_INFINITY, f64::max))
+                        / 2.0;
+                let dy = center.1
+                    - (next.iter().map(|(_, b)| b[1]).fold(f64::INFINITY, f64::min)
+                        + next
+                            .iter()
+                            .map(|(_, b)| b[3])
+                            .fold(f64::NEG_INFINITY, f64::max))
+                        / 2.0;
+                for id in &selected {
+                    active(scene, id)?
+                        .geometry()?
+                        .translated(Point(dx, dy))?
+                        .write(scene.edit(id)?);
+                }
+            }
         }
         Command::CropImage {
             id,
@@ -270,7 +402,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             if element.kind() != ElementKind::Image {
                 return Err(invalid("not an image"));
             }
-            require_unbound(element)?;
+            require_no_text_layout(element)?;
             super::crop::crop_image(
                 scene.edit(id)?,
                 *handle,
@@ -283,7 +415,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
         Command::ResizePath { id, geometry } => {
             geometry.validate()?;
             let element = editable(scene, id)?;
-            require_unbound(element)?;
+            require_no_text_layout(element)?;
             if !matches!(
                 element.kind(),
                 ElementKind::Line | ElementKind::Arrow | ElementKind::Freedraw
@@ -303,7 +435,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             for point in &points {
                 point.validate()?;
             }
-            let bounds = point_bounds(&points);
+            let bounds = super::path::bounds(&points);
             let width = bounds[2] - bounds[0];
             let height = bounds[3] - bounds[1];
             if (width == 0.0 && geometry.width() != 0.0)
@@ -331,7 +463,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
         Command::Geometry { id, geometry } => {
             geometry.validate()?;
             let e = editable(scene, id)?;
-            require_unbound(e)?;
+            require_no_text_layout(e)?;
             if matches!(
                 e.kind(),
                 ElementKind::Text
@@ -400,7 +532,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             ) {
                 return Err(invalid("not a path"));
             }
-            require_unbound(e)?;
+            require_no_text_layout(e)?;
             if e.field("elbowed") == Some(&json!(true)) {
                 return Err(invalid("elbow routing not implemented"));
             }
@@ -434,6 +566,14 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             if let Some(pressures) = pressures {
                 set(scene, id, "pressures", json!(pressures))?;
             }
+        }
+        Command::MovePoints { id, updates } => {
+            require_no_text_layout(editable(scene, id)?)?;
+            let points: BTreeMap<_, _> = updates.iter().copied().collect();
+            if points.len() != updates.len() {
+                return Err(invalid("duplicate point index"));
+            }
+            super::path::move_points(scene.edit(id)?, &points)?;
         }
         Command::Group { id } => {
             if selected.len() < 2 {
@@ -469,7 +609,10 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                     .into_iter()
                     .map(str::to_owned)
                     .collect();
-                groups.push(id.clone());
+                let position = editing
+                    .and_then(|id| groups.iter().position(|group| group == id))
+                    .unwrap_or(groups.len());
+                groups.insert(position, id.clone());
                 set(scene, element_id, "groupIds", json!(groups))?;
                 if frames.len() > 1 {
                     set(scene, element_id, "frameId", Value::Null)?;
@@ -515,7 +658,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             }
         }
         Command::Layer { layer } => {
-            reorder(scene, &selected, *layer)?;
+            reorder(scene, &selected, *layer, editing)?;
         }
         Command::Delete => {
             for id in &selected {
@@ -539,7 +682,12 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
             }
             let old_groups: BTreeSet<_> = selected
                 .iter()
-                .flat_map(|id| scene.element(id).into_iter().flat_map(Element::group_ids))
+                .flat_map(|id| {
+                    scene
+                        .element(id)
+                        .into_iter()
+                        .flat_map(|e| selectable_groups(e, editing))
+                })
                 .map(str::to_owned)
                 .collect();
             if groups.keys().cloned().collect::<BTreeSet<_>>() != old_groups {
@@ -557,7 +705,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 }
             }
             let cluster = |element: &Element| {
-                if let Some(group) = element.group_ids().last() {
+                if let Some(group) = selectable_groups(element, editing).last() {
                     return format!("group:{group}");
                 }
                 if let Some(frame) = element
@@ -627,7 +775,7 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                     let new_groups: Vec<_> = element
                         .group_ids()
                         .iter()
-                        .filter_map(|id| groups.get(*id))
+                        .map(|id| groups.get(*id).map(String::as_str).unwrap_or(id))
                         .collect();
                     copy.fields.insert("groupIds".into(), json!(new_groups));
                     copies
@@ -674,6 +822,23 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 set(scene, element_id, "frameId", json!(id))?;
             }
         }
+        Command::ResizeFrame { id, geometry } => {
+            editable(scene, id)?;
+            let before = scene.clone();
+            super::frame::resize(scene, id, *geometry)?;
+            super::binding::reconcile(&before, scene)?;
+            if selected.contains(id) {
+                let roots = selected
+                    .into_iter()
+                    .filter(|selected| {
+                        before
+                            .element(selected)
+                            .is_none_or(|e| e.reference("frameId") != Some(id))
+                    })
+                    .collect();
+                state.selected = expand_selection(scene, roots, editing);
+            }
+        }
         Command::BindText { text, container } => bind_text(scene, text, container.as_deref())?,
         Command::BindArrow {
             arrow,
@@ -702,6 +867,16 @@ pub(super) fn execute(state: &mut Snapshot, command: &Command) -> Result<(), Boa
                 .ok_or_else(|| invalid("invalid appState"))?;
             app.extend(properties.clone());
         }
+    }
+    if let Some(before) = before_geometry {
+        super::binding::reconcile(&before, scene)?;
+    }
+    if state.editing_group.as_ref().is_some_and(|id| {
+        !scene
+            .elements()
+            .any(|e| !e.is_deleted() && e.group_ids().contains(&id.as_str()))
+    }) {
+        state.editing_group = None;
     }
     Ok(())
 }
@@ -738,20 +913,23 @@ fn require_unbound(element: &Element) -> Result<(), BoardError> {
     }
     Ok(())
 }
-fn require_closed_bindings(scene: &Scene, selected: &BTreeSet<String>) -> Result<(), BoardError> {
+fn require_no_text_layout(element: &Element) -> Result<(), BoardError> {
+    if element.reference("containerId").is_some()
+        || element
+            .field("boundElements")
+            .and_then(Value::as_array)
+            .is_some_and(|v| v.iter().any(|b| b["type"] == "text"))
+    {
+        return Err(invalid("operation requires measured text layout"));
+    }
+    Ok(())
+}
+fn require_closed_text_bindings(
+    scene: &Scene,
+    selected: &BTreeSet<String>,
+) -> Result<(), BoardError> {
     for e in scene.elements().filter(|e| !e.is_deleted()) {
-        for target in [
-            e.reference("containerId"),
-            e.field("startBinding")
-                .and_then(|v| v.get("elementId"))
-                .and_then(Value::as_str),
-            e.field("endBinding")
-                .and_then(|v| v.get("elementId"))
-                .and_then(Value::as_str),
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for target in [e.reference("containerId")].into_iter().flatten() {
             if selected.contains(e.id()) != selected.contains(target) {
                 return Err(invalid(
                     "moving an open binding requires connector/text layout",
@@ -919,12 +1097,17 @@ fn bind_arrow(
     }
     set(scene, arrow, key, binding.cloned().unwrap_or(Value::Null))
 }
-fn reorder(scene: &mut Scene, selected: &BTreeSet<String>, layer: Layer) -> Result<(), BoardError> {
+fn reorder(
+    scene: &mut Scene,
+    selected: &BTreeSet<String>,
+    layer: Layer,
+    editing: Option<&str>,
+) -> Result<(), BoardError> {
     if selected.is_empty() {
         return Ok(());
     }
     let before: Vec<_> = scene.elements.iter().map(|e| e.id().to_owned()).collect();
-    super::order::reorder(scene, selected, layer);
+    super::order::reorder(scene, selected, layer, editing);
     if !before.iter().eq(scene.elements.iter().map(|e| e.id())) {
         reindex(scene)?;
     }
@@ -969,6 +1152,7 @@ type TransformGroup = (Vec<String>, [f64; 4]);
 fn transform_groups(
     scene: &Scene,
     selected: &BTreeSet<String>,
+    editing: Option<&str>,
 ) -> Result<Vec<TransformGroup>, BoardError> {
     let bounds = independent_bounds(scene, selected, true)?;
     let mut groups: Vec<TransformGroup> = Vec::new();
@@ -977,7 +1161,7 @@ fn transform_groups(
     let bounds: BTreeMap<_, _> = bounds.into_iter().collect();
     for element in scene.elements().filter(|e| selected.contains(e.id())) {
         let b = bounds[element.id()];
-        if let Some(group) = element.group_ids().last() {
+        if let Some(group) = selectable_groups(element, editing).last() {
             let index = *indices.entry((*group).to_owned()).or_insert_with(|| {
                 groups.push((Vec::new(), b));
                 groups.len() - 1
@@ -1009,39 +1193,13 @@ fn independent_bounds(
         {
             return Err(invalid("group/frame transform policy not implemented"));
         }
-        let g = element.geometry()?;
-        let bounds = match element.kind() {
-            ElementKind::Rectangle
-            | ElementKind::Text
-            | ElementKind::Image
-            | ElementKind::Iframe
-            | ElementKind::Embeddable => point_bounds(&g.corners()),
-            ElementKind::Diamond => point_bounds(&[
-                g.local_to_world(Point(g.width() / 2.0, 0.0)),
-                g.local_to_world(Point(g.width(), g.height() / 2.0)),
-                g.local_to_world(Point(g.width() / 2.0, g.height())),
-                g.local_to_world(Point(0.0, g.height() / 2.0)),
-            ]),
-            ElementKind::Ellipse => {
-                let (s, c) = g.angle().sin_cos();
-                let rx = ((g.width() * c).powi(2) + (g.height() * s).powi(2)).sqrt() / 2.0;
-                let ry = ((g.width() * s).powi(2) + (g.height() * c).powi(2)).sqrt() / 2.0;
-                let center = g.center();
-                [center.0 - rx, center.1 - ry, center.0 + rx, center.1 + ry]
-            }
-            _ => return Err(invalid("path/frame transform policy not implemented")),
-        };
+        if matches!(element.kind(), ElementKind::Frame | ElementKind::MagicFrame) {
+            return Err(invalid("frame transform policy not implemented"));
+        }
+        let bounds = super::geometry::element_bounds(element)?;
         result.push((id.clone(), bounds));
     }
     Ok(result)
-}
-fn point_bounds(points: &[Point]) -> [f64; 4] {
-    [
-        points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min),
-        points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min),
-        points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max),
-        points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max),
-    ]
 }
 fn move_on_axis(scene: &mut Scene, id: &str, axis: Axis, delta: f64) -> Result<(), BoardError> {
     if delta == 0.0 {

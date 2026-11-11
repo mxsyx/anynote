@@ -17,6 +17,15 @@ use media_ui::{Backend, click_label, reply, spin};
 
 #[gpui_kit::test]
 fn nested_range_paste_save_reopen_preserves_media_resource(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, false);
+}
+
+#[gpui_kit::test]
+fn nested_range_composition_save_reopen_preserves_media_resource(cx: &mut TestAppContext) {
+    nested_range_save_reopen(cx, true);
+}
+
+fn nested_range_save_reopen(cx: &mut TestAppContext, composing: bool) {
     cx.background_executor.allow_parking();
     let backend = Backend::new();
     let Reply::Document(base) = reply(&backend.client, Command::CreateDocument) else {
@@ -82,15 +91,37 @@ fn nested_range_paste_save_reopen_preserves_media_resource(cx: &mut TestAppConte
                 .count();
             editor.set_selected_text_range(start..end, w, cx);
         });
-        cx.write_to_clipboard(ClipboardItem::new_string("中文🦀".into()));
-        w.press(
-            if cfg!(target_os = "macos") {
-                "cmd-v"
-            } else {
-                "ctrl-v"
-            },
-            cx,
-        );
+        if composing {
+            editor.update(cx, |editor, cx| {
+                editor.replace_and_mark_text_in_range(None, "中文🦀", None, w, cx);
+                assert!(editor.is_composing());
+                assert_eq!(editor.source(), body);
+                assert_eq!(editor.undo_steps(), 0);
+            });
+            w.render_frame(cx);
+            w.click("save-document", cx);
+            let Reply::Document(stored) = reply(
+                &backend.client,
+                Command::OpenDocument {
+                    id: base.id().clone(),
+                },
+            ) else {
+                panic!()
+            };
+            assert_eq!(stored.revision(), snapshot.revision());
+            assert_eq!(stored.content().body(), body);
+            editor.update(cx, |editor, cx| editor.unmark_text(w, cx));
+        } else {
+            cx.write_to_clipboard(ClipboardItem::new_string("中文🦀".into()));
+            w.press(
+                if cfg!(target_os = "macos") {
+                    "cmd-v"
+                } else {
+                    "ctrl-v"
+                },
+                cx,
+            );
+        }
         assert!(
             editor
                 .read(cx)

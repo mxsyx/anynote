@@ -5,10 +5,6 @@ use anynote_core::{asset::*, backend::*};
 use anynote_desktop::pdf::{PdfError, PdfWorker, ResourceReader};
 use std::{
     io::{Read, Seek, SeekFrom},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
     time::Duration,
 };
 use support::PdfBackend;
@@ -22,10 +18,8 @@ fn revision_scoped_reader_rejects_wrong_scope_and_releases_leases() {
         panic!()
     };
     assert_eq!(snapshot.primary_pdf(), Some(f.scope.resource()));
-    let cancelled = Arc::new(AtomicBool::new(false));
     for _ in 0..20 {
-        let mut reader =
-            ResourceReader::open(f.client.clone(), f.scope.clone(), cancelled.clone()).unwrap();
+        let mut reader = ResourceReader::open(f.client.clone(), f.scope.clone()).unwrap();
         let mut header = [0; 5];
         reader.read_exact(&mut header).unwrap();
         assert_eq!(&header, b"%PDF-");
@@ -40,11 +34,7 @@ fn revision_scoped_reader_rejects_wrong_scope_and_releases_leases() {
         Uuid::new_v4(),
         f.scope.resource(),
     );
-    assert!(ResourceReader::open(f.client.clone(), wrong, cancelled.clone()).is_err());
-    let mut reader =
-        ResourceReader::open(f.client.clone(), f.scope.clone(), cancelled.clone()).unwrap();
-    cancelled.store(true, Ordering::Release);
-    assert!(reader.read(&mut [0; 10]).is_err());
+    assert!(ResourceReader::open(f.client.clone(), wrong).is_err());
     let token = Uuid::new_v4();
     f.reply(Command::Asset(AssetCommand::Open {
         scope: f.scope.clone(),
@@ -66,6 +56,18 @@ fn revision_scoped_reader_rejects_wrong_scope_and_releases_leases() {
             .is_err()
     );
 }
+
+#[test]
+fn reader_reports_backend_failure_without_native_work() {
+    let f = PdfBackend::new("geometry.pdf");
+    let mut reader = ResourceReader::open(f.client.clone(), f.scope.clone()).unwrap();
+    let mut header = [0; 5];
+    reader.read_exact(&mut header).unwrap();
+    assert_eq!(&header, b"%PDF-");
+    f.reply(Command::Shutdown);
+    assert!(reader.read(&mut header).is_err());
+}
+
 #[test]
 fn worker_latest_request_close_and_password_retry() {
     let f = PdfBackend::new("encrypted.pdf");
@@ -108,12 +110,7 @@ fn worker_latest_request_close_and_password_retry() {
 fn index_tasks_publish_once_and_cancel_or_fail_without_replacing_text() {
     use anynote_core::pdf::*;
     let f = PdfBackend::new("geometry.pdf");
-    let reader = ResourceReader::open(
-        f.client.clone(),
-        f.scope.clone(),
-        Arc::new(AtomicBool::new(false)),
-    )
-    .unwrap();
+    let reader = ResourceReader::open(f.client.clone(), f.scope.clone()).unwrap();
     let hash = reader.hash().to_owned();
     drop(reader);
     let begin = || {

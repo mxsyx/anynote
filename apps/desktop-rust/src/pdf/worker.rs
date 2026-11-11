@@ -45,9 +45,15 @@ impl PdfWorker {
                 #[cfg(feature = "media")]
                 {
                     let result = (|| {
-                        let reader = ResourceReader::open(client, scope, closed.clone())?;
+                        if closed.load(Ordering::Acquire) {
+                            return Err(PdfError::Cancelled);
+                        }
+                        let reader = ResourceReader::open(client, scope)?;
                         let hash = reader.hash().to_owned();
                         let failed = reader.failure_flag();
+                        if closed.load(Ordering::Acquire) {
+                            return Err(PdfError::Cancelled);
+                        }
                         let document = super::engine::open(
                             reader,
                             (!password.is_empty()).then_some(password.as_str()),

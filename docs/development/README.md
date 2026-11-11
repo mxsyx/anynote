@@ -7,7 +7,7 @@
 - [原生发行凭据](RELEASE-CREDENTIALS.md)：调用约束与验证方法。
 - [发行矩阵](RELEASE-MATRIX.md)：调用约束与验证方法。
 - [保留 TS 构建与 Rust 互通（RM30）](RETAINED-TS-INTEROP.md)：调用约束与验证方法。
-- [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：调用约束与验证方法。
+- [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene 事务、绑定/路径/组/frame 内核接口、旧版差分语料及未覆盖边界。
 - [Rust 原生白板视图与交互](RUST-BOARD-VIEW.md)：调用约束与验证方法。
 - [Rust 静态内置业务（RM20）](RUST-BUILTIN-BUSINESS.md)：调用约束与验证方法。
 - [RM34 Rust 真实云验收批次](RUST-CLOUD-ACCEPTANCE.md)：调用约束与验证方法。

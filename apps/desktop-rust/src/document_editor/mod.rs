@@ -124,6 +124,7 @@ pub struct DocumentEditor {
     next_key: u64,
     view_revision: u64,
     projected_generation: u64,
+    composition_rows: Option<std::ops::Range<usize>>,
     last_rem: Pixels,
     last_scale: f32,
     overlay_anchor: Point<Pixels>,
@@ -186,6 +187,7 @@ impl DocumentEditor {
             next_key: 1,
             view_revision: 0,
             projected_generation: 0,
+            composition_rows: None,
             last_rem: window.rem_size(),
             last_scale: window.scale_factor(),
             overlay_anchor: point(px(0.), px(0.)),
@@ -300,6 +302,10 @@ impl DocumentEditor {
         self.accessible_positions.borrow_mut().clear();
         self.reveal_selection = !self.dragging_selection;
         let generation = self.state.editor.document().generation();
+        let composition_rows = self.state.composition.as_ref().map(|c| {
+            self.state.projection.row_for(c.leaf)..self.state.projection.row_for(c.last_leaf) + 1
+        });
+        let previous_rows = std::mem::replace(&mut self.composition_rows, composition_rows.clone());
         if generation != self.projected_generation {
             self.stop_video(cx);
         }
@@ -311,14 +317,10 @@ impl DocumentEditor {
             self.layout.reset(self.state.projection.rows.len());
             self.layout.scroll_to(scroll);
             self.projected_generation = generation;
-        } else if self.is_composing() {
-            let row = self
-                .state
-                .projection
-                .row_for(self.state.projection.at(self.state.head).0);
-            self.layout.remeasure_items(row..row + 1);
+        } else if let Some(rows) = composition_rows.or(previous_rows) {
+            self.layout.remeasure_items(rows);
         }
-        let (leaf, _) = self.state.projection.at(self.state.head);
+        let (leaf, _) = self.state.display_at(self.state.display_head());
         let row = self.state.projection.row_for(leaf);
         if self.dragging_selection {
             // Edge dragging owns scrolling until release; revealing the active
@@ -598,14 +600,11 @@ impl DocumentEditor {
     fn render_leaf(&self, ix: usize, window: &mut Window, cx: &mut App) -> AnyElement {
         let leaf = &self.state.projection.leaves[ix];
         let mut paragraph = Paragraph::default();
-        let composition = self.state.composition.as_ref().filter(|c| c.leaf == ix);
-        if let Some(c) = composition {
-            let mut text = leaf.text.clone();
-            text.replace_range(
-                c.local.clone(),
-                self.state.editor.composition().unwrap().text(),
-            );
-            paragraph.push(InlineNode::new(text));
+        let composing = self.state.composing_leaf(ix);
+        if composing {
+            paragraph.push(InlineNode::new(
+                self.state.display_leaf_text(ix).into_owned(),
+            ));
         } else if leaf.runs.is_empty() {
             paragraph.push(InlineNode::new(leaf.text.clone()));
         } else {
@@ -643,7 +642,7 @@ impl DocumentEditor {
                 children: paragraph,
                 span: None,
             },
-            NodeKind::Code { language } if composition.is_none() => BlockNode::CodeBlock(
+            NodeKind::Code { language } if !composing => BlockNode::CodeBlock(
                 CodeBlock::from_code(leaf.text.clone(), language.clone())
                     .with_leaf_key(self.keys[ix]),
             ),
@@ -711,6 +710,10 @@ impl DocumentEditor {
         let first = row.leaves.start;
         let leaf = self.state.projection.leaves[first].clone();
         let key = self.keys[first];
+        if self.state.composing_leaf(first) && matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule)
+        {
+            return div().w_full().into_any_element();
+        }
         if let Some(video) = self.render_video(first, key, window, cx) {
             return video;
         }

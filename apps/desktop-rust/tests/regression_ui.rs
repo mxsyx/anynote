@@ -1,8 +1,9 @@
 #![cfg(all(feature = "ui-tests", feature = "media"))]
 use anynote_core::{backend::*, document_session::*, image::*};
 use anynote_desktop::{
+    backend_session::BackendSession,
     board::{self, BoardView},
-    document_editor::{self, DocumentEditor},
+    document_editor::{self, DocumentEditor, RunCommand},
     image::ImageView,
     pdf::PdfView,
 };
@@ -10,7 +11,7 @@ use anynote_editor::board::Scene;
 use core::prelude::v1::test;
 use gpui_kit::{
     component::{Theme, ThemeMode},
-    test::{TestEventExt, TestWindowExt},
+    test::{TestEventExt, TestQueryExt, TestWindowExt},
     *,
 };
 use uuid::Uuid;
@@ -197,9 +198,16 @@ fn hundred_pdf_cancelled_page_cycles_release_entities(cx: &mut TestAppContext) {
             .unwrap()
         });
         eprintln!("cycle {cycle}: loading PDF");
-        support::spin(cx, window, |_, cx| view.read(cx).raster().is_some());
+        support::spin(cx, window, |w, cx| {
+            if let Some(error) = w.try_find("pdf-error") {
+                panic!("PDF failed at cycle {cycle}: {:?}", error.label());
+            }
+            view.read(cx).raster().is_some()
+        });
         cx.update_window(window, |_, w, cx| {
             w.click("pdf-next", cx);
+            assert_eq!(view.read(cx).page(), 1);
+            assert!(view.read(cx).is_loading());
             view.update(cx, |v, cx| v.close(w, cx));
             assert_eq!(view.read(cx).cached_texture_count(), 0);
             w.remove_window();
@@ -215,6 +223,78 @@ fn hundred_pdf_cancelled_page_cycles_release_entities(cx: &mut TestAppContext) {
         cx.update(|cx| assert!(cx.windows().is_empty()));
     }
     assert!(matches!(pdf.reply(Command::Ping), Reply::Pong));
+}
+
+#[gpui_kit::test]
+fn hundred_video_card_cycles_release_entities(cx: &mut TestAppContext) {
+    cx.background_executor.allow_parking();
+    let backend = support::Backend::new();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        document_editor::install_actions(cx);
+        BackendSession::install(backend.client.clone(), cx);
+    });
+    for cycle in 0..100 {
+        let Reply::Document(snapshot) = support::reply(&backend.client, Command::CreateDocument)
+        else {
+            panic!()
+        };
+        let (window, editor) = cx.update(|cx| {
+            gpui_kit::open_window(window_options(), cx, |w, cx| {
+                cx.new(|cx| DocumentEditor::from_snapshot(snapshot.clone(), w, cx))
+            })
+            .unwrap()
+        });
+        cx.update_window(window, |_, w, cx| {
+            w.render_frame(cx);
+            editor.focus_handle(cx).focus(w, cx);
+            w.dispatch_action(Box::new(RunCommand::new("video")), cx);
+        })
+        .unwrap();
+        support::spin(cx, window, |w, _| w.try_find_by_label("视频地址").is_some());
+        cx.update_window(window, |_, w, cx| {
+            support::click_label(w, "视频地址", cx);
+            w.input("https://vimeo.com/12345678", cx);
+            w.click("insert-video-confirm", cx);
+        })
+        .unwrap();
+        support::spin(cx, window, |w, _| w.try_find_by_label("播放视频").is_some());
+        support::spin(cx, window, |_, cx| {
+            matches!(
+                support::reply(&backend.client, Command::OpenDocument { id: snapshot.id().clone() }),
+                Reply::Document(saved) if saved.content().body() == editor.read(cx).source()
+            )
+        });
+        cx.update_window(window, |_, w, cx| {
+            assert!(editor.read(cx).source().contains("core.video"));
+            support::click_label(w, "播放视频", cx);
+        })
+        .unwrap();
+        if cycle % 2 == 0 {
+            support::spin(cx, window, |w, _| {
+                w.try_find_by_label("播放视频")
+                    .is_some_and(|button| button.disabled() != Some(true))
+            });
+        }
+        cx.update_window(window, |_, w, cx| {
+            w.render_frame(cx);
+            assert!(w.try_find("video-player").is_none());
+            w.remove_window();
+        })
+        .unwrap();
+        let weak = editor.downgrade();
+        drop(editor);
+        cx.run_until_parked();
+        assert!(
+            weak.upgrade().is_none(),
+            "video card retained at cycle {cycle}"
+        );
+        cx.update(|cx| assert!(cx.windows().is_empty()));
+    }
+    assert!(matches!(
+        support::reply(&backend.client, Command::Ping),
+        Reply::Pong
+    ));
 }
 
 fn window_options() -> WindowOptions {

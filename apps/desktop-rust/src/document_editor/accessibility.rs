@@ -83,10 +83,11 @@ impl Snapshot {
                     .iter()
                     .map(|run| (run.text().to_owned(), run.marks().clone()))
                     .collect::<Vec<_>>();
-                if let Some(c) = state.composition.as_ref().filter(|c| c.leaf == ix) {
-                    let mut text = leaf.text.clone();
-                    text.replace_range(c.local.clone(), state.editor.composition().unwrap().text());
-                    runs = vec![(text, state.marks.clone())];
+                if state.composing_leaf(ix) {
+                    runs = vec![(
+                        state.display_leaf_text(ix).into_owned(),
+                        state.marks.clone(),
+                    )];
                 }
                 if runs.is_empty() {
                     runs.push((leaf.text.clone(), Default::default()));
@@ -106,7 +107,7 @@ impl Snapshot {
             ancestors,
             rows: state.projection.rows.clone(),
             selection: state.display_selection(),
-            reversed: state.anchor > state.head,
+            reversed: state.composition.is_none() && state.anchor > state.head,
         }
     }
     pub fn build(self, id: impl Fn(Key) -> NodeId) -> Tree {

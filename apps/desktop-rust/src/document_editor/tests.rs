@@ -1,6 +1,38 @@
 use super::*;
 
 #[core::prelude::v1::test]
+fn bulk_projection_keeps_opaque_blocks_and_neighbor_source_offsets() {
+    let source = "before\n\n<div>preserved</div>\n\n| a | b |\n|:--|--:|\n| c | d |\n\n- **nested**\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    assert_eq!(
+        state.projection.text,
+        "before\n\u{fffc}\n\u{fffc}\nnested\nafter"
+    );
+    assert_eq!(
+        state
+            .projection
+            .leaves
+            .iter()
+            .filter(|leaf| leaf.kind == NodeKind::Atom)
+            .count(),
+        2
+    );
+    let start = state.projection.text.find("nested").unwrap();
+    state.select(start, start + 6).unwrap();
+    assert_eq!(&source[state.editor.selection().range()], "nested");
+    state.replace("changed").unwrap();
+    let edited = state.editor.document().source();
+    assert!(edited.starts_with(source.split("- **nested**").next().unwrap()));
+    assert!(edited.ends_with("\n\nafter"));
+    assert_eq!(
+        state.projection.text,
+        "before\n\u{fffc}\n\u{fffc}\nchanged\nafter"
+    );
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+}
+
+#[core::prelude::v1::test]
 fn nested_ranges_replace_and_format_atomically() {
     let source = "before\n\n- **alpha**\n  - nested\n- omega\n\n> quoted tail\n\nafter";
     let mut state = DocumentSession::new(source.into());
@@ -162,6 +194,159 @@ fn composition_is_display_only_then_one_undo_and_cancel_preserves_source() {
     state.cancel_composition().unwrap();
     assert_eq!(state.editor.document().source(), initial);
     assert_eq!(state.editor.redo_steps(), 1);
+}
+
+#[core::prelude::v1::test]
+fn cross_structure_composition_freezes_containers_and_commits_one_transaction() {
+    let source = "before\n\n- **alpha**\n  - nested\n- omega\n\n> quoted tail\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let start = state.projection.text.find("alpha").unwrap() + 2;
+    let end = state.projection.text.find("quoted").unwrap() + 3;
+    state.select(end, start).unwrap();
+    state
+        .begin_or_update_composition(None, "中🦀", 3..7)
+        .unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    assert_eq!(state.editor.undo_steps(), 0);
+    assert_eq!(state.display_text(), "before\nal中🦀\n\n\nted tail\nafter");
+    assert_eq!(state.display_selection(), start + 3..start + 7);
+    let mut offset = 0;
+    for ix in 0..state.projection.leaves.len() {
+        assert_eq!(state.display_leaf_start(ix), offset);
+        for byte in state
+            .display_leaf_text(ix)
+            .char_indices()
+            .map(|(byte, _)| byte)
+        {
+            assert_eq!(state.display_at(offset + byte), (ix, byte));
+        }
+        offset += state.display_leaf_text(ix).len() + 1;
+    }
+    state.commit_composition(Some("完成")).unwrap();
+    assert_eq!(state.projection.text, "before\nal完成ted tail\nafter");
+    assert_eq!(state.editor.undo_steps(), 1);
+    let committed = state.editor.document().source().to_owned();
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    assert_eq!((state.anchor, state.head), (end, start));
+    state
+        .begin_or_update_composition(None, "取消", 6..6)
+        .unwrap();
+    state.cancel_composition().unwrap();
+    assert_eq!(state.display_text(), state.projection.text);
+    assert_eq!((state.anchor, state.head), (end, start));
+    assert_eq!(state.editor.redo_steps(), 1);
+    state.command("redo").unwrap();
+    assert_eq!(state.editor.document().source(), committed);
+}
+
+#[core::prelude::v1::test]
+fn cross_cell_composition_preserves_rectangle_and_accessible_surrounding_text() {
+    use std::hash::{Hash, Hasher};
+    let source = "before\n\n| a | b |\n|---|---|\n| **cat** | dog |\n| eel | fox |\n\nafter";
+    let mut state = DocumentSession::new(source.into());
+    let start = state.projection.text.find("cat").unwrap() + 1;
+    let end = state.projection.text.find("fox").unwrap() + 1;
+    state.select(end, start).unwrap();
+    state
+        .begin_or_update_composition(None, "中🦀", 3..7)
+        .unwrap();
+    assert_eq!(state.display_text(), "before\na\nb\nc中🦀\n\n\nox\nafter");
+    let keys = (0..state.projection.leaves.len() as u64).collect::<Vec<_>>();
+    let tree = accessibility::Snapshot::new(&state, &keys).build(|key| {
+        let mut hash = std::hash::DefaultHasher::new();
+        key.hash(&mut hash);
+        accesskit::NodeId(hash.finish())
+    });
+    let text: String = tree
+        .nodes
+        .iter()
+        .filter(|(_, n)| n.role() == Role::TextRun)
+        .map(|(_, n)| n.value().unwrap_or(""))
+        .collect();
+    assert_eq!(text, state.display_text());
+    let selection = tree.selection.unwrap();
+    assert_eq!(tree.positions.position(selection.anchor), Some(start + 3));
+    assert_eq!(tree.positions.position(selection.focus), Some(start + 7));
+    let table = tree
+        .nodes
+        .iter()
+        .find(|(_, n)| n.role() == Role::Table)
+        .unwrap();
+    assert_eq!(table.1.row_count(), Some(3));
+    assert_eq!(table.1.column_count(), Some(2));
+    state.commit_composition(None).unwrap();
+    assert_eq!(state.projection.text, "before\na\nb\nc中🦀\n\n\nox\nafter");
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+}
+
+#[core::prelude::v1::test]
+fn cross_structure_composition_covers_code_and_interior_atoms_without_rewriting_media() {
+    let atom = ":::anynote{type=\"future.node\" version=\"9\"}\n{\"unknown\":true}\n:::";
+    let source = format!("before\n\n```rust\nstart\n```\n\n{atom}\n\n> ending\n\nafter");
+    let mut state = DocumentSession::new(source.clone());
+    let start = state.projection.text.find("start").unwrap() + 2;
+    let end = state.projection.text.find("ending").unwrap() + 3;
+    state.select(start, end).unwrap();
+    state.begin_or_update_composition(None, "中", 3..3).unwrap();
+    assert_eq!(state.display_text(), "before\nst中\n\ning\nafter");
+    assert_eq!(state.editor.document().source(), source);
+    state.cancel_composition().unwrap();
+    assert!(state.editor.document().source().contains(atom));
+    state.begin_or_update_composition(None, "中", 3..3).unwrap();
+    state.commit_composition(None).unwrap();
+    assert_eq!(state.projection.text, "before\nst中\ning\nafter");
+    assert_eq!(state.editor.undo_steps(), 1);
+    state.command("undo").unwrap();
+    assert_eq!(state.editor.document().source(), source);
+    let atom_start = state.projection.text.find('\u{fffc}').unwrap();
+    state.select(atom_start, end).unwrap();
+    assert!(state.begin_or_update_composition(None, "中", 3..3).is_err());
+    assert!(state.editor.composition().is_none());
+    assert_eq!(state.editor.redo_steps(), 1);
+}
+
+#[core::prelude::v1::test]
+fn cross_structure_composition_rejects_invalid_ranges_without_starting() {
+    let source = "- alpha\n\n> beta";
+    let mut state = DocumentSession::new(source.into());
+    let start = state.projection.text.find("alpha").unwrap() + 1;
+    state
+        .select(start, state.projection.text.len() - 1)
+        .unwrap();
+    let selection = state.editor.selection();
+    for (range, text, selected) in [
+        (None, "🦀", 1..1),
+        (Some(100..101), "x", 1..1),
+        (Some(std::ops::Range { start: 5, end: 2 }), "x", 1..1),
+    ] {
+        assert!(
+            state
+                .begin_or_update_composition(range, text, selected)
+                .is_err()
+        );
+        assert!(state.composition.is_none());
+        assert!(state.editor.composition().is_none());
+        assert_eq!(state.editor.selection(), selection);
+        assert_eq!(state.editor.document().source(), source);
+        assert_eq!(state.editor.undo_steps(), 0);
+    }
+    state
+        .begin_or_update_composition(None, "有效", 6..6)
+        .unwrap();
+    assert!(state.begin_or_update_composition(None, "🦀", 1..1).is_err());
+    assert_eq!(state.editor.composition().unwrap().text(), "有效");
+    state.commit_composition(None).unwrap();
+    assert_eq!(state.projection.text, "a有效a");
+
+    let mut blank = DocumentSession::new("- alpha\n\ntrailer".into());
+    let end = blank.projection.text.find("trailer").unwrap() + 2;
+    blank.select(0, end).unwrap();
+    assert!(blank.begin_or_update_composition(None, "中", 3..3).is_err());
+    assert!(blank.editor.composition().is_none());
+    assert_eq!(blank.editor.document().source(), "- alpha\n\ntrailer");
 }
 
 #[core::prelude::v1::test]
@@ -717,6 +902,84 @@ mod ui {
             });
             window.press(primary("cmd-z"), cx);
             assert!(!editor.read(cx).text().contains("中文"));
+        })
+        .unwrap();
+    }
+    #[gpui_kit::test]
+    fn native_cross_structure_preedit_updates_hit_mapping_and_cancel(cx: &mut TestAppContext) {
+        let source = "before\n\n- **alpha**\n  - nested\n\n> omega\n\n| a | b |\n|---|---|\n| cat | dog |\n\ntail";
+        let (window, editor) = open(cx, source);
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            editor.update(cx, |view, cx| {
+                let start = view.text().find("alpha").unwrap() + 2;
+                let end = view.text().find("omega").unwrap() + 3;
+                view.state.select(end, start).unwrap();
+                view.replace_and_mark_text_in_range(None, "中🦀", Some(1..3), window, cx);
+                assert!(view.error.is_none(), "{:?}", view.error);
+                assert_eq!(view.source(), source);
+                assert_eq!(view.undo_steps(), 0);
+                assert!(
+                    !view
+                        .selected_text_range(false, window, cx)
+                        .unwrap()
+                        .reversed
+                );
+            });
+            window.render_frame(cx);
+            editor.update(cx, |view, cx| {
+                let mut adjusted = None;
+                let text = view
+                    .text_for_range(0..usize::MAX, &mut adjusted, window, cx)
+                    .unwrap();
+                assert_eq!(text, "before\nal中🦀\n\nga\na\nb\ncat\ndog\ntail");
+                let at = text.find("tail").unwrap();
+                let offset = text[..at].encode_utf16().count();
+                let bounds = view
+                    .bounds_for_range(offset..offset, Bounds::default(), window, cx)
+                    .unwrap();
+                assert_eq!(
+                    view.character_index_for_point(bounds.origin, window, cx),
+                    Some(offset)
+                );
+                let marked = view.marked_text_range(window, cx).unwrap();
+                view.replace_and_mark_text_in_range(
+                    Some(marked.start + 1..marked.end),
+                    "文",
+                    Some(1..1),
+                    window,
+                    cx,
+                );
+                assert_eq!(view.state.editor.composition().unwrap().text(), "中文");
+                assert!(view.state.display_selection().is_empty());
+            });
+            window.render_frame(cx);
+            editor.update(cx, |view, _| {
+                let caret = view.caret_bounds(window).unwrap();
+                let selected = view.state.display_selection();
+                assert_eq!(view.hit(caret.origin, window), Some(selected.end));
+            });
+            window.press("escape", cx);
+            window.render_frame(cx);
+            assert_eq!(editor.read(cx).source(), source);
+            assert_eq!(editor.read(cx).state.display_text(), editor.read(cx).text());
+            assert!(editor.read(cx).composition_rows.is_none());
+            editor.update(cx, |view, cx| {
+                let start = view.text().find("cat").unwrap() + 1;
+                let end = view.text().find("dog").unwrap() + 2;
+                view.state.select(start, end).unwrap();
+                view.replace_and_mark_text_in_range(None, "完成", None, window, cx);
+                assert!(view.error.is_none(), "{:?}", view.error);
+            });
+            window.render_frame(cx);
+            editor.update(cx, |view, cx| {
+                assert!(view.caret_bounds(window).is_some());
+                view.unmark_text(window, cx);
+                assert_eq!(view.undo_steps(), 1);
+                assert!(view.text().contains("c完成\ng"));
+            });
+            window.press(primary("cmd-z"), cx);
+            assert_eq!(editor.read(cx).source(), source);
         })
         .unwrap();
     }

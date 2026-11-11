@@ -119,12 +119,12 @@ impl Element for EditorElement {
         });
         let view = self.owner.read(cx);
         if view.focus.is_focused(window) {
-            if view.state.range().is_empty()
+            if view.state.display_selection().is_empty()
                 && let Some(caret) = view.caret_bounds(window)
                 && bounds.intersects(&caret)
             {
                 // Caret thickness is one physical device pixel, independent of UI zoom.
-                let (ix, _) = view.state.projection.at(view.state.head);
+                let (ix, _) = view.state.display_at(view.state.display_head());
                 let clip = view.leaf_viewport(ix, bounds);
                 if caret.intersects(&clip) {
                     window.paint_quad(fill(caret.intersect(&clip), cx.theme().foreground));
@@ -163,7 +163,7 @@ impl DocumentEditor {
             return;
         };
         self.reveal_selection = false;
-        let (ix, _) = self.state.projection.at(self.state.head);
+        let (ix, _) = self.state.display_at(self.state.display_head());
         let row = &self.state.projection.rows[self.state.projection.row_for(ix)];
         let scroll = self
             .code_scroll
@@ -209,20 +209,23 @@ impl DocumentEditor {
         }
     }
     pub(super) fn decorations(&self, cx: &App) -> HashMap<u64, Vec<(Range<usize>, Hsla)>> {
-        let range = self.state.range();
+        let range = self.state.display_selection();
         self.state
             .projection
             .leaves
             .iter()
             .enumerate()
-            .filter_map(|(ix, leaf)| {
-                let start = range.start.max(leaf.logical.start);
-                let end = range.end.min(leaf.logical.end);
+            .filter_map(|(ix, _)| {
+                let logical_start = self.state.display_leaf_start(ix);
+                let start = range.start.max(logical_start);
+                let end = range
+                    .end
+                    .min(logical_start + self.state.display_leaf_text(ix).len());
                 (start < end).then(|| {
                     (
                         self.keys[ix],
                         vec![(
-                            start - leaf.logical.start..end - leaf.logical.start,
+                            start - logical_start..end - logical_start,
                             cx.theme().selection,
                         )],
                     )
@@ -240,14 +243,7 @@ impl DocumentEditor {
         if !self.geometry_valid(window) {
             return None;
         }
-        let (ix, byte) = if let Some(c) = &self.state.composition {
-            (
-                c.leaf,
-                c.local.start + self.state.editor.composition()?.selection().end,
-            )
-        } else {
-            self.state.projection.at(self.state.head)
-        };
+        let (ix, byte) = self.state.display_at(self.state.display_head());
         let frame = self.geometry.borrow();
         let geometry = frame.leaves.get(&self.keys[ix])?;
         let point = geometry.position_for_index(byte);
@@ -288,7 +284,7 @@ impl DocumentEditor {
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(ix, geometry, _)| (ix, geometry))?;
-        Some(self.state.projection.leaves[ix].logical.start + geometry.index_for_position(point))
+        Some(self.state.display_leaf_start(ix) + geometry.index_for_position(point))
     }
     pub(super) fn mouse_down(
         &mut self,
