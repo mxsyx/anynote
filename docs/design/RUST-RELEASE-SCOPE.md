@@ -42,4 +42,60 @@
 | RM36 | 原生打包、签名接线与发行CI       |
 | RM37 | 旧桌面与插件基础设施退役         |
 
-RM38 负责汇总、人工复核与放行流程，不作为自身的前置检查。还须收齐 INV-01–24、146 个业务/退役操作、平台发行检查与未完成 V/A/F 的证据。具体证据格式和执行方法见 [发行复核](../development/RUST-RELEASE-ACCEPTANCE.md)。
+RM38 负责汇总、人工复核与放行流程，不作为自身的前置检查。还须收齐 INV-01–24、146 个业务/退役操作、平台发行检查与下表 F 范围的证据。具体证据格式和执行方法见 [发行复核](../development/RUST-RELEASE-ACCEPTANCE.md)。
+
+## F 任务对应的固定验收范围
+
+任务编号统一后，本表保存证据身份及迁移范围映射，不记录完成状态。完成项从当前/远期清单移除后，最终候选仍需对应证据；两个清单只是剩余工作状态源。新增或调整发行范围须同步本表、清单和检查器测试。
+
+`required` 为必需验收；`deferable` 仅允许负责人明确延期并附候选绑定的决策证据；`orchestration` 为最终汇总流程，不把流程自身的未完成复选框作为循环前置，但仍需证据和人工复核。P3 设备验收仍为 required。RM 列沿用固定迁移范围标识，多个 F 任务共同决定该范围是否仍有开放前置。
+
+F020 保留既有大规模费用实验的延期边界；F031–F045 仅代表尚未确认的新增能力。远期项转入首发范围时须改为 required。既有浏览器采集 F013 不可延期。历史证据模板须重新生成，不能把旧 F 编号的结果直接套用到新编号。
+
+| 编号 | 验收范围                        | 关联迁移范围   | 证据要求      |
+| ---- | ------------------------------- | -------------- | ------------- |
+| F001 | 连续编辑与原生输入接口          | RM18           | required      |
+| F002 | 系统退出与保存会话              | RM19           | required      |
+| F003 | 用户必需业务与数据转换          | RM20           | required      |
+| F004 | 白板 scene 与操作内核           | RM22           | required      |
+| F005 | 白板原生绘制与交互              | RM23           | required      |
+| F006 | Pdfium 真实 IO 失败隔离         | RM31           | required      |
+| F007 | 原路径接管、迁移 journal 与回退 | RM14           | required      |
+| F008 | 外部数据边界复核                | -              | required      |
+| F009 | 保存与并发负载停顿              | RM31           | required      |
+| F010 | 原生自动化与跨层回归            | RM31           | required      |
+| F011 | 真实云故障、续传与长期调度      | RM34           | required      |
+| F012 | 云对象真实老化与回收            | RM34           | required      |
+| F013 | 浏览器笔记采集收尾              | RM12           | required      |
+| F014 | Windows 卷显示信息              | RM09           | required      |
+| F015 | 物理设备枚举与提示              | RM09           | required      |
+| F016 | 内置下载器公网边界验收          | RM35           | required      |
+| F017 | 确认首发边界                    | -              | required      |
+| F018 | 旧桌面与插件基础设施退役        | RM37           | required      |
+| F019 | 发布者签名、真实身份与 CI       | RM36           | required      |
+| F020 | 远端容量、真实负载与成本        | -              | deferable     |
+| F021 | 最终候选证据与发布放行          | -              | orchestration |
+| F022 | 平台基础与原生底层能力          | RM32           | required      |
+| F023 | 跨平台业务、接管与数据闭环      | RM14,RM32      | required      |
+| F024 | 三平台凭据系统                  | RM13,RM32      | required      |
+| F025 | 真实输入、无障碍与平台 UI       | RM18,RM19,RM32 | required      |
+| F026 | 物理盘身份、文件系统与性能组合  | RM33           | required      |
+| F027 | 实盘故障与断电耐久性            | RM33           | required      |
+| F028 | 独立干净设备恢复                | RM33           | required      |
+| F029 | 三平台性能与资源代表性          | RM31,RM32      | required      |
+| F030 | 最终签名包安装与交付验证        | RM32,RM36      | required      |
+| F031 | 崩溃草稿日志                    | -              | deferable     |
+| F032 | 自动更新                        | -              | deferable     |
+| F033 | 跨会话免捕获优化                | -              | deferable     |
+| F034 | Cloudflare checkpoint 策略优化  | -              | deferable     |
+| F035 | AI 工具与批量事务               | -              | deferable     |
+| F036 | AI Provider 与面板              | -              | deferable     |
+| F037 | 可选 MCP 适配                   | -              | deferable     |
+| F038 | 编辑器下一批扩展                | -              | deferable     |
+| F039 | OCR 与语义检索                  | -              | deferable     |
+| F040 | PDF 批注文件导出                | -              | deferable     |
+| F041 | 动态网页导入                    | -              | deferable     |
+| F042 | E2EE                            | -              | deferable     |
+| F043 | 多设备同步、移动与协作          | -              | deferable     |
+| F044 | 商业托管与容量扩展              | -              | deferable     |
+| F045 | 独立 CLI 与仓库拆分             | -              | deferable     |

@@ -17,6 +17,6 @@
 
 ## 取舍与边界
 
-选择永久归档而不是删除所有证据，换取不复活旧身份及可核对的历史；R2 证据仍随历史增长。活动身份达到 2000 时拒绝新版本，但清理可在上限执行；保护项超预算不削弱保护。运行时子请求/CPU 配额和满预算真实成本由 [真实云验收](../../development/TODO.md#a007) 验证。由 [ADR-014](014-cloudflare-transfer-resume.md) 补充未完成 multipart 会话登记、abort 与续传；空间估算仍排除未完成片段。
+选择永久归档而不是删除所有证据，换取不复活旧身份及可核对的历史；R2 证据仍随历史增长。活动身份达到 2000 时拒绝新版本，但清理可在上限执行；保护项超预算不削弱保护。运行时子请求/CPU 配额和满预算真实成本由 [真实云验收](../../development/TODO.md#f011) 验证。由 [ADR-014](014-cloudflare-transfer-resume.md) 补充未完成 multipart 会话登记、abort 与续传；空间估算仍排除未完成片段。
 
 相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

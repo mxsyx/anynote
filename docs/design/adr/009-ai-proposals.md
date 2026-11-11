@@ -18,6 +18,6 @@
 
 ## 取舍与边界
 
-这些是受信核心操作，不表示已开放第三方自主 AI 权限，也不提供模型 Provider、自动模型调用或自主代理 UI。模型选择与首发范围见 [TODO](../../development/TODO.md#f013)；本 ADR 不替负责人作产品决定。
+这些是受信核心操作，不表示已开放第三方自主 AI 权限，也不提供模型 Provider、自动模型调用或自主代理 UI。模型选择与首发范围见 [TODO](../../development/FUTURE-TODO.md#f036)；本 ADR 不替负责人作产品决定。
 
 相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。

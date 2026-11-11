@@ -257,4 +257,4 @@ E2 可以在只读数据层期间推进；E3/E4 与 PDF、白板技术验证可�
 
 ### 保存会话接口
 
-源码与富编辑共用保存会话；接口和退出屏障见 [保存契约](../development/RUST-DOCUMENT-SESSION.md)，剩余任务见 [RM19](../development/TODO.md#rm19)。
+源码与富编辑共用保存会话；接口和退出屏障见 [保存契约](../development/RUST-DOCUMENT-SESSION.md)，剩余任务见 [F002](../development/TODO.md#f002)。

@@ -41,4 +41,4 @@ node scripts/rust-cloud-reference.mjs
 
 `--capture` 复用 RM10 HTTP 故障代理；`--workerd` 使用隔离 local-workerd、D1/R2，而不带该参数使用 TS Worker 与测试 D1/R2 适配器。扩展闭环启动独立 Chromium profile，复制构建出的 MV3 扩展，只给临时副本预授予合成 HTTPS 站点；请求由测试代理转交本地 Worker。配对、上传、采集箱和正文读取执行实际扩展代码。报告、故障数据库与截图写入 `tmp/rm12/`，均可删除；合成 Token 不读取真实云凭据。
 
-这不替代真实 Cloudflare、三平台、真实用户库、浏览器商店、容量/费用/老化或完整桌面 GUI 验收。RM34/A007–A009 和其他 V/A/F 项保持原状态。
+这不替代真实 Cloudflare、三平台、真实用户库、浏览器商店、容量/费用/老化或完整桌面 GUI 验收。RM34/F011/F012/F020 和其他当前 F 任务保持原状态。

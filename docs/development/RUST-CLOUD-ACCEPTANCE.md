@@ -16,7 +16,7 @@ CAPTURE_CHROMIUM=/absolute/path/to/chrome node scripts/rust-cloud-reference.mjs 
 
 `--rm34` 复用 RM10 的真实 Rust 子进程、冻结语料、HTTP 故障代理与 RM12 扩展场景；使用新建 Notebook/lineage/device，不接触日常库。适配器与 workerd 执行同一 `scripts/cloud/rust-scenario.mjs`。本场景不执行 SQL 改时间、改 writer 或修改服务端对象元数据。
 
-真实服务只使用已有授权的独立测试部署；配置 `ANYNOTE_CF_ENDPOINT`（HTTPS）与 `ANYNOTE_CF_TOKEN`（Worker APP_TOKEN），或复用 `.cloudflare-acceptance/deployment.json` 和 `secrets.json`。显式配置必须成对，拒绝将一个部署的 token 与另一个 endpoint 混用。不自动部署、轮换账号令牌或运行 A009。
+真实服务只使用已有授权的独立测试部署；配置 `ANYNOTE_CF_ENDPOINT`（HTTPS）与 `ANYNOTE_CF_TOKEN`（Worker APP_TOKEN），或复用 `.cloudflare-acceptance/deployment.json` 和 `secrets.json`。显式配置必须成对，拒绝将一个部署的 token 与另一个 endpoint 混用。不自动部署、轮换账号令牌或运行 F020。
 
 ```sh
 node --env-file=/absolute/path/to/test-cloud.env scripts/rust-cloud-reference.mjs \
@@ -60,7 +60,7 @@ node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.
 
 长期状态使用专用目录，不放 `tmp/`。`rustRequired` 绑定验证模式，后续不能省略 `--rust` 退回 TS 单独通过；旧 TS 样本不能加该参数冒充 Rust 批次。等待期退出码为 2，不联网、不启动 Rust、不刷新 staging 活动；真实 due24h/due7d 从 seed 全部完成时计算，24h 阶段必须在 staging 满 7 天前完成。阶段内的 Rust 版本、恢复 ID、时间和探针摘要随原状态保存。不得改系统时钟或服务端时间代替等待。
 
-本机单元测试使用假时间仅校验流程，不能形成真实等待证据。对象 API 404 也不构成 R2 物理删除证据；到期后另用部署对应的 R2 管理权限检查报告列出的 `objects/<notebookId>/<hash>`，记录桶身份、对象键、检查时间和明确不存在结果。鉴权/网络错误不算删除。维护进程中断/重启、孤立 manifest/临时对象与 multipart 生命周期仍需受控批次证据，不能仅用本入口关闭 A008。
+本机单元测试使用假时间仅校验流程，不能形成真实等待证据。对象 API 404 也不构成 R2 物理删除证据；到期后另用部署对应的 R2 管理权限检查报告列出的 `objects/<notebookId>/<hash>`，记录桶身份、对象键、检查时间和明确不存在结果。鉴权/网络错误不算删除。维护进程中断/重启、孤立 manifest/临时对象与 multipart 生命周期仍需受控批次证据，不能仅用本入口关闭 F012。
 
 ## 验证驱动
 
@@ -70,4 +70,4 @@ node --test scripts/test-rust-cloud.mjs
 pnpm exec vitest run tests/cloud-aging.test.mjs
 ```
 
-活动老化样本及下一阶段的接续输入见 [RM34](TODO.md#rm34)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。
+活动老化样本及下一阶段的接续输入见 [F012](TODO.md#f012)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。

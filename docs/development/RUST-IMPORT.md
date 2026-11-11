@@ -56,4 +56,4 @@ node scripts/rust-import-interop.mjs
 node_modules/.bin/vitest run tests/web-import.test.mjs tests/capture.test.mjs tests/capture-components.test.mjs tests/extensions.test.mjs
 ```
 
-网络单元测试仅在 loopback 上运行内部 transport fixture，不向生产下载器开放私网开关。`tls/cert.der` 和 `tls/key.der` 是专供不受信证书拒绝测试的公开合成密钥，不能用于实际服务。HTTP 流、拒绝自动跳转、固定地址、大小限制、写入故障、超时、取消和不受信 TLS 均有本机测试；生产公网 DNS/TLS、真实重定向/代理组合、连接中断及平台差异仍交 RM35。此次没有三平台、真实资料、GUI/任务集成、性能或 V/A/F 的通过结论。
+网络单元测试仅在 loopback 上运行内部 transport fixture，不向生产下载器开放私网开关。`tls/cert.der` 和 `tls/key.der` 是专供不受信证书拒绝测试的公开合成密钥，不能用于实际服务。HTTP 流、拒绝自动跳转、固定地址、大小限制、写入故障、超时、取消和不受信 TLS 均有本机测试；生产公网 DNS/TLS、真实重定向/代理组合、连接中断及平台差异仍交 RM35。此次没有三平台、真实资料、GUI/任务集成、性能或 当前 F 任务 的通过结论。

@@ -91,4 +91,4 @@ cargo clippy --locked -p anynote-services --example network_probe -- -D warnings
 
 本机 socket 测试需要允许回环监听。Node 回归验证服务实际响应、错误证据不能误判通过、配置门控和四条真实 Rust 业务的私网拒绝。Rust 回归覆盖地址策略/实际 peer、流式预算、超时/取消、sink 错误、TLS 错误源链和任务局部观测，并检查业务取消及缩略图阶段的取消不会返回成功。
 
-旧 QuickJS 安装/授权撤销场景和 `test:plugin-network` 活跃入口退役；旧脚本只作为迁移参考，删除前核对消费者。业务取消、DNS/TLS、重定向、凭据与预算继续由新入口验证。任何本地 HTTP/TLS、模拟证据和 NXDOMAIN 单独结果都不计 RM35/A010 公网通过。
+旧 QuickJS 安装/授权撤销场景和 `test:plugin-network` 活跃入口退役；旧脚本只作为迁移参考，删除前核对消费者。业务取消、DNS/TLS、重定向、凭据与预算继续由新入口验证。任何本地 HTTP/TLS、模拟证据和 NXDOMAIN 单独结果都不计 RM35/F016 公网通过。

@@ -1,6 +1,6 @@
 # 真实云备份验收
 
-> 状态归属：本文维护部署与验收步骤，任务完成状态只在 [Cloudflare](../TODO.md#a007) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
+> 状态归属：本文维护部署与验收步骤，任务完成状态只在 [Cloudflare](../TODO.md#f011) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）
 
@@ -116,4 +116,4 @@ pnpm exec wrangler r2 object get '<测试桶>/objects/<Notebook ID>/<hash>' \
   --remote --config .cloudflare-acceptance/wrangler.json --file /tmp/aging-object.bin
 ```
 
-只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 A008。样本身份、最早复验时间和剩余范围见 [云剩余任务](../TODO.md#rm34)。
+只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 F012。样本身份、最早复验时间和剩余范围见 [云老化任务](../TODO.md#f012)。

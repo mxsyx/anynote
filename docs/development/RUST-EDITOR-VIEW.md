@@ -65,6 +65,6 @@ python3 scripts/check-rust-workspace.py
 
 软换行、RTL/BiDi 视觉 affinity、跨行范围矩形、resize/字体变化须有几何断言；单一 index/position 映射不等于完整双向文本几何。复杂选区覆盖跨嵌套结构、跨单元格替换与格式、marks、持续边缘拖选及独立滚动。
 
-平台剪贴板 HTML MIME 经受控转换进入同一事务；native range rectangles、链接/列表/表格语义及真实焦点和读屏单独验收。保存和媒体路径须联合重放文档行为，不能删减旧业务断言以通过测试。剩余工作见 [RM18](TODO.md#rm18)。
+平台剪贴板 HTML MIME 经受控转换进入同一事务；native range rectangles、链接/列表/表格语义及真实焦点和读屏单独验收。保存和媒体路径须联合重放文档行为，不能删减旧业务断言以通过测试。剩余工作见 [F001](TODO.md#f001)。
 
 锁定的 Kit 0.9.0 `editor_host::LeafGeometry` 仅公开位置/索引、bounds、行高和 atom 命中，没有视觉 affinity 或范围矩形接口；`gpui-pre` 0.3.11 的 `ClipboardEntry` 仅包含 String/Image/ExternalPaths，没有原生 HTML MIME。完成这些边界需要可复现的依赖补丁或经过验证的 Kit 升级，不能用 Markdown 元数据冒充系统 HTML 剪贴板，也不能由首尾坐标差推断完整 BiDi 范围。

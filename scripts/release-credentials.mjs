@@ -97,8 +97,8 @@ export function runPreflight(args, env = process.env, root = resolve(".")) {
     targets: results,
     limitations: [
       "Presence checks only; certificates, passwords, API keys, permissions and identity are not validated.",
-      "No signing, notarization, update verification or publication was performed. A011 remains incomplete.",
-      "Real release acceptance requires F006 and native CI artifact evidence; see docs/development/RELEASE-CREDENTIALS.md.",
+      "No signing, notarization, update verification or publication was performed. F019 remains incomplete.",
+      "Real release acceptance requires F019 and native CI artifact evidence; optional updates are tracked in F032. See docs/development/RELEASE-CREDENTIALS.md.",
     ],
   };
   const dir = join(root, "tmp/reports/release-credentials");

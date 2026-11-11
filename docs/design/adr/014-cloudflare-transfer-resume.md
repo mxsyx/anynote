@@ -21,7 +21,7 @@
 
 续传节省网络传输，仍需重捕获和读盘校验；没有保存活跃 SQLite 句柄，也没有承诺在任意字节偏移恢复单个未完成请求。下载缓存与发布暂存会占用额外本地空间，沿用总量和磁盘预算。取消保留缓存以支持重试；应用关闭后可删除整个 `_local/cloud.transfers` 目录以放弃本地进度，下一次按新传输处理。
 
-R2 创建会话与 D1 登记无法组成原子事务。创建后、登记前进程终止的窗口中尚未发送任何片段；依靠桶的未完成 multipart 生命周期兜底。Cloudflare 默认在创建 7 天后回收未完成上传，部署不能禁用该规则；自定义期限和真实回收需 [真实云验收](../../development/TODO.md#a007) 核验。见 [R2 上传生命周期](https://developers.cloudflare.com/r2/objects/upload-objects/) 和 [桶生命周期](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)。客户端处理已消失会话并重新上传，不把厂商自动回收当作已提交备份的删除授权。
+R2 创建会话与 D1 登记无法组成原子事务。创建后、登记前进程终止的窗口中尚未发送任何片段；依靠桶的未完成 multipart 生命周期兜底。Cloudflare 默认在创建 7 天后回收未完成上传，部署不能禁用该规则；自定义期限和真实回收需 [真实云验收](../../development/TODO.md#f011) 核验。见 [R2 上传生命周期](https://developers.cloudflare.com/r2/objects/upload-objects/) 和 [桶生命周期](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)。客户端处理已消失会话并重新上传，不把厂商自动回收当作已提交备份的删除授权。
 
 未完成片段的实际存储量不由 R2 完整对象列表提供，清理预览展示会话数，空间估算仍排除这些字节。已有完整备份、其他分支与有效 pin 的保护契约不变。没有新增自动删除版本策略。
 

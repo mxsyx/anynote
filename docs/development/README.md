@@ -38,6 +38,7 @@
 - [RM27 系统 WebView 与视频](RUST-WEBVIEW-VIDEO.md)：调用约束与验证方法。
 - [Rust 工作区与阅读接续](RUST-WORKSPACE.md)：调用约束与验证方法。
 - [Rust schema v5 写存储接续](RUST-WRITE-STORAGE.md)：调用约束与验证方法。
-- [Anynote 待办](TODO.md)：唯一未完成任务清单，包含依赖、阻塞和验收条件。
+- [Anynote 当前待办](TODO.md)：F001–F030，按 P0–P3 排序，跨平台与跨设备验证置于最低优先级。
+- [Anynote 远期扩展](FUTURE-TODO.md)：F031–F045，独立维护尚未纳入当前交付的新增能力和可选优化。
 
 - [验证准备索引](validation/README.md)：Cloudflare 部署与协议验证方法。

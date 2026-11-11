@@ -4,6 +4,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -69,6 +70,12 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(len([r for r in rows if r['id'].startswith('INV-')]), 24)
         self.assertEqual(len([r for r in rows if r['id'].startswith('RM')]), 37)
         self.assertEqual(len(rows), len({r['id'] for r in rows}))
+        by_id = {r['id']: r for r in rows}
+        self.assertFalse(by_id['F013']['deferable'])
+        self.assertTrue(by_id['F032']['deferable'])
+        for i in range(22, 31):
+            self.assertFalse(by_id[f'F{i:03}']['deferable'])
+            self.assertFalse(by_id[f'F{i:03}']['local_complete'])
 
     def test_empty_bundle_and_checkbox_completion_never_pass(self):
         report = a.evaluate(a.template(), self.root)
@@ -93,10 +100,46 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_open_group_without_checklist_is_rejected(self):
         todo = self.root / 'TODO.md'
-        todo.write_text('#### RM37 · Retirement\n\nNo checklist\n')
+        todo.write_text('### F018 · Retirement\n\nNo checklist\n')
         with patch.object(a, 'TODO', str(todo)):
             with self.assertRaisesRegex(ValueError, 'no actionable checklist'):
                 a.inventory()
+
+    def test_removed_task_keeps_fixed_candidate_evidence(self):
+        todo = self.root / 'TODO.md'
+        content = (n.ROOT / a.TODO).read_text()
+        todo.write_text(re.sub(r'<a id="f018"></a>\n.*?(?=<a id="f019">)', '', content, flags=re.S))
+        with patch.object(a, 'TODO', str(todo)):
+            rows = {row['id']: row for row in a.inventory()}
+        self.assertTrue(rows['RM37']['local_complete'])
+        self.assertTrue(rows['F018']['local_complete'])
+        self.assertFalse(rows['F018']['deferable'])
+
+    def test_required_task_cannot_be_hidden_in_future_or_duplicated(self):
+        todo = self.root / 'TODO.md'
+        future = self.root / 'FUTURE-TODO.md'
+        content = (n.ROOT / a.TODO).read_text()
+        section = re.search(r'<a id="f025"></a>\n.*?(?=<a id="f026">)', content, re.S)[0]
+        future.write_text((n.ROOT / a.FUTURE_TODO).read_text() + '\n' + section)
+        todo.write_text(content)
+        with patch.object(a, 'TODO', str(todo)), patch.object(a, 'FUTURE_TODO', str(future)):
+            with self.assertRaisesRegex(ValueError, 'duplicate task across'):
+                a.inventory()
+            todo.write_text(content.replace(section, ''))
+            with self.assertRaisesRegex(ValueError, 'required task cannot move to future'):
+                a.inventory()
+
+    def test_unknown_task_and_invalid_checklist_are_rejected(self):
+        todo = self.root / 'TODO.md'
+        for content, message in (
+            ('### F999 · Unknown\n\n- [ ] **F999.1** Check\n', 'fixed release scope'),
+            ('### F001 · Editor\n\n- [ ] **F002.1** Wrong owner\n', 'invalid task checklist'),
+            ('### F001 · Editor\n\n- [ ] **F001.1** One\n- [ ] **F001.1** Duplicate\n', 'invalid task checklist'),
+        ):
+            todo.write_text(content)
+            with self.subTest(content=content), patch.object(a, 'TODO', str(todo)):
+                with self.assertRaisesRegex(ValueError, message):
+                    a.inventory()
 
     def test_duplicate_missing_and_unknown_ids_rejected(self):
         for change in ('duplicate', 'missing', 'unknown'):

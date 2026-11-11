@@ -14,4 +14,4 @@ Worker 登记传输和服务端复制的 multipart 会话。当前分支过期 s
 
 旧 BLOB schema、旧逻辑协议和旧清单均不兼容。新 Worker 使用新的数据库结构，不提供历史 D1 格式迁移。真实云环境需要匹配部署；本地适配器测试不能代替生产云端验收。
 
-验证方法见 [Rust 云验收](../development/RUST-CLOUD-ACCEPTANCE.md)，真实故障、老化与容量范围见 [TODO](../development/TODO.md#a007)。
+验证方法见 [Rust 云验收](../development/RUST-CLOUD-ACCEPTANCE.md)，真实故障、老化与容量范围见 [TODO](../development/TODO.md#f011)。

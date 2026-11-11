@@ -21,4 +21,4 @@ Windows 正常启动会在需要时以 `GPUI_DISABLE_DIRECT_COMPOSITION=1` 重�
 - Linux 可先 `chmod +x` 后运行 AppImage；没有 FUSE 时用 `--appimage-extract` 解包。事务目录安装适用于解包后的 AppDir，失败保留旧目录。AppImage 文件替换可手动保留旧文件回退。
 - 卸载只移除应用，不清理笔记本、备份、凭据或外部目录。回退二进制不回退用户数据；不支持的 notebook schema 由存储层只读校验拒绝。
 
-没有后台自动更新、更新元数据签名或差分升级；这些仍属于 F006/F007 未完成范围。校验和只检验内容，不能替代发布者签名。未签名候选包不能作为正式发行版本。
+没有后台自动更新、更新元数据签名或差分升级；可选自动更新见 [F032](../development/FUTURE-TODO.md#f032)，是否首发由 [F017](../development/TODO.md#f017) 确认。校验和只检验内容，不能替代发布者签名。未签名候选包不能作为正式发行版本。

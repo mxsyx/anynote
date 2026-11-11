@@ -1,12 +1,12 @@
 # 浏览器扩展：笔记采集设计
 
-协议、预算与授权设计；剩余任务见 [F025](../development/TODO.md#f025)。
+协议、预算与授权设计；剩余任务见 [F013](../development/TODO.md#f013)。
 
 ## 资源与适配约束
 
 当前操作见[功能说明](../features/BROWSER-CAPTURE.md)。媒体网络下载按单资源串行执行，WebCrypto 每次缓冲一个最多 20 MiB 的资源，降低同时占用；归档写入按 256 KiB 块推进。浏览器最终下载采用 Blob，尚不声称全流程恒定内存。目录投影失败不阻止备份或采集确认，浏览请求明确提示缺少投影。确认对象只包含服务端当前 applied 集合在同一快照中的回执，避免重复打包无限历史。
 
-ChatGPT 网页接口为实验适配，未解析的非文字部分明确记为缺失。设备登录只支持会话内保存；已有笔记展示 Markdown 原文、按需图片预览和附件下载。真实媒体、GUI 与长期场景的剩余验收见 F025。
+ChatGPT 网页接口为实验适配，未解析的非文字部分明确记为缺失。设备登录只支持会话内保存；已有笔记展示 Markdown 原文、按需图片预览和附件下载。真实媒体、GUI 与长期场景的剩余验收见 F013。
 
 图片组与卡片补充：API 仍提供对话正文，DOM 仅按消息 ID 补充 `AsyncImageGroup` 的已渲染图片地址；同时支持 `data-message-id` 与 `data-dil-message-id`。不重跑搜索词，不把任意页面图片混入对话。自定义卡片经 parse5 和 Markdown AST 转换为受限的内联 HTML，Rust 桌面按静态白名单重新校验和投影带采集标记的卡片，不全面开放原始 HTML。单卡片限 100,000 字符、2,000 节点、32 层；图片组最多 200 个。
 
@@ -204,7 +204,7 @@ writer 接管或恢复旧快照后，当前 writer 可重新领取未 backedUp �
 
 `apps/browser-extension/` 为独立 MV3 应用，`packages/capture/` 承载保留 TS 端的采集包校验与引用转换；浏览器/Worker 构建闭包见 [保留 TS](../development/RETAINED-TS-INTEROP.md)。桌面导入、下载、持久化和同切面浏览由 Rust 服务承担，见 [导入](../development/RUST-IMPORT.md) 与 [采集/浏览](../development/RUST-CLOUD-CAPTURE.md)。
 
-外部输入不能指定任意 staging 路径，不建立通用采集插件宿主或同步引擎。共享格式、schema、鉴权与发布契约需要同步更新消费者；实现状态只维护于 F025。
+外部输入不能指定任意 staging 路径，不建立通用采集插件宿主或同步引擎。共享格式、schema、鉴权与发布契约需要同步更新消费者；实现状态只维护于 F013。
 
 ## 9. 验收与失败边界
 

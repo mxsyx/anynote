@@ -1,6 +1,6 @@
 # Rust + GPUI + GPUI-Kit 桌面迁移方案
 
-设计与验收约束；剩余工作见 [TODO](../development/TODO.md#rust-migration)。
+设计与验收约束；剩余工作见 [TODO](../development/TODO.md#p0)。
 
 ## 1. 范围与阅读顺序
 
@@ -58,7 +58,7 @@ flowchart LR
 
 ### 3.1 模块布局与依赖
 
-以下五个 Rust 工程目录已由 RM02 创建，模块业务仍按 [TODO](../development/TODO.md#rust-migration) 分组实施：
+以下五个 Rust 工程目录已由 RM02 创建，模块业务仍按 [TODO](../development/TODO.md#p0) 分组实施：
 
 ```text
 apps/desktop-rust/             anynote-desktop：GPUI 窗口、页面、系统适配、资源视图
@@ -97,7 +97,7 @@ flowchart TB
 - 元数据帧设上限（初始 1 MiB，M1 测试后固化），大正文与附件通过独立的带资源 token 的有界二进制帧流传输；单块初始 256 KiB。禁止把完整 PDF/归档 base64 塞进 JSON。管道仅供父子进程，不开放默认 HTTP/TCP 服务。
 - 取消与结束是不同消息；读请求可取消。跨库转移、采集等已有持久回执的写操作沿用 operation ID 查询结局；普通保存断线后重新读取权威 revision/正文摘要核对，无法确认时保留草稿并报冲突，不能假定存在通用幂等回执。进度可合并，保存结果、错误和提交状态不可丢弃；队列满时施加背压。
 - 打开/切换文档先取得版本及内容；保存携带已有 `expectedRevision`/冲突语义。成功后才将该 revision 标为已保存，失败保留内存草稿。退出先等待必要提交，允许用户取消退出或显式放弃；不能将异步 task 被 drop 当作保存成功。
-- 后端退出时 UI 显示可恢复错误并保留草稿；重启后检查锁、事务和未完成任务，再重新取得 revision。仅在确认任务没有提交时重放。崩溃前尚未保存输入的跨进程日志属于当前远期 F012，不冒充现成功能。
+- 后端退出时 UI 显示可恢复错误并保留草稿；重启后检查锁、事务和未完成任务，再重新取得 revision。仅在确认任务没有提交时重放。崩溃前尚未保存输入的跨进程日志属于当前远期 F031，不冒充现成功能。
 - 原生凭据由平台模块持有；按现有需要把短时凭据送给执行网络请求的 Rust 后端，不进入 UI Entity、日志、WebView或一般任务状态。
 
 M1 必须测量 IPC 对现有保存 p95 预算的占比。若后续证据支持合并为单进程，需要独立决定并覆盖崩溃恢复，不以“Rust 自动安全”为理由取消隔离。
@@ -200,7 +200,7 @@ WebView 不是通用前端宿主。每个视图绑定 `viewId + epoch + notebook
 
 ## 7. 执行阶段与验收门槛
 
-阶段定义依赖与放行条件，剩余工作统一维护于 [TODO](../development/TODO.md#rust-migration)。稳定接口归专题文档，单次结果放入 `tmp/`，不保存实施日志。下列为阶段放行条件，设计分组不是实施完成证据；阶段编号在三份附文中引用时以本文为准。
+阶段定义依赖与放行条件，剩余工作统一维护于 [TODO](../development/TODO.md#p0)。稳定接口归专题文档，单次结果放入 `tmp/`，不保存实施日志。下列为阶段放行条件，设计分组不是实施完成证据；阶段编号在三份附文中引用时以本文为准。
 
 ```mermaid
 flowchart LR
@@ -308,7 +308,7 @@ flowchart LR
 
 CI分为 Rust桌面、TS浏览器、TSWorker、跨语言契约四组。Rust执行 `cargo fmt --check`、`cargo clippy --workspace --all-targets`、`cargo test --workspace`、锁定依赖构建及对应平台UI测试；具体workspace/features由M1建立，以上是拟执行命令。发布产物检查资源离线完整性、native库ABI、许可证清单和禁止依赖。旧 `build:backend` 不再是浏览器/Worker构建的隐含前置，协议fixture生成单独命令化。
 
-未来自动更新、签名身份和失败回退沿用 F006/A011/V011 的未完成状态，不虚构现有 updater。Rust版本至少覆盖当前手动安装更新的行为；若正式发行要求自动更新，应在M9中按独立门槛交付，验证签名与失败恢复。新旧版本发现数据版本不支持时明确拒绝，不重写数据。
+可选自动更新见 [F032](../development/FUTURE-TODO.md#f032)，签名身份和安装失败回退分别由 F019/F030 验收，不虚构现有 updater。Rust版本至少覆盖当前手动安装更新的行为；若正式发行要求自动更新，应在M9中按独立门槛交付，验证签名与失败恢复。新旧版本发现数据版本不支持时明确拒绝，不重写数据。
 
 ### 9.2 决策记录
 

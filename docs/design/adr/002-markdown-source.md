@@ -14,4 +14,4 @@ Markdown 是唯一正文。Rust 文档模型持有 source segments、稳定会�
 
 ## 取舍与边界
 
-渲染 AST 不写入持久层；复杂结构与原生输入须分别验证。格式和输入契约见 [Rust 编辑器设计](../RUST-EDITOR-DESIGN.md)，真实 IME/读屏见 [设备验收](../../development/TODO.md#rm32)。
+渲染 AST 不写入持久层；复杂结构与原生输入须分别验证。格式和输入契约见 [Rust 编辑器设计](../RUST-EDITOR-DESIGN.md)，真实 IME/读屏见 [设备验收](../../development/TODO.md#f025)。

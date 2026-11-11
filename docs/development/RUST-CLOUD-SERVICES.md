@@ -1,6 +1,6 @@
 # Rust 云传输、调度与维护契约
 
-本文维护 Rust 云服务的调用约束；真实故障与老化验收见 [RM34](TODO.md#rm34)，操作方法见 [云验收](RUST-CLOUD-ACCEPTANCE.md)。
+本文维护 Rust 云服务的调用约束；真实故障与老化验收分别见 [F011](TODO.md#f011)、[F012](TODO.md#f012)，操作方法见 [云验收](RUST-CLOUD-ACCEPTANCE.md)。
 
 <a id="rm10"></a>
 

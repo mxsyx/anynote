@@ -57,7 +57,7 @@
 | Linux       | 正常桌面入口显式 X11；Wayland 会话需 XWayland；WebKitGTK 4.1 与 GTK 3 开发/运行依赖 | 验证 X11/XWayland；纯 Wayland child 不支持                          |
 | Windows     | WebView2；启动前设置 `GPUI_DISABLE_DIRECT_COMPOSITION=1`；否则宿主返回可见错误      | 源码约束与运行门控已接；未编译/真机验证；incognito 需 WebView2 ≥101 |
 
-三平台真实系统焦点、Tab/Escape、浮层视觉/输入遮挡、跨屏 100/150/200% DPI、视频播放/编解码、子进程内存与故障恢复仍交 RM32；运行库发现/打包/签名交 RM36。原生探针中的三组 bounds 不冒充物理 DPI 验证；未改变 V/A/F 状态。
+三平台真实系统焦点、Tab/Escape、浮层视觉/输入遮挡、跨屏 100/150/200% DPI、视频播放/编解码、子进程内存与故障恢复仍交 RM32；运行库发现/打包/签名交 RM36。原生探针中的三组 bounds 不冒充物理 DPI 验证；未改变 当前 F 任务 状态。
 
 ## 复现
 

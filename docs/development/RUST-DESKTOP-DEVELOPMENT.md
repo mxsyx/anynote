@@ -129,6 +129,6 @@ cargo test -p anynote-services --test runtime -p anynote-desktop --test backend 
 
 进程测试启动实际 `anynote-desktop --backend`（清除 DISPLAY/WAYLAND_DISPLAY），覆盖并发、背压、超时/取消、流截断、旧会话、强制结束后重连、任务 interrupted、父管道 EOF 与退出排空。服务测试覆盖日志重启/清空/损坏/写失败/千条采样预算、历史修剪、资源 Range/失效与未知环境；客户端单测覆盖旧响应 epoch 和旧事件 sequence。短时 IPC p95 样本重建于 `tmp/rm03/ipc-latency.json`，仅测暖态 debug Ping 往返（含运行状态诊断开销），不代表完整保存提交预算。
 
-这些是 Linux 本地服务与进程证据。真实保存、资源文件/归档、业务长任务、任务管理 UI、macOS/Windows 生命周期及系统强制退出确认分别随 RM04–12/19/29/32 补齐，不改变 V/A/F 或 M1 三平台放行状态。
+这些是 Linux 本地服务与进程证据。真实保存、资源文件/归档、业务长任务、任务管理 UI、macOS/Windows 生命周期及系统强制退出确认分别随 RM04–12/19/29/32 补齐，不改变 当前 F 任务 或 M1 三平台放行状态。
 
 RM25 原生 PDF 测试需先安装锁定库并设置 `ANYNOTE_PDFIUM_DIR`，见 [PDF 阅读契约与复现](RUST-PDF-READER.md#native-安装与-abi)。

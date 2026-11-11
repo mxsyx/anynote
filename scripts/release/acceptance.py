@@ -7,6 +7,7 @@ import re
 from . import native as n
 
 TODO = 'docs/development/TODO.md'
+FUTURE_TODO = 'docs/development/FUTURE-TODO.md'
 RELEASE_SCOPE = 'docs/design/RUST-RELEASE-SCOPE.md'
 OPERATIONS = 'tests/fixtures/rust-migration/inventory/operations.json'
 INVARIANTS = 'scripts/rust-regression-invariants.json'
@@ -14,8 +15,6 @@ PLATFORM_CHECKS = ('ci', 'signature', 'install', 'offline-first-use', 'uninstall
                    'upgrade', 'failed-upgrade-rollback', 'schema-rejection', 'package-identity')
 FINAL_CHECKS = ('scope-decision', 'user-script-inventory', 'full-functionality',
                 'takeover-rehearsal', 'latest-data-rollback', 'release-runbook')
-# Future work is not an exemption for migrated functionality.
-DEFERABLE = {'A009'} | {f'F{i:03}' for i in range(9, 25) if i not in (11, 20)}
 
 
 def require(condition, message):
@@ -27,34 +26,61 @@ def read_json(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
 
+def tasks(path):
+    text = path.read_text(encoding='utf-8')
+    sections = re.findall(r'^### (F\d{3}) · ([^\n]+)\n(.*?)(?=^<a id=|^#{1,3} |\Z)',
+                          text, re.M | re.S)
+    require(len(sections) == len(re.findall(r'^### ', text, re.M)), 'invalid task heading')
+    require(len(sections) == len({key for key, _, _ in sections}), 'duplicate F task')
+    result = {}
+    for key, title, body in sections:
+        boxes = re.findall(r'^- \[([ x])\] \*\*(F\d{3}\.\d+)\*\*', body, re.M)
+        require(bool(boxes), 'F task has no actionable checklist')
+        require(len(boxes) == len(re.findall(r'^- \[', body, re.M)) and
+                all(item.startswith(key + '.') for _, item in boxes) and
+                len(boxes) == len({item for _, item in boxes}), 'invalid task checklist')
+        result[key] = {'title': title, 'local_complete': all(status == 'x' for status, _ in boxes)}
+    return result
+
+
 def inventory(root=n.ROOT):
-    todo = (root / TODO).read_text(encoding='utf-8')
+    active = tasks(root / TODO)
+    future = tasks(root / FUTURE_TODO)
+    require(not active.keys() & future.keys(), 'duplicate task across current and future lists')
     scope = (root / RELEASE_SCOPE).read_text(encoding='utf-8')
     required = re.findall(r'^\|\s*(RM\d{2})\s*\|\s*([^|\n]+)\s*\|\s*$', scope, re.M)
     require(len(required) == 37 and {key for key, _ in required} == {f'RM{i:02}' for i in range(1, 38)},
             'RM01–37 release scope incomplete')
     # Removing completed TODOs never removes their final-candidate evidence checks.
     rms = {key: {'title': title.strip(), 'local_complete': True} for key, title in required}
-    sections = re.findall(r'^#### (RM\d{2}) · ([^\n]+)\n(.*?)(?=^<a id=|^### |\Z)',
-                          todo, re.M | re.S)
-    require(len(sections) == len({key for key, _, _ in sections}), 'duplicate RM task')
-    for key, title, body in sections:
-        require(key in rms or key == 'RM38', 'unknown RM task')
-        boxes = re.findall(r'^- \[([ x])\] \*\*' + key + r'\.\d+\*\*', body, re.M)
-        require(bool(boxes), 'RM task has no actionable checklist')
-        if key == 'RM38':
-            continue
-        rms[key]['local_complete'] = all(x == 'x' for x in boxes)
+    boundaries = re.findall(r'^\|\s*(F\d{3})\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*$', scope, re.M)
+    known = {key for key, _, _, _ in boundaries}
+    require(len(known) == len(boundaries) and {'F017', 'F019', 'F021', 'F030'} <= known,
+            'F release scope missing or duplicated')
+    require((active.keys() | future.keys()) <= known, 'task missing from fixed release scope')
+    task_rows = []
+    for key, title, owners, mode in boundaries:
+        mode = mode.strip()
+        require(mode in ('required', 'deferable', 'orchestration'), 'invalid release requirement')
+        require(key not in future or mode == 'deferable', 'required task cannot move to future')
+        owner_ids = [] if owners.strip() == '-' else owners.strip().split(',')
+        require(all(owner in rms for owner in owner_ids), 'unknown RM scope mapping')
+        require(not owner_ids or mode == 'required', 'mapped migration scope cannot be deferred')
+        complete = active.get(key, {}).get('local_complete', True)
+        for owner in owner_ids:
+            rms[owner]['local_complete'] &= complete
+        row = {'id': key, 'title': title.strip(), 'deferable': mode == 'deferable'}
+        if mode == 'required':
+            row['local_complete'] = complete
+        task_rows.append(row)
     ops = read_json(root / OPERATIONS)
     inv = read_json(root / INVARIANTS)
     require(len(ops) == 146 and len({x['operation'] for x in ops}) == 146, 'expected 146 distinct operations')
     require(len(inv) == 24 and {x['id'] for x in inv} == {f'INV-{i:02}' for i in range(1, 25)}, 'INV-01–24 inventory incomplete')
-    legacy = dict(re.findall(r'^### ([VAF]\d{3}) · ([^\n]+)', todo, re.M))
-    require({'A011', 'F007', 'F008', 'V010', 'V011'} <= legacy.keys(), 'legacy release scope missing')
     rows = [{'id': k, **v} for k, v in rms.items()]
     rows += [{'id': x['id'], 'remaining': x['remaining'], 'tests': x['tests']} for x in inv]
     rows += [{'id': 'OP:' + x['operation'], 'owner': x['owner'], 'disposition': x['disposition']} for x in ops]
-    rows += [{'id': k, 'title': v, 'deferable': k in DEFERABLE} for k, v in legacy.items()]
+    rows += task_rows
     rows += [{'id': key} for key in FINAL_CHECKS]
     for target in n.CONFIG['targets']:
         checks = PLATFORM_CHECKS + (('notarization',) if target.startswith('mac-') else ())
@@ -175,5 +201,5 @@ def evaluate(bundle, base, root=n.ROOT):
     blocked = bool(errors) or any(r['problems'] for r in results)
     return {'format': 'anynote.release-review.v1', 'status': 'blocked' if blocked else 'ready-for-review',
             'publication_authorized': False, 'acceptance': 'human-review-required',
-            'version': n.version(), 'inputs': {p: n.digest(root / p) for p in (TODO, OPERATIONS, INVARIANTS)},
+            'version': n.version(), 'inputs': {p: n.digest(root / p) for p in (TODO, FUTURE_TODO, RELEASE_SCOPE, OPERATIONS, INVARIANTS)},
             'candidates': candidates, 'errors': errors, 'records': results}
