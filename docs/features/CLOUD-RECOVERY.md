@@ -13,7 +13,7 @@ Rust 管理窗口的云恢复入口可以在没有原 Notebook、备份目标或
 
 ## 发现与恢复
 
-恢复连接元数据由 Rust 设备侧 RuntimeState 保存，Token 交系统 SecretStore 或仅在会话内持有；详见 [云服务契约](../development/RUST-CLOUD-SERVICES.md)。发现跨越该连接范围内的 Notebook 和分支，每次最多读取 10 个版本清单，继续按钮使用分页游标。版本按提交时间倒序返回；损坏版本跳过并显示警告。
+恢复连接元数据由 Rust 设备侧 RuntimeState 保存，Token 交系统 SecretStore 或仅在会话内持有；详见 [数据与迁移设计](../design/RUST-DATA-COMPATIBILITY.md)。发现跨越该连接范围内的 Notebook 和分支，每次最多读取 10 个版本清单，继续按钮使用分页游标。版本按提交时间倒序返回；损坏版本跳过并显示警告。
 
 Cloudflare 需升级包含 `backup-discovery-v1` 能力的 Worker，可运行 `pnpm run cloud:deploy` 复用已有 Wrangler 管理部署，无需新增 D1 迁移。`GET /v1/backups` 使用相同 APP_TOKEN，只返回已提交且未退役的版本。
 
@@ -21,4 +21,4 @@ Cloudflare 需升级包含 `backup-discovery-v1` 能力的 Worker，可运行 `p
 
 发现与恢复不取得远端写入身份、不删除版本，也不启用自动备份。恢复连接不替代备份目标；副本不会携带原设备凭据、目标配置或备份游标。远端保留和设备接管仍使用独立的显式操作。
 
-恢复仍需有效的云账号凭据，不保证丢失云账号后能够恢复。跨平台、整机故障及长期负载的验证状态见 [开发待办](../development/TODO.md)。
+恢复仍需有效的云账号凭据，不保证丢失云账号后能够恢复。跨平台、整机故障及长期负载的验证状态见 [开发待办](../../TODO.md)。

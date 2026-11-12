@@ -1,6 +1,6 @@
 # RM34 Rust 真实云验收批次
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
 
 ## 批次入口
 
@@ -70,4 +70,4 @@ node --test scripts/test-rust-cloud.mjs
 pnpm exec vitest run tests/cloud-aging.test.mjs
 ```
 
-活动老化样本及下一阶段的接续输入见 [F012](TODO.md#f012)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。
+活动老化样本及下一阶段的接续输入见 [F012](../../TODO.md#f012)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。

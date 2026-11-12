@@ -6,9 +6,9 @@ import re
 
 from . import native as n
 
-TODO = 'docs/development/TODO.md'
+TODO = 'TODO.md'
 FUTURE_TODO = 'docs/development/FUTURE-TODO.md'
-RELEASE_SCOPE = 'docs/design/RUST-RELEASE-SCOPE.md'
+RELEASE_SCOPE = 'docs/development/RUST-RELEASE-SCOPE.md'
 OPERATIONS = 'tests/fixtures/rust-migration/inventory/operations.json'
 INVARIANTS = 'scripts/rust-regression-invariants.json'
 PLATFORM_CHECKS = ('ci', 'signature', 'install', 'offline-first-use', 'uninstall-preserves-data',

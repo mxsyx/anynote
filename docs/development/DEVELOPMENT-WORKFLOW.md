@@ -34,4 +34,4 @@ pnpm run test:retained
 
 ## 文档与临时产物
 
-开始时核对 [TODO](TODO.md) 与现有契约，结束后只保留剩余任务和稳定设计。单次报告、截图和日志放 `tmp/`，文档规则见 [文档维护](DOCUMENTATION.md)。
+开始时核对 [TODO](../../TODO.md) 与现有契约，结束后只保留剩余任务和稳定设计。单次报告、截图和日志放 `tmp/`，文档规则见 [文档维护](DOCUMENTATION.md)。

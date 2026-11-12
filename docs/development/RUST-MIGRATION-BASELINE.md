@@ -1,6 +1,6 @@
 # Rust 迁移基线与语料使用
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
 
 ## 固定版本与证据层次
 
@@ -83,4 +83,4 @@ node scripts/rust-migration-baseline.mjs
 node scripts/editor-ecosystem-smoke.mjs
 ```
 
-旧参考工具须在固定 checkout 中运行；旧选择器失配不作为产品行为。性能比较应串行，使用同机器、构建和缓存条件。输出写入 `tmp/`，活动任务见 [TODO](TODO.md)。
+旧参考工具须在固定 checkout 中运行；旧选择器失配不作为产品行为。性能比较应串行，使用同机器、构建和缓存条件。输出写入 `tmp/`，活动任务见 [TODO](../../TODO.md)。

@@ -21,7 +21,7 @@ mkdirSync(out, { recursive: false });
 const read = (path) => readFileSync(path, "utf8");
 const write = (name, value) =>
   writeFileSync(`${out}/${name}`, JSON.stringify(value, null, 2) + "\n");
-const inventory = read("docs/design/RUST-MIGRATION-INVENTORY.md");
+const inventory = read("docs/development/RUST-MIGRATION-INVENTORY.md");
 const operations = JSON.parse(read("packages/protocol/src/operations.json"));
 assert.equal(operations.length, 146);
 const owners = [
@@ -39,7 +39,7 @@ const owners = [
   "RM37",
 ];
 const groups = [];
-// The design's operation table is the reviewed source of grouping; overrides
+// The inventory's operation table is the reviewed source of grouping; overrides
 // below narrow ownership where one row spans multiple execution groups.
 for (const line of inventory.split("\n")) {
   if (!line.startsWith("|")) continue;

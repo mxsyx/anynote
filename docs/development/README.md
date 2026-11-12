@@ -1,44 +1,34 @@
 # 开发
 
-未完成任务、Rust 接口约束、工程入口和可复现验证方法。单次结果放入 `tmp/`，不归档实施记录。
+本目录保留工程规范、开发入口和可复现验收方法。当前遗留问题统一维护在根目录 [TODO](../../TODO.md)，不保存模块实施记录或单次执行结果。
 
-- [开发工具与 CI](DEVELOPMENT-WORKFLOW.md)：调用约束与验证方法。
-- [文档与任务维护](DOCUMENTATION.md)：文档分类、任务维护及临时产物规则。
-- [原生发行凭据](RELEASE-CREDENTIALS.md)：调用约束与验证方法。
-- [发行矩阵](RELEASE-MATRIX.md)：调用约束与验证方法。
-- [保留 TS 构建与 Rust 互通（RM30）](RETAINED-TS-INTEROP.md)：调用约束与验证方法。
-- [Rust 白板兼容契约与差分方法](RUST-BOARD-COMPATIBILITY.md)：scene 事务、绑定/曲线路径/组/frame、剪贴板与库内核接口，旧版差分语料及未覆盖边界。
-- [Rust 原生白板视图与交互](RUST-BOARD-VIEW.md)：F005 原生几何、组/路径/裁剪交互、属性/搜索/图库/导出入口与验证边界。
-- [Rust 静态内置业务（RM20）](RUST-BUILTIN-BUSINESS.md)：调用约束与验证方法。
-- [RM34 Rust 真实云验收批次](RUST-CLOUD-ACCEPTANCE.md)：调用约束与验证方法。
-- [Rust 配对、采集消费与云浏览](RUST-CLOUD-CAPTURE.md)：调用约束与验证方法。
-- [Rust 云传输、调度与维护契约](RUST-CLOUD-SERVICES.md)：云传输、续传身份、统一调度与维护调用约束。
-- [Rust 配置与凭据读取器](RUST-CONFIG-MIGRATION.md)：调用约束与验证方法。
-- [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：调用约束与验证方法。
-- [Rust 三平台设备验收（RM32）](RUST-DEVICE-ACCEPTANCE.md)：调用约束与验证方法。
-- [Rust 物理盘与灾难恢复验收（RM33）](RUST-DISASTER-ACCEPTANCE.md)：调用约束与验证方法。
-- [Rust 源码模式与保存会话（RM19/F002）](RUST-DOCUMENT-SESSION.md)：保存约束、macOS 可取消退出与组合输入结束、锁定 GPUI 补丁及原生恢复验证。
-- [Rust 结构编辑内核](RUST-EDITOR-STRUCTURE.md)：调用约束与验证方法。
-- [Rust 文本事务与输入内核](RUST-EDITOR-TRANSACTIONS.md)：调用约束与验证方法。
-- [Rust 连续编辑视图（RM18）](RUST-EDITOR-VIEW.md)：atom/空段落范围事务、富片段剪贴板、原生输入探针、保存/媒体重放和 Kit 接口边界。
-- [Rust 图片阅读、文档图片与版本（RM21）](RUST-IMAGE-MEDIA.md)：调用约束与验证方法。
-- [Rust 导入、下载与媒体重试](RUST-IMPORT.md)：调用约束与验证方法。
-- [RM37 旧桌面退役与消费者接续](RUST-LEGACY-RETIREMENT.md)：调用约束与验证方法。
-- [Rust 本地备份 v3 接续](RUST-LOCAL-BACKUP.md)：调用约束与验证方法。
-- [Rust 任务、诊断、备份与恢复管理](RUST-MANAGEMENT.md)：调用约束与验证方法。
-- [Rust 迁移基线与语料使用](RUST-MIGRATION-BASELINE.md)：冻结语料、字段边界及隔离参考环境的重建方法。
-- [Rust 数据接管与回退演练](RUST-MIGRATION-TAKEOVER.md)：调用约束与验证方法。
-- [Rust 原生回归与性能证据（RM31）](RUST-NATIVE-REGRESSION.md)：调用约束与验证方法。
-- [RM36 原生候选打包与发行接线](RUST-NATIVE-RELEASE.md)：调用约束与验证方法。
-- [Rust 内置下载服务公网验收](RUST-NETWORK-ACCEPTANCE.md)：调用约束与验证方法。
-- [Rust PDF 引擎与阅读视图](RUST-PDF-READER.md)：原生版本、IO 失败处理、生命周期与验证方法。
-- [Rust schema v5 只读存储接续](RUST-READONLY-STORAGE.md)：调用约束与验证方法。
-- [RM38 最终候选证据与发行复核](RUST-RELEASE-ACCEPTANCE.md)：调用约束与验证方法。
-- [Rust 快照、归档、开放导出与清理接续](RUST-SNAPSHOT-ARCHIVE.md)：调用约束与验证方法。
-- [RM27 系统 WebView 与视频](RUST-WEBVIEW-VIDEO.md)：调用约束与验证方法。
-- [Rust 工作区与阅读接续](RUST-WORKSPACE.md)：调用约束与验证方法。
-- [Rust schema v5 写存储接续](RUST-WRITE-STORAGE.md)：调用约束与验证方法。
-- [Anynote 当前待办](TODO.md)：F001–F030，按 P0–P3 排序，跨平台与跨设备验证置于最低优先级。
-- [Anynote 远期扩展](FUTURE-TODO.md)：F031–F045，独立维护尚未纳入当前交付的新增能力和可选优化。
+## 任务与工程
 
-- [验证准备索引](validation/README.md)：Cloudflare 部署与协议验证方法。
+- [当前遗留问题](../../TODO.md)：实现缺口、已知缺陷和未完成验收，按 P0–P3 排列。
+- [远期扩展](FUTURE-TODO.md)：尚未纳入当前交付的新增能力与可选优化。
+- [开发工具与 CI](DEVELOPMENT-WORKFLOW.md)：Rust、浏览器扩展与 Worker 的构建和检查入口。
+- [文档与任务维护](DOCUMENTATION.md)：文档归属、问题清单及临时产物规则。
+- [Rust 桌面开发入口](RUST-DESKTOP-DEVELOPMENT.md)：工具链、隔离数据目录、原生依赖和验证命令。
+- [保留 TS 构建与 Rust 互通](RETAINED-TS-INTEROP.md)：浏览器/Worker 独立构建及协议验证。
+- [迁移基线与语料使用](RUST-MIGRATION-BASELINE.md)：冻结语料与隔离参考环境的重建方法。
+- [旧桌面退役与消费者接续](RUST-LEGACY-RETIREMENT.md)：删除边界、参考工具和保留业务断言。
+
+## 验证方法
+
+- [功能与操作验收清单](RUST-MIGRATION-INVENTORY.md)：固定功能范围与工具所需的操作分组。
+- [原生回归与性能](RUST-NATIVE-REGRESSION.md)：跨层回归入口、性能预算和证据边界。
+- [三平台设备验收](RUST-DEVICE-ACCEPTANCE.md)：平台批次、真实窗口及人工操作要求。
+- [物理盘与灾难恢复](RUST-DISASTER-ACCEPTANCE.md)：物理故障、便携恢复和独立设备验证。
+- [真实云验收](RUST-CLOUD-ACCEPTANCE.md)：受控部署、故障注入与真实老化接续。
+- [公网下载验收](RUST-NETWORK-ACCEPTANCE.md)：DNS/TLS 环境准备与实际连接边界验证。
+- [验证准备索引](validation/README.md)：Cloudflare 部署与协议验收方法。
+
+## 发行
+
+- [固定发行验收表](RUST-RELEASE-SCOPE.md)：任务完成后仍必须保留的检查范围与证据要求。
+- [发行矩阵](RELEASE-MATRIX.md)：目标平台、产物和数据协议版本。
+- [发行凭据](RELEASE-CREDENTIALS.md)：签名身份、配置预检和真实验证边界。
+- [原生候选打包](RUST-NATIVE-RELEASE.md)：打包、资源、签名和安装命令。
+- [最终候选复核](RUST-RELEASE-ACCEPTANCE.md)：证据格式、检查器、接管和发布顺序。
+
+架构及功能设计见 [设计索引](../design/README.md)，产品用法见 [功能索引](../features/README.md)。单次报告、基准和截图放入 `tmp/`；持续云老化状态使用专用状态目录。

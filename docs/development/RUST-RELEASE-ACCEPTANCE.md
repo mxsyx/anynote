@@ -1,10 +1,10 @@
 # RM38 最终候选证据与发行复核
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](TODO.md)。
+本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
 
 ## 汇总范围与证据来源
 
-检查器复用 [原生发行配置](../../apps/desktop-rust/native/release.json)、[RM01 操作清单](../../tests/fixtures/rust-migration/inventory/operations.json)、[INV 清单](../../scripts/rust-regression-invariants.json) 、[固定发行范围](../design/RUST-RELEASE-SCOPE.md) 、[当前 TODO](TODO.md) 和 [远期扩展](FUTURE-TODO.md)。不另维护一份会漂移的操作名单。任务已统一为 F 编号，旧证据模板必须重新生成；RM01–37 仍是固定迁移验收范围，旧 F 编号结果不能直接套用。
+检查器复用 [原生发行配置](../../apps/desktop-rust/native/release.json)、[RM01 操作清单](../../tests/fixtures/rust-migration/inventory/operations.json)、[INV 清单](../../scripts/rust-regression-invariants.json) 、[固定发行范围](RUST-RELEASE-SCOPE.md) 、[当前 TODO](../../TODO.md) 和 [远期扩展](FUTURE-TODO.md)。不另维护一份会漂移的操作名单。任务已统一为 F 编号，旧证据模板必须重新生成；RM01–37 仍是固定迁移验收范围，旧 F 编号结果不能直接套用。
 
 | 范围               | 检查项 | 当前依据与剩余边界                                                                                                     |
 | ------------------ | -----: | ---------------------------------------------------------------------------------------------------------------------- |
@@ -58,7 +58,7 @@ python3 scripts/rust-release-acceptance.py check \
 
 ## 接管、回退与发布操作记录（F021）
 
-当前只存在 [RM14 副本演练](RUST-MIGRATION-TAKEOVER.md)，没有已验收的正式接管入口。因此以下是**必须完成并记录的执行顺序**，不是已经可运行的正式迁移命令；不通过添加演练标记把日常资料伪装成副本。
+正式接管入口及最新数据回退仍由 [F007](../../TODO.md#f007) 跟踪，须按[数据与迁移设计](../design/RUST-DATA-COMPATIBILITY.md)完成验收。因此以下是**必须完成并记录的执行顺序**，不是已经可运行的正式迁移命令；不通过添加演练标记把日常资料伪装成副本。
 
 1. 在克隆资料完成全部接管、功能编辑和最新数据回退演练，包含外部库、未知状态、凭据及云连接。记录正式接管工具的最终版本、准确命令/入口、原路径及数据摘要；当前该工具仍待 RM14 完成。
 2. 正式操作须先取得用户明确授权的资料/设备/发布范围。停止旧客户端及新提交，暂停本地和云调度、排空编辑保存和业务任务，确认跨客户端互斥、checkpoint 和租约；不能以关闭窗口推断进程及网络任务已退出。

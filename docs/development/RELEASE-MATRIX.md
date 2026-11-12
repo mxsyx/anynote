@@ -22,6 +22,6 @@
 ## 发行要求
 
 - 构建、资源摘要、架构、许可证、签名/公证及安装失败回退按 [原生发行](RUST-NATIVE-RELEASE.md) 执行。第三方依赖保留其许可证，项目 MIT 许可不覆盖第三方内容。
-- 真实身份按 [发行凭据](RELEASE-CREDENTIALS.md) 准备；Linux 发布者签名见 [F019](TODO.md#f019)，可选自动更新单独见 [F032](FUTURE-TODO.md#f032)。
-- `release.yml` 上传候选工件，不直接发布。最终候选必须完成 [固定验收范围](../design/RUST-RELEASE-SCOPE.md) 与 [发行复核](RUST-RELEASE-ACCEPTANCE.md)。
-- 平台范围由 [F017](TODO.md#f017) 确认；真实安装、离线首用、卸载保留数据、升级与回退归 [F030](TODO.md#f030)。
+- 真实身份按 [发行凭据](RELEASE-CREDENTIALS.md) 准备；Linux 发布者签名见 [F019](../../TODO.md#f019)，可选自动更新单独见 [F032](FUTURE-TODO.md#f032)。
+- `release.yml` 上传候选工件，不直接发布。最终候选必须完成 [固定验收范围](RUST-RELEASE-SCOPE.md) 与 [发行复核](RUST-RELEASE-ACCEPTANCE.md)。
+- 平台范围由 [F017](../../TODO.md#f017) 确认；真实安装、离线首用、卸载保留数据、升级与回退归 [F030](../../TODO.md#f030)。

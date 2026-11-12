@@ -1,21 +1,19 @@
-# ADR-004 · 备份与同步分离及远端写入身份
+# ADR-004 · 备份与同步分开
 
-状态：采用。
+## 为什么
 
-[返回 ADR 索引](README.md)
-
-## 背景
-
-本地知识写入不应依赖网络。多个设备备份时必须避免覆盖彼此的已提交版本。
+本地编辑需要独立于网络，多台设备也不能悄悄覆盖彼此的备份。
 
 ## 决定
 
-备份由用户为目标启用或手动触发，只有应用运行时调度；本地保存成功不等于远端成功。Cloudflare 目标使用 lineage、deviceId、writerEpoch 与 expectedHead；游标和待确认 generation 属于设备数据。
+本地保存与备份分别报告状态。云端同一分支由明确的设备发布，接管需要用户选择；接管后旧设备失去发布权限。
 
-Cloudflare 用分支 CAS 发布，接管提升 epoch；恢复默认创建新 Notebook，接续原分支是显式操作。本地磁盘保留当前完整副本。
+恢复默认创建新笔记本。本地磁盘保存当前完整副本，云端按保留策略保存多个版本。
 
-## 取舍与边界
+## 取舍
 
-不提供双向同步或冲突自动合并，也不假设应用退出后任务继续运行。Cloudflare 真实服务验收归 [F011](../../development/TODO.md#f011)、[F012](../../development/TODO.md#f012) 与 [F020](../../development/TODO.md#f020)，独立设备验收归 [跨设备验证](../../development/TODO.md#p3)。
+备份不提供双向同步或自动冲突合并，也不保证应用退出后继续执行。
 
-相关契约：[Rust 数据与协议](../RUST-DATA-COMPATIBILITY.md)、[剩余任务](../../development/TODO.md)。
+相关设计：[备份与恢复](../BACKUP-RECOVERY.md)
+
+[返回决策索引](README.md)
