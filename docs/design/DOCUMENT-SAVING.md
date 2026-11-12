@@ -30,6 +30,9 @@
 
 切换笔记后，迟到的保存或媒体处理结果只能属于原笔记，不能写入当前打开的另一篇。
 
-相关设计：[文字编辑](RUST-EDITOR-DESIGN.md) · [本地资料与历史](SQLITE-STORAGE.md)
+## 相关设计
+
+- [文字编辑](RUST-EDITOR-DESIGN.md)
+- [本地资料与历史](SQLITE-STORAGE.md)
 
 [返回设计索引](README.md)

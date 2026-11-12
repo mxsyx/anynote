@@ -1,6 +1,6 @@
-# Rust 物理盘与灾难恢复验收（RM33）
+# Rust 物理盘与灾难恢复验收
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
+本文提供本机预检查、便携恢复和实物故障验收方法。RM33.1–3 对应文件系统、物理故障和独立恢复；任务状态见 [TODO](../../TODO.md)。
 
 ## 本机预验证
 
@@ -20,7 +20,7 @@ python3 scripts/rust-disaster-batch.py --device mac-arm64-lab --strict
 
 `report.json` 记录设备标签、平台、源码/Cargo.lock/二进制摘要、原生卷事实、每阶段命令/日志/结果、恢复核对和源码在批次内是否变化；`source.json` 保存逐文件摘要。测试集合为空、非零退出、崩溃、超时、源码变化或缺少恢复结果都不通过。`acceptance` 始终为 `incomplete`，实物、远端、回退和最终包字段均不自动放行。检查失败退出 1；全部预验证通过时 `--strict` 退出 2，不加 strict 退出 0 也不代表 RM33 完成。
 
-这批脚本在 Windows/Linux 的实际运行尚未验证；它们会使用本平台 Rust 卷 API，但硬件/物理拓扑记录仍需补齐。不能把重新构建的 debug 驱动标为最终安装包验收。
+各平台使用本机 Rust 卷 API，硬件与物理拓扑记录须按实际设备补齐。不能把重新构建的 debug 驱动标为最终安装包验收。
 
 ## 双格式便携恢复
 
@@ -34,7 +34,7 @@ python3 scripts/rust-recovery.py verify tmp/rm33-transfer --output tmp/rm33-rece
 
 目标平台可用 `--binary`、`--archive-binary` 指定驱动；Windows 默认包含 `.exe` 后缀。驱动依赖安装和工具链是测试工具前置，不能据此声称最终产品无需开发环境即可恢复。
 
-包中包含 `disk/` v3 本地副本、`full.anynote` 完整归档、`expected.json` 源端逻辑预期和 `bundle-manifest.json` 全文件大小/SHA-256。准备完成才写 manifest；中途失败的目录保留用于诊断，不能作为完成包，重试须指定新目录。旧 RM31 包没有完整归档与新 manifest，须重新 prepare，不提供历史测试包兼容分支。
+包中包含 `disk/` v3 本地副本、`full.anynote` 完整归档、`expected.json` 源端逻辑预期和 `bundle-manifest.json` 全文件大小/SHA-256。准备完成才写 manifest；中途失败的目录保留用于诊断，不能作为完成包，重试须指定新目录。缺少完整归档或 manifest 的测试包须重新 prepare。
 
 验证在启动恢复前检查摘要、必需载荷和文件集合，拒绝新增/丢失/修改文件、符号链接和非普通文件。源端单独记录的 manifest 摘要用于跨设备核对；未传 `--expected-manifest-sha256` 只证明包内自洽，报告的 `manifest_pinned=false`，不证明来源真实性。摘要不是签名。恢复目的地必须全新且与 bundle 无交叠。
 
@@ -42,7 +42,7 @@ python3 scripts/rust-recovery.py verify tmp/rm33-transfer --output tmp/rm33-rece
 
 本地 verify 会更新 `lastFullVerifiedAt`，因此只操作 bundle 的私有复制；归档只读。验证结束再次检查整个传输包未变。输出 `recovery-report.json` 包含两端设备标签/主机/平台/时间、两端驱动摘要、manifest 摘要及每格式业务结果。设备名不同不证明物理独立，`physical_device_independence=not_proven` 始终需要真人设备记录补证。
 
-本驱动使用小型黄金语料，不能覆盖全部媒体或大数据性能。当前便携语料的 `note_text` 为零行，FTS 只查询固定 `Markdown` 词；不能把它当作 PDF 全文/所有语言搜索验收。远端 committed 版本、系统配置/凭据和最新数据回退不在便携包中，必须按下面清单单独完成。
+本驱动使用小型黄金语料，不能覆盖全部媒体或大数据性能。便携语料只检查固定词的 FTS 查询；PDF 全文和多语言搜索须使用专项语料验收。远端 committed 版本、系统配置/凭据和最新数据回退不在便携包中，必须按下面清单单独完成。
 
 ## 真实设备批次执行清单
 
@@ -59,6 +59,6 @@ python3 scripts/rust-recovery.py verify tmp/rm33-transfer --output tmp/rm33-rece
 | RM33.2 发布/清理，F027    | 每个目标文件系统分别在发布前、manifest 已替换后、清理中实际切断独立设备电源；重启先保全 journal/manifest/对象，再核对提交归属、旧副本/新副本与清理范围                              | 需要外部操作者切点证据；Observer 的 BeforeManifest/ManifestPublished/BeforeCleanup 是软件定位，exitAt/SIGKILL 不等于断电，现有 example 不提供物理切点暂停控制 |
 | RM33.3 干净设备，F028     | 记录两台实物与干净工作区；源机/源盘不可访问时移交整个恢复包和独立摘要，目标平台构建/安装后执行 verify，再用候选应用打开结果核对编辑、历史、回收站、批注、媒体、未知数据、内链与搜索 | 本机隔离演练不能替代独立设备及候选 GUI 验收                                                                                                                   |
 | RM33.3 远端，F027         | 源盘/原设备配置不可用，在干净设备重新建立授权连接，只恢复明确 committed 的固定版本；核对数据/资源/历史/未知状态及搜索；与 RM34 共用实际版本和凭据环境记录                           | 必须记录云命名空间、版本与干净设备；不使用 fixture 或本地包代替                                                                                               |
-| RM33.3 最新数据回退，F027 | 功能就绪后在完整克隆上产生新的 Rust 内容和资源、排空任务、发布回退；旧端核对最新资料、游标、偏好/未知状态；配置和凭据恢复单独记录                                                   | 等待 F007 正式接管/回退闭合，迁移内核测试不等于整机回退                                                                                                       |
+| RM33.3 最新数据回退，F027 | 功能就绪后在完整克隆上产生新的 Rust 内容和资源、排空任务、发布回退；旧端核对最新资料、游标、偏好/未知状态；配置和凭据恢复单独记录                                                   | 以 F007 正式接管/回退验收为前置，迁移内核测试不等于整机回退                                                                                                   |
 
 实物记录完成后，将单次报告、日志和照片放入 `tmp/`；正式发行证据归档至受控长期位置。剩余问题、失败归属和必要接续输入更新根目录 [TODO](../../TODO.md)，不在开发文档中新增实施记录。各平台和盘组合独立判定，不以本机 APFS 结果关闭 NTFS/exFAT/ext4 或不同物理盘条目。

@@ -37,6 +37,10 @@
 
 共享的云端进度不能倒退。界面偏好和凭据也要分别核对；旧程序不能读取最新凭据时，保持任务暂停并提示重新认证。
 
-相关设计：[本地资料与历史](SQLITE-STORAGE.md) · [内置能力与扩展](RUST-MIGRATION-INVENTORY.md) · [隐私与授权](PRIVACY.md)
+## 相关设计
+
+- [本地资料与历史](SQLITE-STORAGE.md)
+- [内置能力与扩展](RUST-MIGRATION-INVENTORY.md)
+- [隐私与授权](PRIVACY.md)
 
 [返回设计索引](README.md)

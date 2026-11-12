@@ -1,6 +1,6 @@
-# RM36 原生候选打包与发行接线
+# 原生候选打包与发行
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
+本文提供候选构建、资源校验、签名和安装方法。最终放行要求见 [发行复核](RUST-RELEASE-ACCEPTANCE.md)，任务状态见 [TODO](../../TODO.md)。
 
 ## 构建与校验
 
@@ -16,7 +16,7 @@ python3 scripts/test-native-payload.py tmp/rm36/candidate/Anynote.app
 python3 scripts/test-rust-release.py
 ```
 
-`pnpm package` / `package:release` 转发到 Python 入口，不构建 JS 桌面；`scripts/package-desktop.mjs` 仅保留命令别名，旧源码/依赖退役仍属 RM37。打包需 Python ≥3.12、锁定 Rust 1.99.1 及本平台工具。先 `cargo fetch --locked`，之后 Cargo 构建/依赖清单强制 `--locked --offline`。
+`pnpm package` / `package:release` 转发到 Python 入口，不构建 JS 桌面；`scripts/package-desktop.mjs` 提供命令别名。打包需 Python ≥3.12、`rust-toolchain.toml` 锁定的 Rust 及本平台工具。先 `cargo fetch --locked`，之后 Cargo 构建/依赖清单强制 `--locked --offline`。
 
 配置唯一来源为 `apps/desktop-rust/native/release.json`。候选矩阵为 macOS arm64/x64、Windows MSVC x64、Linux GNU x64；不把已有 Pdfium win-arm64 pin 当作 Windows arm64 支持声明。构建必须在对应原生架构 runner 上执行。版本核对根 Cargo/package.json，标签构建额外核对 `v<version>`。
 
@@ -36,9 +36,9 @@ Pdfium 原始压缩包和库各验一次仓库 pin；只复制库、VERSION、�
 
 `candidate.json` 记录版本、架构、profile、签名状态、manifest/安装包 hash 与资源自检；`SHA256SUMS.txt` 是内容校验和。无正式身份的 macOS 包使用 ad-hoc 签名以便本机运行，报告仍标记 `unsigned-candidate`。
 
-RM38 补充源码 commit/tree/干净状态、构建前后身份一致性、规范 Cargo.lock 摘要、公开 CI run/attempt/runner 身份及 macOS 公证请求 ID。既有缺来源字段的候选仍可作本地资源检查，不能回填后用于最终发行复核；应从最终干净源码重新构建。汇总入口、实签设备记录和当前缺口见 [最终发行复核](RUST-RELEASE-ACCEPTANCE.md)。
+最终候选必须包含源码 commit/tree/干净状态、构建前后身份一致性、规范 Cargo.lock 摘要、公开 CI run/attempt/runner 身份及 macOS 公证请求 ID。缺来源字段的候选不能回填后用于最终发行复核；应从最终干净源码重新构建。汇总入口与实签设备证据要求见 [最终发行复核](RUST-RELEASE-ACCEPTANCE.md)。
 
-## 签名接线
+## 签名与公证
 
 ```sh
 python3 scripts/rust-release.py credentials --target mac-arm64
@@ -64,7 +64,7 @@ python3 scripts/rust-release.py install <payload> <destination> \
 
 目录安装事务先校验清单/身份，复制到目标同卷临时目录，清除开发环境 Pdfium 覆盖后运行自检；可选 `--notebook` 调用现有 `ReadonlyNotebook::open` 拒绝不支持 schema，不另写宽松检查。然后旧安装改名 `.previous`，激活候选并再次自检；外置清单与旧目录一起保留，后检失败将候选及清单移到 `.failed`、恢复匹配的旧目录和清单。发生回退重命名失败时保留 install-lock，要求人工核对。崩溃锁和已有 previous/failed 不自动清理。它只安装二进制目录，不停止用户进程、不迁移或恢复数据库。
 
-Windows NSIS 使用同样的候选预检/旧目录保留/后检回退流程；候选与 previous 遗留时拒绝覆盖，非应用目录不接管，卸载保留数据。Mac Finder 拖放和直接替换 AppImage 依然是手动复制，不声称有脚本事务保证；用上述目录安装入口可验证回退。没有实现后台自动更新、元数据签名或差分下载。
+Windows NSIS 使用同样的候选预检/旧目录保留/后检回退流程；候选与 previous 遗留时拒绝覆盖，非应用目录不接管，卸载保留数据。Mac Finder 拖放和直接替换 AppImage 属于手动复制，不具备此处的脚本事务保证；用上述目录安装入口可验证回退。后台自动更新的范围单独见 [F032](FUTURE-TODO.md#f032)。
 
 ## CI 与验收边界
 
@@ -72,4 +72,4 @@ Windows NSIS 使用同样的候选预检/旧目录保留/后检回退流程；�
 - `retained.yml`：RM30 浏览器/Worker 隔离构建和 Rust/TS 互通，作为独立可复用 workflow。
 - `release.yml`：依赖上述检查，四架构原生构建、资源扫描、安装/升级/schema/篡改回归；上传候选安装器和证据，**不创建 GitHub Release、不部署**。macOS runner 用当前支持的 `macos-15` / `macos-15-intel`。
 
-未执行：真实 Developer ID/公证/Authenticode、Windows/Linux/macOS x64 构建安装、GitHub hosted workflow、最终 RM37 包、干净设备离线首用/卸载和正式原路径接管。不得据此勾选 F019、F030、F017 或 RM38。
+构建与本地资源检查不能替代真实 Developer ID/公证/Authenticode、各目标平台安装、hosted CI、干净设备离线首用/卸载或正式原路径接管。逐项要求见 [发行复核](RUST-RELEASE-ACCEPTANCE.md)。

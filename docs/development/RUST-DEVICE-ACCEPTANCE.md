@@ -1,6 +1,6 @@
-# Rust 三平台设备验收（RM32）
+# Rust 三平台设备验收
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
+本文提供平台批次与人工验收清单。RM32.1–3 表示原型、克隆资料和最终包三个验收阶段；任务状态见 [TODO](../../TODO.md)。
 
 ## 批次入口
 
@@ -14,7 +14,7 @@ python3 scripts/test-rust-device-batch.py
 python3 scripts/rust-device-batch.py --device mac-arm64-lab --native --strict
 ```
 
-Windows PowerShell 使用 `$env:ANYNOTE_PDFIUM_DIR = (Resolve-Path tmp/pdfium).Path`，并改用对应设备标签。Linux 须记录发行版、GPU/Vulkan 驱动和 X11/XWayland 会话；不以 Xvfb 作为物理显示证据。脚本在 Windows/Linux 的实际运行仍未验证，目标设备缺依赖或平台分支失败时保留原始错误，不以本机结果推断通过。
+Windows PowerShell 使用 `$env:ANYNOTE_PDFIUM_DIR = (Resolve-Path tmp/pdfium).Path`，并改用对应设备标签。Linux 须记录发行版、GPU/Vulkan 驱动和 X11/XWayland 会话；不以 Xvfb 作为物理显示证据。目标设备缺依赖或平台分支失败时保留原始错误，各平台必须分别执行并提供证据。
 
 `--native` 在本机真实窗口中运行本地系统 WebView 100 次循环，可能占用窗口焦点；同设备按批次串行。默认只运行自动化检查，不打开真人验收流程。命令只使用仓库合成数据/模块 fixture；不读登录 Keychain、不访问真实云、不传入日常库。
 
@@ -23,21 +23,21 @@ Windows PowerShell 使用 `$env:ANYNOTE_PDFIUM_DIR = (Resolve-Path tmp/pdfium).P
 - `report.json` 保存设备标签、OS/架构、工具链、锁文件/二进制/Pdfium SHA-256、逐阶段命令、结果、耗时和测试名称。Mac 另记录硬件、显示及测试目录所在卷。其他平台的硬件、显示、卷信息须补入设备报告。
 - `source.json` 对全部跟踪及未忽略的新文件逐一计算摘要，保留提交和 dirty 状态。结束时再次核对，源码改变则该批次失败；文档更新发生在批次完成后，不伪造同一候选源码。
 - 平台/SQLite/写入、配置 fixture、备份/迁移及编辑/白板/PDF/视频原型分别运行。任何阶段失败都不掩盖后续阶段；测试集合为空、子进程崩溃、非零退出及超时不会通过。
-- Pdfium 必须匹配当前主机平台 pin 的动态库字节；WebView 必须有本轮新报告，requested/completed 都为 100 且 failure 为 null。命令退出 0 不能代替探针证据。
+- Pdfium 必须匹配当前主机平台 pin 的动态库字节；WebView 必须有本次批次生成的报告，requested/completed 都为 100 且 failure 为 null。命令退出 0 不能代替探针证据。
 
 `selected_checks` 仅表示选中的自动检查。`acceptance` 始终为 `incomplete`，真人、其他平台、功能副本及最终包字段不会由自动化设为通过。检查失败退出 1；检查通过但使用 `--strict` 时退出 2；不加 strict 的退出 0 也不是 RM32 放行。终验仍应以候选包实际运行闭包为准，不能用此处重新编译的 debug 程序替代。
 
-## 其他平台与组合
+## 平台与环境要求
 
-| 平台                | 验收状态         | 后续必须记录                                                                                                |
-| ------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| macOS x64           | 未提供设备，未测 | 真实架构、OS 最低/当前版本、Metal、原生库/字体、Keychain、显示与安装包                                      |
-| Windows x64 / arm64 | 未提供设备，未测 | 原生架构与模拟层分别列出；OS、NTFS、GPU/DirectComposition、WebView2 runtime、DPAPI/Credential Manager、显示 |
-| Linux x64           | 未提供设备，未测 | 发行版、桌面会话、X11/XWayland、Vulkan、WebKitGTK、keyring、文件系统与安装包                                |
+| 平台              | 必须记录的环境                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| macOS arm64 / x64 | 原生架构、OS 最低/当前版本、Metal、原生库/字体、Keychain、显示与安装包                              |
+| Windows x64       | 原生架构与模拟层、OS、NTFS、GPU/DirectComposition、WebView2 Runtime、DPAPI/Credential Manager、显示 |
+| Linux x64         | 发行版、桌面会话、X11/XWayland、Vulkan、WebKitGTK、keyring、文件系统与安装包                        |
 
-上述组合来自当前 native 资产候选范围，不构成支持声明。Linux 原生 Wayland 或其他架构若未来声明支持，必须加独立验收行；不能把 XWayland 通过填写为 Wayland 通过。每个平台/架构/会话独立出报告；候选声明的最低 OS、运行库和全部支持组合未冻结前，RM32.3 不得关闭。
+待验目标以 [发行矩阵](RELEASE-MATRIX.md) 和原生发行配置为准。原生库存在某架构的 pin 不构成支持声明；新增 Windows arm64、Linux 原生 Wayland 或其他架构时，必须同步矩阵并独立验收。不能把 XWayland 结果填写为 Wayland 结果。每个平台/架构/会话独立出报告，覆盖候选声明的最低 OS、运行库和全部支持组合。
 
-## 后续三阶段操作清单
+## 三阶段操作清单
 
 所有人工条目保存：设备标签、OS/架构/会话、批次阶段、源码/包/fixture 摘要、操作者、时间、步骤、预期/实际、证据位置、结果（passed/failed/blocked/not_tested）、失败归属。真人结论必须由实际操作者提供，AI 自动注入 composition、AX 设值或截图不构成真人证据。单次报告与截图放 `tmp/`，未完成范围和必要接续输入更新 TODO；正式候选证据按发行流程归档，不新增实施记录。
 

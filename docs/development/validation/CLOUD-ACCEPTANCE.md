@@ -1,6 +1,6 @@
 # 真实云备份验收
 
-> 状态归属：本文维护部署与验收步骤，任务完成状态只在 [Cloudflare](../../../TODO.md#f011) 维护。旧格式报告不构成当前 schema v5/独立附件协议验收；维护规则见 [文档维护](../DOCUMENTATION.md)。
+本文维护部署与验收步骤，任务状态见 [Cloudflare](../../../TODO.md#f011)。报告须覆盖当前 schema v5/独立附件协议；维护规则见 [文档维护](../DOCUMENTATION.md)。
 
 ## Wrangler 自动创建、部署并验收（Cloudflare）
 
@@ -80,7 +80,7 @@ npx wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc
 | 并发提交竞争               | 两个 generation 同时提交，只有一个可发布         |
 | 新旧版本恢复               | 修改后走公开 Provider 上传/恢复，同时验证旧版本  |
 
-新增 5 项 Cloudflare 检查覆盖恢复 pin 与预览不删除、保护改变后旧计划拒绝、确认后旧版本删除/保留 head 恢复、接管后旧设备拒绝上传及新设备提交、日/周/月策略保留旧月代表版本并恢复。新上传对象仍在 24 小时宽限期内，不据此宣称真实云老化对象回收已验收。
+维护场景覆盖恢复 pin 与预览不删除、保护改变后旧计划拒绝、确认后旧版本删除/保留 head 恢复、接管后旧设备拒绝上传及新设备提交、日/周/月策略保留旧月代表版本并恢复。新上传对象仍在 24 小时宽限期内，不据此宣称真实云老化对象回收已验收。
 
 故障注入发生在客户端调用边界，上传、commit、列举和恢复仍由真实服务执行；不表示云厂商发生实际故障，不包括区域失效、跨地域复制或权限撤销演练。
 
@@ -88,9 +88,9 @@ npx wrangler deploy --config apps/cloudflare-backup/wrangler.jsonc
 
 报告默认写入 `tmp/reports/cloud-acceptance.json`，每步更新：模式、整体/目标状态、步骤耗时、endpoint、测试 Notebook/lineage/generation UUID、错误或缺失变量。已知 token 和访问凭据会脱敏；报告目录已被 git 忽略。
 
-每次验收使用新的 Notebook 和 lineage。云端测试数据保留供核查，脚本不删除原有数据；清理时仅处理报告列出的本次测试范围。Cloudflare 已提供受并发保护的清理 API；新增维护场景只删除本次新建测试库中的指定旧版本，其余测试数据继续保留。详见 [远端维护](../../features/REMOTE-MAINTENANCE.md)。
+每次验收使用新的 Notebook 和 lineage。云端测试数据保留供核查，脚本不删除原有数据；清理时仅处理报告列出的本次测试范围。维护场景通过受并发保护的清理 API 删除本次新建测试库中的指定旧版本，其余测试数据继续保留。详见 [远端维护](../../features/REMOTE-MAINTENANCE.md)。
 
-仅当报告 `mode=real-cloud`，所有选定目标 `status=passed` 且全部步骤通过，才能记录该目标的真实云协议验收成功。Linux 真实 GNOME Keyring、应用重启、正式自动备份与恢复流程已另行通过 [桌面验收](../RUST-CLOUD-ACCEPTANCE.md)。其他平台的系统密钥服务、系统重启、自动备份长期运行、超过 24 小时无引用对象的真实回收及厂商级故障仍需独立验收。
+仅当报告 `mode=real-cloud`，所有选定目标 `status=passed` 且全部步骤通过，才能记录该目标的真实云协议验收成功。系统密钥服务、应用与系统重启、自动备份长期运行、超过 24 小时无引用对象的真实回收及厂商级故障须独立验收；桌面场景与工具边界见 [Rust 云验收](../RUST-CLOUD-ACCEPTANCE.md)。
 
 ## 跨会话老化样本
 
@@ -113,7 +113,7 @@ pnpm run test:cloud:aging --verify 7d
 
 ```sh
 pnpm exec wrangler r2 object get '<测试桶>/objects/<Notebook ID>/<hash>' \
-  --remote --config .cloudflare-acceptance/wrangler.json --file /tmp/aging-object.bin
+  --remote --config .cloudflare-acceptance/wrangler.json --file tmp/aging-object.bin
 ```
 
 只把明确的对象不存在结果计为物理删除，不把鉴权、网络或服务异常当作通过。此脚本尚不覆盖孤立 manifest/临时对象、归档写失败、桶 multipart 自动回收或容量成本；即使两阶段通过，也不能单独完成 F012。样本身份、最早复验时间和剩余范围见 [云老化任务](../../../TODO.md#f012)。

@@ -24,6 +24,9 @@
 
 在线协作和在线 AI 绘图不因保留白板格式而自动成为产品能力。
 
-相关设计：[保存与冲突](DOCUMENT-SAVING.md) · [桌面架构](RUST-DESKTOP-MIGRATION.md)
+## 相关设计
+
+- [保存与冲突](DOCUMENT-SAVING.md)
+- [桌面架构](RUST-DESKTOP-MIGRATION.md)
 
 [返回设计索引](README.md)

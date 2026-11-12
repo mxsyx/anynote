@@ -28,6 +28,10 @@ PDF 阅读包括分页、缩略图、页码跳转、缩放、适应页面或宽�
 
 采集卡片以受限内容呈现。未知卡片保留原始内容，不因此开放任意网页执行能力。
 
-相关设计：[白板](WHITEBOARD.md) · [隐私与授权](PRIVACY.md) · [桌面架构](RUST-DESKTOP-MIGRATION.md)
+## 相关设计
+
+- [白板](WHITEBOARD.md)
+- [隐私与授权](PRIVACY.md)
+- [桌面架构](RUST-DESKTOP-MIGRATION.md)
 
 [返回设计索引](README.md)

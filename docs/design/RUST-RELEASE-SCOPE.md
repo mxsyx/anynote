@@ -19,6 +19,9 @@
 
 固定范围和检查编号见[发行验收表](../development/RUST-RELEASE-SCOPE.md)，执行与放行方法见[最终候选复核](../development/RUST-RELEASE-ACCEPTANCE.md)。本页只说明发行原则，不记录实施进度或测试结果。
 
-相关设计：[桌面架构](RUST-DESKTOP-MIGRATION.md) · [数据接管](RUST-DATA-COMPATIBILITY.md)
+## 相关设计
+
+- [桌面架构](RUST-DESKTOP-MIGRATION.md)
+- [数据接管](RUST-DATA-COMPATIBILITY.md)
 
 [返回设计索引](README.md)

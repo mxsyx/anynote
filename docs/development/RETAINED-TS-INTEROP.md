@@ -1,4 +1,4 @@
-# 保留 TS 构建与 Rust 互通（RM30）
+# 浏览器与 Worker 构建及 Rust 互通
 
 ## 构建闭包
 
@@ -10,9 +10,9 @@
 | Worker     | `pnpm run build:worker` / `cloud:check`，或 Worker 包内 `pnpm run build` | capture、protocol、types               | `apps/cloudflare-backup/dist/bundle/` |
 | Rust 桌面  | `cargo build --locked -p anynote-desktop`                                | Cargo workspace 五个工程及锁定原生依赖 | `target/debug/anynote-desktop`        |
 
-白名单是允许的上限，实际只编译入口可达的源文件；当前浏览器 22 个、Worker 17 个。浏览器只使用 importer 的转换/发现部分，Worker 的 types 引用为类型依赖，原生 SQLite 实现不会进入 Worker bundle。每次编译输出 `tmp/retained/<target>/closure.json`，跨出允许源码目录或增加待退役 workspace 依赖即失败。
+白名单是允许的上限，实际文件清单以每次编译输出的 `tmp/retained/<target>/closure.json` 为准。浏览器只使用 importer 的转换/发现部分，Worker 的 types 引用为类型依赖，原生 SQLite 实现不得进入 Worker bundle。跨出允许源码目录或增加待退役 workspace 依赖即失败。
 
-共享包 `dist` 可供独立互通驱动读取；浏览器、Worker 的发布 bundle 各自打包。旧 Electron、SDK、全量后端及旧云部署/验收脚本仍保留给 RM37 清理，不属于这两个独立构建入口，也不属于 Rust 桌面运行闭包。
+共享包 `dist` 可供独立互通驱动读取；浏览器、Worker 的发布 bundle 各自打包。旧 Electron、SDK、全量后端及旧云部署/验收脚本不属于这两个独立构建入口，也不属于 Rust 桌面运行闭包；参考工具的清理要求见 [旧桌面退役](RUST-LEGACY-RETIREMENT.md)。
 
 ## 协议与降级
 
@@ -40,4 +40,4 @@ pnpm run test:retained --workerd
 
 `test:retained` 自行构建两套 TS 产物和 Rust `cloud_probe` / `maintenance_probe`，复用 RM10/RM11/RM12 驱动，不依赖 TS 桌面后端。默认使用现有 Worker 加内存 D1/R2 适配器；`--workerd` 使用官方本地 workerd、持久化 D1/R2，覆盖 pin 续租、multipart 和实际 MV3 扩展。维护驱动两种模式均读取独立 Worker `dist`，覆盖清理预览/确认、丢响应恢复、tombstone、writer 接管和取消协调。`CAPTURE_CHROMIUM` 可指定本机 Chromium 可执行文件。测试只使用临时资料和回环地址；需要本机端口与 Chromium 启动权限，不访问真实云账户。
 
-独立 CI 见 `.github/workflows/retained.yml`：浏览器/Worker 分开执行隔离构建；Rust job 不安装 Node，阻断预装 JS 工具；互通 job 运行本地 workerd 和 Chromium。CI 定义已接线，尚未取得 hosted runner 执行证据。
+独立 CI 见 `.github/workflows/retained.yml`：浏览器/Worker 分开执行隔离构建；Rust job 不安装 Node，阻断预装 JS 工具；互通 job 运行本地 workerd 和 Chromium。实际 CI 执行结果随候选证据保存，不能由工作流定义推定通过。

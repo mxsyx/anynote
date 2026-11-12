@@ -1,13 +1,13 @@
 # 原生发行凭据
 
-RM36 已将活跃入口改为 `python3 scripts/rust-release.py credentials`；`pnpm run test:release:credentials` 转发到该入口。它只检查字段格式/存在性，真实证书与权限必须用原生签名流程验证。完整调用与验收边界见 [Rust 原生发行](RUST-NATIVE-RELEASE.md)。
+预检入口为 `python3 scripts/rust-release.py credentials`，也可使用 `pnpm run test:release:credentials`。它只检查字段格式/存在性，真实证书与权限必须用原生签名流程验证。完整调用与验收边界见 [Rust 原生发行](RUST-NATIVE-RELEASE.md)。
 
 | 平台    | 本机签名环境                                                                                              | CI 额外配置                                                                                                                                                         |
 | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | macOS   | `ANYNOTE_MAC_SIGN_IDENTITY`、`ANYNOTE_MAC_TEAM_ID`、`ANYNOTE_NOTARY_PROFILE`；可选 `ANYNOTE_MAC_KEYCHAIN` | secrets：`ANYNOTE_MAC_CERTIFICATE_B64`、`ANYNOTE_MAC_CERTIFICATE_PASSWORD`、`ANYNOTE_MAC_SIGN_IDENTITY`、`APPLE_TEAM_ID`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD` |
 | Windows | CurrentUser/My 中的证书、`ANYNOTE_WIN_CERT_SHA1`、`ANYNOTE_WIN_TIMESTAMP_URL`                             | secrets：`ANYNOTE_WIN_CERTIFICATE_B64`、`ANYNOTE_WIN_CERTIFICATE_PASSWORD`、`ANYNOTE_WIN_CERT_SHA1`；variable：`ANYNOTE_WIN_TIMESTAMP_URL`（HTTPS RFC3161 服务）    |
 
-CI P12 采用 base64 编码；仅导入 runner 临时钥匙串/证书库，always 步骤清理，不存储在工件或仓库。`release-credentials.yml` 为 presence/格式预检；`release.yml` 手动 `sign=true` 才调用实签/公证，仍不发布。缺失任何预期身份或验证失败都停止构建，不降级为“已签名”。Linux 发布者签名尚未启用。
+CI P12 采用 base64 编码；仅导入 runner 临时钥匙串/证书库，always 步骤清理，不存储在工件或仓库。`release-credentials.yml` 为 presence/格式预检；`release.yml` 手动 `sign=true` 才调用实签/公证，仍不发布。缺失任何预期身份或验证失败都停止构建，不降级为“已签名”。Linux 的签名命令边界见 [原生发行](RUST-NATIVE-RELEASE.md#签名与公证)。
 
 ## 预检与真实身份验证
 

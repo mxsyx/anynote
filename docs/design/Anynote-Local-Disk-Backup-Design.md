@@ -25,6 +25,9 @@
 
 批量任务按笔记本报告结果，一部分失败不能掩盖其他结果，也不能显示为全部成功。
 
-相关设计：[备份与恢复](BACKUP-RECOVERY.md) · [本地资料与历史](SQLITE-STORAGE.md)
+## 相关设计
+
+- [备份与恢复](BACKUP-RECOVERY.md)
+- [本地资料与历史](SQLITE-STORAGE.md)
 
 [返回设计索引](README.md)

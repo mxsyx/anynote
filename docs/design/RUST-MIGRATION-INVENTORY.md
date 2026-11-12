@@ -28,6 +28,9 @@
 
 完成判断同时看内容与使用行为：资料可读、原有可用操作有对应入口，并且设置、历史和恢复没有丢失。具体核对范围见[功能验收清单](../development/RUST-MIGRATION-INVENTORY.md)。
 
-相关设计：[桌面架构](RUST-DESKTOP-MIGRATION.md) · [数据接管](RUST-DATA-COMPATIBILITY.md)
+## 相关设计
+
+- [桌面架构](RUST-DESKTOP-MIGRATION.md)
+- [数据接管](RUST-DATA-COMPATIBILITY.md)
 
 [返回设计索引](README.md)

@@ -1,6 +1,6 @@
-# RM34 Rust 真实云验收批次
+# Rust 真实云验收
 
-本文维护 Rust 接口、约束和验证方法；未完成工作统一见 [TODO](../../TODO.md)。
+本文说明 Rust 云协议批次、故障场景与真实老化的执行方法。测试服务部署见 [Cloudflare 验收准备](validation/CLOUD-ACCEPTANCE.md)，任务状态见 [TODO](../../TODO.md)。
 
 ## 批次入口
 
@@ -46,7 +46,7 @@ node --env-file=/absolute/path/to/test-cloud.env scripts/rust-cloud-reference.mj
 
 ## 真实 24h/7d 老化
 
-复用已有 [云老化流程](validation/CLOUD-ACCEPTANCE.md#跨会话老化样本)，不沿用已删除部署或旧报告。新增 `--rust`：仍由既有 TS 兼容流程生成小型 schema v5 样本并执行 retention/tombstone，复验时由 TS 和实际 Rust `restore` 分别恢复 pinned/head/branch 三个固定版本；Rust 正文核对失败则阶段不通过。并非宣称所有维护 API 已由 Rust 发起。
+按 [云老化流程](validation/CLOUD-ACCEPTANCE.md#跨会话老化样本) 使用 `--rust`：TS 参考流程生成小型 schema v5 样本并执行 retention/tombstone，复验时由 TS 和实际 Rust `restore` 分别恢复 pinned/head/branch 三个固定版本；Rust 正文核对失败则阶段不通过。此流程只验证所列 Rust 恢复路径，不代表全部维护 API 均由 Rust 发起。
 
 ```sh
 pnpm run build:backend
