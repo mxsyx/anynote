@@ -1,5 +1,7 @@
 # 迁移基线与测试语料指南
 
+> 下文旧 TS/Electron 命令属于历史参考环境，已不在活动工程提供。使用 [固定提交参考工具](RUST-LEGACY-RETIREMENT.md) 恢复；生成器自身要求的更早基线提交及冻结 checksum 仍保持不变。
+
 本文说明冻结参考资料的来源、覆盖边界和重建方法。功能验收范围见 [功能与操作清单](RUST-MIGRATION-INVENTORY.md)，任务状态见 [TODO](../../TODO.md)。
 
 ## 固定版本与证据层次

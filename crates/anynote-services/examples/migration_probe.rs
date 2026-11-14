@@ -52,8 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for path in paths {
                     ReadonlyNotebook::open(path, None)?.integrity_check()?;
                 }
+                let reader =
+                    std::env::var_os("ANYNOTE_LEGACY_READER").ok_or(Error("LEGACY_UNAVAILABLE"))?;
                 let status = Command::new("node")
-                    .arg("scripts/rust-migration-legacy-read.mjs")
+                    .arg(reader)
                     .args(paths)
                     .status()
                     .map_err(|_| Error("LEGACY_UNAVAILABLE"))?;

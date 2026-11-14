@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Keep backend regression tests independent of the desktop Vite root/plugins.
+// Retained protocol and Worker regressions run without the desktop runtime.
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.{mjs,js,ts}"],
@@ -18,10 +18,7 @@ export default defineConfig({
     // or creating a second module instance beside workspace package exports.
     server: {
       deps: {
-        external: [
-          /[\\/]\.build[\\/]/,
-          /[\\/]packages[\\/][^\\/]+[\\/]dist[\\/]/,
-        ],
+        external: [/[\\/]packages[\\/][^\\/]+[\\/]dist[\\/]/],
       },
     },
   },

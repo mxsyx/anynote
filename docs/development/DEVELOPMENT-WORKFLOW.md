@@ -35,3 +35,7 @@ pnpm run test:retained
 ## 文档与临时产物
 
 开始时核对 [TODO](../../TODO.md) 与现有契约，结束后只保留剩余任务和稳定设计。单次报告、截图和日志放 `tmp/`，文档规则见 [文档维护](DOCUMENTATION.md)。
+
+## 旧端对照
+
+旧 Electron/TS 后端与插件构建命令已删除。需要格式回读、Excalidraw 或旧端业务对照时，使用 [独立参考环境](RUST-LEGACY-RETIREMENT.md)，不能在当前工程执行 `build:backend`。

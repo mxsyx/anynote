@@ -12,7 +12,7 @@
 
 白名单是允许的上限，实际文件清单以每次编译输出的 `tmp/retained/<target>/closure.json` 为准。浏览器只使用 importer 的转换/发现部分，Worker 的 types 引用为类型依赖，原生 SQLite 实现不得进入 Worker bundle。跨出允许源码目录或增加待退役 workspace 依赖即失败。
 
-共享包 `dist` 可供独立互通驱动读取；浏览器、Worker 的发布 bundle 各自打包。旧 Electron、SDK、全量后端及旧云部署/验收脚本不属于这两个独立构建入口，也不属于 Rust 桌面运行闭包；参考工具的清理要求见 [旧桌面退役](RUST-LEGACY-RETIREMENT.md)。
+共享包 `dist` 可供独立互通驱动读取；浏览器、Worker 的发布 bundle 各自打包。旧 Electron、SDK、全量后端已从活动工程删除；旧端参考工具只存在于固定提交的独立参考目录，不属于这两个构建入口，也不属于 Rust 桌面运行闭包；参考工具的清理要求见 [旧桌面退役](RUST-LEGACY-RETIREMENT.md)。
 
 ## 协议与降级
 

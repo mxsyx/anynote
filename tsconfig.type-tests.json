@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.backend.json",
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "include": ["tests/types/**/*.ts"],
-  "exclude": ["**/node_modules", "**/dist"]
-}

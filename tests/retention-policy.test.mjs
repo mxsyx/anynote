@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   calendarPolicy,
   sampleVersions,
-} from "../.build/apps/cloudflare-backup/src/retention-policy.js";
+} from "../apps/cloudflare-backup/dist/src/retention-policy.js";
 const row = (id, created_at) => ({ id, created_at });
 
 test("UTC sampling unions newest day, Monday week and month representatives across a year boundary", () => {

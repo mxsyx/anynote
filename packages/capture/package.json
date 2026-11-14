@@ -9,7 +9,6 @@
       "import": "./dist/*.js"
     },
     "./package.json": "./package.json",
-    "./operations.json": "./dist/operations.json",
     "./*": {
       "types": "./src/*.ts",
       "import": "./dist/*.js"
@@ -19,7 +18,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "node ../../scripts/build-workspace.mjs packages/capture",
+    "build": "node ../../scripts/build-retained.mjs browser && node ../../scripts/build-retained.mjs worker",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

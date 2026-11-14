@@ -1,8 +1,8 @@
 # Anynote
 
-本地优先的个人笔记应用，正在从 Electron 桌面迁移到 Rust + GPUI Kit。浏览器采集扩展与 Cloudflare Worker 保留 TypeScript/JavaScript。
+本地优先的个人笔记应用，桌面使用 Rust + GPUI Kit。浏览器采集扩展与 Cloudflare Worker 保留 TypeScript/JavaScript。
 
-Rust 桌面已有笔记、编辑、媒体、搜索、备份与恢复实现，当前仍是开发候选版本。编辑器、白板、退出保存及数据接管尚有未完成项，逐项状态以 [TODO](TODO.md#p0) 为准。旧桌面源码和验证链尚未退役；不要把候选包用于接管日常资料。
+Rust 桌面已有笔记、编辑、媒体、搜索、备份与恢复实现，当前仍是开发候选版本。编辑器、白板、退出保存及数据接管尚有未完成项，逐项状态以 [TODO](TODO.md#p0) 为准。旧桌面运行链已移除；不要把候选包用于接管日常资料。
 
 ## 开发
 
@@ -17,7 +17,7 @@ pnpm run build:browser
 pnpm run build:worker
 ```
 
-系统编译依赖、隔离数据目录和原生库见 [Rust 开发入口](docs/development/RUST-DESKTOP-DEVELOPMENT.md)。保留 TS 的源码闭包和构建方式见 [独立构建与互通](docs/development/RETAINED-TS-INTEROP.md)。根 `dev`、`desktop`、`build`、`test` 等旧命令目前仍运行 Electron/TS 基线，不能作为 Rust 的启动或通过证据。
+系统编译依赖、隔离数据目录和原生库见 [Rust 开发入口](docs/development/RUST-DESKTOP-DEVELOPMENT.md)。保留 TS 的源码闭包和构建方式见 [独立构建与互通](docs/development/RETAINED-TS-INTEROP.md)。根 `dev`、`desktop`、`start`、`build`、`test` 命令均指向 Rust；`test:ts` 验证保留的协议与 Worker，`test:retained` 验证 Rust 互通。旧端参考工具仅在固定提交的独立目录运行。
 
 ## 验证与候选包
 

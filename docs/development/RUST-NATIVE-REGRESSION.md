@@ -79,3 +79,5 @@ python3 scripts/rust-recovery.py verify tmp/rm31-portable-bundle --output tmp/rm
 ```
 
 准备阶段使用仓库黄金语料生成 v3 本地备份、完整 `.anynote`、逻辑预期和传输清单；验证阶段在全新目录执行双格式恢复并核对身份重映射和数据完整性。跨设备使用 `--expected-manifest-sha256` 固定源端单独记录的摘要。包格式、逐项断言与实物边界统一见 [便携恢复与实物步骤](RUST-DISASTER-ACCEPTANCE.md)。
+
+`formats` 阶段使用 [固定参考环境](RUST-LEGACY-RETIREMENT.md)。首次运行前执行 `python3 scripts/legacy-reference.py install`；驱动通过链接使用当前工程的 Rust probes，不编译冻结提交的 Rust 实现。

@@ -16,6 +16,35 @@ cargo run -p anynote-desktop --locked
 
 首次下载依赖需要网络。桌面运行不需要 Node、pnpm 或 Python；Python 用于仓库验证和发行脚本，Node/pnpm 用于保留 TS 构建与隔离旧版参考工具。
 
+## 可选的 Relax 测试迭代
+
+[Relax](https://github.com/makepad/relax) 是实验性的 Rust JIT，可用于纯 Rust 核心逻辑的局部测试迭代。函数体修改适合保持 `test --live` 常驻，保存后热更新并重跑受影响测试；类型布局、宏和导入等修改可能需要重启。首次 JIT、无修改重跑和 `relax check` 不保证比 Cargo 快，不能据小范围热更新推断完整桌面的构建收益。
+
+首次准备时，从仓库根目录将工具源码和缓存放入可清理的 `tmp/`。下面固定一个试用版本；升级时重新验证所需目标：
+
+```sh
+mkdir -p tmp/relax-evaluation
+git clone https://github.com/makepad/relax.git tmp/relax-evaluation/relax
+git -C tmp/relax-evaluation/relax checkout 436868926ffae73495a4b1eab8382024368d6663
+cargo build --release --manifest-path tmp/relax-evaluation/relax/Cargo.toml -p relax-runner --bin relax
+```
+
+从仓库根目录开启独立终端会话：
+
+```sh
+relax_bin="$PWD/tmp/relax-evaluation/relax/target/release/relax"
+export RELAX_HOME="$PWD/tmp/relax-evaluation/relax-home"
+export MAKEPAD_HOME="$PWD/tmp/relax-evaluation/makepad-home"
+export CARGO_TARGET_DIR="$PWD/tmp/relax-evaluation/anynote-target"
+export RELAX_OFFLINE=1
+cd crates/anynote-core
+"$relax_bin" test --live anynote-core --lib
+```
+
+依赖需先由 `cargo fetch --locked` 准备；保留 Relax 源码目录，其运行时会读取其中的标准库。编辑器可从 `crates/anynote-editor` 运行 `"$relax_bin" test anynote-editor --test text_transactions`，需要保存后重跑时加 `--live`。`--lib` 只覆盖库单元测试，`--test` 只覆盖指定集成测试；live 模式还会跳过未受影响的测试。退出后仍按下文使用 Cargo 执行改动所需验证，发行继续使用 rustc。
+
+桌面的 GTK/WebKit、tree-sitter 等原生依赖需要系统开发库，并要求 Relax 使用 `--allow-c` 调用 Cargo/C 编译器。先确认普通 Cargo 构建通过，再评估桌面 JIT；纯 Rust 测试成功不代表 GPUI 窗口、原生库和桌面热更新已兼容。受限环境若拒绝本地 socket，`relax inspect` 不可用，应以测试输出单独判断已执行范围。
+
 ## 平台依赖与隔离目录
 
 Linux 需要图形会话、可用 Vulkan 驱动及窗口系统开发包。Fedora 安装入口：

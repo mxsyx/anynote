@@ -306,10 +306,10 @@ def main():
     if "interop" in stages and node_ready:
         run("retained-interop", ["node", "scripts/test-retained.mjs"])
     if "formats" in stages and node_ready:
-        if run("legacy-oracle-build", ["pnpm", "run", "build:backend"]) and run("format-drivers-build", ["cargo", "build", "--locked", "--offline", "-p", "anynote-storage", "-p", "anynote-services", "--examples"]):
+        if run("legacy-oracle-build", [sys.executable, "scripts/legacy-reference.py", "build"]) and run("format-drivers-build", ["cargo", "build", "--locked", "--offline", "-p", "anynote-storage", "-p", "anynote-services", "--examples"]):
             for name in ("readonly", "write", "transfer", "archive", "local-backup"):
-                run(f"format-{name}", ["node", f"scripts/rust-{name}-reference.mjs"])
-            run("format-import", ["node", "scripts/rust-import-interop.mjs"])
+                run(f"format-{name}", [sys.executable, "scripts/legacy-reference.py", "run", f"scripts/rust-{name}-reference.mjs"])
+            run("format-import", [sys.executable, "scripts/legacy-reference.py", "run", "scripts/rust-import-interop.mjs"])
     if "recovery" in stages:
         if run("recovery-build", ["cargo", "build", "--locked", "--offline", "-p", "anynote-services", "--example", "local_backup_probe", "--example", "archive_probe"]):
             bundle=output / "portable-bundle"

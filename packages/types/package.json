@@ -9,10 +9,6 @@
       "import": "./dist/*.js"
     },
     "./package.json": "./package.json",
-    ".": {
-      "types": "./src/index.ts",
-      "import": "./dist/index.js"
-    },
     "./*": {
       "types": "./src/*.ts",
       "import": "./dist/*.js"
@@ -22,7 +18,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "node ../../scripts/build-workspace.mjs packages/types",
+    "build": "node ../../scripts/build-retained.mjs browser && node ../../scripts/build-retained.mjs worker",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {},

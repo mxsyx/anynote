@@ -35,27 +35,12 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
-      - run: pnpm test
-      - run: pnpm run build
-      - name: Validate Cloudflare Worker bundle
-        run: pnpm run cloud:check
-      - name: Build portable SDK and development tool
-        run: |
-          pnpm run build:sdk
-          pnpm run build:extension-tools
-          pnpm run build:first-party
-      - name: Assemble release matrix artifacts
-        run: pnpm run build:release
-      - name: Verify release matrix and legacy consumer
-        run: pnpm run test:release:matrix
+      - run: pnpm run test:ts
       - uses: actions/upload-artifact@v7
         with:
-          name: build-${{ github.sha }}
+          name: retained-bundles-${{ github.sha }}
           path: |
-            dist/
-            artifacts/plugin-sdk/
-            artifacts/extension-tools/
-            artifacts/first-party-adapters/
-            artifacts/release/
+            apps/browser-extension/dist/
+            apps/cloudflare-backup/dist/bundle/
           if-no-files-found: error
           retention-days: 7

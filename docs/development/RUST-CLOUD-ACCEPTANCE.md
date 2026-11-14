@@ -49,12 +49,13 @@ node --env-file=/absolute/path/to/test-cloud.env scripts/rust-cloud-reference.mj
 按 [云老化流程](validation/CLOUD-ACCEPTANCE.md#跨会话老化样本) 使用 `--rust`：TS 参考流程生成小型 schema v5 样本并执行 retention/tombstone，复验时由 TS 和实际 Rust `restore` 分别恢复 pinned/head/branch 三个固定版本；Rust 正文核对失败则阶段不通过。此流程只验证所列 Rust 恢复路径，不代表全部维护 API 均由 Rust 发起。
 
 ```sh
-pnpm run build:backend
-node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.mjs \
+python3 scripts/legacy-reference.py install
+python3 scripts/legacy-reference.py build
+python3 scripts/legacy-reference.py --env-file=/absolute/path/to/test-cloud.env run scripts/cloud-aging-acceptance.mjs \
   --seed --rust --state .cloudflare-acceptance/rm34/rm34-YYYYMMDD-01-aging.json
-node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.mjs \
+python3 scripts/legacy-reference.py --env-file=/absolute/path/to/test-cloud.env run scripts/cloud-aging-acceptance.mjs \
   --verify 24h --rust --state .cloudflare-acceptance/rm34/rm34-YYYYMMDD-01-aging.json
-node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.mjs \
+python3 scripts/legacy-reference.py --env-file=/absolute/path/to/test-cloud.env run scripts/cloud-aging-acceptance.mjs \
   --verify 7d --rust --state .cloudflare-acceptance/rm34/rm34-YYYYMMDD-01-aging.json
 ```
 
@@ -67,7 +68,9 @@ node --env-file=/absolute/path/to/test-cloud.env scripts/cloud-aging-acceptance.
 ```sh
 cargo test -p anynote-services --test cloud --test cloud_capture --test maintenance --locked --offline
 node --test scripts/test-rust-cloud.mjs
-pnpm exec vitest run tests/cloud-aging.test.mjs
+pnpm run test:ts
 ```
 
 活动老化样本及下一阶段的接续输入见 [F012](../../TODO.md#f012)。先读取状态文件核对部署、身份、到期时间和已执行阶段，不覆盖或重新建立活动样本。
+
+旧老化驱动仍使用固定参考端的云客户端，通过独立参考目录运行；必须传入独立验收环境的 `--env-file` 和已有样本的 `--state` 路径（相对路径按当前调用目录解析）。既有 `.cloudflare-acceptance` 样本未迁移或删除；不能把重新 seed 当作原样本的到期复验。

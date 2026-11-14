@@ -269,8 +269,7 @@ async fn migrated_v1_and_v2_counters_keep_unknown_values() {
 #[test]
 fn trusted_examples_need_source_checksums_too() {
     let path = "packages/extension-host/src/examples/reading-template.ts";
-    let source =
-        include_bytes!("../../../packages/extension-host/src/examples/reading-template.ts");
+    let source = include_bytes!("../../../tests/fixtures/legacy-business/reading-template.ts.txt");
     assert!(plugins::is_known_source(path, source));
     let mut changed = source.to_vec();
     changed.push(b' ');

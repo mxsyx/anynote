@@ -89,7 +89,7 @@ test("Wrangler deployment creates isolated resources, passes secrets by file, an
   );
   assert.equal(
     config.main,
-    resolve(".build/apps/cloudflare-backup/src/index.js"),
+    resolve("apps/cloudflare-backup/dist/src/index.js"),
   );
   assert.ok(
     existsSync(config.main),

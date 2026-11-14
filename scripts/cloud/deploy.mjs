@@ -127,7 +127,7 @@ export async function deployCloudflare({
     const config = {
       name: state.name,
       account_id: accountId,
-      main: resolve(repo, ".build/apps/cloudflare-backup/src/index.js"),
+      main: resolve(repo, "apps/cloudflare-backup/dist/src/index.js"),
       compatibility_date: "2026-10-02",
       durable_objects: {
         bindings: [

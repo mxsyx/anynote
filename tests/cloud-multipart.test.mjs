@@ -1,7 +1,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { multipart } from "../.build/apps/cloudflare-backup/src/multipart.js";
+import { multipart } from "../apps/cloudflare-backup/dist/src/multipart.js";
 import { R2 } from "./helpers/cloud-adapters.mjs";
 
 test("multipart verifies the whole file before publication and clears failed staging data", async () => {

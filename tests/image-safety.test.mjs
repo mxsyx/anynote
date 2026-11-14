@@ -7,8 +7,8 @@ import {
   imageSize,
   previewEdge,
   sanitizeSvg,
-} from "../.build/packages/protocol/image-safety.js";
-import { readExif } from "../.build/packages/protocol/image-exif.js";
+} from "../packages/protocol/src/image-safety.js";
+import { readExif } from "../packages/protocol/src/image-exif.js";
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1cAAAAASUVORK5CYII=",

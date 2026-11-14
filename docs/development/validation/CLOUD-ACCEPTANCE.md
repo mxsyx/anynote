@@ -1,8 +1,10 @@
 # 真实云备份验收
 
+> 当前桌面验收入口见 [Rust 云验收](../RUST-CLOUD-ACCEPTANCE.md)。下文旧 `test:cloud*` 命令属于历史记录，已经从活动工程移除；旧老化工具通过 [固定参考环境](../RUST-LEGACY-RETIREMENT.md) 运行。`cloud:deploy` 只部署，之后显式运行 Rust 验收，不再自动运行旧 TS 客户端。
+
 本文维护部署与验收步骤，任务状态见 [Cloudflare](../../../TODO.md#f011)。报告须覆盖当前 schema v5/独立附件协议；维护规则见 [文档维护](../DOCUMENTATION.md)。
 
-## Wrangler 自动创建、部署并验收（Cloudflare）
+## Wrangler 自动创建与部署（Cloudflare）
 
 直接运行：
 
@@ -12,7 +14,7 @@ pnpm run cloud:deploy
 
 使用本机 Wrangler 登录授权；未登录时先运行 `npx wrangler login`。单账号自动选择；多账号通过 `CLOUDFLARE_ACCOUNT_ID` 选择。**无需填写 `ANYNOTE_CF_ENDPOINT` 和 `ANYNOTE_CF_TOKEN`**。
 
-脚本创建独立的 `anynote-backup-acceptance-<随机后缀>` Worker/D1/R2，应用远程迁移，生成 APP_TOKEN，并用 Wrangler `deploy --secrets-file` 随代码上传，然后提取 workers.dev 地址并执行真实云 Cloudflare 场景。该方式依据 [Wrangler deploy](https://developers.cloudflare.com/workers/wrangler/commands/workers/)。重复运行复用资源与 Token；中途失败会保留部署状态，重跑时检查已有资源。
+脚本创建独立的 `anynote-backup-acceptance-<随机后缀>` Worker/D1/R2，应用远程迁移，生成 APP_TOKEN，并用 Wrangler `deploy --secrets-file` 随代码上传，然后提取 workers.dev 地址；真实云场景另行执行。该方式依据 [Wrangler deploy](https://developers.cloudflare.com/workers/wrangler/commands/workers/)。重复运行复用资源与 Token；中途失败会保留部署状态，重跑时检查已有资源。
 
 部署配置和状态保存在 `.cloudflare-acceptance/`，已加入 git 忽略；`secrets.json` 权限为 600，不包含在验收报告中。请保留该目录以复用这套测试资源。后续 `pnpm run test:cloud` 自动读取保存的地址与 Token；只有完整的手填 Endpoint/Token 对才优先覆盖自动配置。
 

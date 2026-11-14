@@ -8,7 +8,7 @@
 pnpm run cloud:deploy
 ```
 
-脚本使用 Wrangler 登录创建独立 D1/R2、应用迁移、生成 APP_TOKEN 并部署，自动获取地址与执行真实云场景；不需要填写 `ANYNOTE_CF_ENDPOINT` / `ANYNOTE_CF_TOKEN`。部署状态与 Token 保存在被 git 忽略的 `.cloudflare-acceptance/`；重复运行复用同一套资源。使用方式及真实验收结果见 [云验收说明](../../docs/development/validation/CLOUD-ACCEPTANCE.md)。
+脚本使用 Wrangler 登录创建独立 D1/R2、应用迁移、生成 APP_TOKEN 并部署，自动获取地址；真实云场景由 Rust 验收驱动单独执行；不需要填写 `ANYNOTE_CF_ENDPOINT` / `ANYNOTE_CF_TOKEN`。部署状态与 Token 保存在被 git 忽略的 `.cloudflare-acceptance/`；重复运行复用同一套资源。使用方式及真实验收结果见 [云验收说明](../../docs/development/validation/CLOUD-ACCEPTANCE.md)。
 
 手动生产部署时，先在 Cloudflare 创建 D1 数据库与私有 R2 bucket，填入 `wrangler.jsonc` 的数据库 UUID 和 bucket 名称：
 

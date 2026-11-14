@@ -65,7 +65,7 @@ try:
         destination.mkdir()
         env = dict(os.environ)
         if target == "rust":
-            for path in ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "apps/desktop-rust", "crates", "scripts/check-rust-workspace.py",
+            for path in ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "apps/desktop-rust", "crates", "vendor", "scripts/check-rust-workspace.py",
                          "tests/fixtures/rust-migration/config/known-state-mappings.json",
                          "tests/fixtures/rust-migration/inventory/known-plugins.json",
                          "tests/fixtures/builtin/known-manifests.json"]:
