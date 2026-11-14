@@ -5,7 +5,7 @@
 ## 构建与校验
 
 ```sh
-# 本机目标自动识别；默认优化构建，输出到 tmp/rm36/<target>-<timestamp>
+# 本机目标自动识别；默认优化构建，输出到项目根目录 targets/，每次清空并覆盖
 python3 scripts/rust-release.py build
 python3 scripts/rust-release.py build --dir
 # 显式输出目录必须尚不存在
@@ -16,7 +16,7 @@ python3 scripts/test-native-payload.py tmp/rm36/candidate/Anynote.app
 python3 scripts/test-rust-release.py
 ```
 
-`pnpm package` / `package:release` 转发到 Python 入口，不构建 JS 桌面；`scripts/package-desktop.mjs` 提供命令别名。打包需 Python ≥3.12、`rust-toolchain.toml` 锁定的 Rust 及本平台工具。先 `cargo fetch --locked`，之后 Cargo 构建/依赖清单强制 `--locked --offline`。
+`pnpm package` / `package:release` 转发到 Python 入口，分别生成应用目录和安装包，默认均写入 `targets/`，不加时间戳。该目录仅用于打包产物，每次打包会删除其中的旧内容；显式 `--output` 指定其他目录时仍要求目录尚不存在。打包需 Python ≥3.12、`rust-toolchain.toml` 锁定的 Rust 及本平台工具。先 `cargo fetch --locked`，之后 Cargo 构建/依赖清单强制 `--locked --offline`。
 
 配置唯一来源为 `apps/desktop-rust/native/release.json`。候选矩阵为 macOS arm64/x64、Windows MSVC x64、Linux GNU x64。构建必须在对应原生架构 runner 上执行。版本核对根 Cargo/package.json，标签构建额外核对 `v<version>`。
 

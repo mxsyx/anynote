@@ -39,6 +39,8 @@ PDF 使用系统 WebView 自带查看器，不再安装或打包 PDFium。`apps/
 
 根 `Cargo.toml` 的 GPUI 路径补丁位于 `vendor/gpui-pre-0.3.11` 和 `vendor/gpui-pre-macos-0.3.11`，提供可取消预退出和结束组合输入接口。升级 Kit/GPUI 时须保留所需接口并重跑生命周期回归；不能直接移除路径补丁。
 
+`vendor/gpui-pre-wgpu-0.3.11` 修复 Linux 可变字体字重传递：主字体和中文回退保留字重，字体度量与 Swash 栅格化使用相同的 variation 坐标，不同字重使用独立 FontId。系统 Noto Sans CJK 的默认 `wght=100`，原路径会将请求的 Regular 400 画成 Thin，造成中文笔画过细、发虚。2026-11-14 的固定字体回归在原实现上失败，补丁后通过主字体、中文回退、静态字体切换及度量一致性 4 项测试；覆盖 100%、166.7%、200% 栅格比例。桌面构建、补丁 clippy、工作区边界检查通过；隔离 Xvfb 的实际生产窗口已确认菜单和书橱中文恢复正常笔画。该证据确认字重缺陷，不代表与 GTK 字体渲染完全一致或跨平台视觉验收。运行 `cargo test --locked --offline -p gpui-pre-wgpu --test font_variations`；补丁范围及字体样本来源见 [补丁说明](../../vendor/gpui-pre-wgpu-0.3.11/ANYNOTE-PATCH.md)。
+
 `python3 scripts/check-rust-workspace.py` 检查工程依赖方向、Kit/GPUI 版本及禁止的 JS 宿主，并在 `tmp/rm02/dependency-inventory.json` 生成依赖清单。发行时另核对原生库、字体、资产及第三方许可证；开发依赖清单不等于最终交付清单。
 
 ## 验证入口

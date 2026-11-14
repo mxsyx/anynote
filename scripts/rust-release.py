@@ -9,10 +9,8 @@ import plistlib
 import shutil
 import subprocess
 import sys
-import tempfile
 import re
 import tomllib
-import time
 import urllib.request
 
 from release import native as n
@@ -117,6 +115,15 @@ def tool(name, output):
     return path
 
 
+def prepare_output(output):
+    out = output.absolute()
+    # Only the fixed local build directory is disposable; custom paths stay exclusive.
+    if out == n.ROOT / 'targets' and out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=False)
+    return out
+
+
 def build(args):
     source_identity = n.source_identity()
     notarizations = []
@@ -133,8 +140,7 @@ def build(args):
         if target.startswith('linux-'):
             raise ValueError('Linux signing is not enabled; use unsigned candidates until a release signing policy is approved')
         n.credentials(target)
-    out = args.output.resolve()
-    out.mkdir(parents=True, exist_ok=False)
+    out = prepare_output(args.output)
     payload = out / ('Anynote.app' if host == 'macos' else 'Anynote.AppDir' if host == 'linux' else 'Anynote')
     binary, resources = n.locations(payload, target)
     binary.parent.mkdir(parents=True)
@@ -242,7 +248,7 @@ def main():
     package = commands.add_parser('build')
     host_target = {'Darwin': 'mac', 'Linux': 'linux', 'Windows': 'win'}[platform.system()] + '-' + ('arm64' if platform.machine() in ('arm64', 'aarch64') else 'x64')
     package.add_argument('--target', default=host_target, choices=n.CONFIG['targets'])
-    package.add_argument('--output', type=Path)
+    package.add_argument('--output', type=Path, default=n.ROOT / 'targets')
     package.add_argument('--profile', choices=['dev', 'release'], default='release')
     package.add_argument('--dir', action='store_true')
     package.add_argument('--sign', action='store_true')
@@ -263,8 +269,6 @@ def main():
     install.add_argument('--notebook', type=Path, action='append', default=[])
     args = parser.parse_args()
     if args.command == 'build':
-        if args.output is None:
-            args.output = n.ROOT / 'tmp/rm36' / (args.target + '-' + time.strftime('%Y%m%d-%H%M%S'))
         build(args)
     elif args.command == 'verify':
         payload = args.payload.resolve()

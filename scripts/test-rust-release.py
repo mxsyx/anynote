@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Failure-path regressions for native payloads and manual directory upgrades."""
 import copy
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,59 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from release import native as n
+
+
+spec = importlib.util.spec_from_file_location('rust_release', Path(__file__).with_name('rust-release.py'))
+release = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release)
+
+
+class BuildOutputTests(unittest.TestCase):
+    def setUp(self):
+        root = n.ROOT / 'tmp/rm36/tests'
+        root.mkdir(parents=True, exist_ok=True)
+        self.temp = tempfile.TemporaryDirectory(dir=root)
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_default_output_replaces_previous_artifacts(self):
+        with patch.object(n, 'ROOT', self.root), patch.object(release, 'build') as build:
+            with patch('sys.argv', ['rust-release.py', 'build', '--dir']):
+                release.main()
+            output = build.call_args.args[0].output
+            self.assertEqual(output, self.root / 'targets')
+            release.prepare_output(output)
+            (output / 'Anynote.AppDir/usr/bin').mkdir(parents=True)
+            (output / 'Anynote.AppDir/usr/bin/anynote-desktop').write_text('old binary')
+            (output / 'old.AppImage').write_text('old installer')
+            (output / 'candidate.json').write_text('old report')
+            sibling = self.root / 'keep'
+            sibling.write_text('unrelated')
+            release.prepare_output(output)
+            self.assertEqual(list(output.iterdir()), [])
+            self.assertEqual(sibling.read_text(), 'unrelated')
+
+    def test_custom_output_does_not_delete_existing_files(self):
+        output = self.root / 'custom'
+        with patch.object(n, 'ROOT', self.root):
+            release.prepare_output(output)
+            (output / 'keep').write_text('retained')
+            with self.assertRaises(FileExistsError):
+                release.prepare_output(output)
+            self.assertEqual((output / 'keep').read_text(), 'retained')
+
+    @unittest.skipIf(os.name == 'nt', 'symlink creation requires Windows privileges')
+    def test_default_output_symlink_does_not_delete_destination(self):
+        destination = self.root / 'data'
+        destination.mkdir()
+        (destination / 'keep').write_text('retained')
+        output = self.root / 'targets'
+        output.symlink_to(destination, target_is_directory=True)
+        with patch.object(n, 'ROOT', self.root):
+            with self.assertRaises(OSError):
+                release.prepare_output(output)
+        self.assertEqual((destination / 'keep').read_text(), 'retained')
+        self.assertTrue(output.is_symlink())
 
 
 class ReleaseTests(unittest.TestCase):

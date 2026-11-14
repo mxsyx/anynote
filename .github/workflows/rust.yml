@@ -10,6 +10,7 @@ on:
         "rust-toolchain.toml",
         "apps/desktop-rust/**",
         "crates/**",
+        "vendor/gpui-pre-wgpu-0.3.11/**",
         "tests/fixtures/rust-migration/config/**",
         "scripts/rust-config-*.mjs",
         "scripts/check-rust-workspace.py",
@@ -35,6 +36,7 @@ on:
         "rust-toolchain.toml",
         "apps/desktop-rust/**",
         "crates/**",
+        "vendor/gpui-pre-wgpu-0.3.11/**",
         "tests/fixtures/rust-migration/config/**",
         "scripts/rust-config-*.mjs",
         "scripts/check-rust-workspace.py",
@@ -70,6 +72,8 @@ jobs:
       - run: cargo fetch --locked
       - run: python3 scripts/check-rust-workspace.py
       - run: cargo fmt --all -- --check
+      - name: Variable font weight rendering
+        run: cargo test --locked --offline -p gpui-pre-wgpu --test font_variations
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: python3 scripts/test-rust-release.py
       - run: python3 scripts/test-rust-release-acceptance.py

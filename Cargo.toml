@@ -42,3 +42,4 @@ debug = 0
 [patch.crates-io]
 gpui-pre = { path = "vendor/gpui-pre-0.3.11" }
 gpui-pre-macos = { path = "vendor/gpui-pre-macos-0.3.11" }
+gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu-0.3.11" }
