@@ -143,3 +143,36 @@ fn large_document_anchor_waits_for_parse_and_position_restores(cx: &mut TestAppC
     cx.update_window(window, |_, w, _| w.remove_window())
         .unwrap();
 }
+
+#[test]
+fn startup_selects_saved_notebook_and_falls_back_when_unavailable() {
+    use anynote_core::workspace::Preferences;
+    let first = Book::new(Uuid::new_v4(), "第一本".into());
+    let mut saved = Book::new(Uuid::new_v4(), "上次使用".into());
+    let mut preferences = Preferences::default();
+    preferences.active_book = Some(saved.id);
+    let books = [first.clone(), saved.clone()];
+    assert_eq!(
+        super::preferred_book(&books, None, &preferences),
+        Some(saved.id)
+    );
+    assert_eq!(
+        super::preferred_book(&books, Some(first.id), &preferences),
+        Some(first.id)
+    );
+    saved.unavailable = true;
+    assert_eq!(
+        super::preferred_book(&[first.clone(), saved.clone()], None, &preferences),
+        Some(first.id)
+    );
+    assert_eq!(super::preferred_book(&[saved], None, &preferences), None);
+    assert_eq!(super::preferred_book(&[], None, &preferences), None);
+    preferences.active_book = Some(Uuid::new_v4());
+    preferences
+        .recent
+        .push(DocumentId::new(first.id, Uuid::new_v4()));
+    assert_eq!(
+        super::preferred_book(&[first.clone()], None, &preferences),
+        Some(first.id)
+    );
+}

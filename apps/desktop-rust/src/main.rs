@@ -148,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "linux"))]
     let application = gpui_kit::application();
     let application = application
-        .with_assets(gpui_kit::assets::Assets)
+        .with_assets(anynote_desktop::assets::AppAssets)
         .with_quit_mode(gpui_kit::QuitMode::Explicit);
     application.on_reopen(move |cx| {
         if let Err(error) = shell::open_or_activate(cx, reopen_probe.clone()) {

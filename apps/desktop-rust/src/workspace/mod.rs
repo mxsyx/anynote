@@ -42,7 +42,7 @@ actions!(
         NewNote,
         NewFolder,
         SearchNotes,
-        ShowBooks,
+        OpenBook,
         GoBack,
         GoForward,
         CloseTab,
@@ -90,7 +90,7 @@ pub fn install_actions(cx: &mut App) {
     cx.on_action(|_: &NewFolder, cx| {
         in_workspace(cx, |this, w, cx| this.name_dialog("folder", w, cx))
     });
-    cx.on_action(|_: &ShowBooks, cx| in_workspace(cx, |this, w, cx| this.switch_book(None, w, cx)));
+    cx.on_action(|_: &OpenBook, cx| in_workspace(cx, |this, w, cx| this.pick(true, w, cx)));
     cx.on_action(|_: &Settings, cx| in_workspace(cx, |this, w, cx| this.settings(w, cx)));
     cx.on_action(|_: &GoBack, cx| {
         in_workspace(cx, |this, w, cx| {
@@ -147,8 +147,8 @@ pub fn install_actions(cx: &mut App) {
 }
 pub fn menu() -> Menu {
     Menu::new("工作区").items([
-        MenuItem::action("书橱", ShowBooks),
         MenuItem::action("新建笔记本…", NewBook),
+        MenuItem::action("打开笔记本…", OpenBook),
         MenuItem::action("新建笔记…", NewNote),
         MenuItem::action("新建目录…", NewFolder),
         MenuItem::action("导入文件…", ImportFiles),
@@ -181,6 +181,7 @@ impl Render for DragNode {
 }
 pub struct Workspace {
     focus: FocusHandle,
+    notebook_focus: FocusHandle,
     menu: Entity<AppMenuBar>,
     books: Vec<Book>,
     book: Option<Uuid>,
@@ -205,6 +206,7 @@ pub struct Workspace {
     search_kind: Option<String>,
     search_all: bool,
     show_search: bool,
+    sidebar_visible: bool,
     hits: Vec<Hit>,
     search_token: Option<Uuid>,
     search_cursor: Option<SearchCursor>,
@@ -213,6 +215,7 @@ pub struct Workspace {
     busy: bool,
     status: String,
     preferences: Preferences,
+    preferences_loaded: bool,
     subscriptions: Vec<Subscription>,
     operation: Option<WorkspaceCommand>,
 }
@@ -241,6 +244,7 @@ impl Workspace {
         focus.focus(window, cx);
         let mut this = Self {
             focus,
+            notebook_focus: cx.focus_handle().tab_stop(true),
             menu: AppMenuBar::new(cx),
             books: vec![],
             book: None,
@@ -265,6 +269,7 @@ impl Workspace {
             search_kind: None,
             search_all: true,
             show_search: false,
+            sidebar_visible: true,
             hits: vec![],
             search_token: None,
             search_cursor: None,
@@ -273,6 +278,7 @@ impl Workspace {
             busy: false,
             status: String::new(),
             preferences: Default::default(),
+            preferences_loaded: false,
             subscriptions: vec![],
             operation: None,
         };
@@ -319,18 +325,6 @@ impl Workspace {
             true
         });
         this.refresh(window, cx);
-        if let Some(client) = this.client(cx) {
-            cx.spawn_in(window, async move |this, cx| {
-                let result = call(&client, WorkspaceCommand::Preferences).await;
-                let _ = this.update_in(cx, |this, window, cx| {
-                    if let Ok(WorkspaceReply::Preferences(prefs)) = result {
-                        this.preferences = prefs;
-                        this.apply_theme(window, cx);
-                    }
-                });
-            })
-            .detach();
-        }
         this
     }
     fn client(&self, cx: &App) -> Option<BackendClient> {
@@ -377,12 +371,27 @@ impl Workspace {
         self.status = "正在加载…".into();
         let generation = self.generation;
         let book = self.book;
+        let load_preferences = !self.preferences_loaded;
+        let preferences = self.preferences.clone();
         let trash = self.collection == Collection::Trash;
         cx.spawn_in(window, async move |this, cx| {
             let result = async {
-                let books = call(&client, WorkspaceCommand::Books).await?;
+                let preferences = if load_preferences {
+                    match call(&client, WorkspaceCommand::Preferences).await? {
+                        WorkspaceReply::Preferences(prefs) => prefs,
+                        _ => return Err(ServiceError::new(ErrorCode::InvalidRequest)),
+                    }
+                } else {
+                    preferences
+                };
+                let WorkspaceReply::Books(books) = call(&client, WorkspaceCommand::Books).await?
+                else {
+                    return Err(ServiceError::new(ErrorCode::InvalidRequest));
+                };
+                let selected = preferred_book(&books, book, &preferences);
+                let trash = trash && selected == book;
                 let mut entries = Vec::new();
-                if let Some(book) = book {
+                if let Some(book) = selected {
                     let mut offset = 0;
                     loop {
                         match call(
@@ -410,29 +419,48 @@ impl Workspace {
                         }
                     }
                 }
-                Ok((books, entries))
+                Ok((books, entries, selected, preferences))
             }
             .await;
-            let _ = this.update_in(cx, |this, _, cx| {
+            let _ = this.update_in(cx, |this, window, cx| {
                 if this.generation != generation {
                     return;
                 }
                 this.busy = false;
                 match result {
-                    Ok((WorkspaceReply::Books(books), nodes)) => {
+                    Ok((books, nodes, selected, preferences)) => {
+                        if load_preferences {
+                            this.preferences = preferences;
+                            this.preferences_loaded = true;
+                            this.apply_theme(window, cx);
+                        }
+                        if this.book != selected {
+                            this.reset_book(selected, cx);
+                        }
                         this.books = books;
                         this.nodes = nodes;
                         this.status.clear();
                         this.rebuild_tree(cx);
+                        if this.preferences.active_book != selected {
+                            this.preferences.active_book = selected;
+                            this.persist_preferences(window, cx);
+                        }
                     }
                     Err(error) => this.status = format!("无法加载，请重试：{}", error_text(&error)),
-                    _ => this.status = "工作区响应无效".into(),
                 }
                 cx.notify();
             });
         })
         .detach();
         cx.notify();
+    }
+    fn visible_nodes(&self) -> impl Iterator<Item = &Entry> {
+        self.nodes.iter().filter(|node| match self.collection {
+            Collection::Favorites => node.favorite,
+            Collection::Tags => self.tag.as_ref().is_none_or(|tag| node.tags.contains(tag)),
+            Collection::Recent => self.preferences.recent.contains(&node.id),
+            _ => true,
+        })
     }
     fn rebuild_tree(&mut self, cx: &mut Context<Self>) {
         let selected = self
@@ -445,16 +473,7 @@ impl Workspace {
                     .as_ref()
                     .map(|s| SharedString::from(s.id().note().to_string()))
             });
-        let visible = self
-            .nodes
-            .iter()
-            .filter(|n| match self.collection {
-                Collection::Favorites => n.favorite,
-                Collection::Tags => self.tag.as_ref().is_none_or(|tag| n.tags.contains(tag)),
-                Collection::Recent => self.preferences.recent.contains(&n.id),
-                _ => true,
-            })
-            .collect::<Vec<_>>();
+        let visible = self.visible_nodes().collect::<Vec<_>>();
         let items = if self.collection == Collection::Tree {
             fn branch(
                 parent: Option<Uuid>,
@@ -560,6 +579,19 @@ impl Workspace {
         Theme::update(cx, |theme| theme.font_size = px(self.preferences.font_size));
         cx.notify();
     }
+}
+
+fn preferred_book(
+    books: &[Book],
+    current: Option<Uuid>,
+    preferences: &Preferences,
+) -> Option<Uuid> {
+    current
+        .into_iter()
+        .chain(preferences.active_book)
+        .chain(preferences.recent.iter().map(DocumentId::notebook))
+        .chain(books.iter().map(|book| book.id))
+        .find(|id| books.iter().any(|book| book.id == *id && !book.unavailable))
 }
 
 fn error_text(error: &ServiceError) -> &'static str {

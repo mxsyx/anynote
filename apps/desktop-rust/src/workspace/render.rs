@@ -1,19 +1,137 @@
 use super::*;
+use gpui_kit::assets::IconName;
 use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
 
 impl Workspace {
     fn toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let owner = cx.weak_entity();
+        let books = self.books.clone();
+        let active = self.book;
+        let notebook_focus = self.notebook_focus.clone();
+        let current = books.iter().find(|book| Some(book.id) == active);
+        let title = current
+            .map(|book| book.title.clone())
+            .unwrap_or_else(|| "笔记本".into());
         div()
             .flex()
-            .flex_wrap()
             .items_center()
-            .gap_2()
-            .p_2()
+            .flex_shrink_0()
+            .gap_1()
+            .px_3()
+            .py_2()
             .border_b_1()
             .border_color(cx.theme().border)
             .child(
+                Button::new("workspace-sidebar")
+                    .small()
+                    .ghost()
+                    .icon(IconName::PanelLeft)
+                    .accessibility_label("切换侧栏")
+                    .tooltip("显示 / 隐藏侧栏")
+                    .selected(self.sidebar_visible)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.sidebar_visible = !this.sidebar_visible;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("workspace-notebooks")
+                    .track_focus(&self.notebook_focus)
+                    .small()
+                    .ghost()
+                    .icon(IconName::BookOpen)
+                    .accessibility_label(format!("切换笔记本：{title}"))
+                    .max_w_64()
+                    .min_w_0()
+                    .child(div().min_w_0().truncate().child(title))
+                    .child(IconName::ChevronDown)
+                    .disabled(self.busy)
+                    .dropdown_menu(move |mut menu, _, _| {
+                        menu = menu
+                            .action_context(notebook_focus.clone())
+                            .label("切换笔记本");
+                        for book in &books {
+                            let owner = owner.clone();
+                            let id = book.id;
+                            let label = if book.unavailable {
+                                format!("{} · 不可用", book.title)
+                            } else if book.external {
+                                format!("{} · 外部", book.title)
+                            } else {
+                                book.title.clone()
+                            };
+                            menu = menu.item(
+                                PopupMenuItem::new(label)
+                                    .checked(Some(id) == active)
+                                    .disabled(book.unavailable)
+                                    .on_click(move |_, window, cx| {
+                                        let _ = owner.update(cx, |this, cx| {
+                                            this.switch_book(id, window, cx)
+                                        });
+                                    }),
+                            );
+                        }
+                        let create = owner.clone();
+                        let open = owner.clone();
+                        menu = menu
+                            .separator()
+                            .item(
+                                PopupMenuItem::new("新建笔记本…")
+                                    .icon(IconName::Plus)
+                                    .on_click(move |_, window, cx| {
+                                        let _ = create.update(cx, |this, cx| {
+                                            this.name_dialog("book", window, cx)
+                                        });
+                                    }),
+                            )
+                            .item(
+                                PopupMenuItem::new("打开笔记本…")
+                                    .icon(IconName::FolderOpen)
+                                    .on_click(move |_, window, cx| {
+                                        let _ =
+                                            open.update(cx, |this, cx| this.pick(true, window, cx));
+                                    }),
+                            );
+                        if active.is_some() {
+                            let rename = owner.clone();
+                            menu =
+                                menu.separator()
+                                    .item(PopupMenuItem::new("笔记本设置…").on_click(
+                                        move |_, window, cx| {
+                                            let _ = rename.update(cx, |this, cx| {
+                                                this.name_dialog("rename-book", window, cx)
+                                            });
+                                        },
+                                    ));
+                        }
+                        for book in books.iter().filter(|book| book.external) {
+                            let detach = owner.clone();
+                            let id = book.id;
+                            menu = menu.item(
+                                PopupMenuItem::new(format!("取消登记“{}”", book.title)).on_click(
+                                    move |_, window, cx| {
+                                        let _ = detach.update(cx, |this, cx| {
+                                            this.mutate(
+                                                WorkspaceCommand::Detach { book: id },
+                                                window,
+                                                cx,
+                                            );
+                                        });
+                                    },
+                                ),
+                            );
+                        }
+                        menu
+                    }),
+            )
+            .child(div().w_4().flex_shrink_0())
+            .child(
                 Button::new("workspace-back")
-                    .label("后退")
+                    .small()
+                    .ghost()
+                    .icon(IconName::ArrowLeft)
+                    .accessibility_label("后退")
+                    .tooltip("后退")
                     .disabled(self.busy || !self.navigation.has_back())
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(id) = this.navigation.back() {
@@ -23,7 +141,11 @@ impl Workspace {
             )
             .child(
                 Button::new("workspace-forward")
-                    .label("前进")
+                    .small()
+                    .ghost()
+                    .icon(IconName::ArrowRight)
+                    .accessibility_label("前进")
+                    .tooltip("前进")
                     .disabled(self.busy || !self.navigation.has_forward())
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(id) = this.navigation.forward() {
@@ -31,26 +153,15 @@ impl Workspace {
                         }
                     })),
             )
-            .child(
-                Button::new("workspace-books")
-                    .label("书橱")
-                    .disabled(self.busy)
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.switch_book(None, window, cx)),
-                    ),
-            )
-            .child(
-                div().flex_1().min_w_0().child(
-                    self.books
-                        .iter()
-                        .find(|b| Some(b.id) == self.book)
-                        .map(|b| b.title.clone())
-                        .unwrap_or_else(|| "我的书橱".into()),
-                ),
-            )
+            .child(div().flex_1())
             .child(
                 Button::new("workspace-search")
-                    .label("搜索")
+                    .small()
+                    .ghost()
+                    .icon(IconName::Search)
+                    .accessibility_label("搜索笔记")
+                    .tooltip("搜索笔记")
+                    .selected(self.show_search)
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.show_search = !this.show_search;
                         if this.show_search {
@@ -64,35 +175,54 @@ impl Workspace {
             )
             .child(
                 Button::new("workspace-refresh")
-                    .label("刷新")
+                    .small()
+                    .ghost()
+                    .icon(IconName::RefreshCw)
+                    .accessibility_label("刷新")
+                    .tooltip("刷新")
                     .disabled(self.busy)
                     .on_click(cx.listener(|this, _, window, cx| this.refresh(window, cx))),
             )
             .child(
                 Button::new("workspace-settings")
-                    .label("设置…")
+                    .small()
+                    .ghost()
+                    .icon(IconName::Settings)
+                    .accessibility_label("设置…")
+                    .tooltip("设置…")
                     .on_click(cx.listener(|this, _, window, cx| this.settings(window, cx))),
             )
     }
-    fn bookshelf(&self, cx: &mut Context<Self>) -> AnyElement {
-        let mut books = self.books.iter().collect::<Vec<_>>();
-        books.sort_by_key(|book| {
-            self.preferences
-                .recent
-                .iter()
-                .position(|id| id.notebook() == book.id)
-                .unwrap_or(usize::MAX)
-        });
+    fn notebook_empty(&self, cx: &mut Context<Self>) -> AnyElement {
         div()
-            .id("bookshelf")
+            .size_full()
             .flex()
             .flex_col()
-            .size_full()
+            .items_center()
+            .justify_center()
             .gap_4()
             .p_6()
+            .child(div().text_xl().child(if self.busy {
+                "正在打开笔记本…"
+            } else if self.books.is_empty() {
+                "开始记录"
+            } else {
+                "笔记本暂时无法访问"
+            }))
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(if self.books.is_empty() {
+                        "新建笔记本，或打开已有的笔记本目录。"
+                    } else {
+                        "连接笔记本所在磁盘后刷新，或从顶部打开其他笔记本。"
+                    }),
+            )
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .gap_2()
                     .child(
                         Button::new("workspace-create-book")
@@ -104,114 +234,33 @@ impl Workspace {
                     )
                     .child(
                         Button::new("workspace-attach")
-                            .label("打开外部笔记本…")
+                            .label("打开笔记本…")
                             .disabled(self.busy)
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.pick(true, window, cx)),
                             ),
                     ),
             )
-            .when(self.books.is_empty(), |view| {
-                view.child(
-                    div()
-                        .text_color(cx.theme().muted_foreground)
-                        .child("书橱还没有笔记本。新建一个，或打开已有笔记本目录。"),
-                )
-            })
-            .child(
-                div()
-                    .id("bookshelf-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scrollbar()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .gap_6()
-                            .children(books.into_iter().map(|book| {
-                                let id = book.id;
-                                let unavailable = book.unavailable;
-                                let binding = Rgba::try_from(book.color.as_str())
-                                    .map(Hsla::from)
-                                    .unwrap_or(cx.theme().border);
-                                div()
-                                    .w_48()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_2()
-                                    .child(
-                                        Button::new(SharedString::from(format!("book-{id}")))
-                                            .label(format!(
-                                                "{}  {}",
-                                                if book.icon.is_empty() {
-                                                    "❦"
-                                                } else {
-                                                    &book.icon
-                                                },
-                                                book.title
-                                            ))
-                                            .w_full()
-                                            .h_48()
-                                            .bg(cx.theme().secondary)
-                                            .border_l_4()
-                                            .border_b_4()
-                                            .border_color(binding)
-                                            .shadow_md()
-                                            .disabled(self.busy || unavailable)
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.switch_book(Some(id), window, cx)
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(if unavailable {
-                                                "离线或无法访问：重连目录后刷新"
-                                            } else if book.external {
-                                                "外部笔记本"
-                                            } else {
-                                                "本地笔记本"
-                                            }),
-                                    )
-                                    .when(book.external, |view| {
-                                        view.child(
-                                            Button::new(SharedString::from(format!("detach-{id}")))
-                                                .ghost()
-                                                .label("移出书橱")
-                                                .disabled(self.busy)
-                                                .on_click(cx.listener(
-                                                    move |this, _, window, cx| {
-                                                        this.mutate(
-                                                            WorkspaceCommand::Detach { book: id },
-                                                            window,
-                                                            cx,
-                                                        )
-                                                    },
-                                                )),
-                                        )
-                                    })
-                            })),
-                    ),
-            )
             .into_any_element()
     }
     fn sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
         let owner = cx.weak_entity();
-        let mut filters = div().flex().flex_wrap().gap_1();
-        for (collection, label) in [
-            (Collection::Tree, "目录"),
-            (Collection::Recent, "最近"),
-            (Collection::Favorites, "收藏"),
-            (Collection::Tags, "标签"),
-            (Collection::Trash, "回收站"),
+        let mut filters = div().flex().flex_col().gap_1();
+        for (collection, label, icon) in [
+            (Collection::Tree, "全部笔记", IconName::Files),
+            (Collection::Recent, "最近", IconName::Clock),
+            (Collection::Favorites, "收藏", IconName::Star),
+            (Collection::Tags, "标签", IconName::Tags),
+            (Collection::Trash, "回收站", IconName::Trash),
         ] {
             filters = filters.child(
                 Button::new(label)
                     .small()
                     .ghost()
-                    .label(label)
+                    .accessibility_label(label)
+                    .child(div().flex_1().text_left().child(label))
+                    .icon(icon)
+                    .w_full()
                     .selected(self.collection == collection)
                     .disabled(self.busy)
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -223,20 +272,31 @@ impl Workspace {
             .flex()
             .flex_col()
             .size_full()
-            .gap_2()
-            .p_2()
+            .gap_3()
+            .p_3()
             .bg(cx.theme().sidebar)
             .text_color(cx.theme().sidebar_foreground)
             .child(filters)
             .child(
                 div()
                     .flex()
-                    .flex_wrap()
+                    .items_center()
                     .gap_1()
+                    .pt_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("笔记与目录"),
+                    )
                     .child(
                         Button::new("workspace-new-note")
                             .small()
-                            .label("新建笔记…")
+                            .ghost()
+                            .icon(IconName::Plus)
+                            .accessibility_label("新建笔记…")
+                            .tooltip("新建笔记…")
                             .disabled(self.busy)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.name_dialog("note", window, cx)
@@ -245,7 +305,10 @@ impl Workspace {
                     .child(
                         Button::new("workspace-new-folder")
                             .small()
-                            .label("新建目录…")
+                            .ghost()
+                            .icon(IconName::FolderPlus)
+                            .accessibility_label("新建目录…")
+                            .tooltip("新建目录…")
                             .disabled(self.busy)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.name_dialog("folder", window, cx)
@@ -254,7 +317,10 @@ impl Workspace {
                     .child(
                         Button::new("workspace-import")
                             .small()
-                            .label("导入…")
+                            .ghost()
+                            .icon(IconName::Import)
+                            .accessibility_label("导入文件…")
+                            .tooltip("导入文件…")
                             .disabled(self.busy)
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.pick(false, window, cx)),
@@ -392,6 +458,9 @@ impl Workspace {
             .gap_1()
             .child(
                 Button::new("workspace-node-actions")
+                    .small()
+                    .ghost()
+                    .icon(IconName::Ellipsis)
                     .label("笔记操作")
                     .disabled(selected.is_none() || self.busy)
                     .dropdown_menu(move |mut menu, _, _| {
@@ -479,16 +548,6 @@ impl Workspace {
                         }
                         menu
                     }),
-            )
-            .child(
-                Button::new("workspace-rename-book")
-                    .small()
-                    .ghost()
-                    .label("笔记本封面…")
-                    .disabled(self.busy)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.name_dialog("rename-book", window, cx)
-                    })),
             )
             .into_any_element()
     }
@@ -621,10 +680,119 @@ impl Workspace {
     }
     fn reading(&self, cx: &mut Context<Self>) -> AnyElement {
         let Some(snapshot) = &self.snapshot else {
+            let title = self
+                .books
+                .iter()
+                .find(|book| Some(book.id) == self.book)
+                .map(|book| book.title.clone())
+                .unwrap_or_else(|| "笔记本".into());
+            let mut notes = self
+                .visible_nodes()
+                .filter(|node| !node.folder && !node.deleted)
+                .collect::<Vec<_>>();
+            notes.sort_by_key(|node| std::cmp::Reverse(node.updated));
             return div()
-                .flex_1()
-                .p_6()
-                .child("从目录选择笔记，或新建笔记开始记录。")
+                .id("notebook-content")
+                .size_full()
+                .overflow_y_scrollbar()
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_6()
+                        .p_6()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .flex_wrap()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .flex()
+                                        .flex_col()
+                                        .gap_2()
+                                        .child(
+                                            div()
+                                                .text_2xl()
+                                                .font_weight(FontWeight::SEMIBOLD)
+                                                .child(title),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_sm()
+                                                .text_color(cx.theme().muted_foreground)
+                                                .child(format!(
+                                                    "{} · {} 项内容",
+                                                    match self.collection {
+                                                        Collection::Tree => "全部笔记",
+                                                        Collection::Recent => "最近访问",
+                                                        Collection::Favorites => "收藏",
+                                                        Collection::Tags => "标签",
+                                                        Collection::Trash => "回收站",
+                                                    },
+                                                    self.visible_nodes().count()
+                                                )),
+                                        ),
+                                )
+                                .child(
+                                    Button::new("notebook-new-note")
+                                        .icon(IconName::Plus)
+                                        .label("新建笔记…")
+                                        .disabled(self.busy)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.name_dialog("note", window, cx)
+                                        })),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(if self.collection == Collection::Trash {
+                                    "从左侧选择已删除内容，通过笔记操作恢复。"
+                                } else if notes.is_empty() {
+                                    "当前分类没有笔记，可新建笔记或切换分类。"
+                                } else {
+                                    "最近更新"
+                                }),
+                        )
+                        .child(div().flex().flex_col().gap_1().children(
+                            notes.into_iter().take(12).map(|node| {
+                                let id = node.id.clone();
+                                Button::new(SharedString::from(format!(
+                                    "notebook-note-{}",
+                                    id.note()
+                                )))
+                                .ghost()
+                                .w_full()
+                                .justify_start()
+                                .icon(IconName::FileText)
+                                .accessibility_label(node.title.clone())
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .truncate()
+                                        .child(node.title.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(age(node.updated)),
+                                )
+                                .disabled(self.busy)
+                                .on_click(cx.listener(
+                                    move |this, _, window, cx| {
+                                        this.open_note(id.clone(), true, None, window, cx)
+                                    },
+                                ))
+                            }),
+                        )),
+                )
                 .into_any_element();
         };
         let owner = cx.weak_entity();
@@ -652,6 +820,7 @@ impl Workspace {
                     )
                     .child(
                         Button::new("workspace-edit")
+                            .small()
                             .label(
                                 if snapshot.primary_pdf().is_some()
                                     || snapshot.primary_image().is_some()
@@ -664,11 +833,19 @@ impl Workspace {
                             .disabled(self.busy || self.revision.is_some())
                             .on_click(cx.listener(|this, _, window, cx| this.edit(window, cx))),
                     )
-                    .child(Button::new("workspace-history").label("历史").on_click(
-                        cx.listener(|this, _, window, cx| this.details(true, window, cx)),
-                    ))
+                    .child(
+                        Button::new("workspace-history")
+                            .small()
+                            .ghost()
+                            .label("历史")
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.details(true, window, cx)),
+                            ),
+                    )
                     .child(
                         Button::new("workspace-backlinks")
+                            .small()
+                            .ghost()
                             .label("反向链接")
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.details(false, window, cx)),
@@ -957,7 +1134,14 @@ impl Workspace {
 }
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let tabs = self.navigation.tabs.clone();
+        let tabs = self
+            .navigation
+            .tabs
+            .iter()
+            .filter(|(id, _)| Some(id.notebook()) == self.book)
+            .cloned()
+            .collect::<Vec<_>>();
+        let show_tabs = self.preferences.show_tabs && self.snapshot.is_some() && !tabs.is_empty();
         let selected = tabs
             .iter()
             .position(|(id, _)| Some(id) == self.navigation.current.as_ref());
@@ -992,9 +1176,7 @@ impl Render for Workspace {
                     this.name_dialog("folder", window, cx)
                 }),
             )
-            .on_action(
-                cx.listener(|this, _: &ShowBooks, window, cx| this.switch_book(None, window, cx)),
-            )
+            .on_action(cx.listener(|this, _: &OpenBook, window, cx| this.pick(true, window, cx)))
             .on_action(cx.listener(|this, _: &SearchNotes, window, cx| {
                 this.show_search = true;
                 this.query.update(cx, |q, cx| q.focus(window, cx));
@@ -1103,10 +1285,7 @@ impl Render for Workspace {
                 view.child(div().h_8().flex_shrink_0().child(self.menu.clone()))
             })
             .child(self.toolbar(cx))
-            .when(
-                self.preferences.show_tabs && !self.navigation.tabs.is_empty(),
-                |view| view.child(tabbar),
-            )
+            .when(show_tabs, |view| view.child(tabbar))
             .child(
                 div()
                     .flex_1()
@@ -1115,14 +1294,16 @@ impl Render for Workspace {
                     .child(if self.show_search {
                         self.search_panel(cx)
                     } else if self.book.is_none() {
-                        self.bookshelf(cx)
+                        self.notebook_empty(cx)
+                    } else if !self.sidebar_visible {
+                        self.reading(cx)
                     } else {
                         gpui_kit::component::resizable::h_resizable("workspace-split")
                             .child(
                                 gpui_kit::component::resizable::resizable_panel()
-                                    .size(window.rem_size() * 18.)
+                                    .size(window.rem_size() * 16.)
                                     .size_range(
-                                        (window.rem_size() * 12.)..(window.rem_size() * 30.),
+                                        (window.rem_size() * 14.)..(window.rem_size() * 26.),
                                     )
                                     .child(self.sidebar(cx)),
                             )
@@ -1141,8 +1322,10 @@ impl Render for Workspace {
                     .aria_label(self.status.clone())
                     .flex()
                     .gap_2()
-                    .p_2()
-                    .text_sm()
+                    .px_3()
+                    .py_1()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
                     .child(self.status.clone())
                     .when(self.operation.is_some() && !self.busy, |view| {
                         view.child(Button::new("workspace-retry").label("重试操作").on_click(

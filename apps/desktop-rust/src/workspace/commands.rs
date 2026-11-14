@@ -2,6 +2,9 @@ use super::*;
 
 impl Workspace {
     pub(super) fn close_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.snapshot.is_none() {
+            return;
+        }
         self.save_then(window, cx, |this, window, cx| {
             if let Some(id) = this.navigation.close_current() {
                 this.load_note(id, false, None, window, cx);
@@ -55,28 +58,35 @@ impl Workspace {
         })
         .detach();
     }
-    pub(super) fn switch_book(
-        &mut self,
-        book: Option<Uuid>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn switch_book(&mut self, book: Uuid, window: &mut Window, cx: &mut Context<Self>) {
+        if self.book == Some(book) || !self.books.iter().any(|b| b.id == book && !b.unavailable) {
+            return;
+        }
         self.save_then(window, cx, move |this, window, cx| {
             this.remember_position(window, cx);
             this.cancel_search(window, cx);
-            this.generation += 1;
-            this.book = book;
-            this.snapshot = None;
-            this.pending_anchor = None;
-            this.pending_position = None;
-            this.revision = None;
-            this.history.clear();
-            this.backlinks.clear();
-            this.nodes.clear();
-            this.expanded.clear();
-            this.collection = Collection::Tree;
+            this.reset_book(Some(book), cx);
+            this.preferences.active_book = Some(book);
+            this.persist_preferences(window, cx);
             this.refresh(window, cx);
         });
+    }
+    pub(super) fn reset_book(&mut self, book: Option<Uuid>, cx: &mut Context<Self>) {
+        self.generation += 1;
+        self.book = book;
+        self.snapshot = None;
+        self.pending_anchor = None;
+        self.pending_position = None;
+        self.revision = None;
+        self.history.clear();
+        self.history_next = None;
+        self.backlinks.clear();
+        self.nodes.clear();
+        self.expanded.clear();
+        self.tag = None;
+        self.show_search = false;
+        self.collection = Collection::Tree;
+        self.tree.update(cx, |tree, cx| tree.set_items(vec![], cx));
     }
     pub(super) fn open_note(
         &mut self,
@@ -136,6 +146,7 @@ impl Workspace {
                         this.restore_reading_target(cx);
                         this.snapshot = Some(snapshot);
                         this.status.clear();
+                        this.preferences.active_book = Some(id.notebook());
                         this.persist_preferences(window, cx);
                         if this.book != Some(id.notebook()) {
                             this.book = Some(id.notebook());
@@ -210,8 +221,13 @@ impl Workspace {
                         }
                         match reply {
                             WorkspaceReply::Book(book) => {
-                                this.book = Some(book.id);
-                                this.snapshot = None;
+                                if this.book != Some(book.id) {
+                                    this.remember_position(window, cx);
+                                    this.cancel_search(window, cx);
+                                    this.reset_book(Some(book.id), cx);
+                                }
+                                this.preferences.active_book = Some(book.id);
+                                this.persist_preferences(window, cx);
                             }
                             WorkspaceReply::Node(node)
                                 if !node.folder && (refresh_note || this.snapshot.is_none()) =>
@@ -257,14 +273,14 @@ impl Workspace {
         let selected = self.selected(cx);
         let book = self.book;
         if kind != "book" && book.is_none() {
-            self.status = "请先在书橱中选择或新建笔记本".into();
+            self.status = "请先新建或打开笔记本".into();
             cx.notify();
             return;
         }
         let title = match kind {
             "book" => "新建笔记本",
             "folder" => "新建目录",
-            "rename-book" => "重命名笔记本",
+            "rename-book" => "笔记本设置",
             "rename" => "重命名",
             "tags" => "编辑标签",
             _ => "新建笔记",
@@ -294,7 +310,7 @@ impl Workspace {
         let owner = cx.weak_entity();
         let book_meta = self.books.iter().find(|b| Some(b.id) == book).cloned();
         let icon = cx.new(|cx| {
-            let mut input = InputState::new(window, cx).placeholder("封面图标");
+            let mut input = InputState::new(window, cx).placeholder("笔记本图标");
             input.set_value(
                 book_meta
                     .as_ref()
@@ -306,7 +322,7 @@ impl Workspace {
             input
         });
         let color = cx.new(|cx| {
-            let mut input = InputState::new(window, cx).placeholder("封面颜色，如 #b18d62");
+            let mut input = InputState::new(window, cx).placeholder("笔记本颜色，如 #b18d62");
             input.set_value(
                 book_meta
                     .as_ref()
@@ -329,8 +345,8 @@ impl Workspace {
                 .child(Input::new(&field).id("workspace-name").aria_label(title))
                 .when(kind == "rename-book", |dialog| {
                     dialog
-                        .child(Input::new(&icon).aria_label("封面图标"))
-                        .child(Input::new(&color).aria_label("封面颜色"))
+                        .child(Input::new(&icon).aria_label("笔记本图标"))
+                        .child(Input::new(&color).aria_label("笔记本颜色"))
                 })
                 .footer(
                     DialogFooter::new()
@@ -643,11 +659,8 @@ impl Workspace {
             };
             let prefs = view.read(cx).preferences.clone();
             let mut content = div().flex().flex_col().gap_3().child("外观");
-            for (value, label) in [
-                ("system", "跟随系统"),
-                ("light", "浅色纸张"),
-                ("dark", "深色纸张"),
-            ] {
+            for (value, label) in [("system", "跟随系统"), ("light", "浅色"), ("dark", "深色")]
+            {
                 let owner = owner.clone();
                 content = content.child(
                     Button::new(value)

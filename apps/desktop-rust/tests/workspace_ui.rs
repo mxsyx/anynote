@@ -14,7 +14,7 @@ fn workspace_reply(backend: &Backend, command: WorkspaceCommand) -> WorkspaceRep
     reply
 }
 #[gpui_kit::test]
-fn bookshelf_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppContext) {
+fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppContext) {
     cx.background_executor.allow_parking();
     let backend = Backend::new();
     cx.update(|cx| {
@@ -135,7 +135,7 @@ fn bookshelf_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppC
         .unwrap();
 }
 #[gpui_kit::test]
-fn switching_library_waits_for_real_editor_save(cx: &mut TestAppContext) {
+fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext) {
     cx.background_executor.allow_parking();
     let backend = Backend::new();
     let WorkspaceReply::Book(book) = workspace_reply(
@@ -157,6 +157,17 @@ fn switching_library_waits_for_real_editor_save(cx: &mut TestAppContext) {
     ) else {
         panic!()
     };
+    let WorkspaceReply::Book(target) = workspace_reply(
+        &backend,
+        WorkspaceCommand::CreateBook {
+            title: "另一个笔记本".into(),
+        },
+    ) else {
+        panic!()
+    };
+    let mut preferences = Preferences::default();
+    preferences.active_book = Some(book.id);
+    workspace_reply(&backend, WorkspaceCommand::SetPreferences(preferences));
     let Reply::Document(snapshot) = reply(
         &backend.client,
         Command::OpenDocument {
@@ -176,16 +187,10 @@ fn switching_library_waits_for_real_editor_save(cx: &mut TestAppContext) {
         })
         .unwrap()
     });
-    let book_id = format!("book-{}", book.id);
     spin(cx, window, |w, _| {
-        w.try_find(book_id.clone())
-            .is_some_and(|b| b.disabled() != Some(true))
-    });
-    cx.update_window(window, |_, w, cx| w.click(book_id.clone(), cx))
-        .unwrap();
-    spin(cx, window, |w, _| {
-        w.try_find("workspace-books")
-            .is_some_and(|b| b.disabled() != Some(true))
+        w.try_find("workspace-notebooks").is_some_and(|b| {
+            b.disabled() != Some(true) && b.label() == Some("切换笔记本：保存测试")
+        })
     });
     let (editor_window, editor) = cx.update(|cx| {
         gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
@@ -205,9 +210,17 @@ fn switching_library_waits_for_real_editor_save(cx: &mut TestAppContext) {
             editor.read(cx).source().to_owned()
         })
         .unwrap();
-    cx.update_window(window, |_, w, cx| w.click("workspace-books", cx))
-        .unwrap();
-    spin(cx, window, |w, _| w.try_find(book_id.clone()).is_some());
+    cx.update_window(window, |_, w, cx| {
+        w.click("workspace-notebooks", cx);
+        w.render_frame(cx);
+        click_label(w, "另一个笔记本", cx);
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("workspace-notebooks").is_some_and(|b| {
+            b.disabled() != Some(true) && b.label() == Some("切换笔记本：另一个笔记本")
+        })
+    });
     let Reply::Document(saved) = reply(&backend.client, Command::OpenDocument { id: node.id })
     else {
         panic!()
@@ -216,6 +229,43 @@ fn switching_library_waits_for_real_editor_save(cx: &mut TestAppContext) {
     cx.update_window(editor_window, |_, w, _| w.remove_window())
         .unwrap();
     cx.update_window(window, |_, w, _| w.remove_window())
+        .unwrap();
+    let WorkspaceReply::Preferences(preferences) =
+        workspace_reply(&backend, WorkspaceCommand::Preferences)
+    else {
+        panic!()
+    };
+    assert_eq!(preferences.active_book, Some(target.id));
+    let (reopened, _) = cx.update(|cx| {
+        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
+            cx.new(|cx| Workspace::new(w, cx))
+        })
+        .unwrap()
+    });
+    spin(cx, reopened, |w, _| {
+        w.try_find("workspace-notebooks").is_some_and(|b| {
+            b.disabled() != Some(true) && b.label() == Some("切换笔记本：另一个笔记本")
+        })
+    });
+    let WorkspaceReply::Books(books) = workspace_reply(&backend, WorkspaceCommand::Books) else {
+        panic!()
+    };
+    let expected_book = &books[0];
+    cx.update_window(reopened, |_, w, cx| {
+        w.click("workspace-notebooks", cx);
+        w.press("escape", cx);
+        assert_eq!(w.find("workspace-notebooks").focused(), Some(true));
+        w.press("space", cx);
+        w.press("down", cx);
+        w.press("enter", cx);
+    })
+    .unwrap();
+    spin(cx, reopened, |w, _| {
+        let button = w.find("workspace-notebooks");
+        button.disabled() != Some(true)
+            && button.label() == Some(format!("切换笔记本：{}", expected_book.title).as_str())
+    });
+    cx.update_window(reopened, |_, w, _| w.remove_window())
         .unwrap();
 }
 
@@ -292,15 +342,8 @@ fn directory_drag_updates_real_parent_and_keyboard_remains_operable(cx: &mut Tes
         })
         .unwrap()
     });
-    let book_id = format!("book-{}", book.id);
     let note_id = format!("node-{}", note.id.note());
     let folder_id = format!("node-{}", folder.id.note());
-    spin(cx, window, |w, _| {
-        w.try_find(book_id.clone())
-            .is_some_and(|b| b.disabled() != Some(true))
-    });
-    cx.update_window(window, |_, w, cx| w.click(book_id.clone(), cx))
-        .unwrap();
     spin(cx, window, |w, _| w.try_find(note_id.clone()).is_some());
     cx.update_window(window, |_, w, cx| {
         w.drag_to(note_id.clone(), folder_id.clone(), cx)

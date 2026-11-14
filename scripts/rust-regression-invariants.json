@@ -2,7 +2,7 @@
   {
     "id": "INV-01",
     "tests": [
-      "bookshelf_create_read_search_history_theme_and_dialog_focus",
+      "notebook_create_read_search_history_theme_and_dialog_focus",
       "external_detach_retains_files_and_preferences_survive_reconnect"
     ],
     "legacy_entry": "test:bookshelf",
@@ -20,7 +20,7 @@
   {
     "id": "INV-03",
     "tests": [
-      "switching_library_waits_for_real_editor_save",
+      "switching_notebook_saves_draft_and_restores_selection",
       "document_cas_lost_ack_restart_and_large_source"
     ],
     "legacy_entry": "test:document",
@@ -180,7 +180,7 @@
     "id": "INV-22",
     "tests": [
       "connection_form_validation_masking_and_cancel_preserve_focus",
-      "bookshelf_create_read_search_history_theme_and_dialog_focus"
+      "notebook_create_read_search_history_theme_and_dialog_focus"
     ],
     "legacy_entry": "test:management",
     "remaining": "真实 DPI/读屏/动画偏好"

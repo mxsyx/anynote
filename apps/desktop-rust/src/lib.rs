@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod backend;
 pub mod backend_client;
 pub mod backend_session;
