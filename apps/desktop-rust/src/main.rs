@@ -58,7 +58,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if args.next().is_some() {
                     return Err("--board-window accepts at most one scene path".into());
                 }
-                gpui_kit::application()
+                prepare_webview_backend()?;
+                #[cfg(target_os = "linux")]
+                let application = gpui_kit::platform::linux(gpui_kit::WindowingModes::X11);
+                #[cfg(not(target_os = "linux"))]
+                let application = gpui_kit::application();
+                application
                     .with_assets(gpui_kit::assets::Assets)
                     .with_quit_mode(gpui_kit::QuitMode::LastWindowClosed)
                     .run(move |cx| {
@@ -129,20 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => return Err(format!("unknown argument: {}", arg.to_string_lossy()).into()),
         }
     }
-    // The WebView host requires this GPUI backend. Relaunch with a child-only
-    // environment instead of mutating process environment after threads may exist.
-    #[cfg(target_os = "windows")]
-    if std::env::var("GPUI_DISABLE_DIRECT_COMPOSITION").as_deref() != Ok("1") {
-        let status = std::process::Command::new(std::env::current_exe()?)
-            .args(std::env::args_os().skip(1))
-            .env("GPUI_DISABLE_DIRECT_COMPOSITION", "1")
-            .status()?;
-        return if status.success() {
-            Ok(())
-        } else {
-            Err("native child failed".into())
-        };
-    }
+    prepare_webview_backend()?;
     let directory = state_directory()?;
     let Instance::Primary(_instance, activations) = instance::acquire(&directory)? else {
         return Ok(());
@@ -193,5 +185,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .detach();
     });
+    Ok(())
+}
+
+fn prepare_webview_backend() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    if std::env::var("GPUI_DISABLE_DIRECT_COMPOSITION").as_deref() != Ok("1") {
+        let status = std::process::Command::new(std::env::current_exe()?)
+            .args(std::env::args_os().skip(1))
+            .env("GPUI_DISABLE_DIRECT_COMPOSITION", "1")
+            .status()?;
+        std::process::exit(status.code().unwrap_or(1));
+    }
     Ok(())
 }

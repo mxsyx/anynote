@@ -14,7 +14,7 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = json.loads((ROOT / 'apps/desktop-rust/native/release.json').read_text())
 MANIFEST = '.manifest.json'
-FORBIDDEN = re.compile(r'(^|[/_.-])(electron|node|nodejs|node_modules|quickjs|qjs|react|plugin-sdk|extension-host)([/_.-]|$)', re.I)
+FORBIDDEN = re.compile(r'(^|[/_.-])(electron|node|nodejs|node_modules|quickjs|qjs|plugin-sdk|extension-host)([/_.-]|$)', re.I)
 
 
 def digest(path):
@@ -95,14 +95,14 @@ def files(payload):
     return result
 
 
-def seal(payload, target, pdfium_hash, profile):
+def seal(payload, target, profile):
     binary, resources = locations(payload, target)
     expected = CONFIG['targets'][target]
     if architecture(binary) != (expected['os'], expected['arch']):
         raise ValueError('binary architecture does not match target')
     report = {'format': 'anynote.native-payload.v1', 'app_id': CONFIG['app_id'],
               'version': version(), 'target': target, 'profile': profile,
-              'notebook_schema': CONFIG['notebook_schema'], 'pdfium_sha256': pdfium_hash,
+              'notebook_schema': CONFIG['notebook_schema'], 'pdf_viewer': 'system-webview',
               'binary': binary.relative_to(payload).as_posix(), 'files': files(payload)}
     payload.with_name(payload.name + MANIFEST).write_text(json.dumps(report, indent=2) + '\n')
     return report
@@ -135,7 +135,7 @@ def verify(payload, expected_target=None, report=None):
 
 def clean_env():
     env = dict(os.environ)
-    for key in ('ANYNOTE_PDFIUM_DIR', 'ANYNOTE_RUST_STATE_DIR', 'ANYNOTE_USER_DATA_DIR', 'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH'):
+    for key in ('ANYNOTE_RUST_STATE_DIR', 'ANYNOTE_USER_DATA_DIR', 'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH'):
         env.pop(key, None)
     return env
 
@@ -148,7 +148,7 @@ def health(payload, report):
     if (result.get('version'), result.get('appId'), result.get('os'), result.get('arch'), result.get('notebookSchema')) != (
             report['version'], CONFIG['app_id'], target['os'], target['arch'], report['notebook_schema']):
         raise ValueError('binary release identity mismatch')
-    if result.get('pdfium') != 'passed' or result.get('font') != 'passed':
+    if result.get('pdfViewer') != 'system-webview' or result.get('font') != 'passed' or result.get('whiteboard') != 'passed':
         raise ValueError('native resources failed')
     return result
 

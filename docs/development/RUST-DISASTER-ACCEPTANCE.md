@@ -4,7 +4,7 @@
 
 ## 本机预验证
 
-需要 Python 3.11+、仓库锁定 Rust 工具链及本平台依赖。无 Pdfium、GUI 或 Node 前置，使用合成资料：
+需要 Python 3.11+、仓库锁定 Rust 工具链及本平台依赖。无 GUI 或 Node 前置，使用合成资料：
 
 ```sh
 python3 scripts/rust-disaster-batch.py --device mac-arm64-lab --strict

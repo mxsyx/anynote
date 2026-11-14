@@ -298,33 +298,9 @@ impl ImageView {
                 let Some(path) = path else {
                     return Ok(());
                 };
-                cx.background_spawn(async move {
-                    use std::io::Write;
-                    if cancel.load(Ordering::Relaxed) {
-                        return Err("图片操作已取消".into());
-                    }
-                    let parent = path.parent().ok_or("导出位置无效")?;
-                    let temporary =
-                        parent.join(format!(".anynote-export-{}", uuid::Uuid::new_v4()));
-                    let result = (|| {
-                        let mut output = std::fs::OpenOptions::new()
-                            .write(true)
-                            .create_new(true)
-                            .open(&temporary)
-                            .map_err(|_| "无法创建导出文件")?;
-                        output.write_all(&bytes).map_err(|_| "原图导出失败")?;
-                        output.sync_all().map_err(|_| "原图导出失败")?;
-                        drop(output);
-                        if cancel.load(Ordering::Relaxed) {
-                            return Err("图片操作已取消");
-                        }
-                        std::fs::rename(&temporary, &path).map_err(|_| "无法写入导出位置")
-                    })();
-                    if result.is_err() {
-                        let _ = std::fs::remove_file(temporary);
-                    }
-                    result.map_err(str::to_owned)
-                })
+                cx.background_spawn(
+                    async move { crate::asset_writer::export(&path, &bytes, &cancel) },
+                )
                 .await
             }
             .await;

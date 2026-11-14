@@ -224,6 +224,14 @@ pub fn byte_range(
     header: Option<&str>,
     length: usize,
 ) -> Result<std::ops::Range<usize>, Rejection> {
+    byte_range_with_limit(header, length, MAX_RANGE)
+}
+
+pub(crate) fn byte_range_with_limit(
+    header: Option<&str>,
+    length: usize,
+    limit: usize,
+) -> Result<std::ops::Range<usize>, Rejection> {
     if length == 0 {
         return Err(Rejection::Range);
     }
@@ -254,7 +262,7 @@ pub fn byte_range(
     } else {
         0..length
     };
-    if span.start >= span.end || span.end > length || span.len() > MAX_RANGE {
+    if span.start >= span.end || span.end > length || span.len() > limit {
         return Err(Rejection::Range);
     }
     Ok(span)

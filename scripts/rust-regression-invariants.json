@@ -53,7 +53,7 @@
     "id": "INV-07",
     "tests": [
       "paste_width_reader_rotate_version_and_close_use_production_controls",
-      "hundred_document_board_image_cycles_release_entities"
+      "hundred_document_image_cycles_release_entities"
     ],
     "legacy_entry": "test:features",
     "remaining": "真实照片/峰值显存/所有动画"
@@ -61,13 +61,11 @@
   {
     "id": "INV-08",
     "tests": [
-      "selection_search_annotation_note_index_and_anchor_controls",
-      "worker_latest_request_close_and_password_retry",
-      "hundred_pdf_cancelled_page_cycles_release_entities",
-      "reader_reports_backend_failure_without_native_work"
+      "system_pdf_source_serves_exact_bytes_ranges_and_revokes",
+      "system_pdf_preview_reads_revision_resource_and_releases_backend"
     ],
     "legacy_entry": "test:features",
-    "remaining": "复杂字体/100MiB PDF/跨平台"
+    "remaining": "系统 PDF 查看器的真实翻页/缩放/查找/复制、密码及跨平台生命周期；不再验收批注、关联笔记或全文索引"
   },
   {
     "id": "INV-09",
@@ -75,7 +73,7 @@
       "real_backend_atomic_board_history_retry_transfer_archive_and_export"
     ],
     "legacy_entry": "test:editor",
-    "remaining": "RM22/23 冻结动作尚未全部交付"
+    "remaining": "系统 WebView 白板的真实输入法、跨平台与完整工具验收"
   },
   {
     "id": "INV-10",

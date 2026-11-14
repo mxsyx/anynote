@@ -1,4 +1,3 @@
-use super::PdfError;
 use crate::backend_client::{BackendClient, Response};
 use anynote_core::{asset::*, backend::*};
 use std::{
@@ -10,45 +9,39 @@ use uuid::Uuid;
 pub struct ResourceReader {
     client: BackendClient,
     token: Uuid,
-    hash: String,
     length: u64,
     position: u64,
 }
-fn request(client: &BackendClient, command: AssetCommand) -> Result<AssetReply, PdfError> {
+fn request(client: &BackendClient, command: AssetCommand) -> Result<AssetReply, String> {
     match client
         .submit(Command::Asset(command), Duration::from_secs(15))
         .and_then(|h| h.receive_blocking())
-        .map_err(|_| PdfError::Resource)?
+        .map_err(|_| "无法读取 PDF 文件".to_owned())?
     {
         Response::Reply(Reply::Asset(reply)) => Ok(reply),
-        _ => Err(PdfError::Resource),
+        _ => Err("无法读取 PDF 文件".to_owned()),
     }
 }
 impl ResourceReader {
-    /// Blocking: call only on the PDF worker, never from a GPUI event/render callback.
-    pub fn open(client: BackendClient, scope: AssetScope) -> Result<Self, PdfError> {
+    /// Blocking: use a background task, never a GPUI event/render callback.
+    pub fn open(client: BackendClient, scope: AssetScope) -> Result<Self, String> {
         let token = Uuid::new_v4();
         let mut reader = Self {
             client,
             token,
-            hash: String::new(),
             length: 0,
             position: 0,
         };
-        let AssetReply::Opened { hash, length, mime } =
+        let AssetReply::Opened { length, mime, .. } =
             request(&reader.client, AssetCommand::Open { scope, token })?
         else {
-            return Err(PdfError::Resource);
+            return Err("无法读取 PDF 文件".to_owned());
         };
         if mime != "application/pdf" || length == 0 || length > 2 * 1024 * 1024 * 1024 {
-            return Err(PdfError::Budget);
+            return Err("PDF 文件为空、超过 2 GiB 或格式不受支持".to_owned());
         }
-        reader.hash = hash;
         reader.length = length;
         Ok(reader)
-    }
-    pub fn hash(&self) -> &str {
-        &self.hash
     }
     pub fn length(&self) -> u64 {
         self.length
@@ -57,8 +50,6 @@ impl ResourceReader {
 impl ResourceReader {
     fn read_range_into(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let total = (self.length - self.position).min(buf.len() as u64) as usize;
-        // Cancellation belongs between native calls so an in-flight callback finishes
-        // its range before the worker releases the resource lease.
         for part in buf[..total].chunks_mut(MAX_CHUNK_BYTES) {
             let reply = request(
                 &self.client,

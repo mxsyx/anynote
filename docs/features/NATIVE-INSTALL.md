@@ -8,7 +8,7 @@
 | Windows x64       | 每用户 NSIS EXE  | Windows 10/11、图形驱动、VC++ 2015–2022 x64 Runtime、WebView2 Runtime ≥101；须提前安装运行时                                   |
 | Linux x64         | AppImage         | Ubuntu 24.04 构建基线、glibc 2.39+、X11/XWayland、Vulkan 驱动、Fontconfig、GTK3、WebKitGTK 4.1、OpenSSL 3、FUSE2（或解包运行） |
 
-Pdfium 8152、Noto Sans 基础字体和许可证随包交付；Lucide 图标、Metal shader、内置 WebView 页面编入程序。中文和 Emoji 仍依赖系统字体，白板特定字体替代规则不因此改变。图片/PDF/本地白板无需联网首次初始化；网页视频、云和公网下载功能需要网络。Linux 并非包含所有系统库的通用发行版镜像。
+PDF 使用系统 WebView 自带查看器；Noto Sans 基础字体和许可证随包交付；Lucide 图标、Metal shader、内置 WebView 页面编入程序。Excalidraw/React、白板字体及第三方许可证编入程序；中文和 Emoji 的最终呈现仍依赖系统字体与引擎。系统 WebView 运行环境齐备后，图片/PDF/本地白板无需公网即可首次初始化；PDF 引擎不支持预览时可导出原件；网页视频、云和公网下载功能需要网络。Linux 并非包含所有系统库的通用发行版镜像。
 
 Windows 正常启动会在需要时以 `GPUI_DISABLE_DIRECT_COMPOSITION=1` 重启自身，让系统 WebView 使用受支持的宿主模式。设备层视频/键盘/DPI 验收仍未完成。
 

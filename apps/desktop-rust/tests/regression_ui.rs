@@ -1,27 +1,21 @@
-#![cfg(all(feature = "ui-tests", feature = "media"))]
+#![cfg(feature = "ui-tests")]
 use anynote_core::{backend::*, document_session::*, image::*};
 use anynote_desktop::{
     backend_session::BackendSession,
-    board::{self, BoardView},
     document_editor::{self, DocumentEditor, RunCommand},
     image::ImageView,
-    pdf::PdfView,
 };
-use anynote_editor::board::Scene;
 use core::prelude::v1::test;
 use gpui_kit::{
-    component::{Theme, ThemeMode},
-    test::{TestEventExt, TestQueryExt, TestWindowExt},
+    test::{TestQueryExt, TestWindowExt},
     *,
 };
 use uuid::Uuid;
-#[path = "support/pdf_backend.rs"]
-mod pdf_support;
 #[path = "support/media_ui.rs"]
 mod support;
 
 #[gpui_kit::test]
-fn hundred_document_board_image_cycles_release_entities(cx: &mut TestAppContext) {
+fn hundred_document_image_cycles_release_entities(cx: &mut TestAppContext) {
     cx.background_executor.allow_parking();
     let backend = support::Backend::new();
     let Reply::Document(document) = support::reply(&backend.client, Command::CreateDocument) else {
@@ -75,7 +69,6 @@ fn hundred_document_board_image_cycles_release_entities(cx: &mut TestAppContext)
     cx.update(|cx| {
         gpui_kit::init(cx);
         document_editor::install_actions(cx);
-        board::install_actions(cx);
     });
     for cycle in 0..100 {
         let (window, view) = cx.update(|cx| {
@@ -100,42 +93,6 @@ fn hundred_document_board_image_cycles_release_entities(cx: &mut TestAppContext)
         })
         .unwrap();
         let document_weak = view.downgrade();
-        drop(view);
-        let (window, view) = cx.update(|cx| {
-            gpui_kit::open_window(window_options(), cx, |w, cx| {
-                cx.new(|cx| {
-                    BoardView::new(
-                        Scene::parse("{\"elements\":[],\"files\":{},\"appState\":{}}").unwrap(),
-                        w,
-                        cx,
-                    )
-                })
-            })
-            .unwrap()
-        });
-        cx.update_window(window, |_, w, cx| {
-            w.render_frame(cx);
-            w.click("board-rectangle", cx);
-            assert!(w.find("board-canvas").visible());
-            let at = w.find("board-canvas").bounds().origin + point(px(80.), px(80.));
-            w.pointer_down(at, MouseButton::Left, cx);
-            w.pointer_move(at + point(px(60.), px(40.)), Some(MouseButton::Left), cx);
-            w.pointer_up(at + point(px(60.), px(40.)), MouseButton::Left, cx);
-            assert_eq!(view.read(cx).scene().elements().len(), 1);
-            Theme::change(
-                if cycle % 2 == 0 {
-                    ThemeMode::Dark
-                } else {
-                    ThemeMode::Light
-                },
-                Some(w),
-                cx,
-            );
-            w.render_frame(cx);
-            w.remove_window();
-        })
-        .unwrap();
-        let board_weak = view.downgrade();
         drop(view);
         let (window, view) = cx.update(|cx| {
             gpui_kit::open_window(window_options(), cx, |w, cx| {
@@ -170,10 +127,6 @@ fn hundred_document_board_image_cycles_release_entities(cx: &mut TestAppContext)
             "document retained at cycle {cycle}"
         );
         assert!(
-            board_weak.upgrade().is_none(),
-            "board retained at cycle {cycle}"
-        );
-        assert!(
             image_weak.upgrade().is_none(),
             "image retained at cycle {cycle}"
         );
@@ -183,46 +136,6 @@ fn hundred_document_board_image_cycles_release_entities(cx: &mut TestAppContext)
         support::reply(&backend.client, Command::Ping),
         Reply::Pong
     ));
-}
-
-#[gpui_kit::test]
-fn hundred_pdf_cancelled_page_cycles_release_entities(cx: &mut TestAppContext) {
-    cx.background_executor.allow_parking();
-    let pdf = pdf_support::PdfBackend::new("geometry.pdf");
-    cx.update(gpui_kit::init);
-    for cycle in 0..100 {
-        let (window, view) = cx.update(|cx| {
-            gpui_kit::open_window(window_options(), cx, |w, cx| {
-                cx.new(|cx| PdfView::new(pdf.scope.clone(), pdf.client.clone(), w, cx))
-            })
-            .unwrap()
-        });
-        eprintln!("cycle {cycle}: loading PDF");
-        support::spin(cx, window, |w, cx| {
-            if let Some(error) = w.try_find("pdf-error") {
-                panic!("PDF failed at cycle {cycle}: {:?}", error.label());
-            }
-            view.read(cx).raster().is_some()
-        });
-        cx.update_window(window, |_, w, cx| {
-            w.click("pdf-next", cx);
-            assert_eq!(view.read(cx).page(), 1);
-            assert!(view.read(cx).is_loading());
-            view.update(cx, |v, cx| v.close(w, cx));
-            assert_eq!(view.read(cx).cached_texture_count(), 0);
-            w.remove_window();
-        })
-        .unwrap();
-        let pdf_weak = view.downgrade();
-        drop(view);
-        cx.run_until_parked();
-        assert!(
-            pdf_weak.upgrade().is_none(),
-            "PDF retained at cycle {cycle}"
-        );
-        cx.update(|cx| assert!(cx.windows().is_empty()));
-    }
-    assert!(matches!(pdf.reply(Command::Ping), Reply::Pong));
 }
 
 #[gpui_kit::test]

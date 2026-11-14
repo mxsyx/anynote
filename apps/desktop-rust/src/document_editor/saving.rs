@@ -85,13 +85,6 @@ pub(crate) fn cancel_quit(cx: &mut App) {
     }
 }
 pub fn open_document(snapshot: DocumentSnapshot, cx: &mut App) -> gpui_kit::Result<()> {
-    open_document_at(snapshot, None, cx)
-}
-pub fn open_document_at(
-    snapshot: DocumentSnapshot,
-    anchor: Option<anynote_core::pdf::PdfAnchor>,
-    cx: &mut App,
-) -> gpui_kit::Result<()> {
     let existing = cx.try_global::<DocumentWindows>().and_then(|windows| {
         windows.0.iter().find_map(|(window, weak)| {
             weak.upgrade()
@@ -106,15 +99,8 @@ pub fn open_document_at(
                 .map(|editor| (*window, editor))
         })
     });
-    if let Some((window, editor)) = existing {
+    if let Some((window, _editor)) = existing {
         window.update(cx, |_, window, cx| {
-            if let Some(anchor) = anchor {
-                editor.update(cx, |editor, cx| {
-                    if let Some(pdf) = &editor.pdf {
-                        pdf.update(cx, |pdf, cx| pdf.navigate(anchor, window, cx));
-                    }
-                });
-            }
             window.activate_window();
             cx.activate(true);
         })?;
@@ -128,17 +114,7 @@ pub fn open_document_at(
                 ..Default::default()
             },
             cx,
-            |window, cx| {
-                cx.new(|cx| {
-                    let editor = DocumentEditor::from_snapshot(snapshot, window, cx);
-                    if let Some(anchor) = anchor
-                        && let Some(pdf) = &editor.pdf
-                    {
-                        pdf.update(cx, |pdf, cx| pdf.navigate(anchor, window, cx));
-                    }
-                    editor
-                })
-            },
+            |window, cx| cx.new(|cx| DocumentEditor::from_snapshot(snapshot, window, cx)),
         )?;
     }
     Ok(())
@@ -173,6 +149,9 @@ impl DocumentEditor {
         editor
     }
     fn open_pdf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(pdf) = self.pdf.take() {
+            pdf.update(cx, |pdf, cx| pdf.close(cx));
+        }
         let Some(base) = self.state.save.as_ref().map(|s| s.base()) else {
             return;
         };
@@ -354,6 +333,9 @@ impl DocumentEditor {
         }
     }
     pub(super) fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(pdf) = self.pdf.take() {
+            pdf.update(cx, |pdf, cx| pdf.close(cx));
+        }
         self.finish_pending_input(window, cx);
         self.stop_video(cx);
         self.closing = true;
@@ -723,24 +705,4 @@ impl DocumentEditor {
             })
             .into_any_element()
     }
-}
-
-pub(super) fn open_pdf_link(url: &str, cx: &mut App) -> bool {
-    let Some((id, anchor)) = anynote_core::pdf::parse_return_link(url) else {
-        return false;
-    };
-    let Some(client) = cx
-        .try_global::<BackendSession>()
-        .map(|s| s.client().clone())
-    else {
-        return true;
-    };
-    cx.spawn(async move |cx| {
-        if let Ok(Reply::Document(snapshot)) = request(&client, Command::OpenDocument { id }).await
-        {
-            let _ = cx.update(|cx| open_document_at(snapshot, Some(anchor), cx));
-        }
-    })
-    .detach();
-    true
 }

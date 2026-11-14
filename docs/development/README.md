@@ -15,6 +15,8 @@
 
 ## 回归与验收
 
+- [系统 PDF 预览](PDF-SYSTEM-WEBVIEW.md)：系统查看器、修订资源、导出和跨平台交互验收。
+
 - [功能与操作验收清单](RUST-MIGRATION-INVENTORY.md)：固定功能范围与工具所需的操作分组。
 - [原生回归与性能](RUST-NATIVE-REGRESSION.md)：跨层回归入口、性能预算和证据边界。
 - [三平台设备验收](RUST-DEVICE-ACCEPTANCE.md)：平台批次、真实窗口及人工操作要求。

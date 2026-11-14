@@ -283,7 +283,7 @@ impl ReadonlyNotebook {
             "SELECT count(*) FROM nodes WHERE deleted_at IS NOT NULL",
             "SELECT count(*) FROM annotations WHERE deleted_at IS NOT NULL",
             "SELECT count(*) FROM note_revisions WHERE id NOT IN (SELECT head_revision_id FROM notes)",
-            "SELECT count(*) FROM extension_data WHERE extension_id NOT IN ('anynote.core.revision-meta','anynote.pdf.index')",
+            "SELECT count(*) FROM extension_data WHERE extension_id<>'anynote.core.revision-meta'",
             "SELECT count(*) FROM changes",
         ] {
             let n: i64 = self.db.query_row(sql, [], |r| r.get(0))?;
@@ -350,7 +350,7 @@ DELETE FROM notes WHERE node_id IN (SELECT id FROM removed);
 DELETE FROM revision_resources WHERE revision_id NOT IN (SELECT head_revision_id FROM notes WHERE head_revision_id IS NOT NULL);
 DELETE FROM note_revisions WHERE id NOT IN (SELECT head_revision_id FROM notes WHERE head_revision_id IS NOT NULL);
 DELETE FROM nodes WHERE id IN (SELECT id FROM removed);
-DELETE FROM extension_data WHERE NOT ((extension_id='anynote.core.revision-meta' AND key IN (SELECT id FROM note_revisions)) OR (extension_id='anynote.pdf.index' AND key IN (SELECT 'note.' || node_id FROM notes)));
+DELETE FROM extension_data WHERE NOT (extension_id='anynote.core.revision-meta' AND key IN (SELECT id FROM note_revisions));
 DELETE FROM resources WHERE id NOT IN (SELECT resource_id FROM revision_resources UNION SELECT primary_resource_id FROM notes WHERE primary_resource_id IS NOT NULL);
 CREATE TEMP TABLE current_assets(resource_id TEXT PRIMARY KEY,asset_hash TEXT NOT NULL);
 INSERT INTO current_assets SELECT p.resource_id,p.asset_hash FROM revision_resources p JOIN (SELECT resource_id,MIN(revision_id) AS revision_id FROM revision_resources GROUP BY resource_id) c USING(resource_id,revision_id);
@@ -361,9 +361,9 @@ DELETE FROM changes;
 DROP TABLE fts_notes;
 {fts};
 INSERT INTO fts_notes(note_id,title,body)
-SELECT n.id,n.title,COALESCE(r.body,'') || char(10) || COALESCE(t.body,'') || char(10) ||
-COALESCE((SELECT group_concat(a.quote || char(10) || a.body,char(10)) FROM annotations a WHERE a.note_id=n.id AND a.deleted_at IS NULL AND (s.note_type<>'pdf' OR a.target_asset_hash=p.asset_hash)),'') || char(10) || n.tags
-FROM nodes n JOIN notes s ON s.node_id=n.id LEFT JOIN note_revisions r ON r.id=s.head_revision_id LEFT JOIN resources p ON p.id=s.primary_resource_id LEFT JOIN note_text t ON t.note_id=n.id AND t.asset_hash=p.asset_hash;
+SELECT n.id,n.title,COALESCE(r.body,'') || char(10) ||
+COALESCE((SELECT group_concat(a.quote || char(10) || a.body,char(10)) FROM annotations a WHERE a.note_id=n.id AND a.deleted_at IS NULL AND s.note_type<>'pdf') || char(10),'') || n.tags
+FROM nodes n JOIN notes s ON s.node_id=n.id LEFT JOIN note_revisions r ON r.id=s.head_revision_id;
 DROP TABLE removed; COMMIT; VACUUM;"))?;
     Ok(())
 }

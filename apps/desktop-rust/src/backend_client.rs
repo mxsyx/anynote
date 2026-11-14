@@ -107,7 +107,6 @@ fn matches_reply(command: &Command, reply: &Reply) -> bool {
         (command, reply),
         (Command::Management(_), Reply::Management(_))
             | (Command::Workspace(_), Reply::Workspace(_))
-            | (Command::Pdf(_), Reply::Pdf(_))
             | (Command::Asset(_), Reply::Asset(_))
             | (
                 Command::CreateDocument

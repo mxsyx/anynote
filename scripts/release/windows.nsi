@@ -35,7 +35,6 @@ FunctionEnd
 
 Section "Install"
   StrCpy $Moved 0
-  System::Call 'kernel32::SetEnvironmentVariableW(w "ANYNOTE_PDFIUM_DIR", p 0)'
   IfFileExists "$INSTDIR.previous\*" blocked
   IfFileExists "$INSTDIR.candidate\*" blocked
   IfFileExists "$INSTDIR\*" 0 empty_destination

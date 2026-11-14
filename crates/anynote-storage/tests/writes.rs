@@ -110,7 +110,7 @@ fn save_conflicts_history_metadata_links_and_search_survive_reopen() {
     assert_eq!(
         db.query_row("SELECT body FROM fts_notes", [], |r| r.get::<_, String>(0))
             .unwrap(),
-        "初稿\n\n[]"
+        "初稿\n[]"
     );
 }
 #[test]

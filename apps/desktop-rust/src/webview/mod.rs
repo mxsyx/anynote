@@ -33,7 +33,7 @@ pub struct MediaHost {
     local: Option<Rc<RefCell<LocalSession>>>,
     slot: Option<Slot>,
 }
-fn builder() -> wry::WebViewBuilder<'static> {
+pub(crate) fn builder() -> wry::WebViewBuilder<'static> {
     wry::WebViewBuilder::new()
         .with_incognito(true)
         .with_devtools(false)
@@ -42,7 +42,7 @@ fn builder() -> wry::WebViewBuilder<'static> {
         .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny)
         .with_drag_drop_handler(|_| true)
 }
-fn platform_check() -> Result<(), String> {
+pub(crate) fn platform_check() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     if std::env::var("GPUI_DISABLE_DIRECT_COMPOSITION")
         .ok()
@@ -50,7 +50,7 @@ fn platform_check() -> Result<(), String> {
         != Some("1")
     {
         return Err(
-            "视频需要以 GPUI_DISABLE_DIRECT_COMPOSITION=1 启动；当前 Windows 后端尚未完成设备验证"
+            "系统查看器需要以 GPUI_DISABLE_DIRECT_COMPOSITION=1 启动；当前 Windows 后端尚未完成设备验证"
                 .into(),
         );
     }

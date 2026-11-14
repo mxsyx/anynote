@@ -11,7 +11,7 @@ mod saving;
 mod session;
 mod state;
 mod videos;
-pub use saving::{FlushState, flush_all, flush_for_navigation, open_document, open_document_at};
+pub use saving::{FlushState, flush_all, flush_for_navigation, open_document};
 #[cfg(all(test, feature = "ui-tests"))]
 mod lifecycle_tests;
 pub(crate) use saving::cancel_quit;
@@ -93,6 +93,7 @@ pub fn insert_menu() -> Menu {
 }
 
 pub fn install_actions(cx: &mut App) {
+    crate::board::install_actions(cx);
     for (mac, other, command) in [
         ("cmd-s", "ctrl-s", "save"),
         ("cmd-b", "ctrl-b", "bold"),
@@ -659,7 +660,7 @@ impl DocumentEditor {
                 } else {
                     event.modifiers().control
                 };
-                if follow && !saving::open_pdf_link(url, cx) {
+                if follow {
                     cx.open_url(url);
                 }
             });

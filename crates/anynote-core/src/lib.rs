@@ -13,8 +13,6 @@ pub mod board;
 
 pub mod asset;
 
-pub mod pdf;
-
 pub mod video;
 
 pub mod workspace;

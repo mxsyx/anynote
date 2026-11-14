@@ -28,7 +28,7 @@ class ReleaseTests(unittest.TestCase):
         self.binary.write_bytes(header)
         self.binary.chmod(0o755)
         (self.resources / 'LICENSE').write_text('test notice')
-        self.report = n.seal(self.payload, 'linux-x64', '0' * 64, 'dev')
+        self.report = n.seal(self.payload, 'linux-x64', 'dev')
         self.destination = self.root / 'installed'
 
     def tearDown(self):
@@ -53,7 +53,7 @@ class ReleaseTests(unittest.TestCase):
             n.verify(self.payload)
 
     def test_old_host_added_file_and_symlink_rejected(self):
-        for name in ['electron', 'node.exe', 'app.asar', 'react.js', 'quickjs.dll']:
+        for name in ['electron', 'node.exe', 'app.asar', 'quickjs.dll']:
             path = self.resources / name
             path.write_bytes(b'not allowed')
             with self.assertRaisesRegex(ValueError, 'old host'):

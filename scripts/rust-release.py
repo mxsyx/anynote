@@ -139,35 +139,10 @@ def build(args):
     binary, resources = n.locations(payload, target)
     binary.parent.mkdir(parents=True)
     resources.mkdir(parents=True, exist_ok=True)
-    pdf = resources / 'pdfium'
-    command = [sys.executable, n.ROOT / 'scripts/install-pdfium.py', '--platform', target, '--output', pdf]
-    if args.pdfium_archive:
-        command += ['--archive', args.pdfium_archive.resolve()]
-    n.run(command)
-    pin = next(a for a in json.loads((n.ROOT / 'apps/desktop-rust/native/pdfium.json').read_text())['assets'] if a['name'] == f'pdfium-{target}.tgz')
-    library = pdf / pin['library_path']
-    if n.digest(library) != pin['library_sha256'] or n.architecture(library) != (host, arch):
-        raise ValueError('Pdfium library hash/architecture mismatch')
-    # Headers/build files have no runtime role. Runtime closure is a strict allowlist.
-    for path in list(pdf.iterdir()):
-        if path.name not in {'lib', 'bin', 'LICENSE', 'licenses', 'VERSION'}:
-            shutil.rmtree(path) if path.is_dir() else path.unlink()
-    for sub in ('lib', 'bin'):
-        directory = pdf / sub
-        if directory.exists():
-            for path in directory.iterdir():
-                if path != library:
-                    shutil.rmtree(path) if path.is_dir() else path.unlink()
-            if not list(directory.iterdir()):
-                directory.rmdir()
-    if args.sign:
-        n.sign(library, target)
-    pdf_hash = n.digest(library)
-    env = dict(os.environ, ANYNOTE_PACKAGED_PDFIUM_SHA256=pdf_hash)
     command = ['cargo', 'build', '--locked', '--offline', '-p', 'anynote-desktop', '--bin', 'anynote-desktop']
     if args.profile == 'release':
         command += ['--release']
-    n.run(command, cwd=n.ROOT, env=env)
+    n.run(command, cwd=n.ROOT)
     source = n.ROOT / 'target' / ('release' if args.profile == 'release' else 'debug') / binary.name
     shutil.copy2(source, binary)
     binary.chmod(0o755)
@@ -204,7 +179,7 @@ def build(args):
         shutil.copyfile(n.ROOT / 'apps/browser-extension/public/icons/icon128.png', payload / 'anynote.png')
         shutil.copyfile(payload / 'anynote.png', payload / '.DirIcon')
         shutil.copyfile(n.ROOT / 'apps/browser-extension/public/icons/LICENSE-lucide', resources / 'licenses/LICENSE-app-icon')
-    report = n.seal(payload, target, pdf_hash, args.profile)
+    report = n.seal(payload, target, args.profile)
     n.verify(payload, target)
     check = n.health(payload, report)
     artifact = None
@@ -268,7 +243,6 @@ def main():
     host_target = {'Darwin': 'mac', 'Linux': 'linux', 'Windows': 'win'}[platform.system()] + '-' + ('arm64' if platform.machine() in ('arm64', 'aarch64') else 'x64')
     package.add_argument('--target', default=host_target, choices=n.CONFIG['targets'])
     package.add_argument('--output', type=Path)
-    package.add_argument('--pdfium-archive', type=Path)
     package.add_argument('--profile', choices=['dev', 'release'], default='release')
     package.add_argument('--dir', action='store_true')
     package.add_argument('--sign', action='store_true')

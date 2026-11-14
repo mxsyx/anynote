@@ -1,11 +1,9 @@
 use anynote_core::{backend::*, board::*, document_session::*, image::*};
-use anynote_desktop::{
-    backend_client::{BackendClient, Response},
-    board::preview,
-};
-use anynote_editor::board::{Board, Command as Edit, EditStamp, Point, Scene};
+use anynote_desktop::backend_client::{BackendClient, Response};
+use anynote_editor::board::Scene;
 use anynote_services::{archive::*, open_export::*, transfer::*};
 use anynote_storage::notebook::*;
+use base64::Engine;
 use serde_json::{Value, json};
 use std::{fs, path::PathBuf, time::Duration};
 use uuid::Uuid;
@@ -117,9 +115,12 @@ fn save_body(base: &DocumentSnapshot, body: String) -> Command {
 fn scene(image: Uuid, x: f64) -> Scene {
     Scene::from_json(json!({"type":"excalidraw","version":2,"elements":[{"id":"picture","type":"image","x":x,"y":20,"width":60,"height":40,"angle":0,"fileId":"image"},{"id":"rect","type":"rectangle","x":100,"y":20,"width":30,"height":40,"angle":0,"strokeColor":"#ff0000","backgroundColor":"#00ff00","fillStyle":"solid"}],"files":{"image":{"resourceId":image,"mimeType":"image/png","created":1,"future":12345678901234567890u64}},"future":{"keep":true}})).unwrap()
 }
-fn image() -> Vec<u8> {
-    let scene=Scene::from_json(json!({"elements":[{"id":"r","type":"rectangle","x":0,"y":0,"width":12,"height":8,"angle":0,"backgroundColor":"#ff0000","fillStyle":"solid"}]})).unwrap();
-    preview::png(&scene).unwrap()
+fn image(color: [u8; 4]) -> Vec<u8> {
+    let mut output = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(120, 80, image::Rgba(color)))
+        .write_to(&mut output, image::ImageFormat::Png)
+        .unwrap();
+    output.into_inner()
 }
 #[test]
 fn real_backend_atomic_board_history_retry_transfer_archive_and_export() {
@@ -131,16 +132,10 @@ fn real_backend_atomic_board_history_retry_transfer_archive_and_export() {
         format!("正文\n\n{}\n尾部", empty(block)),
     ));
     let image_id = Uuid::new_v4();
-    let original = image();
+    let original = image([255, 0, 0, 255]);
     f.upload(&base, image_id, &original);
     let scene = scene(image_id, 10.);
-    let mut loaded = scene.to_json();
-    use base64::Engine;
-    loaded["files"]["image"]["dataURL"] = json!(format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(&original)
-    ));
-    let png = preview::png(&Scene::from_json(loaded).unwrap()).unwrap();
+    let png = image([0, 255, 0, 255]);
     assert!(image::load_from_memory(&png).unwrap().width() > 100);
     let request = BoardSave::new(
         base.clone(),
@@ -206,17 +201,9 @@ fn real_backend_atomic_board_history_retry_transfer_archive_and_export() {
     );
     assert_eq!(f.bytes(&first, request.preview()), png);
     assert_eq!(first.resources().len(), 3);
-    let mut edited = Board::new(scene.clone(), 100);
-    edited.select(["rect".to_owned()]).unwrap();
-    edited
-        .apply(
-            Edit::Translate {
-                delta: Point::new(30., 10.),
-            },
-            EditStamp::new(2, 2),
-        )
-        .unwrap();
-    let second_scene = edited.scene().to_json();
+    let mut second_scene = scene.to_json();
+    second_scene["elements"][1]["x"] = json!(130.);
+    second_scene["elements"][1]["y"] = json!(30.);
     f.shutdown();
     f.client = f.client.reconnect().recv_blocking().unwrap().unwrap();
     f.upload(&base, image_id, &original);
@@ -286,12 +273,7 @@ fn real_backend_atomic_board_history_retry_transfer_archive_and_export() {
         Uuid::new_v4(),
         vec![],
     );
-    let mut hydrated = second_scene.clone();
-    hydrated["files"]["image"]["dataURL"] = json!(format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(&original)
-    ));
-    let second_png = preview::png(&Scene::from_json(hydrated).unwrap()).unwrap();
+    let second_png = image([0, 0, 255, 255]);
     assert_ne!(second_png, png);
     f.upload(&first, second.preview(), &second_png);
     let saved = f.doc(Command::SaveBoard(second.clone()));

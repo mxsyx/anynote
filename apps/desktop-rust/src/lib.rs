@@ -15,6 +15,7 @@ mod document_store;
 pub mod image;
 
 mod asset_reader;
+mod asset_writer;
 pub mod pdf;
 
 pub mod webview;

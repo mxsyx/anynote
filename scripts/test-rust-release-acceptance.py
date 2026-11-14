@@ -53,7 +53,7 @@ class AcceptanceTests(unittest.TestCase):
             'payload_manifest_sha256': n.digest(manifest),
             'artifact': {'name': artifact.name, 'sha256': n.digest(artifact), 'size': artifact.stat().st_size},
             'health': {'version': n.version(), 'appId': n.CONFIG['app_id'], 'os': cfg['os'], 'arch': cfg['arch'],
-                       'notebookSchema': n.CONFIG['notebook_schema'], 'font': 'passed', 'pdfium': 'passed'},
+                       'notebookSchema': n.CONFIG['notebook_schema'], 'font': 'passed', 'pdfViewer': 'system-webview', 'whiteboard': 'passed'},
             'notarizations': [{'subject': s, 'id': s + '-receipt', 'status': 'Accepted'} for s in ['app', 'installer']]})
 
     def evidence(self, candidates):

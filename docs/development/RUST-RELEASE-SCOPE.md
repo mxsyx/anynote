@@ -28,8 +28,8 @@
 | RM22 | 白板scene与操作内核              |
 | RM23 | 白板绘制与交互                   |
 | RM24 | 白板保存与历史资源闭包           |
-| RM25 | PDF 引擎、页面与文本几何         |
-| RM26 | PDF 选择、批注、索引与回链       |
+| RM25 | PDF 系统 WebView 预览            |
+| RM26 | PDF 原件导出与查看器交互         |
 | RM27 | 系统WebView与视频接线            |
 | RM28 | 工作区、导航、阅读与原生交互     |
 | RM29 | 任务、诊断、备份与恢复管理页     |
@@ -59,7 +59,7 @@ F020 保留既有大规模费用实验的延期边界；F031–F045 仅代表尚
 | F003 | 用户必需业务与数据转换          | RM20           | required      |
 | F004 | 白板 scene 与操作内核           | RM22           | required      |
 | F005 | 白板原生绘制与交互              | RM23           | required      |
-| F006 | Pdfium 真实 IO 失败隔离         | RM31           | required      |
+| F006 | 系统 PDF 资源失败与关闭撤销     | RM31           | required      |
 | F007 | 原路径接管、迁移 journal 与回退 | RM14           | required      |
 | F008 | 外部数据边界复核                | -              | required      |
 | F009 | 保存与并发负载停顿              | RM31           | required      |
@@ -93,9 +93,9 @@ F020 保留既有大规模费用实验的延期边界；F031–F045 仅代表尚
 | F037 | 可选 MCP 适配                   | -              | deferable     |
 | F038 | 编辑器下一批扩展                | -              | deferable     |
 | F039 | OCR 与语义检索                  | -              | deferable     |
-| F040 | PDF 批注文件导出                | -              | deferable     |
-| F041 | 动态网页导入                    | -              | deferable     |
-| F042 | E2EE                            | -              | deferable     |
-| F043 | 多设备同步、移动与协作          | -              | deferable     |
-| F044 | 商业托管与容量扩展              | -              | deferable     |
-| F045 | 独立 CLI 与仓库拆分             | -              | deferable     |
+
+| F041 | 动态网页导入 | - | deferable |
+| F042 | E2EE | - | deferable |
+| F043 | 多设备同步、移动与协作 | - | deferable |
+| F044 | 商业托管与容量扩展 | - | deferable |
+| F045 | 独立 CLI 与仓库拆分 | - | deferable |

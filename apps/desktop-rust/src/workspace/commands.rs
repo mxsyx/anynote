@@ -628,22 +628,7 @@ impl Workspace {
         }
     }
     fn follow_anchor(&mut self, anchor: &str, _: &mut Window, cx: &mut Context<Self>) {
-        if let Some(snapshot) = &self.snapshot {
-            if snapshot.primary_pdf().is_some() {
-                let url = format!(
-                    "anynote://notebook/{}/note/{}#{anchor}",
-                    snapshot.id().notebook(),
-                    snapshot.id().note()
-                );
-                if let Some((_, anchor)) = anynote_core::pdf::parse_return_link(&url) {
-                    let _ = crate::document_editor::open_document_at(
-                        snapshot.clone(),
-                        Some(anchor),
-                        cx,
-                    );
-                }
-                return;
-            }
+        if self.snapshot.is_some() {
             self.pending_anchor = Some(anchor.replace('-', " "));
             self.status = "未找到此锚点；正文加载后会继续定位".into();
             self.restore_reading_target(cx);

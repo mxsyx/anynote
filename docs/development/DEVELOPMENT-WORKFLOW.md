@@ -2,7 +2,7 @@
 
 ## Rust 桌面
 
-使用锁定依赖运行 `cargo build/run/test --locked`。平台依赖、Pdfium、工程边界和专项验证见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。按改动范围运行 fmt、clippy、单元/集成及必要原生交互检查。
+使用锁定依赖运行 `cargo build/run/test --locked`。平台依赖、系统 WebView、工程边界和专项验证见 [Rust 开发入口](RUST-DESKTOP-DEVELOPMENT.md)。按改动范围运行 fmt、clippy、单元/集成及必要原生交互检查。
 
 候选打包使用 `python3 scripts/rust-release.py build`，资源、签名与安装方法见 [原生发行](RUST-NATIVE-RELEASE.md)。运行 `python3 scripts/test-rust-release.py` 验证发行失败路径；`python3 scripts/test-rust-release-acceptance.py` 验证证据检查器。正式候选使用 [发行复核](RUST-RELEASE-ACCEPTANCE.md)，本地构建不替代真实 CI、签名或设备验收。
 

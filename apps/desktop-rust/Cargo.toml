@@ -7,8 +7,6 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-default = ["media"]
-media = ["dep:pdfium-render"]
 ui-tests = ["gpui-kit/test-support"]
 
 [dependencies]
@@ -32,11 +30,15 @@ sha2 = "=0.10.9"
 image.workspace = true
 base64 = "=0.22.1"
 resvg.workspace = true
-pdfium-render = { workspace = true, optional = true }
+httparse = "=1.10.1"
 
 [lints]
 workspace = true
 
 [[example]]
 name = "regression_probe"
+required-features = ["ui-tests"]
+
+[[example]]
+name = "whiteboard_session_probe"
 required-features = ["ui-tests"]

@@ -6,8 +6,6 @@
 
 ```sh
 # 安装锁定库，目录必须不存在；已有安装可直接设置环境变量
-python3 scripts/install-pdfium.py --output "$PWD/tmp/pdfium"
-export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 
 # 不运行 Node；cargo --locked --offline，含 GPUI ui-tests，失败后继续其他测试目标
 python3 scripts/rust-regression.py --stages tests,boundary
@@ -43,9 +41,9 @@ python3 scripts/rust-regression.py --stages tests,boundary,formats,interop,recov
 
 [INV 清单](../../scripts/rust-regression-invariants.json) 为 INV-01–24 指定参考入口、Rust 测试名称和覆盖边界；运行结果只关联实际输出 `ok` 的测试。单个测试不能等价为完整 INV 验收。
 
-`formats` 先重建 Rust examples，再执行 readonly/write/transfer/archive/local-backup/import 双向驱动；`interop` 覆盖能力协商、云协议和实际测试扩展。核对移动后的新身份映射、PDF 索引、双向续传、回执重放、源数据保留，以及未知状态和正文/附件保真。内置偏好的持久化与远端嵌入开关使用对应业务测试，不要求其存储行与退役插件设置完全相等。
+`formats` 先重建 Rust examples，再执行 readonly/write/transfer/archive/local-backup/import 双向驱动；`interop` 覆盖能力协商、云协议和实际测试扩展。核对移动后的新身份映射、PDF 原件、双向续传、回执重放、源数据保留，以及未知状态和正文/附件保真。内置偏好的持久化与远端嵌入开关使用对应业务测试，不要求其存储行与退役插件设置完全相等。
 
-`regression_ui` 各执行 100 次笔记、白板、图片生命周期，包含真实文本输入、矩形绘制、主题切换、窗口 resize、图片 zoom/fit，关闭后检查实体弱引用与窗口集合。PDF 独立用例断言页面正在加载时关闭并重开；视频卡独立用例执行插入、保存、播放同意门控和关闭，保持外部嵌入禁用，不能算真实 provider 播放。系统 WebView 引擎循环由单独阶段验证。这里只证明观察到的资源释放，不宣称全部 GPU/OS 句柄无泄漏。
+`regression_ui` 各执行 100 次笔记、白板、图片生命周期，包含真实文本输入、矩形绘制、主题切换、窗口 resize、图片 zoom/fit，关闭后检查实体弱引用与窗口集合。PDF 资源测试验证完整读取、Range 与关闭撤销，系统查看器实窗验证见 [系统 PDF 预览](PDF-SYSTEM-WEBVIEW.md)；视频卡独立用例执行插入、保存、播放同意门控和关闭，保持外部嵌入禁用，不能算真实 provider 播放。系统 WebView 引擎循环由单独阶段验证。这里只证明观察到的资源释放，不宣称全部 GPU/OS 句柄无泄漏。
 
 性能 seed 为独立的 4 库、11,064 节点（10,000 篇正文、1,000 层目录、64 条反链），首次文档 52,216 字节，持续输入文档 100 KiB。它对齐规模而非声称与旧 Electron 语料逐字节相同。每次新进程使用 seed 的私有副本；`--fixture tmp/.../seed` 可复用已完成 seed，避免重复生成。报告把首次打开与连续打开分开，均明确保留 OS 缓存；不能通过新进程或复制目录假称冷缓存。
 

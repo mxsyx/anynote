@@ -52,7 +52,7 @@ python3 scripts/rust-release-acceptance.py check \
 1. 先闭合 RM37 的功能与退役前置，确认 F017 范围。使用包含完整源码、锁文件和发行脚本的干净提交；修复后必须生成新候选并复验受影响项，不能沿用旧哈希。确认 F019 的真实身份和 CI environment；凭据预检仅检查配置。
 2. 在该提交运行 `Native desktop candidates`，手动 `sign=true`，等待 Rust 与保留 TS workflow 及各架构打包全部完成。记录 run URL、attempt、commit、runner；下载原始安装器、candidate、manifest、payload-tests 与 SHA256SUMS。各平台必须按确认的签名策略提供身份验证证据，不能由 `sign=true` 或校验和推断已实签；命令限制见 [签名与公证](RUST-NATIVE-RELEASE.md#签名与公证)。
 3. 在对应干净设备验证安装器摘要和实际签名。macOS 保留 `codesign --verify --deep --strict`、预期 Team ID、Developer ID 证书信息、`spctl --assess`、app/DMG 的 `xcrun stapler validate` 及公证请求结果；Windows 保留 `signtool verify /pa /all /v`、Get-AuthenticodeSignature 的签名者指纹与时间戳。验证命令非零立即停止安装，保存脱敏输出。
-4. 从**下载的安装器**安装，记录设备、目标路径、安装器和运行程序版本/架构，不以源码目录或 `--release-check` 代替 GUI 首启。预装依赖按 [安装要求](../features/NATIVE-INSTALL.md)记录；断开网络、清除开发 Pdfium 环境变量、使用隔离账户/测试库，完成笔记编辑保存重启、白板、图片、PDF、导入/备份等首用检查。在线视频/云操作记录为联网能力，不能编造离线成功。
+4. 从**下载的安装器**安装，记录设备、目标路径、安装器和运行程序版本/架构，不以源码目录或 `--release-check` 代替 GUI 首启。预装依赖按 [安装要求](../features/NATIVE-INSTALL.md)记录；断开公网、使用隔离账户/测试库，完成笔记编辑保存重启、白板、图片、PDF、导入/备份等首用检查。在线视频/云操作记录为联网能力，不能编造离线成功。
 5. 在同设备以已记录的前一版本、隔离测试库执行升级；记录升级前后正文/历史/资源/批注/未知状态/配置及外部登记。失败演练覆盖错误架构/身份、篡改资源、不支持 schema、占用文件、切换前和切换后失败，核对程序回退和数据不丢失。既有 `test-native-payload.py` 只覆盖目录回归，不能替代 DMG 拖放、NSIS 或 AppImage 的真实路径。
 6. 卸载后核对用户数据和外部 Notebook 的完整性，重新安装并读回。保留 `.previous`、失败目录和安装日志；任何目录锁、恢复重命名失败都先调查，不能删除锁重试假装恢复完成。对四目标分别填写证据，不把本机结果复制到未测设备。
 

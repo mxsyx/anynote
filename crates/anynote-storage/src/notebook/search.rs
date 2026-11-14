@@ -92,7 +92,6 @@ impl SearchRequest {
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum SearchLocation {
     Text { query: String },
-    Pdf { anchor: String },
     Metadata,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -473,31 +472,6 @@ impl ReadonlyNotebook {
             return Ok(SearchLocation::Text {
                 query: query.into(),
             });
-        }
-        if hit.node.note_type == Some(NoteType::Pdf) {
-            let annotation: Option<String> = self.db.query_row("SELECT a.id FROM annotations a JOIN notes n ON n.node_id=a.note_id JOIN resources r ON r.id=n.primary_resource_id WHERE a.note_id=? AND a.deleted_at IS NULL AND a.target_asset_hash=r.asset_hash AND (instr(lower(a.quote),lower(?))>0 OR instr(lower(a.body),lower(?))>0) ORDER BY a.page,a.id LIMIT 1",[&hit.node.id,query,query],|r|r.get(0)).optional()?;
-            if let Some(id) = annotation {
-                return Ok(SearchLocation::Pdf {
-                    anchor: format!("pdf-annotation-{id}"),
-                });
-            }
-            let text: Option<String> = self.db.query_row("SELECT t.body FROM note_text t JOIN notes n ON n.node_id=t.note_id JOIN resources r ON r.id=n.primary_resource_id WHERE t.note_id=? AND t.asset_hash=r.asset_hash",[&hit.node.id],|r|r.get(0)).optional()?;
-            if let Some(text) = text {
-                static PAGE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-                    regex::Regex::new(r"\n\[第 ([0-9]+) 页\]\n").unwrap()
-                });
-                let pages: Vec<_> = PAGE.captures_iter(&text).collect();
-                for (ix, page) in pages.iter().enumerate() {
-                    let end = pages
-                        .get(ix + 1)
-                        .map_or(text.len(), |p| p.get(0).unwrap().start());
-                    if includes(&text[page.get(0).unwrap().end()..end]) {
-                        return Ok(SearchLocation::Pdf {
-                            anchor: format!("pdf-page-{}", &page[1]),
-                        });
-                    }
-                }
-            }
         }
         Ok(SearchLocation::Metadata)
     }

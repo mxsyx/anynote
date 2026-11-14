@@ -11,7 +11,6 @@ use std::{
 use uuid::Uuid;
 
 mod management;
-mod pdf_index;
 mod workspace;
 
 enum Input {
@@ -28,7 +27,6 @@ struct Backend {
     epoch: Uuid,
     directory: std::path::PathBuf,
     documents: Option<crate::document_store::DocumentStore>,
-    pdf_indexes: HashMap<Uuid, pdf_index::IndexSession>,
     searches: HashMap<u64, (Uuid, std::sync::Arc<std::sync::atomic::AtomicBool>)>,
     management_jobs: Vec<anynote_core::management::JobDetails>,
     management_active: HashMap<Uuid, management::ActiveJob>,
@@ -84,7 +82,6 @@ impl Backend {
             Command::Workspace(command) => {
                 return self.workspace_command(request.id(), command.clone()).await;
             }
-            Command::Pdf(command) => self.pdf_command(command.clone()).await?,
             Command::VideoMetadata { card } => {
                 if self.reading_workers.len() >= MAX_ACTIVE_TASKS {
                     return Err(ServiceError::new(ErrorCode::Busy));
@@ -171,7 +168,6 @@ impl Backend {
                 let task = self
                     .tasks
                     .transition(&self.store, *task_id, TaskStatus::Cancelled)?;
-                self.pdf_indexes.remove(task_id);
                 if let Some(worker) = self.workers.remove(task_id) {
                     worker.abort();
                 }
@@ -460,7 +456,6 @@ pub fn run(directory: &Path) -> ServiceResult<()> {
         directory: directory.to_owned(),
         documents: None,
         searches: HashMap::new(),
-        pdf_indexes: HashMap::new(),
         management_jobs,
         management_active: HashMap::new(),
         last_request: 0,

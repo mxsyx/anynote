@@ -13,10 +13,10 @@ on:
         "tests/fixtures/rust-migration/config/**",
         "scripts/rust-config-*.mjs",
         "scripts/check-rust-workspace.py",
-        "scripts/install-pdfium.py",
-        "scripts/pdf-fixtures.py",
         "scripts/rust-regression*",
         "scripts/test-rust-regression.py",
+        "scripts/test-whiteboard-webview.py",
+        "scripts/excalidraw-webview/**",
         "scripts/rust-release.py",
         "scripts/test-rust-release.py",
         "scripts/rust-release-acceptance.py",
@@ -38,10 +38,10 @@ on:
         "tests/fixtures/rust-migration/config/**",
         "scripts/rust-config-*.mjs",
         "scripts/check-rust-workspace.py",
-        "scripts/install-pdfium.py",
-        "scripts/pdf-fixtures.py",
         "scripts/rust-regression*",
         "scripts/test-rust-regression.py",
+        "scripts/test-whiteboard-webview.py",
+        "scripts/excalidraw-webview/**",
         "scripts/rust-release.py",
         "scripts/test-rust-release.py",
         "scripts/rust-release-acceptance.py",
@@ -55,10 +55,11 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-24.04
-    env:
-      ANYNOTE_PDFIUM_DIR: ${{ github.workspace }}/tmp/pdfium
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
       - name: Native build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang cmake libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libvulkan-dev libgtk-3-dev libwebkit2gtk-4.1-dev xvfb xdotool imagemagick mesa-vulkan-drivers
       - name: Install pinned toolchain
@@ -72,12 +73,12 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: python3 scripts/test-rust-release.py
       - run: python3 scripts/test-rust-release-acceptance.py
-      - name: Install pinned native PDF library
-        run: python3 scripts/install-pdfium.py --output "$ANYNOTE_PDFIUM_DIR"
       - name: Native regression with explicit evidence
         run: python3 scripts/rust-regression.py --stages tests
       - name: Build real native window probe
         run: cargo build --locked --offline -p anynote-desktop
+      - name: Production whiteboard system WebView
+        run: python3 scripts/test-whiteboard-webview.py
       - name: Native X11 window interactions
         run: xvfb-run -a python3 scripts/rust-platform-smoke.py
       - uses: actions/upload-artifact@v4
@@ -87,4 +88,5 @@ jobs:
           path: |
             tmp/rm31/
             tmp/rm02/
+            tmp/whiteboard-session/
           if-no-files-found: error

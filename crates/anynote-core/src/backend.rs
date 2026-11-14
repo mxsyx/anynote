@@ -245,7 +245,6 @@ pub enum Command {
     VideoMetadata {
         card: crate::video::VideoCard,
     },
-    Pdf(crate::pdf::PdfCommand),
     Asset(crate::asset::AssetCommand),
     Image(crate::image::ImageCommand),
     RunReading(crate::builtin::ReadingRequest),
@@ -342,7 +341,6 @@ pub enum Reply {
     Management(crate::management::ManagementReply),
     Workspace(crate::workspace::WorkspaceReply),
     VideoMetadata(crate::video::Metadata),
-    Pdf(crate::pdf::PdfReply),
     Asset(crate::asset::AssetReply),
     Image(crate::image::ImageReply),
     Reading(crate::document_session::DocumentSnapshot),

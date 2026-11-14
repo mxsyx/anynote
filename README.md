@@ -29,7 +29,7 @@ python3 scripts/test-rust-release.py
 python3 scripts/rust-release.py build --dir
 ```
 
-媒体测试需配置锁定的 Pdfium，GPUI/真实窗口测试需相应平台环境；完整入口见 [原生回归](docs/development/RUST-NATIVE-REGRESSION.md)。候选包只包含原生桌面运行闭包，资源扫描、签名接线和平台安装条件见 [原生发行](docs/development/RUST-NATIVE-RELEASE.md) 与 [安装说明](docs/features/NATIVE-INSTALL.md)。本地构建不代表真实签名、跨平台或最终发布验收。
+PDF 预览使用系统 WebView，GPUI/真实窗口测试需相应平台环境；完整入口见 [原生回归](docs/development/RUST-NATIVE-REGRESSION.md)。候选包只包含原生桌面运行闭包，资源扫描、签名接线和平台安装条件见 [原生发行](docs/development/RUST-NATIVE-RELEASE.md) 与 [安装说明](docs/features/NATIVE-INSTALL.md)。本地构建不代表真实签名、跨平台或最终发布验收。
 
 ## 数据与能力
 

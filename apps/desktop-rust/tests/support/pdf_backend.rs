@@ -52,7 +52,21 @@ impl PdfBackend {
             .unwrap();
         drop(queue);
         let client = BackendClient::launch(
-            PathBuf::from(env!("CARGO_BIN_EXE_anynote-desktop")),
+            option_env!("CARGO_BIN_EXE_anynote-desktop")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::env::current_exe()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .join(if cfg!(windows) {
+                            "anynote-desktop.exe"
+                        } else {
+                            "anynote-desktop"
+                        })
+                }),
             root.clone(),
         )
         .recv_blocking()

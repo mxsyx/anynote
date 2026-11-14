@@ -38,7 +38,7 @@ pub(super) struct Images {
 impl DocumentEditor {
     pub(super) fn reset_images(&mut self, window: &mut Window, cx: &mut App) {
         if let Some(pdf) = self.pdf.take() {
-            pdf.update(cx, |v, cx| v.close(window, cx));
+            pdf.update(cx, |v, cx| v.close(cx));
         }
         self.images.cancel.store(true, Ordering::Relaxed);
         if let Some(image) = self.images.active.take() {

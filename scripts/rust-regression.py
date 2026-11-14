@@ -275,7 +275,7 @@ def main():
     for command, key in ((["git", "rev-parse", "HEAD"], "commit"), (["git", "status", "--short"], "dirty"), (["rustc", "--version"], "rustc")):
         report["environment"][key] = subprocess.check_output(command, cwd=ROOT, text=True).strip()
     report["environment"]["lock_sha256"] = hashlib.sha256((ROOT / "Cargo.lock").read_bytes()).hexdigest()
-    report["environment"]["pdfium_dir"] = os.environ.get("ANYNOTE_PDFIUM_DIR")
+    report["environment"]["pdf_viewer"] = "system-webview"
 
     def run(name, argv, **kwargs):
         print(f"RM31 {name}: running", flush=True)
@@ -287,11 +287,7 @@ def main():
 
     if "tests" in stages:
         run("report-tests", [sys.executable, "scripts/test-rust-regression.py"])
-        pdfium = Path(os.environ.get("ANYNOTE_PDFIUM_DIR", ""))
-        if not pdfium.is_absolute() or not (pdfium / "VERSION").is_file():
-            report["stages"].append({"name": "pdfium-preflight", "status": "failed", "resources": [], "error": "Set ANYNOTE_PDFIUM_DIR to the absolute pinned installation; see scripts/install-pdfium.py"})
-        else:
-            run("workspace", ["cargo", "test", "--locked", "--offline", "--no-fail-fast", "--workspace", "--features", "anynote-desktop/ui-tests", "--", "--test-threads=1"], tests=True)
+        run("workspace", ["cargo", "test", "--locked", "--offline", "--no-fail-fast", "--workspace", "--features", "anynote-desktop/ui-tests", "--", "--test-threads=1"], tests=True)
     if "boundary" in stages:
         run("dependencies", [sys.executable, "scripts/check-rust-workspace.py"])
     if "payload" in stages:

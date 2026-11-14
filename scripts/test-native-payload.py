@@ -39,18 +39,14 @@ with tempfile.TemporaryDirectory(prefix='package-check.', dir=n.ROOT / 'tmp/rm36
     assert result.returncode != 0
     assert n.digest(notebook / 'notebook.sqlite') == before
     checks['future_schema'] = 'rejected_without_write'
-    library = next(p for p in (resources / 'pdfium').rglob('*') if p.suffix in ('.so', '.dylib', '.dll'))
-    with library.open('ab') as stream:
+    with binary.open('ab') as stream:
         stream.write(b'corruption')
     try:
         n.verify(destination)
     except ValueError:
         checks['tamper_scan'] = 'rejected'
     else:
-        raise AssertionError('modified Pdfium was accepted')
-    result = subprocess.run([binary, '--release-check'], env=n.clean_env(), capture_output=True)
-    assert result.returncode != 0
-    checks['tamper_runtime'] = 'rejected'
+        raise AssertionError('modified executable was accepted')
     if report['target'].startswith('mac-'):
         result = subprocess.run(['codesign', '--verify', '--deep', '--strict', destination], capture_output=True)
         assert result.returncode != 0

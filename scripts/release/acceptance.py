@@ -135,7 +135,7 @@ def candidate(path):
     health = data['health']
     require(all(health.get(k) == v for k, v in {'version': data['version'], 'appId': data['app_id'],
             'os': cfg['os'], 'arch': cfg['arch'], 'notebookSchema': n.CONFIG['notebook_schema'],
-            'font': 'passed', 'pdfium': 'passed'}.items()), 'packaged health incomplete')
+            'font': 'passed', 'pdfViewer': 'system-webview', 'whiteboard': 'passed'}.items()), 'packaged health incomplete')
     if target.startswith('mac-'):
         receipts = data['notarizations']
         require(len(receipts) == 2 and {r['subject'] for r in receipts} == {'app', 'installer'} and

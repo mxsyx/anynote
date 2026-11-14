@@ -1,7 +1,7 @@
 use super::*;
 use anynote_core::document_session::*;
 use core::prelude::v1::test;
-use gpui_kit::test::{TestEventExt, TestWindowExt};
+use gpui_kit::test::TestWindowExt;
 use uuid::Uuid;
 
 #[gpui_kit::test]

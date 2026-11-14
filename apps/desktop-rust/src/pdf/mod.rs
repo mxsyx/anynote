@@ -1,16 +1,6 @@
-//! Native PDF reading, selection, annotations and bounded text indexing.
-#[cfg(feature = "media")]
-pub mod engine;
-mod geometry;
+//! System PDF preview. The viewer owns navigation, selection and document-local search.
 mod reader;
+mod server;
 mod view;
-mod worker;
-pub use geometry::{Glyph, PageGeometry, PageRaster, PdfError, Zoom};
-pub use reader::ResourceReader;
+pub use server::PdfServer;
 pub use view::PdfView;
-pub use worker::PdfWorker;
-
-mod index;
-mod search;
-pub mod selection;
-pub(crate) mod service;

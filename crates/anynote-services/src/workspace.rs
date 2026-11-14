@@ -219,15 +219,11 @@ pub fn search(
             .results
             .into_iter()
             .map(|hit| {
-                let anchor = match hit.location {
-                    Some(SearchLocation::Pdf { anchor }) => Some(anchor),
-                    _ => None,
-                };
                 Ok(Hit::new(
                     entry(uuid(&hit.notebook_id)?, hit.node)?,
                     hit.snippet,
                     hit.notebook_name,
-                    anchor,
+                    None,
                 ))
             })
             .collect::<ReadResult<_>>()?,

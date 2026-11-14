@@ -4,26 +4,23 @@
 
 ## 批次入口
 
-Python 3.11+、仓库锁定 Rust 工具链及该平台编译依赖须已安装。复用 [RM31 驱动](RUST-NATIVE-REGRESSION.md) 的进程管理、超时、退出码和非空测试结果解析，不另建 GPUI 输入或业务断言。运行前准备本机 pin 对应的 Pdfium：
+Python 3.11+、仓库锁定 Rust 工具链及该平台编译依赖须已安装。复用 [RM31 驱动](RUST-NATIVE-REGRESSION.md) 的进程管理、超时、退出码和非空测试结果解析，不另建 GPUI 输入或业务断言。PDF 预览需要目标平台的系统 WebView：
 
 ```sh
-# 首次安装，目标目录必须不存在；已有安装可直接使用
-python3 scripts/install-pdfium.py --output "$PWD/tmp/pdfium"
-export ANYNOTE_PDFIUM_DIR="$PWD/tmp/pdfium"
 python3 scripts/test-rust-device-batch.py
 python3 scripts/rust-device-batch.py --device mac-arm64-lab --native --strict
 ```
 
-Windows PowerShell 使用 `$env:ANYNOTE_PDFIUM_DIR = (Resolve-Path tmp/pdfium).Path`，并改用对应设备标签。Linux 须记录发行版、GPU/Vulkan 驱动和 X11/XWayland 会话；不以 Xvfb 作为物理显示证据。目标设备缺依赖或平台分支失败时保留原始错误，各平台必须分别执行并提供证据。
+Windows 使用对应设备标签并预装 WebView2 Runtime。Linux 须记录发行版、GPU/Vulkan 驱动和 X11/XWayland 会话；不以 Xvfb 作为物理显示证据。目标设备缺依赖或平台分支失败时保留原始错误，各平台必须分别执行并提供证据。
 
 `--native` 在本机真实窗口中运行本地系统 WebView 100 次循环，可能占用窗口焦点；同设备按批次串行。默认只运行自动化检查，不打开真人验收流程。命令只使用仓库合成数据/模块 fixture；不读登录 Keychain、不访问真实云、不传入日常库。
 
 产物在新建的 `tmp/rm32/<UTC时间>-<pid>/`：
 
-- `report.json` 保存设备标签、OS/架构、工具链、锁文件/二进制/Pdfium SHA-256、逐阶段命令、结果、耗时和测试名称。Mac 另记录硬件、显示及测试目录所在卷。其他平台的硬件、显示、卷信息须补入设备报告。
+- `report.json` 保存设备标签、OS/架构、工具链、锁文件/二进制 SHA-256、逐阶段命令、结果、耗时和测试名称。Mac 另记录硬件、显示及测试目录所在卷。其他平台的硬件、显示、卷信息须补入设备报告。
 - `source.json` 对全部跟踪及未忽略的新文件逐一计算摘要，保留提交和 dirty 状态。结束时再次核对，源码改变则该批次失败；文档更新发生在批次完成后，不伪造同一候选源码。
 - 平台/SQLite/写入、配置 fixture、备份/迁移及编辑/白板/PDF/视频原型分别运行。任何阶段失败都不掩盖后续阶段；测试集合为空、子进程崩溃、非零退出及超时不会通过。
-- Pdfium 必须匹配当前主机平台 pin 的动态库字节；WebView 必须有本次批次生成的报告，requested/completed 都为 100 且 failure 为 null。命令退出 0 不能代替探针证据。
+- PDF 需要另行验证系统查看器的实际呈现与交互；WebView 必须有本次批次生成的报告，requested/completed 都为 100 且 failure 为 null。命令退出 0 不能代替探针证据。
 
 `selected_checks` 仅表示选中的自动检查。`acceptance` 始终为 `incomplete`，真人、其他平台、功能副本及最终包字段不会由自动化设为通过。检查失败退出 1；检查通过但使用 `--strict` 时退出 2；不加 strict 的退出 0 也不是 RM32 放行。终验仍应以候选包实际运行闭包为准，不能用此处重新编译的 debug 程序替代。
 

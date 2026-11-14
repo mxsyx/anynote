@@ -56,19 +56,6 @@ def validate_webview(path, cycles):
         raise ValueError(f"invalid WebView evidence: {error}") from error
 
 
-def pdfium_identity(directory):
-    target = {"Darwin": "mac", "Linux": "linux", "Windows": "win"}[platform.system()]
-    arch = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "x64", "amd64": "x64"}[platform.machine().lower()]
-    pin = json.loads((ROOT / "apps/desktop-rust/native/pdfium.json").read_text())
-    asset = next((a for a in pin["assets"] if a["name"] == f"pdfium-{target}-{arch}.tgz"), None)
-    if not directory.is_absolute() or asset is None or not (directory / "VERSION").is_file():
-        raise ValueError("Set ANYNOTE_PDFIUM_DIR to an absolute host-platform pinned installation")
-    actual = digest(directory / asset["library_path"])
-    if actual != asset["library_sha256"]:
-        raise ValueError("Pdfium native library differs from the host-platform pin")
-    return {"version": (directory / "VERSION").read_text(), "library": asset["library_path"], "sha256": actual}
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True, help="Non-sensitive device label; no serial number")
@@ -109,15 +96,14 @@ def main():
             device = command(["df", "-P", str(output)]).splitlines()[-1].split()[0]
             run("filesystem", ["diskutil", "info", "-plist", device])
             run("displays", ["system_profiler", "SPDisplaysDataType", "-json"])
-        pdfium = Path(os.environ.get("ANYNOTE_PDFIUM_DIR", ""))
-        report["pdfium"] = pdfium_identity(pdfium)
+        report["pdf_viewer"] = "system-webview"
         cargo = ["cargo", "test", "--locked", "--offline"]
         stages = [
             ("platform", ["-p", "anynote-desktop", "--test", "platform"]),
             ("sqlite", ["-p", "anynote-storage", "--test", "sqlite_build", "--test", "writes"]),
             ("config-fixtures", ["-p", "anynote-services", "--lib", "config_migration::"]),
             ("backup-migration", ["-p", "anynote-services", "--test", "local_backup", "--test", "migration"]),
-            ("prototypes", ["-p", "anynote-desktop", "--features", "ui-tests", "--test", "ui", "--test", "board_ui", "--test", "pdf", "--test", "pdf_io", "--test", "pdf_backend", "--test", "pdf_ui", "--test", "video_ui"]),
+            ("prototypes", ["-p", "anynote-desktop", "--features", "ui-tests", "--test", "ui", "--test", "pdf_webview", "--test", "video_ui"]),
         ]
         for name, options in stages:
             run(name, cargo + options + ["--", "--test-threads=1"], tests=True)

@@ -109,11 +109,6 @@ impl DocumentStore {
         command: Command,
         state: &RuntimeState,
     ) -> ServiceResult<Reply> {
-        if let Command::Pdf(command) = command {
-            return crate::pdf::service::execute(&self.queue, command)
-                .await
-                .map(Reply::Pdf);
-        }
         if let Command::Asset(command) = command {
             return self
                 .readers
