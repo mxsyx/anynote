@@ -115,6 +115,7 @@ pub fn install_actions(cx: &mut App) {
 
 /// Continuous and source views share one document, history and save controller.
 pub struct DocumentEditor {
+    embedded: bool,
     state: DocumentSession,
     focus: FocusHandle,
     layout: ListState,
@@ -169,6 +170,14 @@ pub struct DocumentEditor {
 }
 impl DocumentEditor {
     pub fn new(source: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_host(source, false, window, cx)
+    }
+    fn with_host(
+        source: String,
+        embedded: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let state = DocumentSession::new(source);
         let layout = ListState::new(
             state.projection.rows.len(),
@@ -178,6 +187,7 @@ impl DocumentEditor {
         let focus = cx.focus_handle().tab_stop(true);
         focus.focus(window, cx);
         let mut this = Self {
+            embedded,
             state,
             focus,
             layout,
@@ -203,7 +213,7 @@ impl DocumentEditor {
             source: None,
             source_subscription: None,
             search: cx.new(|cx| InputState::new(window, cx).placeholder("查找正文")),
-            menu: (!cfg!(target_os = "macos")).then(|| AppMenuBar::new(cx)),
+            menu: (!embedded && !cfg!(target_os = "macos")).then(|| AppMenuBar::new(cx)),
             show_search: false,
             error: None,
             save_task: None,
@@ -1118,7 +1128,11 @@ impl Render for DocumentEditor {
             }))
             .on_action(
                 cx.listener(|this, _: &crate::shell::CloseWindow, window, cx| {
-                    this.request_close(window, cx)
+                    if this.embedded {
+                        cx.propagate();
+                    } else {
+                        this.request_close(window, cx);
+                    }
                 }),
             )
             .capture_action(cx.listener(|this, _: &kit_input::Undo, window, cx| {

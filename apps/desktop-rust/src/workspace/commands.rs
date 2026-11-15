@@ -1,6 +1,58 @@
 use super::*;
 
 impl Workspace {
+    pub(super) fn close_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.save_then(window, cx, |this, window, cx| {
+            this.remember_position(window, cx);
+            window.remove_window();
+        });
+    }
+    fn clear_editor(&mut self) {
+        self.editor_subscription = None;
+        self.editor = None;
+        self.reading = false;
+    }
+    fn mount_editor(
+        &mut self,
+        snapshot: &DocumentSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.clear_editor();
+        if snapshot.primary_pdf().is_some() || snapshot.primary_image().is_some() {
+            return;
+        }
+        let editor = cx.new(|cx| DocumentEditor::embedded(snapshot.clone(), window, cx));
+        self.editor_subscription = Some(cx.observe(&editor, |this, editor, cx| {
+            if let Some(saved) = editor.read(cx).saved_snapshot()
+                && this
+                    .snapshot
+                    .as_ref()
+                    .is_none_or(|current| current.head() != saved.head())
+            {
+                let saved = saved.clone();
+                for node in &mut this.nodes {
+                    if &node.id == saved.id() {
+                        node.revision = saved.revision();
+                        node.title = saved.content().title().to_owned();
+                        node.tags = saved.content().tags().to_vec();
+                        node.favorite = saved.content().favorite();
+                    }
+                }
+                if this.reading && this.revision.is_none() {
+                    this.set_reading_text(saved.content().body(), cx);
+                }
+                this.navigation.visit(
+                    saved.id().clone(),
+                    saved.content().title().to_owned(),
+                    false,
+                );
+                this.snapshot = Some(saved);
+                cx.notify();
+            }
+        }));
+        self.editor = Some(editor);
+    }
     pub(super) fn close_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.snapshot.is_none() {
             return;
@@ -11,6 +63,7 @@ impl Workspace {
             } else {
                 this.remember_position(window, cx);
                 this.snapshot = None;
+                this.clear_editor();
                 cx.notify();
             }
         });
@@ -29,8 +82,7 @@ impl Workspace {
         cx.notify();
         cx.spawn_in(window, async move |this, cx| {
             loop {
-                let Ok(state) = cx.update(|_, cx| crate::document_editor::flush_for_navigation(cx))
-                else {
+                let Ok(state) = cx.update(crate::document_editor::flush_for_navigation) else {
                     return;
                 };
                 match state {
@@ -38,7 +90,7 @@ impl Workspace {
                     crate::document_editor::FlushState::Failed => {
                         let _ = this.update(cx, |this, cx| {
                             this.busy = false;
-                            this.status = "草稿尚未保存，请在编辑窗口处理错误后重试".into();
+                            this.status = "草稿尚未保存，请在编辑器中处理错误后重试".into();
                             cx.notify();
                         });
                         return;
@@ -75,6 +127,7 @@ impl Workspace {
         self.generation += 1;
         self.book = book;
         self.snapshot = None;
+        self.clear_editor();
         self.pending_anchor = None;
         self.pending_position = None;
         self.revision = None;
@@ -112,6 +165,7 @@ impl Workspace {
             return;
         };
         self.remember_position(window, cx);
+        self.clear_editor();
         self.generation += 1;
         let generation = self.generation;
         self.busy = true;
@@ -144,6 +198,7 @@ impl Workspace {
                             .find(|p| p.id.as_ref() == Some(&id))
                             .cloned();
                         this.restore_reading_target(cx);
+                        this.mount_editor(&snapshot, window, cx);
                         this.snapshot = Some(snapshot);
                         this.status.clear();
                         this.preferences.active_book = Some(id.notebook());
@@ -173,8 +228,29 @@ impl Workspace {
         if self.busy || self.revision.is_some() {
             return;
         }
-        if let Err(error) = crate::document_editor::open_document(snapshot, cx) {
-            self.status = format!("无法打开编辑窗口：{error}");
+        if snapshot.primary_pdf().is_some() || snapshot.primary_image().is_some() {
+            if let Err(error) = crate::document_editor::open_document(snapshot, cx) {
+                self.status = format!("无法打开阅读器：{error}");
+            }
+        } else if self.editor.is_some() && !self.reading {
+            self.save_then(window, cx, |this, window, cx| {
+                this.reading = true;
+                if let Some(editor) = &this.editor {
+                    let body = editor.read(cx).source().to_owned();
+                    this.set_reading_text(&body, cx);
+                }
+                this.focus.focus(window, cx);
+                cx.notify();
+            });
+        } else {
+            if self.editor.is_none() {
+                self.mount_editor(&snapshot, window, cx);
+            }
+            self.reading = false;
+            if let Some(editor) = &self.editor {
+                editor.focus_handle(cx).focus(window, cx);
+            }
+            cx.notify();
         }
         self.remember_position(window, cx);
     }
@@ -217,6 +293,7 @@ impl Workspace {
                             .is_some_and(|id| this.snapshot.as_ref().is_some_and(|s| s.id() == id))
                         {
                             this.snapshot = None;
+                            this.clear_editor();
                             this.navigation.close_current();
                         }
                         match reply {
@@ -554,6 +631,11 @@ impl Workspace {
         cx.notify();
     }
     pub(super) fn details(&mut self, history: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.save_then(window, cx, move |this, window, cx| {
+            this.load_details(history, window, cx);
+        });
+    }
+    fn load_details(&mut self, history: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.snapshot.as_ref().map(|s| s.id().clone()) else {
             return;
         };
@@ -645,6 +727,7 @@ impl Workspace {
     }
     fn follow_anchor(&mut self, anchor: &str, _: &mut Window, cx: &mut Context<Self>) {
         if self.snapshot.is_some() {
+            self.reading = true;
             self.pending_anchor = Some(anchor.replace('-', " "));
             self.status = "未找到此锚点；正文加载后会继续定位".into();
             self.restore_reading_target(cx);

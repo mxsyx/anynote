@@ -826,8 +826,10 @@ impl Workspace {
                                     || snapshot.primary_image().is_some()
                                 {
                                     "打开阅读器…"
+                                } else if self.editor.is_some() && !self.reading {
+                                    "预览"
                                 } else {
-                                    "编辑…"
+                                    "编辑"
                                 },
                             )
                             .disabled(self.busy || self.revision.is_some())
@@ -940,6 +942,14 @@ impl Workspace {
                             }))
                     })),
             );
+        }
+        if self.revision.is_none()
+            && !self.reading
+            && let Some(editor) = &self.editor
+        {
+            return pane
+                .child(div().flex_1().min_h_0().min_w_0().child(editor.clone()))
+                .into_any_element();
         }
         let image_scope = Some((
             snapshot.id().clone(),
@@ -1229,7 +1239,11 @@ impl Render for Workspace {
                     this.open_note(node.id, true, None, window, cx);
                 }
             }))
-            .on_action(|_: &crate::shell::CloseWindow, window, _| window.remove_window())
+            .on_action(
+                cx.listener(|this, _: &crate::shell::CloseWindow, window, cx| {
+                    this.close_window(window, cx)
+                }),
+            )
             .on_action(cx.listener(|this, _: &crate::shell::ZoomIn, window, cx| {
                 this.preferences.font_size = (this.preferences.font_size + 2.).min(32.);
                 this.apply_theme(window, cx);

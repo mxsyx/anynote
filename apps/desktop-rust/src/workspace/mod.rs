@@ -7,6 +7,7 @@ mod theme;
 use crate::{
     backend_client::{BackendClient, Response},
     backend_session::BackendSession,
+    document_editor::DocumentEditor,
 };
 use anynote_core::{
     backend::{Command, ErrorCode, Reply, ServiceError, ServiceResult},
@@ -192,6 +193,9 @@ pub struct Workspace {
     tag: Option<String>,
     navigation: Navigation,
     snapshot: Option<DocumentSnapshot>,
+    editor: Option<Entity<DocumentEditor>>,
+    editor_subscription: Option<Subscription>,
+    reading: bool,
     reader: Entity<TextViewState>,
     pending_anchor: Option<String>,
     pending_position: Option<ReadingPosition>,
@@ -255,6 +259,9 @@ impl Workspace {
             tag: None,
             navigation: Default::default(),
             snapshot: None,
+            editor: None,
+            editor_subscription: None,
+            reading: false,
             reading_extensions: reading::extensions(cx.weak_entity()),
             reader: cx.new(|cx| TextViewState::markdown("", cx)),
             pending_anchor: None,
@@ -321,8 +328,8 @@ impl Workspace {
             }));
         let weak = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
-            let _ = weak.update(cx, |this, cx| this.remember_position(window, cx));
-            true
+            weak.update(cx, |this, cx| this.close_window(window, cx))
+                .is_err()
         });
         this.refresh(window, cx);
         this

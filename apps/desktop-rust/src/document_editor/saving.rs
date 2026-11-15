@@ -17,23 +17,24 @@ pub enum FlushState {
 }
 
 pub fn flush_all(cx: &mut App) -> FlushState {
-    flush_documents(cx, true)
+    flush_documents(cx, true, None)
 }
-pub fn flush_for_navigation(cx: &mut App) -> FlushState {
-    flush_documents(cx, false)
+pub fn flush_for_navigation(window: &mut Window, cx: &mut App) -> FlushState {
+    flush_documents(cx, false, Some(window))
 }
-fn flush_documents(cx: &mut App, close: bool) -> FlushState {
+fn flush_documents(cx: &mut App, close: bool, mut current: Option<&mut Window>) -> FlushState {
     let Some(windows) = cx.try_global::<DocumentWindows>() else {
         return FlushState::Ready;
     };
     let windows = windows.0.clone();
     let mut result = FlushState::Ready;
     for (window, editor) in windows {
-        let state = window.update(cx, |_, window, cx| {
+        let flush = |window: &mut Window, cx: &mut App| {
             editor.update(cx, |editor, cx| {
                 if close {
                     editor.request_close(window, cx);
                 } else {
+                    editor.finish_pending_input(window, cx);
                     if let Some(board) = editor.board.clone() {
                         board.update(cx, |board, cx| board.close(cx));
                     }
@@ -60,8 +61,20 @@ fn flush_documents(cx: &mut App, close: bool) -> FlushState {
                     FlushState::Ready
                 }
             })
-        });
-        if let Ok(Ok(state)) = state {
+        };
+        // A workspace navigation callback already owns its window; re-entering
+        // that handle would skip the embedded editor's save barrier.
+        let state = if let Some(current) = current.as_deref_mut()
+            && current.window_handle() == window
+        {
+            flush(current, cx).ok()
+        } else {
+            window
+                .update(cx, |_, window, cx| flush(window, cx))
+                .ok()
+                .and_then(|result| result.ok())
+        };
+        if let Some(state) = state {
             if state == FlushState::Failed {
                 result = FlushState::Failed;
             } else if state == FlushState::Waiting && result != FlushState::Failed {
@@ -130,6 +143,18 @@ pub(super) async fn request(client: &BackendClient, command: Command) -> Service
     }
 }
 impl DocumentEditor {
+    pub(crate) fn embedded(
+        snapshot: DocumentSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut editor = Self::with_host(snapshot.content().body().to_owned(), true, window, cx);
+        editor.state.save = Some(session::SaveController::new(snapshot));
+        editor
+    }
+    pub(crate) fn saved_snapshot(&self) -> Option<&DocumentSnapshot> {
+        self.state.save.as_ref().map(|save| save.base())
+    }
     pub fn from_snapshot(
         snapshot: DocumentSnapshot,
         window: &mut Window,
@@ -291,10 +316,12 @@ impl DocumentEditor {
         let windows = &mut cx.global_mut::<DocumentWindows>().0;
         windows.retain(|(_, editor)| editor.is_upgradable());
         windows.push((window.window_handle(), weak.clone()));
-        window.on_window_should_close(cx, move |window, cx| {
-            weak.update(cx, |this, cx| this.request_close(window, cx))
-                .is_err()
-        });
+        if !self.embedded {
+            window.on_window_should_close(cx, move |window, cx| {
+                weak.update(cx, |this, cx| this.request_close(window, cx))
+                    .is_err()
+            });
+        }
         self.lifecycle
             .push(cx.on_focus_out(&self.focus, window, |this, _, window, cx| {
                 this.flush(window, cx)
@@ -629,11 +656,13 @@ impl DocumentEditor {
             .gap_2()
             .px_4()
             .py_2()
-            .child(
-                div()
-                    .text_sm()
-                    .child(save.base().content().title().to_owned()),
-            )
+            .when(!self.embedded, |bar| {
+                bar.child(
+                    div()
+                        .text_sm()
+                        .child(save.base().content().title().to_owned()),
+                )
+            })
             .child(
                 div()
                     .id("document-save-status")

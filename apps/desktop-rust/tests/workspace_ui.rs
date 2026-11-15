@@ -2,7 +2,8 @@
 use anynote_core::{backend::*, workspace::*};
 use anynote_desktop::{backend_session::BackendSession, workspace::Workspace};
 use gpui_kit::{
-    AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size, test::TestWindowExt,
+    AppContext, Bounds, TestAppContext, WindowBounds, WindowOptions, px, size,
+    test::{TestQueryExt, TestWindowExt},
 };
 #[path = "support/media_ui.rs"]
 mod support;
@@ -81,10 +82,41 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
     };
     assert_eq!(entries.len(), 1);
     cx.update_window(window, |_, w, cx| {
+        assert_eq!(cx.windows().len(), 1);
+        let content = w.find("document-content").bounds();
+        assert!(
+            content.left()
+                >= w.find(format!("open-{}", entries[0].id.note()))
+                    .bounds()
+                    .right()
+        );
+        assert!(content.size.height > px(300.));
+        w.click("document-content", cx);
+        w.input("A", cx);
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-z"
+            } else {
+                "ctrl-z"
+            },
+            cx,
+        );
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-shift-z"
+            } else {
+                "ctrl-shift-z"
+            },
+            cx,
+        );
         w.click("workspace-history", cx);
     })
     .unwrap();
     let id = entries[0].id.clone();
+    spin(cx, window, |_, _| {
+        matches!(reply(&backend.client, Command::OpenDocument { id: id.clone() }), Reply::Document(saved)
+            if markdown::to_html(saved.content().body()) == "<p>A</p>")
+    });
     let Reply::Document(snapshot) =
         reply(&backend.client, Command::OpenDocument { id: id.clone() })
     else {
@@ -100,7 +132,10 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
         w.try_find("workspace-restore-revision").is_some()
     });
     cx.update_window(window, |_, w, cx| {
+        assert!(w.try_find("document-content").is_none());
         w.click("workspace-current-revision", cx);
+        w.render_frame(cx);
+        assert!(w.try_find("document-content").is_some());
         w.click("workspace-search", cx);
         w.render_frame(cx);
         w.input("第一篇", cx);
@@ -131,8 +166,34 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
         window,
         |_, _| matches!(workspace_reply(&backend,WorkspaceCommand::Preferences),WorkspaceReply::Preferences(prefs) if prefs.theme=="dark"),
     );
-    cx.update_window(window, |_, w, _| w.remove_window())
-        .unwrap();
+    cx.update_window(window, |_, w, cx| {
+        w.click("document-content", cx);
+        w.press("end", cx);
+        w.input("Z", cx);
+        w.press(
+            if cfg!(target_os = "macos") {
+                "cmd-w"
+            } else {
+                "ctrl-w"
+            },
+            cx,
+        );
+    })
+    .unwrap();
+    for _ in 0..400 {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        cx.run_until_parked();
+        if cx.update(|cx| cx.windows().is_empty()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    cx.update(|cx| assert!(cx.windows().is_empty()));
+    let Reply::Document(saved) = reply(&backend.client, Command::OpenDocument { id }) else {
+        panic!()
+    };
+    assert_eq!(markdown::to_html(saved.content().body()), "<p>AZ</p>");
 }
 #[gpui_kit::test]
 fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext) {
@@ -168,14 +229,6 @@ fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext
     let mut preferences = Preferences::default();
     preferences.active_book = Some(book.id);
     workspace_reply(&backend, WorkspaceCommand::SetPreferences(preferences));
-    let Reply::Document(snapshot) = reply(
-        &backend.client,
-        Command::OpenDocument {
-            id: node.id.clone(),
-        },
-    ) else {
-        panic!()
-    };
     cx.update(|cx| {
         gpui_kit::init(cx);
         anynote_desktop::shell::install_actions(cx);
@@ -192,24 +245,27 @@ fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext
             b.disabled() != Some(true) && b.label() == Some("切换笔记本：保存测试")
         })
     });
-    let (editor_window, editor) = cx.update(|cx| {
-        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
-            cx.new(|cx| {
-                anynote_desktop::document_editor::DocumentEditor::from_snapshot(snapshot, w, cx)
-            })
-        })
-        .unwrap()
+    cx.update_window(window, |_, w, cx| {
+        w.click(format!("open-{}", node.id.note()), cx)
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("document-content").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
     });
-    let expected = cx
-        .update_window(editor_window, |_, w, cx| {
-            use gpui_kit::Focusable;
-            w.render_frame(cx);
-            editor.focus_handle(cx).focus(w, cx);
-            w.render_frame(cx);
-            w.input("切库前保存的草稿", cx);
-            editor.read(cx).source().to_owned()
-        })
-        .unwrap();
+    let expected = "切库前保存的草稿";
+    cx.update_window(window, |_, w, cx| {
+        assert_eq!(cx.windows().len(), 1);
+        assert!(
+            w.find("document-content").bounds().size.height > px(100.),
+            "{:?}",
+            w.find("document-content")
+        );
+        w.click("document-content", cx);
+        assert_eq!(w.find("document-content").focused(), Some(true));
+        w.input(expected, cx);
+    })
+    .unwrap();
     cx.update_window(window, |_, w, cx| {
         w.click("workspace-notebooks", cx);
         w.render_frame(cx);
@@ -225,9 +281,10 @@ fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext
     else {
         panic!()
     };
-    assert_eq!(saved.content().body(), expected);
-    cx.update_window(editor_window, |_, w, _| w.remove_window())
-        .unwrap();
+    assert_eq!(
+        markdown::to_html(saved.content().body()),
+        format!("<p>{expected}</p>")
+    );
     cx.update_window(window, |_, w, _| w.remove_window())
         .unwrap();
     let WorkspaceReply::Preferences(preferences) =
@@ -255,7 +312,15 @@ fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext
         w.click("workspace-notebooks", cx);
         w.press("escape", cx);
         assert_eq!(w.find("workspace-notebooks").focused(), Some(true));
-        w.press("space", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(reopened, |_, w, cx| w.press("space", cx))
+        .unwrap();
+    spin(cx, reopened, |w, _| {
+        w.try_find_by_label(&expected_book.title).is_some()
+    });
+    cx.update_window(reopened, |_, w, cx| {
         w.press("down", cx);
         w.press("enter", cx);
     })
@@ -267,6 +332,138 @@ fn switching_notebook_saves_draft_and_restores_selection(cx: &mut TestAppContext
     });
     cx.update_window(reopened, |_, w, _| w.remove_window())
         .unwrap();
+}
+
+#[gpui_kit::test]
+fn inline_navigation_saves_notes_and_keeps_conflicted_draft_open(cx: &mut TestAppContext) {
+    cx.background_executor.allow_parking();
+    let backend = Backend::new();
+    let WorkspaceReply::Book(book) = workspace_reply(
+        &backend,
+        WorkspaceCommand::CreateBook {
+            title: "内嵌编辑".into(),
+        },
+    ) else {
+        panic!()
+    };
+    let notes = ["第一篇", "第二篇"].map(|title| {
+        let WorkspaceReply::Node(node) = workspace_reply(
+            &backend,
+            WorkspaceCommand::CreateNode {
+                book: book.id,
+                parent: None,
+                title: title.into(),
+                folder: false,
+            },
+        ) else {
+            panic!()
+        };
+        node
+    });
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        anynote_desktop::shell::install_actions(cx);
+        BackendSession::install(backend.client.clone(), cx);
+    });
+    let (window, _) = cx.update(|cx| {
+        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
+            cx.new(|cx| Workspace::new(w, cx))
+        })
+        .unwrap()
+    });
+    let first = format!("open-{}", notes[0].id.note());
+    let second = format!("open-{}", notes[1].id.note());
+    spin(cx, window, |w, _| {
+        w.try_find(first.clone()).is_some()
+            && w.find("workspace-notebooks").disabled() != Some(true)
+    });
+    cx.update_window(window, |_, w, cx| w.click(first.clone(), cx))
+        .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("document-content").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
+    cx.update_window(window, |_, w, cx| {
+        w.click("document-content", cx);
+        w.input("A", cx);
+        w.click(second.clone(), cx);
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("document-content").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
+    let Reply::Document(saved) = reply(
+        &backend.client,
+        Command::OpenDocument {
+            id: notes[0].id.clone(),
+        },
+    ) else {
+        panic!()
+    };
+    assert_eq!(markdown::to_html(saved.content().body()), "<p>A</p>");
+    cx.update_window(window, |_, w, cx| {
+        assert_eq!(cx.windows().len(), 1);
+        w.click("document-content", cx);
+        w.input("B", cx);
+        w.dispatch_action(Box::new(anynote_desktop::workspace::CloseTab), cx);
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("document-content").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
+    let Reply::Document(saved_second) = reply(
+        &backend.client,
+        Command::OpenDocument {
+            id: notes[1].id.clone(),
+        },
+    ) else {
+        panic!()
+    };
+    assert_eq!(markdown::to_html(saved_second.content().body()), "<p>B</p>");
+    cx.update_window(window, |_, w, cx| {
+        w.click("workspace-edit", cx);
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.find("workspace-edit").label() == Some("编辑")
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
+    cx.update_window(window, |_, w, cx| {
+        assert!(w.try_find("document-content").is_none());
+        w.click("workspace-edit", cx);
+        w.click("document-content", cx);
+        w.press("end", cx);
+        w.input(" draft", cx);
+    })
+    .unwrap();
+    workspace_reply(
+        &backend,
+        WorkspaceCommand::Patch {
+            id: notes[0].id.clone(),
+            expected: saved.revision(),
+            title: Some("远端修改".into()),
+            tags: None,
+            favorite: None,
+        },
+    );
+    cx.update_window(window, |_, w, cx| {
+        w.dispatch_action(Box::new(anynote_desktop::shell::CloseWindow), cx);
+    })
+    .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("save-conflict-copy").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
+    cx.update_window(window, |_, w, cx| {
+        assert_eq!(cx.windows().len(), 1);
+        w.click("copy-draft", cx);
+        let draft = cx.read_from_clipboard().unwrap().text().unwrap();
+        assert_eq!(markdown::to_html(&draft), "<p>A draft</p>");
+        w.remove_window();
+    })
+    .unwrap();
 }
 
 #[track_caller]
