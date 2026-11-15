@@ -124,35 +124,6 @@ impl Workspace {
                         menu
                     }),
             )
-            .child(div().w_4().flex_shrink_0())
-            .child(
-                Button::new("workspace-back")
-                    .small()
-                    .ghost()
-                    .icon(IconName::ArrowLeft)
-                    .accessibility_label("后退")
-                    .tooltip("后退")
-                    .disabled(self.busy || !self.navigation.has_back())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if let Some(id) = this.navigation.back() {
-                            this.open_note(id, false, None, window, cx);
-                        }
-                    })),
-            )
-            .child(
-                Button::new("workspace-forward")
-                    .small()
-                    .ghost()
-                    .icon(IconName::ArrowRight)
-                    .accessibility_label("前进")
-                    .tooltip("前进")
-                    .disabled(self.busy || !self.navigation.has_forward())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if let Some(id) = this.navigation.forward() {
-                            this.open_note(id, false, None, window, cx);
-                        }
-                    })),
-            )
             .child(div().flex_1())
             .child(
                 Button::new("workspace-search")
@@ -429,13 +400,7 @@ impl Workspace {
                                                     });
                                                 }
                                                 if !node.folder && !node.deleted {
-                                                    this.open_note(
-                                                        id.clone(),
-                                                        true,
-                                                        None,
-                                                        window,
-                                                        cx,
-                                                    );
+                                                    this.open_note(id.clone(), None, window, cx);
                                                 }
                                             });
                                         }),
@@ -787,7 +752,7 @@ impl Workspace {
                                 .disabled(self.busy)
                                 .on_click(cx.listener(
                                     move |this, _, window, cx| {
-                                        this.open_note(id.clone(), true, None, window, cx)
+                                        this.open_note(id.clone(), None, window, cx)
                                     },
                                 ))
                             }),
@@ -938,7 +903,7 @@ impl Workspace {
                             .ghost()
                             .label(entry.title.clone())
                             .on_click(cx.listener(move |this, _, window, cx| {
-                                this.open_note(id.clone(), true, None, window, cx)
+                                this.open_note(id.clone(), None, window, cx)
                             }))
                     })),
             );
@@ -1121,13 +1086,7 @@ impl Workspace {
                                 .on_click(cx.listener(
                                     move |this, _, window, cx| {
                                         this.show_search = false;
-                                        this.open_note(
-                                            id.clone(),
-                                            true,
-                                            anchor.clone(),
-                                            window,
-                                            cx,
-                                        );
+                                        this.open_note(id.clone(), anchor.clone(), window, cx);
                                     },
                                 )),
                             )
@@ -1144,28 +1103,6 @@ impl Workspace {
 }
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let tabs = self
-            .navigation
-            .tabs
-            .iter()
-            .filter(|(id, _)| Some(id.notebook()) == self.book)
-            .cloned()
-            .collect::<Vec<_>>();
-        let show_tabs = self.preferences.show_tabs && self.snapshot.is_some() && !tabs.is_empty();
-        let selected = tabs
-            .iter()
-            .position(|(id, _)| Some(id) == self.navigation.current.as_ref());
-        let tabbar = TabBar::new("workspace-tabs-bar")
-            .selected_index(selected.unwrap_or(0))
-            .children(
-                tabs.iter()
-                    .map(|(_id, title)| Tab::new().label(title.clone()).aria_label(title.clone())),
-            )
-            .on_click(cx.listener(move |this, ix: &usize, window, cx| {
-                if let Some((id, _)) = tabs.get(*ix) {
-                    this.open_note(id.clone(), true, None, window, cx);
-                }
-            }));
         div()
             .id("workspace")
             .key_context("AnyNoteWorkspace")
@@ -1198,22 +1135,8 @@ impl Render for Workspace {
                 cx.listener(|this, _: &ImportFiles, window, cx| this.pick(false, window, cx)),
             )
             .on_action(cx.listener(|this, _: &Refresh, window, cx| this.refresh(window, cx)))
-            .on_action(cx.listener(|this, _: &GoBack, window, cx| {
-                if !this.busy
-                    && let Some(id) = this.navigation.back()
-                {
-                    this.open_note(id, false, None, window, cx);
-                }
-            }))
-            .on_action(cx.listener(|this, _: &GoForward, window, cx| {
-                if !this.busy
-                    && let Some(id) = this.navigation.forward()
-                {
-                    this.open_note(id, false, None, window, cx);
-                }
-            }))
-            .on_action(cx.listener(|this, _: &CloseTab, window, cx| {
-                this.close_tab(window, cx);
+            .on_action(cx.listener(|this, _: &CloseNote, window, cx| {
+                this.close_note(window, cx);
             }))
             .on_action(cx.listener(|this, _: &TreeFirst, _, cx| {
                 this.tree.update(cx, |tree, cx| {
@@ -1236,7 +1159,7 @@ impl Render for Workspace {
                     && !node.folder
                     && !node.deleted
                 {
-                    this.open_note(node.id, true, None, window, cx);
+                    this.open_note(node.id, None, window, cx);
                 }
             }))
             .on_action(
@@ -1299,7 +1222,6 @@ impl Render for Workspace {
                 view.child(div().h_8().flex_shrink_0().child(self.menu.clone()))
             })
             .child(self.toolbar(cx))
-            .when(show_tabs, |view| view.child(tabbar))
             .child(
                 div()
                     .flex_1()

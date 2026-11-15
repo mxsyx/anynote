@@ -261,7 +261,6 @@ pub struct Preferences {
     pub theme: String,
     #[serde(deserialize_with = "finite_number")]
     pub font_size: f32,
-    pub show_tabs: bool,
     pub active_book: Option<Uuid>,
     pub recent: Vec<DocumentId>,
     pub positions: Vec<ReadingPosition>,
@@ -271,7 +270,6 @@ impl Default for Preferences {
         Self {
             theme: "system".into(),
             font_size: 16.,
-            show_tabs: true,
             active_book: None,
             recent: vec![],
             positions: vec![],

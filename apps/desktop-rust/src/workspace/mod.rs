@@ -22,14 +22,12 @@ use gpui_kit::{
         input::{Input, InputEvent, InputState},
         menu::AppMenuBar,
         scroll::ScrollableElement,
-        tab::{Tab, TabBar},
         text::{TextView, TextViewState},
         tree::{TreeItem, TreeState},
     },
     prelude::FluentBuilder,
     *,
 };
-use navigation::Navigation;
 use std::{
     collections::{HashMap, HashSet},
     time::Duration,
@@ -44,9 +42,7 @@ actions!(
         NewFolder,
         SearchNotes,
         OpenBook,
-        GoBack,
-        GoForward,
-        CloseTab,
+        CloseNote,
         Settings,
         ImportFiles,
         Refresh,
@@ -93,21 +89,7 @@ pub fn install_actions(cx: &mut App) {
     });
     cx.on_action(|_: &OpenBook, cx| in_workspace(cx, |this, w, cx| this.pick(true, w, cx)));
     cx.on_action(|_: &Settings, cx| in_workspace(cx, |this, w, cx| this.settings(w, cx)));
-    cx.on_action(|_: &GoBack, cx| {
-        in_workspace(cx, |this, w, cx| {
-            if let Some(id) = this.navigation.back() {
-                this.open_note(id, false, None, w, cx);
-            }
-        })
-    });
-    cx.on_action(|_: &GoForward, cx| {
-        in_workspace(cx, |this, w, cx| {
-            if let Some(id) = this.navigation.forward() {
-                this.open_note(id, false, None, w, cx);
-            }
-        })
-    });
-    cx.on_action(|_: &CloseTab, cx| in_workspace(cx, |this, w, cx| this.close_tab(w, cx)));
+    cx.on_action(|_: &CloseNote, cx| in_workspace(cx, |this, w, cx| this.close_note(w, cx)));
     cx.on_action(|_: &Refresh, cx| in_workspace(cx, |this, w, cx| this.refresh(w, cx)));
     cx.on_action(|_: &ImportFiles, cx| in_workspace(cx, |this, w, cx| this.pick(false, w, cx)));
     cx.on_action(|_: &SearchNotes, cx| {
@@ -135,8 +117,6 @@ pub fn install_actions(cx: &mut App) {
         KeyBinding::new(key("cmd-k", "ctrl-k"), SearchNotes, None),
         KeyBinding::new(key("cmd-p", "ctrl-p"), SearchNotes, None),
         KeyBinding::new(key("cmd-,", "ctrl-,"), Settings, None),
-        KeyBinding::new(key("cmd-[", "alt-left"), GoBack, None),
-        KeyBinding::new(key("cmd-]", "alt-right"), GoForward, None),
         KeyBinding::new(key("cmd-shift-o", "ctrl-shift-o"), ImportFiles, None),
         KeyBinding::new(key("cmd-r", "ctrl-r"), Refresh, None),
     ]);
@@ -155,9 +135,7 @@ pub fn menu() -> Menu {
         MenuItem::action("导入文件…", ImportFiles),
         MenuItem::separator(),
         MenuItem::action("搜索", SearchNotes),
-        MenuItem::action("后退", GoBack),
-        MenuItem::action("前进", GoForward),
-        MenuItem::action("关闭标签页", CloseTab),
+        MenuItem::action("关闭当前笔记", CloseNote),
         MenuItem::action("设置…", Settings),
     ])
 }
@@ -191,7 +169,6 @@ pub struct Workspace {
     expanded: HashSet<String>,
     collection: Collection,
     tag: Option<String>,
-    navigation: Navigation,
     snapshot: Option<DocumentSnapshot>,
     editor: Option<Entity<DocumentEditor>>,
     editor_subscription: Option<Subscription>,
@@ -257,7 +234,6 @@ impl Workspace {
             expanded: HashSet::new(),
             collection: Collection::Tree,
             tag: None,
-            navigation: Default::default(),
             snapshot: None,
             editor: None,
             editor_subscription: None,

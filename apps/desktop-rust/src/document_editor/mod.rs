@@ -451,47 +451,7 @@ impl DocumentEditor {
             self.edit_link(window, cx);
             return;
         }
-        let result = if let Some((direction, ix)) = action.name.split_once(':') {
-            ix.parse::<usize>()
-                .map_err(|_| "无效块位置".into())
-                .and_then(|from| {
-                    let block = self
-                        .state
-                        .projection
-                        .leaves
-                        .get(from)
-                        .and_then(|l| l.id.block)
-                        .ok_or("没有可移动块")?;
-                    let document = self.state.editor.document();
-                    let at = document
-                        .blocks()
-                        .iter()
-                        .position(|b| b.id() == block)
-                        .ok_or("块已变化")?;
-                    let target = if direction == "move-up" {
-                        at.checked_sub(1)
-                    } else {
-                        (at + 1 < document.blocks().len()).then_some(at + 1)
-                    }
-                    .ok_or("已到文档边界")?;
-                    let tx = anynote_editor::structure::move_blocks(
-                        document,
-                        block,
-                        block,
-                        document.blocks()[target].id(),
-                        if direction == "move-up" {
-                            anynote_editor::structure::BlockSide::Before
-                        } else {
-                            anynote_editor::structure::BlockSide::After
-                        },
-                        self.state.millis(),
-                    )
-                    .map_err(state::error)?;
-                    self.state.apply(tx)
-                })
-        } else {
-            self.state.command(&action.name)
-        };
+        let result = self.state.command(&action.name);
         self.changed(result, window, cx);
         self.sync_source(window, cx);
         if self.source.is_none() {
@@ -896,7 +856,6 @@ impl DocumentEditor {
             generation: self.state.editor.document().generation(),
             leaf: first,
         };
-        let focus = self.focus.clone();
         content
             .child(
                 div()
@@ -908,23 +867,6 @@ impl DocumentEditor {
                     .text_color(cx.theme().muted_foreground)
                     .child("⠿")
                     .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone())),
-            )
-            .child(
-                Button::new(("move", key))
-                    .small()
-                    .ghost()
-                    .label("块操作")
-                    .dropdown_menu(move |menu, _, _| {
-                        menu.action_context(focus.clone())
-                            .menu(
-                                "上移",
-                                Box::new(RunCommand::new(format!("move-up:{first}"))),
-                            )
-                            .menu(
-                                "下移",
-                                Box::new(RunCommand::new(format!("move-down:{first}"))),
-                            )
-                    }),
             )
             .into_any_element()
     }

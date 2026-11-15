@@ -406,12 +406,13 @@ fn inline_navigation_saves_notes_and_keeps_conflicted_draft_open(cx: &mut TestAp
         assert_eq!(cx.windows().len(), 1);
         w.click("document-content", cx);
         w.input("B", cx);
-        w.dispatch_action(Box::new(anynote_desktop::workspace::CloseTab), cx);
+        w.dispatch_action(Box::new(anynote_desktop::workspace::CloseNote), cx);
     })
     .unwrap();
     spin(cx, window, |w, _| {
-        w.try_find("document-content").is_some()
-            && w.find("workspace-edit").disabled() != Some(true)
+        w.try_find("document-content").is_none()
+            && w.try_find("workspace-edit").is_none()
+            && w.find("workspace-notebooks").disabled() != Some(true)
     });
     let Reply::Document(saved_second) = reply(
         &backend.client,
@@ -422,7 +423,14 @@ fn inline_navigation_saves_notes_and_keeps_conflicted_draft_open(cx: &mut TestAp
         panic!()
     };
     assert_eq!(markdown::to_html(saved_second.content().body()), "<p>B</p>");
+    cx.update_window(window, |_, w, cx| w.click(first.clone(), cx))
+        .unwrap();
+    spin(cx, window, |w, _| {
+        w.try_find("document-content").is_some()
+            && w.find("workspace-edit").disabled() != Some(true)
+    });
     cx.update_window(window, |_, w, cx| {
+        assert_eq!(w.find_all("document-content").len(), 1);
         w.click("workspace-edit", cx);
     })
     .unwrap();

@@ -42,30 +42,22 @@ impl Workspace {
                 if this.reading && this.revision.is_none() {
                     this.set_reading_text(saved.content().body(), cx);
                 }
-                this.navigation.visit(
-                    saved.id().clone(),
-                    saved.content().title().to_owned(),
-                    false,
-                );
                 this.snapshot = Some(saved);
                 cx.notify();
             }
         }));
         self.editor = Some(editor);
     }
-    pub(super) fn close_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn close_note(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.snapshot.is_none() {
             return;
         }
         self.save_then(window, cx, |this, window, cx| {
-            if let Some(id) = this.navigation.close_current() {
-                this.load_note(id, false, None, window, cx);
-            } else {
-                this.remember_position(window, cx);
-                this.snapshot = None;
-                this.clear_editor();
-                cx.notify();
-            }
+            this.remember_position(window, cx);
+            this.snapshot = None;
+            this.clear_editor();
+            this.focus.focus(window, cx);
+            cx.notify();
         });
     }
     pub(super) fn save_then(
@@ -144,19 +136,17 @@ impl Workspace {
     pub(super) fn open_note(
         &mut self,
         id: DocumentId,
-        record: bool,
         anchor: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.save_then(window, cx, move |this, window, cx| {
-            this.load_note(id, record, anchor, window, cx)
+            this.load_note(id, anchor, window, cx)
         });
     }
     pub(super) fn load_note(
         &mut self,
         id: DocumentId,
-        record: bool,
         anchor: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -182,11 +172,6 @@ impl Workspace {
                 this.busy = false;
                 match result {
                     Ok(Reply::Document(snapshot)) => {
-                        this.navigation.visit(
-                            id.clone(),
-                            snapshot.content().title().to_owned(),
-                            record,
-                        );
                         this.preferences.recent.retain(|key| key != &id);
                         this.preferences.recent.insert(0, id.clone());
                         this.preferences.recent.truncate(100);
@@ -294,7 +279,6 @@ impl Workspace {
                         {
                             this.snapshot = None;
                             this.clear_editor();
-                            this.navigation.close_current();
                         }
                         match reply {
                             WorkspaceReply::Book(book) => {
@@ -309,12 +293,12 @@ impl Workspace {
                             WorkspaceReply::Node(node)
                                 if !node.folder && (refresh_note || this.snapshot.is_none()) =>
                             {
-                                this.load_note(node.id, true, None, window, cx);
+                                this.load_note(node.id, None, window, cx);
                                 return;
                             }
                             WorkspaceReply::Transferred { id, complete } => {
                                 if complete {
-                                    this.load_note(id, true, None, window, cx);
+                                    this.load_note(id, None, window, cx);
                                     return;
                                 } else {
                                     this.status =
@@ -714,7 +698,7 @@ impl Workspace {
         if let Some(anchor) = value.strip_prefix('#') {
             self.follow_anchor(anchor, window, cx);
         } else if let Some((id, anchor)) = navigation::internal_link(value) {
-            self.open_note(id, true, anchor, window, cx);
+            self.open_note(id, anchor, window, cx);
         } else if value.starts_with("https://")
             || value.starts_with("http://")
             || value.starts_with("mailto:")
@@ -759,7 +743,6 @@ impl Workspace {
                 );
             }
             let owner_zoom = owner.clone();
-            let owner_tabs = owner.clone();
             dialog
                 .title("设置")
                 .child(content)
@@ -778,18 +761,6 @@ impl Workspace {
                                 };
                                 this.apply_theme(window, cx);
                                 this.persist_preferences(window, cx);
-                            });
-                        }),
-                )
-                .child(
-                    gpui_kit::component::checkbox::Checkbox::new("workspace-tabs")
-                        .label("显示标签页")
-                        .checked(prefs.show_tabs)
-                        .on_change(move |value, window, cx| {
-                            let _ = owner_tabs.update(cx, |this, cx| {
-                                this.preferences.show_tabs = *value;
-                                this.persist_preferences(window, cx);
-                                cx.notify();
                             });
                         }),
                 )

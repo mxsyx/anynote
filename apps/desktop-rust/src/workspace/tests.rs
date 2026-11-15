@@ -172,7 +172,7 @@ fn startup_selects_saved_notebook_and_falls_back_when_unavailable() {
         .recent
         .push(DocumentId::new(first.id, Uuid::new_v4()));
     assert_eq!(
-        super::preferred_book(&[first.clone()], None, &preferences),
+        super::preferred_book(std::slice::from_ref(&first), None, &preferences),
         Some(first.id)
     );
 }
