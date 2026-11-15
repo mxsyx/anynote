@@ -36,7 +36,7 @@ fn main() {
         client.terminate();
     }
     gpui_kit::application()
-        .with_assets(gpui_kit::assets::Assets)
+        .with_assets(anynote_desktop::assets::AppAssets)
         .with_quit_mode(QuitMode::Explicit)
         .run(move |cx| {
             gpui_kit::init(cx);

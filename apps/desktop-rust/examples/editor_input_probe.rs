@@ -8,7 +8,7 @@ fn main() {
         "# F001 输入验证\n\n- **alpha**\n  - nested\n\n<div>opaque</div>\n\n> quoted tail\n\n中文 English العربية עברית 🦀\n\n| a | b | c | d | e | f | g | h |\n|---|---|---|---|---|---|---|---|\n| cat | dog | eel | fox | red | blue | green | end |\n\n```text\n{code}```\n\ntrailer\n\n"
     );
     gpui_kit::application()
-        .with_assets(gpui_kit::assets::Assets)
+        .with_assets(anynote_desktop::assets::AppAssets)
         .with_quit_mode(QuitMode::LastWindowClosed)
         .run(move |cx| {
             gpui_kit::init(cx);

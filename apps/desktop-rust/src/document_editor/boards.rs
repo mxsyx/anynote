@@ -149,8 +149,7 @@ impl DocumentEditor {
                     "空白白板"
                 }))
                 .child(
-                    Button::new(("edit-board", key))
-                        .label("编辑白板…")
+                    icon_button(("edit-board", key), IconName::SquarePen, "编辑白板…")
                         .disabled(self.saving || self.board_pending.is_some())
                         .on_click(cx.listener(move |this, _, w, cx| this.queue_board(id, w, cx))),
                 )

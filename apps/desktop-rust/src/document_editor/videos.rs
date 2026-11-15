@@ -287,8 +287,7 @@ impl DocumentEditor {
                         .gap_2()
                         .when(card.embed().is_some(), |v| {
                             v.child(
-                                Button::new(("video-play", key))
-                                    .label("播放视频")
+                                icon_button(("video-play", key), IconName::Play, "播放视频")
                                     .disabled(self.videos.busy || self.state.save.is_none())
                                     .on_click(cx.listener(move |this, _, w, cx| {
                                         this.queue_video(id, false, w, cx)
@@ -296,16 +295,22 @@ impl DocumentEditor {
                             )
                         })
                         .child(
-                            Button::new(("video-refresh", key))
-                                .label(if self.videos.busy {
+                            icon_button(
+                                ("video-refresh", key),
+                                IconName::RefreshCw,
+                                if self.videos.busy {
                                     "正在更新"
                                 } else {
                                     "更新视频信息"
-                                })
-                                .disabled(self.videos.busy || self.state.save.is_none())
-                                .on_click(cx.listener(move |this, _, w, cx| {
+                                },
+                            )
+                            .loading(self.videos.busy)
+                            .disabled(self.videos.busy || self.state.save.is_none())
+                            .on_click(
+                                cx.listener(move |this, _, w, cx| {
                                     this.queue_video(id, true, w, cx)
-                                })),
+                                }),
+                            ),
                         )
                         .child(
                             gpui_kit::component::link::Link::new(("video-original", key))
@@ -327,17 +332,15 @@ impl DocumentEditor {
                 .flex()
                 .flex_col()
                 .bg(cx.theme().background)
-                .child(
-                    div().flex().gap_2().p_2().child(
-                        Button::new("video-close")
-                            .label("停止播放并返回")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.stop_video(cx);
-                                this.focus.focus(window, cx);
-                                cx.notify();
-                            })),
+                .child(div().flex().gap_2().p_2().child(
+                    icon_button("video-close", IconName::ArrowLeft, "停止播放并返回").on_click(
+                        cx.listener(|this, _, window, cx| {
+                            this.stop_video(cx);
+                            this.focus.focus(window, cx);
+                            cx.notify();
+                        }),
                     ),
-                )
+                ))
                 .child(
                     div()
                         .px_2()

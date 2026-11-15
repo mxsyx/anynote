@@ -80,6 +80,10 @@ impl DocumentSession {
             self.pending_after = None;
             self.refresh();
         }
+        self.sync_marks();
+        Ok(())
+    }
+    fn sync_marks(&mut self) {
         let (ix, at) = self.projection.at(self.head);
         let mut offset = 0;
         self.marks = self.projection.leaves[ix]
@@ -90,7 +94,6 @@ impl DocumentSession {
                 (at <= offset).then(|| r.marks().clone())
             })
             .unwrap_or_default();
-        Ok(())
     }
     pub fn refresh(&mut self) {
         self.projection = Projection::new(
@@ -560,11 +563,13 @@ impl DocumentSession {
             "undo" => {
                 self.editor.undo().map_err(error)?;
                 self.refresh();
+                self.sync_marks();
                 return Ok(());
             }
             "redo" => {
                 self.editor.redo().map_err(error)?;
                 self.refresh();
+                self.sync_marks();
                 return Ok(());
             }
             "bold" | "italic" | "strike" | "inlineCode" => {
@@ -586,6 +591,13 @@ impl DocumentSession {
                 return Ok(());
             }
             "break" => return self.replace("\n"),
+            "indent" | "outdent" => {
+                let leaf = &self.projection.leaves[self.projection.at(self.head).0];
+                if leaf.marker.is_none() {
+                    return Err("请先选择列表项".into());
+                }
+                return self.tab(name == "outdent");
+            }
             _ => {}
         }
         let (ix, start) = self.projection.at(self.range().start);

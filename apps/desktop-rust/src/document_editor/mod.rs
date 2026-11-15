@@ -10,6 +10,7 @@ mod projection;
 mod saving;
 mod session;
 mod state;
+mod toolbar;
 mod videos;
 pub use saving::{FlushState, flush_all, flush_for_navigation, open_document};
 #[cfg(all(test, feature = "ui-tests"))]
@@ -21,12 +22,13 @@ mod tests;
 
 use anynote_editor::structure::NodeKind;
 use gpui_kit::{
+    assets::IconName,
     base::text::editor_host::{
         BlockNode, CodeBlock, FlowPosition, InlineNode, LinkMark, Paragraph, RenderContext,
         TextMark,
     },
     component::{
-        ActiveTheme, Disableable, Sizable, WindowExt,
+        ActiveTheme, Disableable, Icon, Selectable, Sizable, WindowExt,
         button::{Button, ButtonVariants},
         checkbox::Checkbox,
         dialog::{DialogAction, DialogClose, DialogFooter},
@@ -42,6 +44,7 @@ use gpui_kit::{
 use projection::LeafId;
 use state::{DocumentSession, Result};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use toolbar::{COMMANDS, FORMATTING, icon_button};
 
 #[derive(Clone, PartialEq, serde::Deserialize, Action)]
 #[action(no_json)]
@@ -54,41 +57,13 @@ impl RunCommand {
     }
 }
 
-const COMMANDS: &[(&str, &str)] = &[
-    ("reading-card", "阅读卡片"),
-    ("callout", "提示块"),
-    ("details", "折叠块"),
-    ("paragraph", "正文"),
-    ("h1", "一级标题"),
-    ("h2", "二级标题"),
-    ("h3", "三级标题"),
-    ("h4", "四级标题"),
-    ("h5", "五级标题"),
-    ("h6", "六级标题"),
-    ("bullet", "无序列表"),
-    ("ordered", "有序列表"),
-    ("task", "任务列表"),
-    ("quote", "引用"),
-    ("code", "代码块"),
-    ("table", "表格"),
-    ("rule", "分隔线"),
-    ("image", "图片…"),
-    ("board", "白板…"),
-    ("video", "视频…"),
-];
-
 pub fn insert_menu() -> Menu {
     Menu::new("插入").items(
         COMMANDS
             .iter()
             .copied()
-            .chain([
-                ("bold", "加粗"),
-                ("italic", "斜体"),
-                ("strike", "删除线"),
-                ("link", "链接"),
-            ])
-            .map(|(id, label)| MenuItem::action(label, RunCommand::new(id))),
+            .chain(FORMATTING.iter().copied())
+            .map(|(id, label, _)| MenuItem::action(label, RunCommand::new(id))),
     )
 }
 
@@ -381,18 +356,19 @@ impl DocumentEditor {
         }
         let matching = COMMANDS
             .iter()
-            .filter(|(id, label)| id.contains(query) || label.contains(query))
+            .filter(|(id, label, _)| id.contains(query) || label.contains(query))
             .copied()
             .collect::<Vec<_>>();
-        self.slash_first = matching.first().map(|(name, _)| (*name).into());
+        self.slash_first = matching.first().map(|(name, _, _)| (*name).into());
         self.slash_start = Some(leaf.logical.start + slash);
         let focus = self.focus.clone();
         self.slash = Some(PopupMenu::build(window, cx, move |menu, _, _| {
-            matching
-                .into_iter()
-                .fold(menu.action_context(focus.clone()), |menu, (id, label)| {
-                    menu.menu(label, Box::new(RunCommand::new(id)))
-                })
+            matching.into_iter().fold(
+                menu.action_context(focus.clone()),
+                |menu, (id, label, icon)| {
+                    menu.menu_with_icon(label, icon, Box::new(RunCommand::new(id)))
+                },
+            )
         }));
     }
     fn source_composing(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -812,27 +788,27 @@ impl DocumentEditor {
         if matches!(leaf.kind, NodeKind::Atom | NodeKind::Rule) {
             if let Some(block) = leaf.id.block {
                 content = content.child(
-                    Button::new(("copy-source-block", key))
-                        .small()
-                        .ghost()
-                        .label("复制原文")
-                        .on_click(cx.listener(move |this, _, _, cx| {
+                    icon_button(("copy-source-block", key), IconName::Copy, "复制原文").on_click(
+                        cx.listener(move |this, _, _, cx| {
                             if let Some(block) = this.state.editor.document().block(block) {
                                 cx.write_to_clipboard(ClipboardItem::new_string(
                                     this.source()[block.span()].to_owned(),
                                 ));
                             }
-                        })),
+                        }),
+                    ),
                 );
-                content = content.child(
-                    Button::new(("export-source-block", key))
-                        .small()
-                        .ghost()
-                        .label("导出原文…")
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.export_block(block, window, cx)
-                        })),
-                );
+                content =
+                    content.child(
+                        icon_button(
+                            ("export-source-block", key),
+                            IconName::Download,
+                            "导出原文…",
+                        )
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| this.export_block(block, window, cx),
+                        )),
+                    );
             }
             let label = if leaf.kind == NodeKind::Rule {
                 "分隔线"
@@ -840,15 +816,16 @@ impl DocumentEditor {
                 "原文块"
             };
             content = content.child(
-                Button::new(("source-block", key))
-                    .small()
-                    .ghost()
-                    .label(format!("{label}…"))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        let range = this.state.projection.leaves[first].logical.clone();
-                        let _ = this.state.select(range.start, range.end);
-                        this.toggle_source(window, cx);
-                    })),
+                icon_button(
+                    ("source-block", key),
+                    IconName::FilePen,
+                    format!("编辑{label}…"),
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    let range = this.state.projection.leaves[first].logical.clone();
+                    let _ = this.state.select(range.start, range.end);
+                    this.toggle_source(window, cx);
+                })),
             );
         }
         let drag = BlockDrag {
@@ -865,97 +842,8 @@ impl DocumentEditor {
                     .px_2()
                     .py_1()
                     .text_color(cx.theme().muted_foreground)
-                    .child("⠿")
+                    .child(Icon::new(IconName::GripVertical).small())
                     .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone())),
-            )
-            .into_any_element()
-    }
-    fn render_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
-        let focus = self.focus.clone();
-        let mut toolbar = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap_2()
-            .px_4()
-            .py_2()
-            .border_b_1()
-            .border_color(cx.theme().border)
-            .child(self.reading_menu(cx))
-            .child(
-                Button::new("insert-content")
-                    .small()
-                    .label("插入")
-                    .disabled(self.is_composing() || self.source.is_some())
-                    .dropdown_menu(move |menu, _, _| {
-                        COMMANDS
-                            .iter()
-                            .fold(menu.action_context(focus.clone()), |menu, (id, label)| {
-                                menu.menu(*label, Box::new(RunCommand::new(*id)))
-                            })
-                    }),
-            );
-        for (id, label) in [
-            ("bold", "加粗"),
-            ("italic", "斜体"),
-            ("strike", "删除线"),
-            ("link", "链接…"),
-            ("undo", "撤销"),
-            ("redo", "重做"),
-        ] {
-            toolbar = toolbar.child(
-                Button::new(id)
-                    .small()
-                    .ghost()
-                    .label(label)
-                    .disabled(self.is_composing())
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.run(&RunCommand::new(id), window, cx)
-                    })),
-            );
-        }
-        if self.state.projection.leaves[self.state.projection.at(self.state.head).0].kind
-            == NodeKind::Cell
-        {
-            for (id, label) in [
-                ("row", "增加表格行"),
-                ("column", "增加表格列"),
-                ("deleteRow", "删除表格行"),
-                ("deleteColumn", "删除表格列"),
-            ] {
-                toolbar = toolbar.child(Button::new(id).small().ghost().label(label).on_click(
-                    cx.listener(move |this, _, w, cx| this.run(&RunCommand::new(id), w, cx)),
-                ));
-            }
-        }
-        toolbar
-            .child(
-                Button::new("find-text")
-                    .small()
-                    .ghost()
-                    .label("查找")
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if let Some(source) = &this.source {
-                            source.update(cx, |s, cx| s.open_search(true, cx));
-                            return;
-                        }
-                        this.show_search = !this.show_search;
-                        if this.show_search {
-                            this.search.update(cx, |s, cx| s.focus(window, cx));
-                        }
-                        cx.notify();
-                    })),
-            )
-            .child(
-                Button::new("source-mode")
-                    .small()
-                    .ghost()
-                    .label(if self.source.is_some() {
-                        "返回正文"
-                    } else {
-                        "原文"
-                    })
-                    .on_click(cx.listener(|this, _, window, cx| this.toggle_source(window, cx))),
             )
             .into_any_element()
     }
@@ -1009,8 +897,7 @@ impl Render for DocumentEditor {
                 .flex_1()
                 .min_h_0()
                 .child(
-                    Button::new("close-image-reader")
-                        .label("返回正文")
+                    icon_button("close-image-reader", IconName::ArrowLeft, "返回正文")
                         .on_click(cx.listener(|this, _, window, cx| this.close_image(window, cx))),
                 )
                 .child(image)
@@ -1116,12 +1003,12 @@ impl Render for DocumentEditor {
                         .p_2()
                         .child(Input::new(&self.search).aria_label("查找正文"))
                         .child(
-                            Button::new("find-next")
-                                .label("下一个")
-                                .on_click(cx.listener(|this, _, window, cx| {
+                            icon_button("find-next", IconName::ArrowDown, "查找下一个").on_click(
+                                cx.listener(|this, _, window, cx| {
                                     let query = this.search.read(cx).value().to_string();
                                     this.find_text(&query, window, cx);
-                                })),
+                                }),
+                            ),
                         ),
                 )
             })
@@ -1255,21 +1142,22 @@ impl Render for DocumentEditor {
                                 .flex()
                                 .gap_1()
                                 .p_1()
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                                 .border_1()
                                 .border_color(cx.theme().border)
                                 .bg(cx.theme().popover)
                                 .rounded(cx.theme().radius);
-                            for (id, label) in
-                                [("bold", "加粗"), ("italic", "斜体"), ("link", "链接…")]
-                            {
+                            for &(id, label, icon) in FORMATTING {
                                 toolbar = toolbar.child(
-                                    Button::new(SharedString::from(format!("selection-{id}")))
-                                        .small()
-                                        .ghost()
-                                        .label(label)
-                                        .on_click(cx.listener(move |this, _, w, cx| {
-                                            this.run(&RunCommand::new(id), w, cx)
-                                        })),
+                                    self.format_button(
+                                        SharedString::from(format!("selection-{id}")),
+                                        id,
+                                        label,
+                                        icon,
+                                    )
+                                    .on_click(cx.listener(
+                                        move |this, _, w, cx| this.run(&RunCommand::new(id), w, cx),
+                                    )),
                                 );
                             }
                             div.child(

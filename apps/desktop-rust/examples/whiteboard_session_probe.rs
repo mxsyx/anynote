@@ -103,7 +103,7 @@ fn main() {
     let app = gpui_kit::platform::linux(WindowingModes::X11);
     #[cfg(not(target_os = "linux"))]
     let app = gpui_kit::application();
-    app.with_assets(gpui_kit::assets::Assets).with_quit_mode(QuitMode::Explicit).run(move |cx| {
+    app.with_assets(anynote_desktop::assets::AppAssets).with_quit_mode(QuitMode::Explicit).run(move |cx| {
         gpui_kit::init(cx);
         anynote_desktop::release::register_fonts(cx).unwrap();
         document_editor::install_actions(cx);

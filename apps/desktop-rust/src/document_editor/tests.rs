@@ -652,6 +652,147 @@ mod ui {
         })
     }
     #[gpui_kit::test]
+    fn formatting_icons_share_commands_and_history(cx: &mut TestAppContext) {
+        let (handle, editor) = open(cx, "alpha");
+        cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            assert_eq!(window.find("undo").disabled(), Some(true));
+            assert_eq!(window.find("redo").disabled(), Some(true));
+            assert_eq!(window.find("inlineCode").label(), Some("行内代码"));
+            editor.update(cx, |view, cx| {
+                let result = view.state.select(0, 5);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.click("inlineCode", cx);
+            assert_eq!(editor.read(cx).source(), "`alpha`");
+            window.render_frame(cx);
+            window.click("undo", cx);
+            assert_eq!(editor.read(cx).source(), "alpha");
+            assert!(
+                !editor
+                    .read(cx)
+                    .state
+                    .marks
+                    .has(anynote_editor::inline::Mark::Code)
+            );
+            window.click("redo", cx);
+            assert_eq!(editor.read(cx).source(), "`alpha`");
+            assert!(
+                editor
+                    .read(cx)
+                    .state
+                    .marks
+                    .has(anynote_editor::inline::Mark::Code)
+            );
+            window.click("undo", cx);
+            editor.update(cx, |view, cx| {
+                let result = view.state.select(0, 5);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.click("selection-strike", cx);
+            assert_eq!(editor.read(cx).text(), "alpha");
+            assert!(
+                editor.read(cx).state.projection.leaves[0]
+                    .runs
+                    .iter()
+                    .all(|run| run.marks().has(anynote_editor::inline::Mark::Strike))
+            );
+            window.click("undo", cx);
+            editor.update(cx, |view, cx| {
+                let result = view.state.select(0, 5);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.click("selection-inlineCode", cx);
+            assert_eq!(editor.read(cx).source(), "`alpha`");
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn list_icons_reuse_tab_indentation_and_undo(cx: &mut TestAppContext) {
+        let original = "- first\n- second";
+        let (handle, editor) = open(cx, original);
+        cx.update_window(handle, |_, window, cx| {
+            editor.update(cx, |view, cx| {
+                let at = view.text().find("first").unwrap();
+                let result = view.state.select(at, at);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            assert_eq!(window.find("indent").disabled(), Some(true));
+            editor.update(cx, |view, cx| {
+                let at = view.text().find("second").unwrap();
+                let result = view.state.select(at, at);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.click("indent", cx);
+            assert_eq!(
+                editor
+                    .read(cx)
+                    .state
+                    .projection
+                    .leaves
+                    .iter()
+                    .find(|leaf| leaf.text == "second")
+                    .unwrap()
+                    .indent,
+                2
+            );
+            window.click("undo", cx);
+            assert_eq!(editor.read(cx).source(), original);
+            window.click("redo", cx);
+            editor.update(cx, |view, cx| {
+                let at = view.text().find("second").unwrap();
+                let result = view.state.select(at, at);
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            window.click("outdent", cx);
+            assert_eq!(
+                editor
+                    .read(cx)
+                    .state
+                    .projection
+                    .leaves
+                    .iter()
+                    .find(|leaf| leaf.text == "second")
+                    .unwrap()
+                    .indent,
+                1
+            );
+            assert!(editor.read(cx).text().ends_with("first\nsecond"));
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
+    fn inline_code_icon_edits_source_with_shared_undo(cx: &mut TestAppContext) {
+        let (handle, editor) = open(cx, "alpha");
+        cx.update_window(handle, |_, window, cx| {
+            window.render_frame(cx);
+            window.click("source-mode", cx);
+            editor.update(cx, |view, cx| {
+                view.source.as_ref().unwrap().update(cx, |source, cx| {
+                    source.set_selected_range_with_direction(0..5, false, cx);
+                });
+            });
+            window.render_frame(cx);
+            assert_eq!(window.find("insert-content").disabled(), Some(true));
+            window.click("inlineCode", cx);
+            assert_eq!(editor.read(cx).source(), "`alpha`");
+            window.click("undo", cx);
+            assert_eq!(editor.read(cx).source(), "alpha");
+            window.click("source-mode", cx);
+            assert_eq!(editor.read(cx).text(), "alpha");
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
     fn atom_endpoint_preedit_has_native_geometry_and_cancels(cx: &mut TestAppContext) {
         let source = "before\n\n<div>opaque</div>\n\n- alpha\n\nafter";
         let (handle, editor) = open(cx, source);

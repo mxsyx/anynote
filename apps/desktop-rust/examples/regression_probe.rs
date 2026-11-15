@@ -456,7 +456,7 @@ fn main() {
     #[cfg(not(target_os = "linux"))]
     let app = gpui_kit::application();
     // Each open sample closes the previous editor before opening the next one.
-    app.with_quit_mode(QuitMode::Explicit).with_assets(gpui_kit::assets::Assets).run(move |cx| {
+    app.with_quit_mode(QuitMode::Explicit).with_assets(anynote_desktop::assets::AppAssets).run(move |cx| {
         gpui_kit::init(cx);document_editor::install_actions(cx);BackendSession::install(client.clone(),cx);
         cx.activate(true);
         cx.spawn(async move |cx| {

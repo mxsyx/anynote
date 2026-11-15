@@ -300,16 +300,15 @@ impl DocumentEditor {
             .py_2()
             .child("正在准备图片")
             .child(
-                Button::new("cancel-image-import")
-                    .small()
-                    .label("取消")
-                    .on_click(cx.listener(|this, _, window, cx| {
+                icon_button("cancel-image-import", IconName::X, "取消图片导入").on_click(
+                    cx.listener(|this, _, window, cx| {
                         this.images.cancel.store(true, Ordering::Relaxed);
                         this.images.task = None;
                         this.images.importing = false;
                         this.flush(window, cx);
                         cx.notify();
-                    })),
+                    }),
+                ),
             )
             .into_any_element()
     }
@@ -349,27 +348,20 @@ impl DocumentEditor {
                         .flex_wrap()
                         .gap_2()
                         .child(
-                            Button::new(("open-image", key))
-                                .small()
-                                .label("查看图片")
+                            icon_button(("open-image", key), IconName::Expand, "查看图片")
                                 .disabled(!saved)
                                 .on_click(cx.listener(move |this, _, w, cx| {
                                     this.open_image(resource, w, cx)
                                 })),
                         )
                         .child(
-                            Button::new(("resize-image", key))
-                                .small()
-                                .label("显示宽度…")
+                            icon_button(("resize-image", key), IconName::Scaling, "显示宽度…")
                                 .on_click(cx.listener(move |this, _, w, cx| {
                                     this.resize_image(block, w, cx)
                                 })),
                         )
                         .child(
-                            Button::new(("copy-image-source", key))
-                                .small()
-                                .ghost()
-                                .label("复制图片源码")
+                            icon_button(("copy-image-source", key), IconName::Copy, "复制图片源码")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     if let Some(block) = this.state.editor.document().block(block) {
                                         cx.write_to_clipboard(ClipboardItem::new_string(

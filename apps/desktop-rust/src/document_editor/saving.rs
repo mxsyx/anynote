@@ -672,43 +672,32 @@ impl DocumentEditor {
                     .child(save.label()),
             )
             .child(
-                Button::new("save-document")
-                    .small()
-                    .ghost()
-                    .label("保存")
+                icon_button("save-document", IconName::Save, "保存")
                     .disabled(self.saving)
                     .on_click(cx.listener(|this, _, window, cx| this.retry_save(window, cx))),
             )
             .when(save.dirty(), |bar| {
                 bar.child(
-                    Button::new("copy-draft")
-                        .small()
-                        .ghost()
-                        .label("复制草稿")
-                        .on_click(cx.listener(|this, _, _, cx| {
+                    icon_button("copy-draft", IconName::Copy, "复制草稿").on_click(cx.listener(
+                        |this, _, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(
                                 this.source().to_owned(),
                             ))
-                        })),
+                        },
+                    )),
                 )
             })
             .when(save.remote.is_some(), |bar| {
                 bar.child(
-                    Button::new("save-conflict-copy")
-                        .small()
-                        .ghost()
-                        .label("另存草稿")
+                    icon_button("save-conflict-copy", IconName::SaveAll, "另存草稿")
                         .disabled(self.saving)
                         .on_click(cx.listener(|this, _, window, cx| this.save_copy(window, cx))),
                 )
             })
             .when(save.remote.is_some(), |bar| {
                 bar.child(
-                    Button::new("compare-remote")
-                        .small()
-                        .ghost()
-                        .label("查看已保存版本…")
-                        .on_click(cx.listener(|this, _, window, cx| {
+                    icon_button("compare-remote", IconName::FileDiff, "查看已保存版本…").on_click(
+                        cx.listener(|this, _, window, cx| {
                             let Some(remote) =
                                 this.state.save.as_ref().and_then(|s| s.remote.clone())
                             else {
@@ -729,7 +718,8 @@ impl DocumentEditor {
                                         ),
                                     )
                             });
-                        })),
+                        }),
+                    ),
                 )
             })
             .into_any_element()

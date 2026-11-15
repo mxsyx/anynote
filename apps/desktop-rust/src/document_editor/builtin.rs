@@ -11,46 +11,48 @@ use gpui_kit::component::{
 };
 use uuid::Uuid;
 
-const READING: &[(&str, &str)] = &[
-    ("reading-create", "创建阅读记录…"),
-    ("reading-template", "追加阅读模板"),
-    ("reading-count", "追加字数统计"),
-    ("reading-related", "追加相关阅读索引"),
-    ("reading-async", "追加异步相关阅读索引"),
-    ("reading-goal", "追加阅读目标"),
-    ("reading-session", "记录一次整理"),
-    ("reading-public", "追加公开文本…"),
-    ("reading-preferences", "笔记本偏好…"),
+const READING: &[(&str, &str, IconName)] = &[
+    ("reading-create", "创建阅读记录…", IconName::NotebookPen),
+    ("reading-template", "追加阅读模板", IconName::FilePlus),
+    ("reading-count", "追加字数统计", IconName::Hash),
+    ("reading-related", "追加相关阅读索引", IconName::Network),
+    ("reading-async", "追加异步相关阅读索引", IconName::Network),
+    ("reading-goal", "追加阅读目标", IconName::Target),
+    ("reading-session", "记录一次整理", IconName::ClipboardCheck),
+    ("reading-public", "追加公开文本…", IconName::Download),
+    ("reading-preferences", "笔记本偏好…", IconName::Settings),
 ];
 
 impl DocumentEditor {
     pub(super) fn reading_menu(&self, cx: &mut Context<Self>) -> AnyElement {
         let focus = self.focus.clone();
         if self.builtin_request.is_some() && !self.builtin_running {
-            return Button::new("reading-retry")
-                .small()
-                .label("重试阅读命令")
+            return icon_button("reading-retry", IconName::RefreshCw, "重试阅读命令")
                 .on_click(cx.listener(|this, _, window, cx| this.start_reading(window, cx)))
                 .into_any_element();
         }
-        Button::new("reading-menu")
-            .small()
-            .label(if self.builtin_running {
+        icon_button(
+            "reading-menu",
+            IconName::BookOpen,
+            if self.builtin_running {
                 "正在处理阅读命令"
             } else {
                 "阅读"
-            })
-            .disabled(
-                self.state.save.is_none() || self.builtin_running || self.builtin_pending.is_some(),
+            },
+        )
+        .loading(self.builtin_running)
+        .disabled(
+            self.state.save.is_none() || self.builtin_running || self.builtin_pending.is_some(),
+        )
+        .dropdown_menu(move |menu, _, _| {
+            READING.iter().fold(
+                menu.action_context(focus.clone()),
+                |menu, (id, label, icon)| {
+                    menu.menu_with_icon(*label, *icon, Box::new(RunCommand::new(*id)))
+                },
             )
-            .dropdown_menu(move |menu, _, _| {
-                READING
-                    .iter()
-                    .fold(menu.action_context(focus.clone()), |menu, (id, label)| {
-                        menu.menu(*label, Box::new(RunCommand::new(*id)))
-                    })
-            })
-            .into_any_element()
+        })
+        .into_any_element()
     }
     pub(super) fn run_builtin(
         &mut self,
@@ -306,20 +308,27 @@ impl DocumentEditor {
             Collapsible::new()
                 .open(open)
                 .child(
-                    Button::new(("toggle-details", key))
-                        .ghost()
-                        .label(if open {
+                    icon_button(
+                        ("toggle-details", key),
+                        if open {
+                            IconName::ChevronUp
+                        } else {
+                            IconName::ChevronDown
+                        },
+                        if open {
                             "收起折叠块"
                         } else {
                             "展开折叠块"
-                        })
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if !this.expanded_blocks.remove(&id) {
-                                this.expanded_blocks.insert(id);
-                            }
-                            this.layout.reset(this.state.projection.rows.len());
-                            cx.notify();
-                        })),
+                        },
+                    )
+                    .selected(open)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if !this.expanded_blocks.remove(&id) {
+                            this.expanded_blocks.insert(id);
+                        }
+                        this.layout.reset(this.state.projection.rows.len());
+                        cx.notify();
+                    })),
                 )
                 .content(fields)
                 .into_any_element()
@@ -337,13 +346,9 @@ impl DocumentEditor {
                 .child(block.title())
                 .child(content)
                 .child(
-                    Button::new(("edit-fields", key))
-                        .small()
-                        .ghost()
-                        .label("编辑字段…")
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.edit_builtin(id, window, cx)
-                        })),
+                    icon_button(("edit-fields", key), IconName::SquarePen, "编辑字段…").on_click(
+                        cx.listener(move |this, _, window, cx| this.edit_builtin(id, window, cx)),
+                    ),
                 )
                 .into_any_element(),
         )
