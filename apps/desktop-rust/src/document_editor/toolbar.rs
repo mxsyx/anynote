@@ -95,7 +95,7 @@ impl DocumentEditor {
             .py_1()
             .border_b_1()
             .border_color(cx.theme().border);
-        let mut history = div().flex().items_center().gap_1();
+        let mut history = div().flex().flex_shrink_0().items_center().gap_1();
         for (id, label, icon, steps) in [
             (
                 "undo",
@@ -137,6 +137,7 @@ impl DocumentEditor {
         let block_focus = focus.clone();
         let block_style = div()
             .flex()
+            .flex_shrink_0()
             .items_center()
             .gap_1()
             .child(
@@ -173,7 +174,7 @@ impl DocumentEditor {
                     }),
             );
         toolbar = toolbar.child(block_style);
-        let mut formatting = div().flex().items_center().gap_1().child(
+        let mut formatting = div().flex().flex_shrink_0().items_center().gap_1().child(
             div()
                 .h_4()
                 .mx_2()
@@ -186,8 +187,38 @@ impl DocumentEditor {
             ));
         }
         toolbar = toolbar.child(formatting);
+        let leaf = &self.state.projection.leaves[self.state.projection.at(self.state.head).0];
+        let list_style = if leaf.task.is_some() || self.state.pending_task.is_some() {
+            Some("task")
+        } else {
+            leaf.marker
+                .as_deref()
+                .map(|marker| if marker == "•" { "bullet" } else { "ordered" })
+        };
+        let mut lists = div().flex().flex_shrink_0().items_center().gap_1().child(
+            div()
+                .h_4()
+                .mx_2()
+                .border_l_1()
+                .border_color(cx.theme().border),
+        );
+        for &(id, label, icon) in COMMANDS
+            .iter()
+            .filter(|(id, _, _)| matches!(*id, "bullet" | "ordered" | "task"))
+        {
+            lists = lists.child(
+                icon_button(id, icon, label)
+                    .selected(self.source.is_none() && list_style == Some(id))
+                    .disabled(self.is_composing() || self.source.is_some())
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.run(&RunCommand::new(id), window, cx)
+                    })),
+            );
+        }
+        toolbar = toolbar.child(lists);
         let insert = div()
             .flex()
+            .flex_shrink_0()
             .items_center()
             .gap_1()
             .child(
@@ -211,7 +242,6 @@ impl DocumentEditor {
             )
             .child(self.reading_menu(cx));
         toolbar = toolbar.child(insert);
-        let leaf = &self.state.projection.leaves[self.state.projection.at(self.state.head).0];
         if self.source.is_none() && leaf.marker.is_some() {
             let first_item = leaf.id.path.iter().rev().nth(1) == Some(&0);
             for (id, label, icon) in [

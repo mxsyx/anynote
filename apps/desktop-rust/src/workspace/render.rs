@@ -47,7 +47,13 @@ impl Workspace {
                     .accessibility_label(format!("切换笔记本：{title}"))
                     .max_w_64()
                     .min_w_0()
-                    .child(div().min_w_0().truncate().child(title))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(title),
+                    )
                     .dropdown_caret(true)
                     .disabled(self.busy)
                     .dropdown_menu(move |mut menu, _, _| {
@@ -132,6 +138,7 @@ impl Workspace {
                 Button::new("workspace-search")
                     .small()
                     .outline()
+                    .bg(cx.theme().muted)
                     .min_w_0()
                     .when(
                         window.viewport_size().width > window.rem_size() * 52.,
@@ -507,6 +514,8 @@ impl Workspace {
                                         .h_7()
                                         .min_w_0()
                                         .rounded(cx.theme().radius)
+                                        .border_1()
+                                        .border_color(gpui_kit::transparent_black())
                                         .text_sm()
                                         .gap_2()
                                         .hover(|style| style.bg(cx.theme().list_hover))
@@ -516,6 +525,10 @@ impl Workspace {
                                         .when(row_state.is_selected(), |view| {
                                             view.bg(cx.theme().accent)
                                                 .text_color(cx.theme().accent_foreground)
+                                                .font_weight(FontWeight::MEDIUM)
+                                                .when(cx.theme().is_dark(), |view| {
+                                                    view.border_color(cx.theme().border)
+                                                })
                                         })
                                         .pl(rems(0.5 + entry.depth() as f32 * 0.75))
                                         .child(div().w_3().flex_shrink_0().when(

@@ -1100,6 +1100,10 @@ impl Render for DocumentEditor {
                     .min_w_0()
                     .px_6()
                     .py_8()
+                    .when(
+                        window.viewport_size().width < window.rem_size() * 70.,
+                        |view| view.px_3().py_4(),
+                    )
                     .bg(theme::canvas(cx))
                     .when(
                         self.source.is_none() && self.images.active.is_none(),
@@ -1114,10 +1118,14 @@ impl Render for DocumentEditor {
                                         .border_t_1()
                                         .border_x_1()
                                         .border_color(cx.theme().border)
-                                        .rounded_t(rems(1.))
+                                        .rounded_t(cx.theme().radius_lg)
                                         .px_8()
                                         .pt_8()
                                         .pb_4()
+                                        .when(
+                                            window.viewport_size().width < window.rem_size() * 70.,
+                                            |view| view.px_6().pt_4(),
+                                        )
                                         .child(
                                             div()
                                                 .text_size(rems(1.75))
@@ -1144,12 +1152,12 @@ impl Render for DocumentEditor {
                             .border_x_1()
                             .border_b_1()
                             .border_color(cx.theme().border)
-                            .rounded_b(rems(1.))
+                            .rounded_b(cx.theme().radius_lg)
                             .when(
                                 self.source.is_some()
                                     || self.images.active.is_some()
                                     || self.state.save.is_none(),
-                                |view| view.border_t_1().rounded_t(rems(1.)),
+                                |view| view.border_t_1().rounded_t(cx.theme().radius_lg),
                             )
                             .flex()
                             .flex_col()

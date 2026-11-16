@@ -712,6 +712,31 @@ mod ui {
     }
 
     #[gpui_kit::test]
+    fn list_toolbar_formats_and_undoes_without_leaving_the_document(cx: &mut TestAppContext) {
+        let (handle, editor) = open(cx, "alpha");
+        cx.update_window(handle, |_, window, cx| {
+            for (id, prefix) in [("bullet", "- "), ("ordered", "1. "), ("task", "- [ ] ")] {
+                window.render_frame(cx);
+                window.click(id, cx);
+                window.render_frame(cx);
+                assert!(editor.read(cx).source().starts_with(prefix));
+                assert_eq!(editor.read(cx).text(), "alpha");
+                assert_eq!(window.find("document-content").focused(), Some(true));
+                window.press(primary("cmd-z"), cx);
+                assert_eq!(editor.read(cx).source(), "alpha");
+            }
+            window.click("source-mode", cx);
+            window.render_frame(cx);
+            for id in ["bullet", "ordered", "task"] {
+                assert_eq!(window.find(id).disabled(), Some(true));
+                window.click(id, cx);
+                assert_eq!(editor.read(cx).source(), "alpha");
+            }
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
     fn list_icons_reuse_tab_indentation_and_undo(cx: &mut TestAppContext) {
         let original = "- first\n- second";
         let (handle, editor) = open(cx, original);

@@ -161,6 +161,9 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
         let inspector = w.find("workspace-inspector").bounds();
         let toolbar = w.find("document-toolbar").bounds();
         assert!((f32::from(toolbar.top()) - f32::from(inspector.top())).abs() < 1.);
+        let outline_header = w.find("workspace-outline-header").bounds();
+        assert!((f32::from(outline_header.top()) - f32::from(toolbar.top())).abs() < 1.);
+        assert!(outline_header.bottom() <= content.top());
         let workspace_toolbar = w.find("workspace-toolbar").bounds();
         assert!(w.find("workspace-history").bounds().bottom() <= workspace_toolbar.bottom());
         assert!(content.right() <= inspector.left());

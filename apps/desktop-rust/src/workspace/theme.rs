@@ -15,6 +15,9 @@ pub(super) fn paper(cx: &mut App) {
             theme.popover = rgb(0x24242a).into();
             theme.secondary = theme.muted;
             theme.secondary_foreground = theme.foreground;
+            theme.primary = rgb(0xc0c1ff).into();
+            theme.primary_hover = rgb(0xa7a9ff).into();
+            theme.primary_foreground = rgb(0x1000a9).into();
         } else {
             theme.background = rgb(0xffffff).into();
             theme.foreground = rgb(0x161922).into();
@@ -28,13 +31,13 @@ pub(super) fn paper(cx: &mut App) {
             theme.popover = theme.background;
             theme.secondary = theme.muted;
             theme.secondary_foreground = theme.foreground;
+            theme.primary = rgb(0x4f46e5).into();
+            theme.primary_hover = rgb(0x4338ca).into();
+            theme.primary_foreground = rgb(0xffffff).into();
         }
-        theme.primary = rgb(0x6366f1).into();
         theme.secondary_active = theme.accent;
         theme.secondary_hover = theme.muted;
-        theme.primary_hover = rgb(0x4f46e5).into();
         theme.primary_active = theme.primary_hover;
-        theme.primary_foreground = rgb(0xffffff).into();
         theme.ring = theme.primary;
         theme.popover_foreground = theme.foreground;
         theme.group_box = theme.muted;

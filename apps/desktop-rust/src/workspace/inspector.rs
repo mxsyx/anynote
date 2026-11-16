@@ -41,7 +41,7 @@ impl Workspace {
                                 .flex_1()
                                 .min_w_0()
                                 .text_left()
-                                .text_xs()
+                                .text_sm()
                                 .font_weight(FontWeight::NORMAL)
                                 .text_color(if active {
                                     cx.theme().accent_foreground
@@ -77,16 +77,20 @@ impl Workspace {
             .flex()
             .flex_col()
             .gap_2()
-            .p_3()
+            .p_4()
             .flex_shrink_0()
             .border_t_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().muted)
             .child(
                 div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
                     .text_xs()
                     .font_weight(FontWeight::SEMIBOLD)
                     .mb_1()
+                    .child(gpui_kit::component::Icon::new(IconName::ChartColumn).small())
                     .child("文档属性与统计"),
             );
         for (label, value) in [
@@ -129,49 +133,64 @@ impl Workspace {
             .w(rems(17.5))
             .flex_shrink_0()
             .bg(cx.theme().muted)
+            .when(cx.theme().is_dark(), |view| view.bg(cx.theme().sidebar))
+            .border_l_1()
+            .border_color(cx.theme().border)
+            .child(
+                div()
+                    .id("workspace-outline-header")
+                    .test_support()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .h_10()
+                    .px_4()
+                    .gap_2()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .bg(cx.theme().background)
+                    .child(
+                        gpui_kit::component::Icon::new(IconName::ListTree)
+                            .small()
+                            .text_color(cx.theme().primary),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(cx.theme().muted_foreground)
+                            .child("大纲目录与上下文"),
+                    ),
+            )
             .child(
                 div()
                     .id("workspace-outline")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scrollbar()
-                    .p_3()
                     .child(
                         div()
                             .flex()
                             .flex_col()
                             .gap_2()
-                            .p_3()
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .rounded(cx.theme().radius_lg)
-                            .bg(cx.theme().background)
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap_2()
-                                    .pb_2()
-                                    .child(
-                                        gpui_kit::component::Icon::new(IconName::ListTree)
-                                            .small()
-                                            .text_color(cx.theme().primary),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .child("大纲目录与上下文"),
-                                    ),
-                            )
+                            .m_3()
+                            .p_1()
+                            .when(!cx.theme().is_dark(), |view| {
+                                view.p_3()
+                                    .border_1()
+                                    .border_color(cx.theme().border)
+                                    .rounded(cx.theme().radius_lg)
+                                    .bg(cx.theme().background)
+                            })
                             .child(
                                 div()
                                     .id("workspace-outline-title")
                                     .min_w_0()
                                     .px_2()
-                                    .py_1()
-                                    .text_xs()
+                                    .py_2()
+                                    .text_sm()
                                     .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(cx.theme().accent_foreground)
                                     .truncate()
                                     .tooltip({
                                         let title = snapshot.content().title().to_owned();
