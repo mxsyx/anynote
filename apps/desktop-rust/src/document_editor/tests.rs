@@ -826,6 +826,35 @@ mod ui {
     }
 
     #[gpui_kit::test]
+    fn copy_code_uses_current_block_without_changing_history(cx: &mut TestAppContext) {
+        let source = "```rust\nfirst\n```\n\n```\nsecond\n```";
+        let (window, editor) = open(cx, source);
+        cx.update_window(window, |_, window, cx| {
+            window.render_frame(cx);
+            let key = editor.read(cx).keys[1];
+            window.click(("copy-code", key), cx);
+            assert_eq!(cx.read_from_clipboard().unwrap().text().unwrap(), "second");
+            assert_eq!(editor.read(cx).source(), source);
+            assert_eq!(editor.read(cx).undo_steps(), 0);
+            editor.update(cx, |view, cx| {
+                let range = view.state.projection.leaves[1].logical.clone();
+                view.state.select(range.start, range.end).unwrap();
+                let result = view.state.replace("更新🦀");
+                view.changed(result, window, cx);
+            });
+            window.render_frame(cx);
+            let key = editor.read(cx).keys[1];
+            let selection = editor.read(cx).selection();
+            window.click(("copy-code", key), cx);
+            assert_eq!(cx.read_from_clipboard().unwrap().text().unwrap(), "更新🦀");
+            assert_eq!(editor.read(cx).undo_steps(), 1);
+            assert_eq!(editor.read(cx).selection(), selection);
+            assert!(editor.read(cx).focus.is_focused(window));
+        })
+        .unwrap();
+    }
+
+    #[gpui_kit::test]
     fn code_scroll_keeps_document_fixed_and_reveals_keyboard_caret(cx: &mut TestAppContext) {
         let code = (0..60).map(|ix| format!("line {ix}\n")).collect::<String>();
         let source = format!("```rust\n{code}```\n\nlast");
@@ -894,6 +923,7 @@ mod ui {
         cx.update_window(window, |_, window, cx| {
             window.render_frame(cx);
             let keys = editor.read(cx).keys.clone();
+            window.hover(("row", keys[2]), cx);
             window.drag_to(("drag-handle", keys[2]), ("row", keys[0]), cx);
             assert_eq!(editor.read(cx).text(), "third\nfirst\nsecond");
             assert_eq!(editor.read(cx).undo_steps(), 1);

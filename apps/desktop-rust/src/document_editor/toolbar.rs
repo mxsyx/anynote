@@ -84,32 +84,18 @@ impl DocumentEditor {
     pub(super) fn render_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
         let focus = self.focus.clone();
         let mut toolbar = div()
+            .id("document-toolbar")
+            .test_support()
             .flex()
             .flex_wrap()
             .items_center()
             .gap_1()
-            .px_4()
-            .py_2()
+            .px_3()
+            .min_h_10()
+            .py_1()
             .border_b_1()
-            .border_color(cx.theme().border)
-            .child(self.reading_menu(cx))
-            .child(
-                icon_button("insert-content", IconName::Plus, "插入内容")
-                    .disabled(self.is_composing() || self.source.is_some())
-                    .dropdown_menu(move |menu, _, _| {
-                        COMMANDS.iter().fold(
-                            menu.action_context(focus.clone()),
-                            |menu, (id, label, icon)| {
-                                menu.menu_with_icon(*label, *icon, Box::new(RunCommand::new(*id)))
-                            },
-                        )
-                    }),
-            );
-        for &(id, label, icon) in FORMATTING {
-            toolbar = toolbar.child(self.format_button(id, id, label, icon).on_click(
-                cx.listener(move |this, _, window, cx| this.run(&RunCommand::new(id), window, cx)),
-            ));
-        }
+            .border_color(cx.theme().border);
+        let mut history = div().flex().items_center().gap_1();
         for (id, label, icon, steps) in [
             (
                 "undo",
@@ -124,7 +110,7 @@ impl DocumentEditor {
                 self.state.editor.redo_steps(),
             ),
         ] {
-            toolbar = toolbar.child(
+            history = history.child(
                 icon_button(id, icon, label)
                     .tooltip_with_action(label, &RunCommand::new(id), Some("AnyNoteDocument"))
                     .disabled(
@@ -135,6 +121,96 @@ impl DocumentEditor {
                     })),
             );
         }
+        toolbar = toolbar.child(history);
+        let kind = &self.state.projection.leaves[self.state.projection.at(self.state.head).0].kind;
+        let block_label = match kind {
+            NodeKind::Heading(1) => "一级标题",
+            NodeKind::Heading(2) => "二级标题",
+            NodeKind::Heading(3) => "三级标题",
+            NodeKind::Heading(4) => "四级标题",
+            NodeKind::Heading(5) => "五级标题",
+            NodeKind::Heading(6) => "六级标题",
+            NodeKind::Heading(_) => "标题",
+            NodeKind::Code { .. } => "代码块",
+            _ => "正文",
+        };
+        let block_focus = focus.clone();
+        let block_style = div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(
+                div()
+                    .h_4()
+                    .mx_2()
+                    .border_l_1()
+                    .border_color(cx.theme().border),
+            )
+            .child(
+                Button::new("block-style")
+                    .small()
+                    .ghost()
+                    .label(block_label)
+                    .dropdown_caret(true)
+                    .accessibility_label("段落样式")
+                    .disabled(self.is_composing() || self.source.is_some())
+                    .dropdown_menu(move |menu, _, _| {
+                        COMMANDS
+                            .iter()
+                            .filter(|(id, _, _)| {
+                                matches!(*id, "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+                            })
+                            .fold(
+                                menu.action_context(block_focus.clone()),
+                                |menu, (id, label, icon)| {
+                                    menu.menu_with_icon(
+                                        *label,
+                                        *icon,
+                                        Box::new(RunCommand::new(*id)),
+                                    )
+                                },
+                            )
+                    }),
+            );
+        toolbar = toolbar.child(block_style);
+        let mut formatting = div().flex().items_center().gap_1().child(
+            div()
+                .h_4()
+                .mx_2()
+                .border_l_1()
+                .border_color(cx.theme().border),
+        );
+        for &(id, label, icon) in FORMATTING {
+            formatting = formatting.child(self.format_button(id, id, label, icon).on_click(
+                cx.listener(move |this, _, window, cx| this.run(&RunCommand::new(id), window, cx)),
+            ));
+        }
+        toolbar = toolbar.child(formatting);
+        let insert = div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(
+                div()
+                    .h_4()
+                    .mx_2()
+                    .border_l_1()
+                    .border_color(cx.theme().border),
+            )
+            .child(
+                icon_button("insert-content", IconName::Plus, "插入内容")
+                    .disabled(self.is_composing() || self.source.is_some())
+                    .dropdown_menu(move |menu, _, _| {
+                        COMMANDS.iter().fold(
+                            menu.action_context(focus.clone()),
+                            |menu, (id, label, icon)| {
+                                menu.menu_with_icon(*label, *icon, Box::new(RunCommand::new(*id)))
+                            },
+                        )
+                    }),
+            )
+            .child(self.reading_menu(cx));
+        toolbar = toolbar.child(insert);
         let leaf = &self.state.projection.leaves[self.state.projection.at(self.state.head).0];
         if self.source.is_none() && leaf.marker.is_some() {
             let first_item = leaf.id.path.iter().rev().nth(1) == Some(&0);

@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 gpui_kit::assets::icon_assets!(
     WorkspaceIcons,
-    [Files, Clock, Tags, Trash, FolderPlus, Import]
+    [Files, Clock, Tags, Trash, FolderPlus, Import, ListTree]
 );
 
 gpui_kit::assets::icon_assets!(
@@ -37,6 +37,7 @@ gpui_kit::assets::icon_assets!(
         Heading6,
         Image,
         Italic,
+        Lightbulb,
         Link,
         List,
         ListIndentDecrease,

@@ -1,9 +1,11 @@
 use super::*;
 use gpui_kit::assets::IconName;
+use gpui_kit::component::kbd::Kbd;
 use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
+use gpui_kit::component::tooltip::Tooltip;
 
 impl Workspace {
-    fn toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn toolbar(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let owner = cx.weak_entity();
         let books = self.books.clone();
         let active = self.book;
@@ -13,6 +15,8 @@ impl Workspace {
             .map(|book| book.title.clone())
             .unwrap_or_else(|| "笔记本".into());
         div()
+            .id("workspace-toolbar")
+            .test_support()
             .flex()
             .items_center()
             .flex_shrink_0()
@@ -44,7 +48,7 @@ impl Workspace {
                     .max_w_64()
                     .min_w_0()
                     .child(div().min_w_0().truncate().child(title))
-                    .child(IconName::ChevronDown)
+                    .dropdown_caret(true)
                     .disabled(self.busy)
                     .dropdown_menu(move |mut menu, _, _| {
                         menu = menu
@@ -124,14 +128,37 @@ impl Workspace {
                         menu
                     }),
             )
-            .child(div().flex_1())
             .child(
                 Button::new("workspace-search")
                     .small()
-                    .ghost()
+                    .outline()
+                    .min_w_0()
+                    .when(
+                        window.viewport_size().width > window.rem_size() * 52.,
+                        |button| {
+                            button
+                                .w_64()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .text_left()
+                                        .truncate()
+                                        .font_weight(FontWeight::NORMAL)
+                                        .when(!self.show_search, |label| {
+                                            label.text_color(cx.theme().muted_foreground)
+                                        })
+                                        .child("搜索笔记…"),
+                                )
+                                .when_some(
+                                    Kbd::global_binding_for_action(&SearchNotes, window),
+                                    |button, shortcut| button.child(shortcut),
+                                )
+                        },
+                    )
                     .icon(IconName::Search)
                     .accessibility_label("搜索笔记")
-                    .tooltip("搜索笔记")
+                    .tooltip_with_action("搜索笔记", &SearchNotes, None)
                     .selected(self.show_search)
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.show_search = !this.show_search;
@@ -141,6 +168,53 @@ impl Workspace {
                         } else {
                             this.cancel_search(window, cx);
                         }
+                        cx.notify();
+                    })),
+            )
+            .child(div().flex_1())
+            .when(self.snapshot.is_some() && !self.show_search, |view| {
+                view.child(self.document_actions(cx))
+                    .child(div().h_4().w_px().mx_2().bg(cx.theme().border))
+            })
+            .child(
+                Button::new("workspace-theme")
+                    .small()
+                    .ghost()
+                    .icon(if cx.theme().is_dark() {
+                        IconName::Sun
+                    } else {
+                        IconName::Moon
+                    })
+                    .accessibility_label("切换明暗主题")
+                    .tooltip("切换明暗主题")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.preferences.theme = if cx.theme().is_dark() {
+                            "light"
+                        } else {
+                            "dark"
+                        }
+                        .into();
+                        this.apply_theme(window, cx);
+                        this.persist_preferences(window, cx);
+                    })),
+            )
+            .child(
+                Button::new("workspace-inspector-toggle")
+                    .small()
+                    .ghost()
+                    .icon(IconName::PanelRight)
+                    .accessibility_label("切换大纲")
+                    .tooltip("显示 / 隐藏大纲（宽窗口）")
+                    .selected(
+                        self.inspector_visible
+                            && window.viewport_size().width >= window.rem_size() * 70.,
+                    )
+                    .disabled(
+                        self.snapshot.is_none()
+                            || window.viewport_size().width < window.rem_size() * 70.,
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.inspector_visible = !this.inspector_visible;
                         cx.notify();
                     })),
             )
@@ -214,9 +288,60 @@ impl Workspace {
             )
             .into_any_element()
     }
+    fn document_actions(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(snapshot) = &self.snapshot else {
+            return div().into_any_element();
+        };
+        let label = if snapshot.primary_pdf().is_some() || snapshot.primary_image().is_some() {
+            "打开阅读器…"
+        } else if self.editor.is_some() && !self.reading {
+            "预览"
+        } else {
+            "编辑"
+        };
+        div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .gap_1()
+            .child(
+                Button::new("workspace-edit")
+                    .small()
+                    .ghost()
+                    .label(label)
+                    .tooltip(label)
+                    .icon(if label == "编辑" {
+                        IconName::FilePen
+                    } else {
+                        IconName::BookOpenText
+                    })
+                    .disabled(self.busy || self.revision.is_some())
+                    .on_click(cx.listener(|this, _, window, cx| this.edit(window, cx))),
+            )
+            .child(
+                Button::new("workspace-history")
+                    .small()
+                    .ghost()
+                    .icon(IconName::Clock)
+                    .accessibility_label("历史")
+                    .tooltip("版本历史")
+                    .on_click(cx.listener(|this, _, window, cx| this.details(true, window, cx))),
+            )
+            .child(
+                Button::new("workspace-backlinks")
+                    .small()
+                    .ghost()
+                    .icon(IconName::Link)
+                    .accessibility_label("反向链接")
+                    .tooltip("反向链接")
+                    .on_click(cx.listener(|this, _, window, cx| this.details(false, window, cx))),
+            )
+            .into_any_element()
+    }
+
     fn sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
         let owner = cx.weak_entity();
-        let mut filters = div().flex().flex_col().gap_1();
+        let mut filters = div().flex().items_center().justify_between().gap_1();
         for (collection, label, icon) in [
             (Collection::Tree, "全部笔记", IconName::Files),
             (Collection::Recent, "最近", IconName::Clock),
@@ -229,9 +354,8 @@ impl Workspace {
                     .small()
                     .ghost()
                     .accessibility_label(label)
-                    .child(div().flex_1().text_left().child(label))
+                    .tooltip(label)
                     .icon(icon)
-                    .w_full()
                     .selected(self.collection == collection)
                     .disabled(self.busy)
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -243,23 +367,25 @@ impl Workspace {
             .flex()
             .flex_col()
             .size_full()
-            .gap_3()
-            .p_3()
+            .gap_2()
+            .px_3()
+            .pb_3()
             .bg(cx.theme().sidebar)
             .text_color(cx.theme().sidebar_foreground)
-            .child(filters)
             .child(
                 div()
                     .flex()
                     .items_center()
                     .gap_1()
-                    .pt_2()
+                    .h_10()
+                    .flex_shrink_0()
                     .child(
                         div()
                             .flex_1()
-                            .text_sm()
+                            .text_xs()
+                            .font_weight(FontWeight::SEMIBOLD)
                             .text_color(cx.theme().muted_foreground)
-                            .child("笔记与目录"),
+                            .child("笔记本目录"),
                     )
                     .child(
                         Button::new("workspace-new-note")
@@ -340,6 +466,7 @@ impl Workspace {
                             let drag = node.clone();
                             let target = node.clone();
                             let id = node.id.clone();
+                            let title = node.title.clone();
                             div()
                                 .id(SharedString::from(format!("node-{}", id.note())))
                                 .test_support()
@@ -373,24 +500,67 @@ impl Workspace {
                                     div()
                                         .id(SharedString::from(format!("open-{}", id.note())))
                                         .test_support()
+                                        .tooltip(move |window, cx| {
+                                            Tooltip::new(title.clone()).build(window, cx)
+                                        })
                                         .w_full()
-                                        .h_8()
+                                        .h_7()
+                                        .min_w_0()
+                                        .rounded(cx.theme().radius)
+                                        .text_sm()
+                                        .gap_2()
+                                        .hover(|style| style.bg(cx.theme().list_hover))
                                         .flex()
                                         .items_center()
                                         .px_2()
                                         .when(row_state.is_selected(), |view| {
                                             view.bg(cx.theme().accent)
+                                                .text_color(cx.theme().accent_foreground)
                                         })
-                                        .child(format!(
-                                            "{}{}{}",
-                                            "  ".repeat(entry.depth()),
-                                            if node.folder {
-                                                if entry.is_expanded() { "▾ " } else { "▸ " }
-                                            } else {
-                                                ""
+                                        .pl(rems(0.5 + entry.depth() as f32 * 0.75))
+                                        .child(div().w_3().flex_shrink_0().when(
+                                            node.folder,
+                                            |view| {
+                                                view.child(
+                                                    gpui_kit::component::Icon::new(
+                                                        if entry.is_expanded() {
+                                                            IconName::ChevronDown
+                                                        } else {
+                                                            IconName::ChevronRight
+                                                        },
+                                                    )
+                                                    .xsmall(),
+                                                )
                                             },
-                                            node.title
                                         ))
+                                        .child(
+                                            gpui_kit::component::Icon::new(if node.folder {
+                                                if entry.is_expanded() {
+                                                    IconName::FolderOpen
+                                                } else {
+                                                    IconName::Folder
+                                                }
+                                            } else {
+                                                IconName::FileText
+                                            })
+                                            .small(),
+                                        )
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .truncate()
+                                                .child(node.title.clone()),
+                                        )
+                                        .when(row_state.is_selected() && !node.folder, |view| {
+                                            view.child(
+                                                div()
+                                                    .size_1p5()
+                                                    .flex_shrink_0()
+                                                    .rounded_full()
+                                                    .bg(cx.theme().accent_foreground),
+                                            )
+                                        })
                                         .on_click(move |_, window, cx| {
                                             let _ = owner_open.update(cx, |this, cx| {
                                                 if let Some(ix) = this.tree.read(cx).index_of(&key)
@@ -411,6 +581,7 @@ impl Workspace {
                         .size_full(),
                 ),
             )
+            .child(filters)
             .child(self.node_actions(cx));
         content.into_any_element()
     }
@@ -643,7 +814,23 @@ impl Workspace {
             dialog.title("移动 / 排序").child(content)
         });
     }
-    fn reading(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn reading(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let content = self.document_pane(cx);
+        div()
+            .flex()
+            .items_stretch()
+            .size_full()
+            .min_w_0()
+            .child(div().flex_1().min_w_0().min_h_0().child(content))
+            .when(
+                self.snapshot.is_some()
+                    && self.inspector_visible
+                    && window.viewport_size().width >= window.rem_size() * 70.,
+                |view| view.child(self.document_inspector(cx)),
+            )
+            .into_any_element()
+    }
+    fn document_pane(&self, cx: &mut Context<Self>) -> AnyElement {
         let Some(snapshot) = &self.snapshot else {
             let title = self
                 .books
@@ -767,68 +954,18 @@ impl Workspace {
             .size_full()
             .min_w_0()
             .bg(cx.theme().background)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .flex_wrap()
-                    .gap_2()
-                    .p_3()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
+            .when(
+                self.reading || self.revision.is_some() || self.editor.is_none(),
+                |pane| {
+                    pane.child(
                         div()
-                            .flex_1()
-                            .min_w_0()
+                            .px_6()
+                            .py_3()
                             .text_lg()
+                            .font_weight(FontWeight::SEMIBOLD)
                             .child(snapshot.content().title().to_owned()),
                     )
-                    .child(
-                        Button::new("workspace-edit")
-                            .small()
-                            .label(
-                                if snapshot.primary_pdf().is_some()
-                                    || snapshot.primary_image().is_some()
-                                {
-                                    "打开阅读器…"
-                                } else if self.editor.is_some() && !self.reading {
-                                    "预览"
-                                } else {
-                                    "编辑"
-                                },
-                            )
-                            .disabled(self.busy || self.revision.is_some())
-                            .on_click(cx.listener(|this, _, window, cx| this.edit(window, cx))),
-                    )
-                    .child(
-                        Button::new("workspace-history")
-                            .small()
-                            .ghost()
-                            .label("历史")
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.details(true, window, cx)),
-                            ),
-                    )
-                    .child(
-                        Button::new("workspace-backlinks")
-                            .small()
-                            .ghost()
-                            .label("反向链接")
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.details(false, window, cx)),
-                            ),
-                    ),
-            )
-            .child(
-                div()
-                    .px_3()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!(
-                        "{} 字 · {}",
-                        snapshot.content().body().chars().count(),
-                        snapshot.content().tags().join(" · ")
-                    )),
+                },
             );
         if let Some(revision) = self.revision {
             let id = snapshot.id().clone();
@@ -921,41 +1058,20 @@ impl Workspace {
             self.revision.unwrap_or(snapshot.head()),
         ));
         let client = self.client(cx);
-        let mut headings = div().flex().flex_wrap().gap_1();
-        for line in snapshot
-            .content()
-            .body()
-            .lines()
-            .filter(|line| line.starts_with('#'))
-            .take(40)
-        {
-            let title = line.trim_start_matches('#').trim().to_owned();
-            let target = title.clone();
-            headings = headings.child(
-                Button::new(SharedString::from(format!("heading-{title}")))
-                    .small()
-                    .ghost()
-                    .label(title)
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.follow_link(&format!("#{target}"), window, cx)
-                    })),
-            );
-        }
-        pane.child(headings)
-            .child(
-                div().flex_1().min_h_0().px_6().py_3().child(
-                    TextView::new(&self.reader)
-                        .markdown_extensions(self.reading_extensions.clone())
-                        .image_source(move |uri| {
-                            reading::image_source(uri, image_scope.clone(), client.clone())
-                        })
-                        .scrollable(true)
-                        .on_link_click(move |url, _, window, cx| {
-                            let _ = owner.update(cx, |this, cx| this.follow_link(url, window, cx));
-                        }),
-                ),
-            )
-            .into_any_element()
+        pane.child(
+            div().flex_1().min_h_0().px_6().py_3().child(
+                TextView::new(&self.reader)
+                    .markdown_extensions(self.reading_extensions.clone())
+                    .image_source(move |uri| {
+                        reading::image_source(uri, image_scope.clone(), client.clone())
+                    })
+                    .scrollable(true)
+                    .on_link_click(move |url, _, window, cx| {
+                        let _ = owner.update(cx, |this, cx| this.follow_link(url, window, cx));
+                    }),
+            ),
+        )
+        .into_any_element()
     }
     fn search_panel(&self, cx: &mut Context<Self>) -> AnyElement {
         div()
@@ -1221,7 +1337,7 @@ impl Render for Workspace {
             .when(!cfg!(target_os = "macos"), |view| {
                 view.child(div().h_8().flex_shrink_0().child(self.menu.clone()))
             })
-            .child(self.toolbar(cx))
+            .child(self.toolbar(window, cx))
             .child(
                 div()
                     .flex_1()
@@ -1232,12 +1348,14 @@ impl Render for Workspace {
                     } else if self.book.is_none() {
                         self.notebook_empty(cx)
                     } else if !self.sidebar_visible {
-                        self.reading(cx)
+                        self.reading(window, cx)
                     } else {
                         gpui_kit::component::resizable::h_resizable("workspace-split")
+                            .with_state(&self.sidebar_split)
                             .child(
                                 gpui_kit::component::resizable::resizable_panel()
-                                    .size(window.rem_size() * 16.)
+                                    .size(window.rem_size() * self.sidebar_width_rem)
+                                    .fixed()
                                     .size_range(
                                         (window.rem_size() * 14.)..(window.rem_size() * 26.),
                                     )
@@ -1245,7 +1363,7 @@ impl Render for Workspace {
                             )
                             .child(
                                 gpui_kit::component::resizable::resizable_panel()
-                                    .child(self.reading(cx)),
+                                    .child(self.reading(window, cx)),
                             )
                             .into_any_element()
                     }),
@@ -1257,12 +1375,16 @@ impl Render for Workspace {
                     .role(Role::Status)
                     .aria_label(self.status.clone())
                     .flex()
+                    .flex_shrink_0()
                     .gap_2()
                     .px_3()
                     .py_1()
                     .text_xs()
                     .text_color(cx.theme().muted_foreground)
                     .child(self.status.clone())
+                    .when(self.status.is_empty() && self.operation.is_none(), |view| {
+                        view.h_0().py_0().overflow_hidden()
+                    })
                     .when(self.operation.is_some() && !self.busy, |view| {
                         view.child(Button::new("workspace-retry").label("重试操作").on_click(
                             cx.listener(|this, _, window, cx| {

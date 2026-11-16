@@ -81,7 +81,74 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
         panic!()
     };
     assert_eq!(entries.len(), 1);
+    let sidebar_width = cx
+        .update_window(window, |_, w, _| {
+            w.find(format!("open-{}", entries[0].id.note()))
+                .bounds()
+                .size
+                .width
+        })
+        .unwrap();
+    cx.simulate_window_resize(window, size(px(1600.), px(900.)));
     cx.update_window(window, |_, w, cx| {
+        w.render_frame(cx);
+        let width = w
+            .find(format!("open-{}", entries[0].id.note()))
+            .bounds()
+            .size
+            .width;
+        assert!((f32::from(width) - f32::from(sidebar_width)).abs() < 1.);
+    })
+    .unwrap();
+    cx.simulate_window_resize(window, size(px(1200.), px(800.)));
+    let row = format!("open-{}", entries[0].id.note());
+    let (original_width, original_rem) = cx
+        .update_window(window, |_, w, cx| {
+            w.render_frame(cx);
+            let before_drag = w.find(row.clone()).bounds().size.width;
+            let handle = w.find(("resizable-handle", 0usize)).bounds().center();
+            w.drag(handle, gpui_kit::point(handle.x + px(48.), handle.y), cx);
+            w.render_frame(cx);
+            assert!(w.find(row.clone()).bounds().size.width > before_drag + px(32.));
+            w.click("document-content", cx);
+            (w.find(row.clone()).bounds().size.width, w.rem_size())
+        })
+        .unwrap();
+    for _ in 0..2 {
+        cx.update_window(window, |_, w, cx| {
+            w.dispatch_action(Box::new(anynote_desktop::shell::ZoomIn), cx);
+        })
+        .unwrap();
+        cx.run_until_parked();
+        cx.update_window(window, |_, w, cx| w.render_frame(cx))
+            .unwrap();
+    }
+    cx.update_window(window, |_, w, cx| {
+        let enlarged = w.find(row.clone()).bounds().size.width;
+        assert!(w.rem_size() > original_rem);
+        assert!(
+            (enlarged / w.rem_size() - original_width / original_rem).abs() < 0.1,
+            "sidebar must scale with its contents: {original_width:?} -> {enlarged:?}"
+        );
+        w.click("workspace-sidebar", cx);
+        w.render_frame(cx);
+        w.dispatch_action(Box::new(anynote_desktop::shell::ResetZoom), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, w, cx| {
+        w.render_frame(cx);
+        w.click("workspace-sidebar", cx);
+        w.render_frame(cx);
+        let restored = w.find(row).bounds().size.width;
+        assert!(
+            (f32::from(restored) - f32::from(original_width)).abs() < 1.,
+            "sidebar must restore its width after zooming while hidden"
+        );
+    })
+    .unwrap();
+    cx.update_window(window, |_, w, cx| {
+        w.render_frame(cx);
         assert_eq!(cx.windows().len(), 1);
         let content = w.find("document-content").bounds();
         assert!(
@@ -91,6 +158,21 @@ fn notebook_create_read_search_history_theme_and_dialog_focus(cx: &mut TestAppCo
                     .right()
         );
         assert!(content.size.height > px(300.));
+        let inspector = w.find("workspace-inspector").bounds();
+        let toolbar = w.find("document-toolbar").bounds();
+        assert!((f32::from(toolbar.top()) - f32::from(inspector.top())).abs() < 1.);
+        let workspace_toolbar = w.find("workspace-toolbar").bounds();
+        assert!(w.find("workspace-history").bounds().bottom() <= workspace_toolbar.bottom());
+        assert!(content.right() <= inspector.left());
+        assert!(inspector.size.width >= px(240.));
+        w.click("workspace-inspector-toggle", cx);
+        w.render_frame(cx);
+        assert!(w.try_find("workspace-inspector").is_none());
+        assert!(w.find("document-content").bounds().size.width > content.size.width);
+        w.click("workspace-inspector-toggle", cx);
+        w.render_frame(cx);
+        assert!(w.try_find("workspace-inspector").is_some());
+
         w.click("document-content", cx);
         w.input("A", cx);
         w.press(

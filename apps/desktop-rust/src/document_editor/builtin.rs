@@ -290,6 +290,59 @@ impl DocumentEditor {
                     .into_any_element(),
             );
         };
+        if block.presentation() == Presentation::Callout
+            && let Some(title) = block.fields().iter().find(|field| field.key() == "title")
+            && let Some(body) = block.fields().iter().find(|field| field.key() == "body")
+        {
+            let (background, border, foreground) = theme::callout_colors(cx);
+            return Some(
+                div()
+                    .flex()
+                    .items_start()
+                    .gap_3()
+                    .p_3()
+                    .rounded(cx.theme().radius_lg)
+                    .border_1()
+                    .border_color(border)
+                    .bg(background)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .w_10()
+                            .h_12()
+                            .flex_shrink_0()
+                            .rounded(cx.theme().radius)
+                            .bg(border.opacity(0.35))
+                            .text_color(foreground)
+                            .child(Icon::new(IconName::Lightbulb)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(foreground)
+                                    .child(title.value().to_owned()),
+                            )
+                            .child(div().line_height(rems(1.75)).child(body.value().to_owned())),
+                    )
+                    .child(
+                        icon_button(("edit-fields", key), IconName::SquarePen, "编辑字段…")
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.edit_builtin(id, window, cx)
+                            })),
+                    )
+                    .into_any_element(),
+            );
+        }
         let mut fields = div().flex().flex_col().gap_2();
         for field in block.fields() {
             fields = fields.child(

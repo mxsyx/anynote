@@ -6,6 +6,7 @@ mod builtin;
 mod element;
 mod images;
 mod input;
+mod outline;
 mod projection;
 mod saving;
 mod session;
@@ -19,13 +20,13 @@ pub(crate) use saving::cancel_quit;
 mod source_mode;
 #[cfg(test)]
 mod tests;
+mod theme;
 
 use anynote_editor::structure::NodeKind;
 use gpui_kit::{
     assets::IconName,
     base::text::editor_host::{
-        BlockNode, CodeBlock, FlowPosition, InlineNode, LinkMark, Paragraph, RenderContext,
-        TextMark,
+        BlockNode, CodeBlock, FlowPosition, InlineNode, LinkMark, Paragraph, TextMark,
     },
     component::{
         ActiveTheme, Disableable, Icon, Selectable, Sizable, WindowExt,
@@ -551,16 +552,23 @@ impl DocumentEditor {
         let leaf = &self.state.projection.leaves[ix];
         let mut paragraph = Paragraph::default();
         let composing = self.state.composing_leaf(ix);
+        let completed = leaf.task.as_ref().is_some_and(|(_, checked)| *checked);
+        let base_mark = TextMark {
+            strikethrough: completed,
+            ..Default::default()
+        };
         if composing {
-            paragraph.push(InlineNode::new(
-                self.state.display_leaf_text(ix).into_owned(),
-            ));
+            let text = self.state.display_leaf_text(ix).into_owned();
+            let len = text.len();
+            paragraph.push(InlineNode::new(text).marks(vec![(0..len, base_mark)]));
         } else if leaf.runs.is_empty() {
-            paragraph.push(InlineNode::new(leaf.text.clone()));
+            paragraph.push(
+                InlineNode::new(leaf.text.clone()).marks(vec![(0..leaf.text.len(), base_mark)]),
+            );
         } else {
             for run in &leaf.runs {
                 let marks = run.marks();
-                let mut mark = TextMark::default();
+                let mut mark = base_mark.clone();
                 if marks.has(anynote_editor::inline::Mark::Strong) {
                     mark = mark.bold();
                 }
@@ -598,7 +606,17 @@ impl DocumentEditor {
             ),
             _ => BlockNode::Paragraph(paragraph),
         };
-        let render_context = RenderContext::from_app(cx)
+        let render_context = theme::text_context(cx);
+        let foreground = if completed {
+            cx.theme().muted_foreground
+        } else if matches!(leaf.kind, NodeKind::Heading(_)) {
+            cx.theme().foreground
+        } else {
+            render_context.style().foreground()
+        };
+        let style = render_context.style().clone().with_foreground(foreground);
+        let render_context = render_context
+            .with_style(style)
             .with_body_font_size(window.rem_size())
             .on_link_click(|url, event, _, cx| {
                 let follow = if cfg!(target_os = "macos") {
@@ -649,6 +667,8 @@ impl DocumentEditor {
         };
         div()
             .id(("leaf", self.keys[ix]))
+            .text_color(foreground)
+            .line_height(relative(1.75))
             .role(Role::Paragraph)
             .a11y_synthetic_children(|builder| builder.parent_node().set_hidden())
             .test_support()
@@ -681,18 +701,26 @@ impl DocumentEditor {
         let owner = cx.entity();
         let mut content = div()
             .id(("row", key))
+            .group("document-row")
             .test_support()
+            .relative()
             .flex()
             .items_start()
             .gap_2()
-            .px_6()
+            .px_8()
             .py_2()
+            .when(leaf.task.is_some(), |view| view.py_1())
             .w_full()
-            .when(leaf.indent > 0, |div| {
-                div.pl(rems(1.5 + leaf.indent as f32))
-            })
+            .when(leaf.indent > 0, |div| div.pl(rems(2. + leaf.indent as f32)))
             .when(leaf.quote, |div| {
-                div.border_l_2().border_color(cx.theme().border)
+                div.w_auto()
+                    .ml(rems(2. + leaf.indent as f32))
+                    .mr_8()
+                    .px_4()
+                    .border_l_2()
+                    .border_color(cx.theme().border)
+                    .bg(cx.theme().muted)
+                    .rounded_r(cx.theme().radius)
             })
             .on_drop(cx.listener(move |this, drag: &BlockDrag, window, cx| {
                 if drag.owner == owner.entity_id()
@@ -709,6 +737,7 @@ impl DocumentEditor {
         if let Some(checked) = pending_task {
             content = content.child(
                 Checkbox::new(("pending-task", key))
+                    .mt_1()
                     .checked(checked)
                     .aria_label("完成任务")
                     .on_click(cx.listener(|this, next, _, cx| {
@@ -719,6 +748,7 @@ impl DocumentEditor {
         } else if let Some((_, checked)) = leaf.task {
             content = content.child(
                 Checkbox::new(("task", key))
+                    .mt_1()
                     .checked(checked)
                     .aria_label("完成任务")
                     .on_click(cx.listener(move |this, next, window, cx| {
@@ -782,6 +812,40 @@ impl DocumentEditor {
                 div()
                     .flex_1()
                     .min_w_0()
+                    .when(matches!(leaf.kind, NodeKind::Code { .. }), |view| {
+                        view.child(
+                            div()
+                                .flex()
+                                .justify_end()
+                                .px_2()
+                                .py_1()
+                                .border_1()
+                                .border_color(cx.theme().border)
+                                .rounded_t(cx.theme().radius)
+                                .bg(theme::text_context(cx).style().code_background())
+                                .child(
+                                    icon_button(("copy-code", key), IconName::Copy, "复制代码")
+                                        .label("复制代码")
+                                        .disabled(self.is_composing())
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            if let Some(ix) = this
+                                                .keys
+                                                .iter()
+                                                .position(|candidate| *candidate == key)
+                                                && matches!(
+                                                    this.state.projection.leaves[ix].kind,
+                                                    NodeKind::Code { .. }
+                                                )
+                                            {
+                                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                                    this.state.projection.leaves[ix].text.clone(),
+                                                ));
+                                                this.focus.focus(window, cx);
+                                            }
+                                        })),
+                                ),
+                        )
+                    })
                     .child(self.render_leaf(first, window, cx)),
             );
         }
@@ -838,8 +902,13 @@ impl DocumentEditor {
                 div()
                     .id(("drag-handle", key))
                     .test_support()
+                    .absolute()
+                    .right_0()
+                    .top_2()
+                    .opacity(0.)
+                    .group_hover("document-row", |style| style.opacity(1.))
                     .cursor_grab()
-                    .px_2()
+                    .px_1()
                     .py_1()
                     .text_color(cx.theme().muted_foreground)
                     .child(Icon::new(IconName::GripVertical).small())
@@ -916,7 +985,18 @@ impl Render for DocumentEditor {
         } else {
             let owner = entity.clone();
             let content = list(self.layout.clone(), move |ix, window, cx| {
-                owner.update(cx, |this, cx| this.render_row(ix, window, cx))
+                owner.update(cx, |this, cx| {
+                    div()
+                        .w_full()
+                        .child(
+                            div()
+                                .w_full()
+                                .max_w(rems(48.))
+                                .mx_auto()
+                                .child(this.render_row(ix, window, cx)),
+                        )
+                        .into_any_element()
+                })
             })
             .flex_1()
             .size_full();
@@ -994,7 +1074,6 @@ impl Render for DocumentEditor {
                 view.child(gpui_kit::div().h_8().flex_shrink_0().child(menu))
             })
             .child(self.render_toolbar(cx))
-            .child(self.render_save_status(cx))
             .when(self.show_search, |div| {
                 div.child(
                     gpui_kit::div()
@@ -1013,160 +1092,229 @@ impl Render for DocumentEditor {
                 )
             })
             .child(
-                div()
-                    .id("document-content")
+                gpui_kit::div()
                     .flex()
                     .flex_col()
-                    .role(Role::MultilineTextInput)
-                    .aria_label("文档内容")
-                    .test_support()
-                    .a11y_synthetic_children(move |builder| {
-                        if let Some(snapshot) = accessible {
-                            let controls = builder.parent_node().children().to_vec();
-                            let tree = snapshot.clone().build(|key| builder.synthetic_node_id(key));
-                            for (id, node) in tree.nodes {
-                                builder.push_child(id, node);
-                            }
-                            builder.parent_node().set_children(
-                                tree.roots.into_iter().chain(controls).collect::<Vec<_>>(),
-                            );
-                            if let Some(selection) = tree.selection {
-                                builder.parent_node().set_text_selection(selection);
-                            }
-                            *accessible_positions.borrow_mut() = tree.positions;
-                        }
-                    })
-                    .on_a11y_action(AccessibleAction::SetTextSelection, {
-                        let owner = cx.entity();
-                        move |data, window, cx| {
-                            if let Some(accesskit::ActionData::SetTextSelection(selection)) = data {
-                                owner.update(cx, |this, cx| {
-                                    let positions = this.accessible_positions.borrow();
-                                    let range = positions
-                                        .position(selection.anchor)
-                                        .zip(positions.position(selection.focus));
-                                    drop(positions);
-                                    if let Some((anchor, head)) = range {
-                                        if this.is_composing() {
-                                            let text = this.state.display_text();
-                                            use anynote_editor::selection::{
-                                                TextUnit, offset_from_byte,
-                                            };
-                                            if let (Ok(start), Ok(end)) = (
-                                                offset_from_byte(
-                                                    &text,
-                                                    anchor.min(head),
-                                                    TextUnit::Utf16,
-                                                ),
-                                                offset_from_byte(
-                                                    &text,
-                                                    anchor.max(head),
-                                                    TextUnit::Utf16,
-                                                ),
-                                            ) {
-                                                this.set_selected_text_range(
-                                                    start..end,
-                                                    window,
-                                                    cx,
-                                                );
-                                            }
-                                        } else {
-                                            let result = this.state.select(anchor, head);
-                                            this.changed(result, window, cx);
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    })
-                    .track_focus(&self.focus)
-                    .key_context("AnyNoteDocument")
                     .flex_1()
                     .min_h_0()
-                    .relative()
-                    .overflow_hidden()
-                    .on_key_down(cx.listener(Self::key_down))
-                    .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-                    .on_mouse_up(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, _| this.stop_selection_drag()),
-                    )
-                    .on_mouse_up_out(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, _| this.stop_selection_drag()),
-                    )
-                    .on_action(cx.listener(|this, _: &kit_input::Copy, window, cx| {
-                        if this.source.is_none() {
-                            this.copy(false, window, cx);
-                        } else {
-                            cx.propagate();
-                        }
-                    }))
-                    .on_action(cx.listener(|this, _: &kit_input::Cut, window, cx| {
-                        if this.source.is_none() {
-                            this.copy(true, window, cx);
-                        } else {
-                            cx.propagate();
-                        }
-                    }))
-                    .on_action(cx.listener(|this, _: &kit_input::Paste, window, cx| {
-                        if this.source.is_none() {
-                            if let Some(item) = cx.read_from_clipboard() {
-                                this.paste_item(item, window, cx);
-                            }
-                        } else {
-                            cx.propagate();
-                        }
-                    }))
-                    .on_action(cx.listener(|this, _: &kit_input::SelectAll, window, cx| {
-                        if this.source.is_none() {
-                            let result = this.state.select(0, this.text().len());
-                            this.changed(result, window, cx);
-                        } else {
-                            cx.propagate();
-                        }
-                    }))
-                    .child(content)
-                    .when_some(self.slash.clone(), |div, menu| {
-                        div.child(
-                            deferred(anchored().position(self.overlay_anchor).child(menu))
-                                .with_priority(1),
-                        )
-                    })
+                    .min_w_0()
+                    .px_6()
+                    .py_8()
+                    .bg(theme::canvas(cx))
                     .when(
-                        !self.state.range().is_empty()
-                            && self.source.is_none()
-                            && self.slash.is_none(),
-                        |div| {
-                            let mut toolbar = gpui_kit::div()
-                                .flex()
-                                .gap_1()
-                                .p_1()
-                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                                .border_1()
-                                .border_color(cx.theme().border)
-                                .bg(cx.theme().popover)
-                                .rounded(cx.theme().radius);
-                            for &(id, label, icon) in FORMATTING {
-                                toolbar = toolbar.child(
-                                    self.format_button(
-                                        SharedString::from(format!("selection-{id}")),
-                                        id,
-                                        label,
-                                        icon,
-                                    )
-                                    .on_click(cx.listener(
-                                        move |this, _, w, cx| this.run(&RunCommand::new(id), w, cx),
-                                    )),
-                                );
-                            }
-                            div.child(
-                                deferred(anchored().position(self.overlay_anchor).child(toolbar))
-                                    .with_priority(1),
-                            )
+                        self.source.is_none() && self.images.active.is_none(),
+                        |view| {
+                            view.when_some(self.state.save.as_ref(), |view, save| {
+                                view.child(
+                                    div()
+                                        .w_full()
+                                        .max_w(rems(48.))
+                                        .mx_auto()
+                                        .bg(cx.theme().background)
+                                        .border_t_1()
+                                        .border_x_1()
+                                        .border_color(cx.theme().border)
+                                        .rounded_t(rems(1.))
+                                        .px_8()
+                                        .pt_8()
+                                        .pb_4()
+                                        .child(
+                                            div()
+                                                .text_size(rems(1.75))
+                                                .when(
+                                                    window.viewport_size().width
+                                                        >= window.rem_size() * 90.,
+                                                    |title| title.text_3xl(),
+                                                )
+                                                .line_height(relative(1.25))
+                                                .font_weight(FontWeight::BOLD)
+                                                .child(save.base().content().title().to_owned()),
+                                        ),
+                                )
+                            })
                         },
+                    )
+                    .child(
+                        div()
+                            .id("document-content")
+                            .w_full()
+                            .max_w(rems(48.))
+                            .mx_auto()
+                            .bg(cx.theme().background)
+                            .border_x_1()
+                            .border_b_1()
+                            .border_color(cx.theme().border)
+                            .rounded_b(rems(1.))
+                            .when(
+                                self.source.is_some()
+                                    || self.images.active.is_some()
+                                    || self.state.save.is_none(),
+                                |view| view.border_t_1().rounded_t(rems(1.)),
+                            )
+                            .flex()
+                            .flex_col()
+                            .role(Role::MultilineTextInput)
+                            .aria_label("文档内容")
+                            .test_support()
+                            .a11y_synthetic_children(move |builder| {
+                                if let Some(snapshot) = accessible {
+                                    let controls = builder.parent_node().children().to_vec();
+                                    let tree = snapshot
+                                        .clone()
+                                        .build(|key| builder.synthetic_node_id(key));
+                                    for (id, node) in tree.nodes {
+                                        builder.push_child(id, node);
+                                    }
+                                    builder.parent_node().set_children(
+                                        tree.roots.into_iter().chain(controls).collect::<Vec<_>>(),
+                                    );
+                                    if let Some(selection) = tree.selection {
+                                        builder.parent_node().set_text_selection(selection);
+                                    }
+                                    *accessible_positions.borrow_mut() = tree.positions;
+                                }
+                            })
+                            .on_a11y_action(AccessibleAction::SetTextSelection, {
+                                let owner = cx.entity();
+                                move |data, window, cx| {
+                                    if let Some(accesskit::ActionData::SetTextSelection(
+                                        selection,
+                                    )) = data
+                                    {
+                                        owner.update(cx, |this, cx| {
+                                            let positions = this.accessible_positions.borrow();
+                                            let range = positions
+                                                .position(selection.anchor)
+                                                .zip(positions.position(selection.focus));
+                                            drop(positions);
+                                            if let Some((anchor, head)) = range {
+                                                if this.is_composing() {
+                                                    let text = this.state.display_text();
+                                                    use anynote_editor::selection::{
+                                                        TextUnit, offset_from_byte,
+                                                    };
+                                                    if let (Ok(start), Ok(end)) = (
+                                                        offset_from_byte(
+                                                            &text,
+                                                            anchor.min(head),
+                                                            TextUnit::Utf16,
+                                                        ),
+                                                        offset_from_byte(
+                                                            &text,
+                                                            anchor.max(head),
+                                                            TextUnit::Utf16,
+                                                        ),
+                                                    ) {
+                                                        this.set_selected_text_range(
+                                                            start..end,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    }
+                                                } else {
+                                                    let result = this.state.select(anchor, head);
+                                                    this.changed(result, window, cx);
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            })
+                            .track_focus(&self.focus)
+                            .key_context("AnyNoteDocument")
+                            .flex_1()
+                            .min_h_0()
+                            .relative()
+                            .overflow_hidden()
+                            .on_key_down(cx.listener(Self::key_down))
+                            .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+                            .on_mouse_up(
+                                MouseButton::Left,
+                                cx.listener(|this, _, _, _| this.stop_selection_drag()),
+                            )
+                            .on_mouse_up_out(
+                                MouseButton::Left,
+                                cx.listener(|this, _, _, _| this.stop_selection_drag()),
+                            )
+                            .on_action(cx.listener(|this, _: &kit_input::Copy, window, cx| {
+                                if this.source.is_none() {
+                                    this.copy(false, window, cx);
+                                } else {
+                                    cx.propagate();
+                                }
+                            }))
+                            .on_action(cx.listener(|this, _: &kit_input::Cut, window, cx| {
+                                if this.source.is_none() {
+                                    this.copy(true, window, cx);
+                                } else {
+                                    cx.propagate();
+                                }
+                            }))
+                            .on_action(cx.listener(|this, _: &kit_input::Paste, window, cx| {
+                                if this.source.is_none() {
+                                    if let Some(item) = cx.read_from_clipboard() {
+                                        this.paste_item(item, window, cx);
+                                    }
+                                } else {
+                                    cx.propagate();
+                                }
+                            }))
+                            .on_action(cx.listener(|this, _: &kit_input::SelectAll, window, cx| {
+                                if this.source.is_none() {
+                                    let result = this.state.select(0, this.text().len());
+                                    this.changed(result, window, cx);
+                                } else {
+                                    cx.propagate();
+                                }
+                            }))
+                            .child(content)
+                            .when_some(self.slash.clone(), |div, menu| {
+                                div.child(
+                                    deferred(anchored().position(self.overlay_anchor).child(menu))
+                                        .with_priority(1),
+                                )
+                            })
+                            .when(
+                                !self.state.range().is_empty()
+                                    && self.source.is_none()
+                                    && self.slash.is_none(),
+                                |div| {
+                                    let mut toolbar = gpui_kit::div()
+                                        .flex()
+                                        .gap_1()
+                                        .p_1()
+                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                            cx.stop_propagation()
+                                        })
+                                        .border_1()
+                                        .border_color(cx.theme().border)
+                                        .bg(cx.theme().popover)
+                                        .rounded(cx.theme().radius);
+                                    for &(id, label, icon) in FORMATTING {
+                                        toolbar =
+                                            toolbar.child(
+                                                self.format_button(
+                                                    SharedString::from(format!("selection-{id}")),
+                                                    id,
+                                                    label,
+                                                    icon,
+                                                )
+                                                .on_click(cx.listener(move |this, _, w, cx| {
+                                                    this.run(&RunCommand::new(id), w, cx)
+                                                })),
+                                            );
+                                    }
+                                    div.child(
+                                        deferred(
+                                            anchored().position(self.overlay_anchor).child(toolbar),
+                                        )
+                                        .with_priority(1),
+                                    )
+                                },
+                            ),
                     ),
             )
+            .child(self.render_save_status(cx))
             .when_some(self.error.clone(), |div, error| {
                 div.child(
                     gpui_kit::div()

@@ -44,3 +44,41 @@ fn source_close_commits_preedit_and_drains_snapshot_before_saving(cx: &mut TestA
     })
     .unwrap();
 }
+
+#[gpui_kit::test]
+fn outline_uses_parsed_headings_and_navigates_without_editing(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let source = "# 重复标题\n\n正文\n\n```markdown\n# 代码中的标题\n```\n\n## 重复标题\n\n末尾";
+    let (window, editor) = cx.update(|cx| {
+        gpui_kit::open_window(WindowOptions::default(), cx, |w, cx| {
+            cx.new(|cx| DocumentEditor::new(source.into(), w, cx))
+        })
+        .unwrap()
+    });
+    cx.update_window(window, |_, w, cx| {
+        w.render_frame(cx);
+        editor.update(cx, |editor, cx| {
+            let headings = editor
+                .headings()
+                .map(|(key, level, title)| (key, level, title.to_owned()))
+                .collect::<Vec<_>>();
+            assert_eq!(headings.len(), 2);
+            assert_ne!(headings[0].0, headings[1].0);
+            assert_eq!((headings[1].1, headings[1].2.as_str()), (2, "重复标题"));
+            assert_eq!(editor.active_heading(), Some(headings[0].0));
+            editor.focus_heading(headings[1].0, w, cx);
+            assert_eq!(editor.active_heading(), Some(headings[1].0));
+            assert_eq!(
+                editor.selection().start,
+                editor.text().rfind("重复标题").unwrap()
+            );
+            assert_eq!(editor.source(), source);
+            assert_eq!(editor.undo_steps(), 0);
+            assert!(editor.focus.is_focused(w));
+            let end = editor.text().len();
+            let _ = editor.state.select(end, end);
+            assert_eq!(editor.active_heading(), Some(headings[1].0));
+        });
+    })
+    .unwrap();
+}

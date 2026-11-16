@@ -1,5 +1,6 @@
 //! Native workspace. The view owns navigation; services own all notebook changes.
 mod commands;
+mod inspector;
 mod navigation;
 mod reading;
 mod render;
@@ -21,6 +22,7 @@ use gpui_kit::{
         dialog::{DialogAction, DialogClose, DialogFooter},
         input::{Input, InputEvent, InputState},
         menu::AppMenuBar,
+        resizable::ResizableState,
         scroll::ScrollableElement,
         text::{TextView, TextViewState},
         tree::{TreeItem, TreeState},
@@ -188,6 +190,9 @@ pub struct Workspace {
     search_all: bool,
     show_search: bool,
     sidebar_visible: bool,
+    sidebar_split: Entity<ResizableState>,
+    sidebar_width_rem: f32,
+    inspector_visible: bool,
     hits: Vec<Hit>,
     search_token: Option<Uuid>,
     search_cursor: Option<SearchCursor>,
@@ -253,6 +258,9 @@ impl Workspace {
             search_all: true,
             show_search: false,
             sidebar_visible: true,
+            sidebar_split: cx.new(|_| ResizableState::default()),
+            sidebar_width_rem: 15.,
+            inspector_visible: true,
             hits: vec![],
             search_token: None,
             search_cursor: None,
@@ -551,7 +559,15 @@ impl Workspace {
             .detach();
         }
     }
-    fn apply_theme(&self, window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if window.rem_size() != px(self.preferences.font_size) {
+            if let Some(width) = self.sidebar_split.read(cx).sizes().first() {
+                self.sidebar_width_rem = (*width / window.rem_size()).clamp(14., 26.);
+            }
+            // Panel sizes are retained in pixels; seed them again in the new rem scale.
+            self.sidebar_split
+                .update(cx, |split, _| *split = ResizableState::default());
+        }
         match self.preferences.theme.as_str() {
             "dark" => Theme::change(ThemeMode::Dark, Some(window), cx),
             "light" => Theme::change(ThemeMode::Light, Some(window), cx),

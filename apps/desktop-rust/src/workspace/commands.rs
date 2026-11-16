@@ -43,8 +43,8 @@ impl Workspace {
                     this.set_reading_text(saved.content().body(), cx);
                 }
                 this.snapshot = Some(saved);
-                cx.notify();
             }
+            cx.notify();
         }));
         self.editor = Some(editor);
     }

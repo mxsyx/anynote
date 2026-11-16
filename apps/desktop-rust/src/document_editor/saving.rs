@@ -655,11 +655,13 @@ impl DocumentEditor {
             .items_center()
             .gap_2()
             .px_4()
-            .py_2()
+            .py_1()
+            .border_t_1()
+            .border_color(cx.theme().border)
             .when(!self.embedded, |bar| {
                 bar.child(
                     div()
-                        .text_sm()
+                        .text_xs()
                         .child(save.base().content().title().to_owned()),
                 )
             })
@@ -667,7 +669,7 @@ impl DocumentEditor {
                 div()
                     .id("document-save-status")
                     .role(Role::Status)
-                    .text_sm()
+                    .text_xs()
                     .text_color(cx.theme().muted_foreground)
                     .child(save.label()),
             )
